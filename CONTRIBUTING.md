@@ -193,6 +193,7 @@ We use [pytest](https://docs.pytest.org/) for backend tests.
     ```bash
     make test
     ```
+    Local SQLite tests run with four workers by default. Use `make test TEST_WORKERS=2` to adjust concurrency, or `make test-serial` to run one process. CI splits each database job into two independent test shards.
 -   Run tests in watch mode:
     ```bash
     make test-whatch

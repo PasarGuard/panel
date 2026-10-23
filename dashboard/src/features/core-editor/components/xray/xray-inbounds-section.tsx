@@ -20,7 +20,12 @@ import { isBooleanParityField, isJsonRawMessageField, transportParityFieldLabel,
 import { XrayStreamFinalmaskInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'
 import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { InboundFallbacksEditor } from '@/features/core-editor/components/xray/inbound-fallbacks-editor'
+import { MasqueSettingsFields } from '@/features/core-editor/components/xray/masque-settings-fields'
 import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
+import { FieldMessages } from '@/features/core-editor/components/xray/stream-form-inputs'
+import { guardStreamFormsCommit } from '@/features/core-editor/components/xray/stream-form-validity'
+import { WireguardInboundFields } from '@/features/core-editor/components/xray/wireguard-inbound-fields'
+import { XdriveSettingsFields } from '@/features/core-editor/components/xray/xdrive-settings-fields'
 import { useSectionHeaderAddPulseEffect, type SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-section-header-add-pulse'
 import { useXrayPersistModifyGuard } from '@/features/core-editor/hooks/use-xray-persist-modify-guard'
 import {
@@ -28,11 +33,28 @@ import {
   INBOUND_FORM_FIELD_SEC_MLDSA65_SEED,
   INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY,
   realityInboundZodTriggerFieldNames,
+  WIREGUARD_INBOUND_FORM_FIELDS,
 } from '@/features/core-editor/kit/inbound-dialog-schema'
-import { getInboundSecuritySelectOptions, getInboundTransportSelectOptions, transportCompatibleWithReality } from '@/features/core-editor/kit/inbound-form-options'
+import {
+  getInboundSecuritySelectOptions,
+  getInboundTransportSelectOptions,
+  inboundTransportHasDedicatedForm,
+  kitBuildsInboundTransport,
+  transportCompatibleWithReality,
+} from '@/features/core-editor/kit/inbound-form-options'
+import { masqueInboundTlsSecurity } from '@/features/core-editor/kit/masque-fields'
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import { normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
+import { streamFieldIssuesForInbound, type StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
+import {
+  classifyWireguardAddresses,
+  normalizeWireguardInboundForCommit,
+  parseWireguardInboundPort,
+  wireguardInboundAddresses,
+  wireguardInboundFormTexts,
+} from '@/features/core-editor/kit/wireguard-xray-fields'
+import { vlessFlowSelectValues, vlessVisionFlowHintShown, withXdriveInboundFlowIssue } from '@/features/core-editor/kit/xdrive-fields'
 import { coerceVerifyPeerCertByNameList, inferParityFieldMode, outboundSettingToString, parseOutboundSettingValue, stringifyJsonFormRecord } from '@/features/core-editor/kit/xray-parity-value'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -54,14 +76,14 @@ import {
   type VlessBuilderOptions,
 } from '@/lib/xray-generation'
 import { mldsa65PairMatches, validateMldsa65Seed, validateMldsa65Verify } from '@/utils/mldsa65'
-import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
+import { generateWireGuardKeyPair } from '@/utils/wireguard'
 import { arrayMove } from '@dnd-kit/sortable'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { Fallback, Inbound, InboundPort, Profile, Security, ShadowsocksMethod, Transport, XrayGeneratedFormField } from '@pasarguard/xray-config-kit'
 import { createDefaultInbound, createDefaultInboundForProtocol, getInboundFieldVisibility, getInboundFormCapabilities } from '@pasarguard/xray-config-kit'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
-import { Cable, Copy, Dices, KeyRound, Pencil, Plus, RefreshCcw, Shield, Trash2 } from 'lucide-react'
+import { Cable, Copy, Dices, KeyRound, Pencil, Plus, Shield, Trash2 } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -524,7 +546,7 @@ function applyTunEditorCreationDefaults(ib: Inbound): Inbound {
   } as Inbound
 }
 
-/** WireGuard editor defaults: do not prefill key/peer fields. */
+/** Only configure the interface here; the backend manages inbound peers. */
 function applyWireguardEditorCreationDefaults(ib: Inbound): Inbound {
   if (ib.protocol !== 'wireguard') return ib
   return {
@@ -533,6 +555,7 @@ function applyWireguardEditorCreationDefaults(ib: Inbound): Inbound {
     publicKey: undefined,
     address: undefined,
     peers: [],
+    noKernelTun: undefined,
   } as Inbound
 }
 
@@ -595,42 +618,6 @@ function userPassAccountsForUi(inbound: Inbound): Array<{ user: string; pass: st
     }))
 }
 
-/** First peer → 10.0.0.2/32, second → 10.0.0.3/32, … (caps last octet at 254). */
-function wireguardDefaultAllowedIpsForNewPeer(index: number): string[] {
-  const last = Math.min(2 + index, 254)
-  return [`10.0.0.${last}/32`]
-}
-
-/** Matches common xray / kit WG template: exactly IPv4 + IPv6 default routes (no extras). */
-function isLikelyWireguardKitCatchAllAllowedIps(ips: string[]): boolean {
-  const set = new Set(ips.map(s => String(s).trim()).filter(Boolean))
-  if (set.size !== 2) return false
-  const has4 = set.has('0.0.0.0/0')
-  const has6 = set.has('::/0') || set.has('0::/0')
-  return has4 && has6
-}
-
-function wireguardPeersForUi(inbound: Inbound): Array<{ publicKey: string; preSharedKey?: string; allowedIPs: string[] }> {
-  if (!isWireguardInboundProtocol(inbound.protocol)) return []
-  const raw = (inbound as { peers?: unknown }).peers
-  if (!Array.isArray(raw)) return []
-  return raw
-    .map(item => (item && typeof item === 'object' && !Array.isArray(item) ? (item as Record<string, unknown>) : null))
-    .filter((item): item is Record<string, unknown> => item !== null)
-    .map(item => ({
-      publicKey: typeof item.publicKey === 'string' ? item.publicKey : '',
-      preSharedKey: typeof item.preSharedKey === 'string' && item.preSharedKey.trim() !== '' ? item.preSharedKey : undefined,
-      allowedIPs: Array.isArray(item.allowedIPs) ? item.allowedIPs.map(v => String(v).trim()).filter(Boolean) : [],
-    }))
-}
-
-function wireguardAddressesForUi(inbound: Inbound): string[] {
-  if (!isWireguardInboundProtocol(inbound.protocol)) return []
-  const raw = (inbound as { address?: unknown }).address
-  if (!Array.isArray(raw)) return []
-  return raw.map(item => String(item).trim()).filter(Boolean)
-}
-
 function generateMixedAccountUsername(length: number = 10): string {
   const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   let out = ''
@@ -647,7 +634,7 @@ function generateMixedAccountCredentials(): { user: string; pass: string } {
   }
 }
 
-const INBOUND_PROTOCOL_PREFERRED_ORDER: readonly string[] = ['vless', 'vmess', 'trojan', 'shadowsocks', 'hysteria', 'mixed', 'tunnel', 'socks', 'http', 'tun']
+const INBOUND_PROTOCOL_PREFERRED_ORDER: readonly string[] = ['vless', 'vmess', 'trojan', 'shadowsocks', 'hysteria', 'masque', 'mixed', 'tunnel', 'socks', 'http', 'tun']
 
 function sortInboundProtocolsForUi(protocols: readonly string[]): string[] {
   const preferredSet = new Set(INBOUND_PROTOCOL_PREFERRED_ORDER)
@@ -986,6 +973,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const [echUsageOption, setEchUsageOption] = useState<'default' | 'required' | 'preferred'>('default')
   const [draftInbound, setDraftInbound] = useState<Inbound | null>(null)
   const [editOriginalInbound, setEditOriginalInbound] = useState<Inbound | null>(null)
+  /** Inputs of the MASQUE / XDrive boxes holding text that does not parse; kept outside the form so its resets never clear it. */
+  const [invalidStreamInputs, setInvalidStreamInputs] = useState<readonly string[]>([])
 
   const [blockAddWhileDraftOpen, setBlockAddWhileDraftOpen] = useState(false)
   const [isGeneratingShadowsocksPassword, setIsGeneratingShadowsocksPassword] = useState(false)
@@ -1002,12 +991,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   const [isTagAutoGenerated, setIsTagAutoGenerated] = useState(true)
   const [isPortAutoGenerated, setIsPortAutoGenerated] = useState(true)
   const [tunnelBlankPortMapRows, setTunnelBlankPortMapRows] = useState<{ listenPort: string; target: string }[]>([])
-  const [wireguardPeerPrivateKeys, setWireguardPeerPrivateKeys] = useState<Record<number, string>>({})
   const tunnelBlankPortMapRowsRef = useRef(tunnelBlankPortMapRows)
   tunnelBlankPortMapRowsRef.current = tunnelBlankPortMapRows
 
   const patchInboundRef = useRef<((patch: Partial<Inbound>) => void) | undefined>(undefined)
-  const wireguardKitAllowedMigrateKeyRef = useRef<string | null>(null)
   const initialDraftRef = useRef<Inbound | null>(null)
   const initialCapturedRef = useRef(false)
   const beginAddInboundInFlightRef = useRef(false)
@@ -1046,7 +1033,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
 
   const securitySelectOptions = useMemo(() => {
     if (!inbound || inbound.protocol === 'unmanaged') return []
-    return getInboundSecuritySelectOptions(caps, inbound.protocol)
+    return getInboundSecuritySelectOptions(caps, inbound.protocol, 'security' in inbound ? inbound.security?.type : undefined)
   }, [caps, inbound])
 
   const inboundDialogSchema = useMemo(() => createInboundDialogSchema(caps, t), [caps, t])
@@ -1075,6 +1062,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       tunMtu: '',
       wgSecretKey: '',
       wgMtu: '',
+      wgReserved: '',
       hysteriaObfsEnabled: 'false',
       hysteriaObfsPassword: '',
       hysteriaObfsPacketSize: '',
@@ -1129,23 +1117,38 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       if (nextIb.protocol !== 'wireguard') {
         form.setValue('wgSecretKey', '', syncOpts)
         form.setValue('wgMtu', '', syncOpts)
+        form.setValue('wgReserved', '', syncOpts)
         return
       }
       form.setValue('wgSecretKey', typeof (nextIb as { secretKey?: unknown }).secretKey === 'string' ? String((nextIb as { secretKey?: unknown }).secretKey) : '', syncOpts)
-      form.setValue('wgMtu', typeof (nextIb as { mtu?: unknown }).mtu === 'number' ? String((nextIb as { mtu?: number }).mtu) : '', syncOpts)
+      const wgTexts = wireguardInboundFormTexts(nextIb, { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' })
+      form.setValue('wgMtu', wgTexts.mtu, syncOpts)
+      form.setValue('wgReserved', wgTexts.reserved, syncOpts)
     },
     [form],
   )
 
   const profileRef = useRef(profile)
   profileRef.current = profile
+  /** `dialogMode:selected` of the open dialog, so the reset below can tell a patch of the same row from a newly opened one. */
+  const formRowKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!detailOpen) return
+    if (!detailOpen) {
+      formRowKeyRef.current = null
+      return
+    }
     const p = profileRef.current
     if (!p) return
     const row = draftInbound ?? p.inbounds[selected]
     if (!row || row.protocol === 'unmanaged') return
+
+    const rowKey = `${dialogMode}:${selected}`
+    const sameRow = formRowKeyRef.current === rowKey
+    formRowKeyRef.current = rowKey
+    // Same open row: typed MTU / reserved texts that do not parse or that match the stored value stay as typed.
+    const wgTexts = wireguardInboundFormTexts(row, sameRow ? { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' } : undefined)
+    const wgErrorFields = sameRow ? WIREGUARD_INBOUND_FORM_FIELDS.filter(name => form.getFieldState(name).error) : []
 
     const security = getInboundSecurityRecord(row)
     const sniffing = 'sniffing' in row && row.sniffing && typeof row.sniffing === 'object' && !Array.isArray(row.sniffing) ? (row.sniffing as Record<string, unknown>) : null
@@ -1190,7 +1193,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       tunName: row.protocol === 'tun' && typeof (row as { name?: unknown }).name === 'string' ? String((row as { name?: unknown }).name) : '',
       tunMtu: row.protocol === 'tun' && typeof (row as { mtu?: unknown }).mtu === 'number' ? String((row as { mtu?: number }).mtu) : '',
       wgSecretKey: row.protocol === 'wireguard' && typeof (row as { secretKey?: unknown }).secretKey === 'string' ? String((row as { secretKey?: unknown }).secretKey) : '',
-      wgMtu: row.protocol === 'wireguard' && typeof (row as { mtu?: unknown }).mtu === 'number' ? String((row as { mtu?: number }).mtu) : '',
+      wgMtu: wgTexts.mtu,
+      wgReserved: wgTexts.reserved,
       ...(isTunnelInboundProtocol(row.protocol)
         ? {
             tunnelRewriteAddress: tunnelAddressForForm(row),
@@ -1252,6 +1256,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     }
 
     form.reset(next, { keepErrors: false, keepTouched: false, keepDirty: false })
+    // The reset clears errors; re-check the WireGuard fields that showed one, so a kept bad text keeps its message.
+    if (wgErrorFields.length > 0) void form.trigger(wgErrorFields)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `form.reset` is stable; listing `form` re-runs sync every render.
   }, [caps, detailOpen, selected, dialogMode, draftInbound])
 
@@ -1262,12 +1268,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     const row = draftInbound ?? p.inbounds[selected]
     if (row && isTunnelInboundProtocol(row.protocol)) setTunnelBlankPortMapRows([])
   }, [detailOpen, selected, dialogMode, draftInbound])
-
-  useEffect(() => {
-    if (inbound?.protocol !== 'wireguard') {
-      setWireguardPeerPrivateKeys({})
-    }
-  }, [inbound?.protocol])
 
   const watchedProtocol = form.watch('protocol')
   const watchedPort = form.watch('port')
@@ -1282,8 +1282,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       let network = watchedTransport
       if (watchedProtocol === 'shadowsocks') network = watchedShadowsocksNetwork
 
-      if (watchedProtocol === 'hysteria' && network === 'hysteria') tag += ''
-      else if (network) tag += `${tagSeparator}${network}`
+      // Fixed-transport protocols (hysteria, masque) do not repeat the transport name.
+      if (network && network !== watchedProtocol) tag += `${tagSeparator}${network}`
       if (watchedSecurity && watchedSecurity !== 'none') tag += `${tagSeparator}${watchedSecurity}`
       if (watchedPort) tag += `${tagSeparator}${watchedPort}`
 
@@ -1421,6 +1421,17 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   )
   const inboundTransport = useMemo(() => (inbound ? getInboundTransportRecord(inbound) : null), [inbound])
   const inboundTransportType = useMemo(() => (typeof inboundTransport?.type === 'string' ? inboundTransport.type : undefined), [inboundTransport])
+  /** Kit issues the MASQUE and XDrive forms own (`[]` for other inbounds), plus the panel's check of an inherited XDrive flow. */
+  const inboundStreamFormIssues = useCallback(
+    (ib: Inbound): StreamFieldIssue[] =>
+      withXdriveInboundFlowIssue(
+        streamFieldIssuesForInbound(ib),
+        ib,
+        t('coreEditor.xdrive.flowNotSupported', { defaultValue: 'XDrive does not support VLESS flow, and the users of this inbound inherit it. Set Flow to Default.' }),
+      ),
+    [t],
+  )
+  const streamFieldIssues = useMemo(() => (inbound ? inboundStreamFormIssues(inbound) : []), [inbound, inboundStreamFormIssues])
   const xhttpExtra = useMemo(() => getXhttpExtraRecord(inboundTransport), [inboundTransport])
   const xPaddingBytesKey = useMemo(() => resolveTransportMetaKey(xhttpExtra, 'xpaddingbytes', 'xPaddingBytes'), [xhttpExtra])
   const xPaddingObfsEnabled = useMemo(() => {
@@ -1445,10 +1456,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
   }, [inboundTransportType, caps])
   const showTransportTypeSelect = useMemo(() => inbound && inbound.protocol !== 'hysteria' && transportSelectOptions.length > 0, [inbound, transportSelectOptions])
   const showTransportSettings = useMemo(
-    () => Boolean(inbound?.protocol !== 'hysteria' && visibility?.stream && inboundTransportType && transportSettingsFieldOrder.length > 0),
+    () => Boolean(inbound?.protocol !== 'hysteria' && visibility?.stream && inboundTransportType && transportSettingsFieldOrder.length > 0 && !inboundTransportHasDedicatedForm(inboundTransportType)),
     [inbound, visibility, inboundTransportType, transportSettingsFieldOrder],
   )
-  const showTransportSection = useMemo(() => Boolean(showTransportTypeSelect || showTransportSettings || inbound?.protocol === 'hysteria'), [showTransportTypeSelect, showTransportSettings, inbound])
+  const showTransportSection = useMemo(
+    () => Boolean(showTransportTypeSelect || showTransportSettings || inboundTransportHasDedicatedForm(inboundTransportType)),
+    [showTransportTypeSelect, showTransportSettings, inboundTransportType],
+  )
 
   const showFallbacksEditor = useMemo(() => {
     if (!inbound) return false
@@ -1595,6 +1609,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     setDialogMode('edit')
     setDraftInbound(null)
     setEditOriginalInbound(null)
+    setInvalidStreamInputs([])
     initialCapturedRef.current = false
   }
 
@@ -1630,26 +1645,20 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
         })
         return false
       }
-      const peers = wireguardPeersForUi(wgInbound)
-      if (peers.length === 0) {
-        toast.error(
-          t('coreEditor.inbound.wireguard.validation.peerRequired', {
-            defaultValue: 'At least one peer is required.',
-          }),
-        )
-        return false
-      }
-      if (peers.some(peer => peer.publicKey.trim() === '')) {
-        toast.error(
-          t('coreEditor.inbound.wireguard.validation.peerPublicKeyRequired', {
-            defaultValue: 'Each peer must have a public key.',
-          }),
-        )
+      const { invalid } = classifyWireguardAddresses(wireguardInboundAddresses((wgInbound as { address?: unknown }).address))
+      if (invalid.length > 0) {
+        toast.error(t('coreEditor.inbound.wireguard.addressInvalid', { values: invalid.join(', '), defaultValue: 'Not an IP address or CIDR: {{values}}' }))
         return false
       }
       return true
     },
     [form, t],
+  )
+
+  /** Blocks Add/Modify while a MASQUE / XDrive input holds text that does not parse, or the kit reports an error those forms own. */
+  const assertStreamFormsCommittable = useCallback(
+    (next: Inbound): boolean => guardStreamFormsCommit(t, invalidStreamInputs.length > 0, () => inboundStreamFormIssues(next)),
+    [invalidStreamInputs, inboundStreamFormIssues, t],
   )
 
   const handleDetailOpenChange = (open: boolean) => {
@@ -1695,7 +1704,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       draftInbound.protocol === 'tun'
         ? (['protocol', 'tag', 'tunName', 'tunMtu'] as const)
         : draftInbound.protocol === 'wireguard'
-          ? (['protocol', 'tag', 'port', 'wgSecretKey'] as const)
+          ? (['protocol', 'tag', 'port', ...WIREGUARD_INBOUND_FORM_FIELDS] as const)
           : (['protocol', 'tag', 'port'] as const)
     const fields = [
       ...triggerFields,
@@ -1707,7 +1716,10 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     if (!(await assertMldsa65PairForCommit())) return
     if (!validateWireguardInboundForCommit(draftInbound)) return
     const insertAt = profile.inbounds.length
-    updateXrayProfile(p => ({ ...p, inbounds: [...p.inbounds, draftInbound] }))
+    // Also written on change; repeating it here normalizes untouched stored values (reserved `AQID` or "1,2,3", a padded secret key, port or address).
+    const committedInbound = normalizeWireguardInboundForCommit(draftInbound, { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' })
+    if (!assertStreamFormsCommittable(committedInbound)) return
+    updateXrayProfile(p => ({ ...p, inbounds: [...p.inbounds, committedInbound] }))
     setSelected(insertAt)
     finalizeDetailClose()
   }
@@ -1719,7 +1731,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       setDuplicateTagError(tagValue)
       return
     }
-    if (inbound.protocol !== 'unmanaged' && 'transport' in inbound && 'security' in inbound) {
+    if (inbound.protocol !== 'unmanaged' && 'transport' in inbound && 'security' in inbound && inbound.protocol !== 'wireguard') {
       const fields = ['protocol', 'tag', 'port', ...(form.getValues('security') === 'reality' ? realityInboundZodTriggerFieldNames() : [])]
       const ok = await form.trigger(fields, { shouldFocus: true })
       if (!ok) return
@@ -1731,11 +1743,13 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       const ok = await form.trigger(['protocol', 'tag', 'tunName', 'tunMtu'], { shouldFocus: true })
       if (!ok) return
     } else if (inbound.protocol === 'wireguard') {
-      const ok = await form.trigger(['protocol', 'tag', 'port', 'wgSecretKey'], { shouldFocus: true })
+      const ok = await form.trigger(['protocol', 'tag', 'port', ...WIREGUARD_INBOUND_FORM_FIELDS], { shouldFocus: true })
       if (!ok) return
     }
     if (!validateWireguardInboundForCommit(inbound)) return
     let nextInbound: Inbound = inbound
+    // Also written on change; repeating it here normalizes untouched stored values (reserved `AQID` or "1,2,3", a padded secret key, port or address).
+    nextInbound = normalizeWireguardInboundForCommit(nextInbound, { mtu: form.getValues('wgMtu') ?? '', reserved: form.getValues('wgReserved') ?? '' })
 
     if ('security' in nextInbound && nextInbound.security && form.getValues('security') === 'none') {
       // When switching from TLS/Reality to none, force-drop advanced security keys.
@@ -1829,6 +1843,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       nextInbound = vlessNext as Inbound
     }
 
+    if (!assertStreamFormsCommittable(nextInbound)) return
     updateXrayProfile(p => replaceInbound(p, selected, nextInbound))
     if ('security' in nextInbound && nextInbound.security) form.setValue('security', nextInbound.security.type)
     if ('transport' in nextInbound && nextInbound.transport) form.setValue('transport', nextInbound.transport.type)
@@ -1972,29 +1987,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     form.setValue('vlessFlow', '')
     patchInboundRef.current?.({ flow: '' } as Partial<Inbound>)
   }, [detailOpen, inbound, vlessStoredFlow, form])
-
-  useEffect(() => {
-    if (!detailOpen) {
-      wireguardKitAllowedMigrateKeyRef.current = null
-      return
-    }
-    if (!inbound || inbound.protocol !== 'wireguard') return
-
-    const stableKey = `${dialogMode}:${selected}:${inbound.tag}`
-    if (wireguardKitAllowedMigrateKeyRef.current === stableKey) return
-
-    const peers = wireguardPeersForUi(inbound)
-    const nextPeers = peers.map((p, i) => ({
-      ...p,
-      ...(isLikelyWireguardKitCatchAllAllowedIps(p.allowedIPs) ? { allowedIPs: wireguardDefaultAllowedIpsForNewPeer(i) } : {}),
-    }))
-    const changed = peers.some((p, i) => JSON.stringify(p.allowedIPs) !== JSON.stringify(nextPeers[i]?.allowedIPs))
-
-    if (changed) {
-      patchInboundRef.current?.({ peers: nextPeers.length > 0 ? nextPeers : undefined } as Partial<Inbound>)
-    }
-    wireguardKitAllowedMigrateKeyRef.current = stableKey
-  }, [detailOpen, dialogMode, selected, inbound])
 
   const patchTunnelInboundFields = useCallback(
     (
@@ -2651,7 +2643,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           <p className="text-muted-foreground text-sm">{t('coreEditor.inbound.unmanagedHint', { defaultValue: 'This inbound is managed as raw JSON in Advanced.' })}</p>
         )}
 
-        {inbound && inbound.protocol !== 'unmanaged' && 'transport' in inbound && 'security' in inbound && (
+        {inbound && inbound.protocol !== 'unmanaged' && inbound.protocol !== 'wireguard' && 'transport' in inbound && 'security' in inbound && (
           <Form {...form}>
             <form className="flex flex-col gap-4 pb-6" onSubmit={e => e.preventDefault()}>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -2809,6 +2801,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                         </div>
                       </FormControl>
                       <FormMessage />
+                      <FieldMessages issues={streamFieldIssues} field="port" />
                     </FormItem>
                   )}
                 />
@@ -2865,6 +2858,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           />
                         </FormControl>
                         <FormMessage />
+                        <FieldMessages issues={streamFieldIssues} field="decryption" />
+                        {streamFieldIssues.some(issue => issue.field === 'decryption') && (
+                          <p className="text-muted-foreground text-xs">
+                            {t('coreEditor.xdrive.decryptionHint', { defaultValue: 'Use the VLESS Encryption button below to generate a matching encryption and decryption pair.' })}
+                          </p>
+                        )}
                       </FormItem>
                     )}
                   />
@@ -3133,8 +3132,36 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           </SelectContent>
                         </Select>
                         <FormMessage />
+                        <FieldMessages issues={streamFieldIssues} field="transport" />
                       </FormItem>
                     )}
+                  />
+                )}
+
+                {inbound.protocol === 'masque' && inbound.transport.type === 'masque' && (
+                  <MasqueSettingsFields
+                    key={`${dialogMode}:${selected}:masque`}
+                    side="server"
+                    settings={{ address: inbound.address, mtu: inbound.mtu, remoteDNS: inbound.remoteDNS }}
+                    onSettingsChange={next => patchInbound({ address: Array.isArray(next.address) ? next.address : [], mtu: next.mtu, remoteDNS: next.remoteDNS } as Partial<Inbound>)}
+                    transport={inbound.transport}
+                    onTransportChange={next => patchInbound({ transport: { ...next, type: 'masque' } } as Partial<Inbound>)}
+                    alpn={inbound.security.type === 'tls' ? (inbound.security as { alpn?: unknown }).alpn : undefined}
+                    onAlpnChange={inbound.security.type === 'tls' ? alpn => patchSecurity({ alpn }) : null}
+                    issues={streamFieldIssues}
+                    onInvalidInputsChange={setInvalidStreamInputs}
+                    t={t}
+                  />
+                )}
+                {inbound.transport?.type === 'xdrive' && (
+                  <XdriveSettingsFields
+                    key={`${dialogMode}:${selected}:${inbound.protocol}:xdrive`}
+                    value={inbound.transport}
+                    onChange={next => patchInbound({ transport: { ...next, type: 'xdrive' } } as Partial<Inbound>)}
+                    issues={streamFieldIssues}
+                    onInvalidInputsChange={setInvalidStreamInputs}
+                    t={t}
+                    shownElsewhere={['port', ...(inbound.protocol === 'vless' ? ['decryption', 'flow'] : []), ...(showTransportTypeSelect ? ['transport'] : [])]}
                   />
                 )}
 
@@ -3892,6 +3919,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           field.onChange(v)
                           const baseArgs = kitArgsPreservingListenPort(inbound)
                           const security = v as 'none' | 'tls' | 'reality'
+                          let tr: Transport['type'] = inbound.transport?.type ?? 'tcp'
+                          if ((inbound.protocol === 'vless' || inbound.protocol === 'trojan') && security === 'reality' && !transportCompatibleWithReality(tr)) tr = 'tcp'
+                          // The kit throws for an imported masque or xdrive stream on a protocol that cannot carry it: build
+                          // the default transport and put the stored one back below, so its kit error shows under the select.
+                          const keepStoredTransport = !kitBuildsInboundTransport(inbound.protocol, tr)
+                          const rebuildTransport = keepStoredTransport ? undefined : tr
                           let next: Inbound
                           switch (inbound.protocol) {
                             case 'hysteria':
@@ -3906,47 +3939,46 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               next = createDefaultInbound({
                                 protocol: 'vmess',
                                 ...baseArgs,
-                                transport: inbound.transport?.type ?? 'tcp',
+                                transport: rebuildTransport,
                                 security: security === 'reality' ? 'tls' : security,
                                 clientDefaults: 'empty',
                               })
                               break
-                            case 'vless': {
-                              let tr = inbound.transport?.type ?? 'tcp'
-                              if (security === 'reality' && !transportCompatibleWithReality(tr)) tr = 'tcp'
+                            case 'vless':
                               next = createDefaultInbound({
                                 protocol: 'vless',
                                 ...baseArgs,
-                                transport: tr,
+                                transport: rebuildTransport,
                                 security,
                                 clientDefaults: 'empty',
                               })
                               break
-                            }
-                            case 'trojan': {
-                              let tr = inbound.transport?.type ?? 'tcp'
-                              if (security === 'reality' && !transportCompatibleWithReality(tr)) tr = 'tcp'
+                            case 'trojan':
                               next = createDefaultInbound({
                                 protocol: 'trojan',
                                 ...baseArgs,
-                                transport: tr,
+                                transport: rebuildTransport,
                                 security,
                                 clientDefaults: 'empty',
                               })
                               break
-                            }
                             case 'shadowsocks':
                               next = createDefaultInbound({
                                 protocol: 'shadowsocks',
                                 ...baseArgs,
-                                transport: inbound.transport?.type ?? 'tcp',
+                                transport: rebuildTransport,
                                 security: security === 'reality' ? 'tls' : security,
                                 clientDefaults: 'empty',
                               })
                               break
+                            case 'masque':
+                              // Only an imported MASQUE inbound without TLS gets here (MASQUE offers TLS only).
+                              next = { ...inbound, security: masqueInboundTlsSecurity(inbound.security) } as Inbound
+                              break
                             default:
                               return
                           }
+                          if (keepStoredTransport) next = { ...next, transport: inbound.transport } as Inbound
                           if (inbound.protocol === 'vless' && next.protocol === 'vless') {
                             next = mergeVlessInboundStreamFields(inbound, next)
                           }
@@ -4013,12 +4045,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                     name="vlessFlow"
                     render={({ field }) => {
                       const flow = field.value ?? ''
+                      // No flow on xdrive; a stored one stays visible next to its error until Default is picked.
+                      const flowOptions = vlessFlowSelectValues(transportForVlessInboundFlow, flow, vlessInboundFlowsOk ? VLESS_INBOUND_FLOW_VALUES : [])
                       return (
                         <FormItem className="sm:col-span-2">
                           <FormLabel className="text-muted-foreground text-xs font-semibold tracking-wide">{t('coreEditor.field.flow', { defaultValue: 'Flow' })}</FormLabel>
                           <Select
                             dir="ltr"
-                            value={vlessInboundFlowsOk && (VLESS_INBOUND_FLOW_VALUES as readonly string[]).includes(flow) ? flow : '__none'}
+                            value={flowOptions.includes(flow) ? flow : '__none'}
                             onValueChange={v => {
                               const next = v === '__none' ? '' : v
                               field.onChange(next)
@@ -4033,16 +4067,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             </FormControl>
                             <SelectContent>
                               <SelectItem value="__none">{t('coreEditor.inbound.vlessFlowDefault', { defaultValue: 'Default (standard TLS proxy)' })}</SelectItem>
-                              {vlessInboundFlowsOk
-                                ? VLESS_INBOUND_FLOW_VALUES.map(f => (
-                                    <SelectItem key={f} value={f}>
-                                      {f}
-                                    </SelectItem>
-                                  ))
-                                : null}
+                              {flowOptions.map(f => (
+                                <SelectItem key={f} value={f}>
+                                  {f}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
-                          {!vlessInboundFlowsOk ? (
+                          {vlessVisionFlowHintShown(transportForVlessInboundFlow, vlessInboundFlowsOk) ? (
                             <p className="text-muted-foreground text-xs">
                               {t('coreEditor.inbound.vlessFlowVisionRequiresTls', {
                                 defaultValue: 'XTLS Vision requires TCP with TLS/REALITY, xHTTP with TLS, or VLESS Encryption.',
@@ -4050,6 +4082,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             </p>
                           ) : null}
                           <FormMessage />
+                          <FieldMessages issues={streamFieldIssues} field="flow" />
                         </FormItem>
                       )
                     }}
@@ -4263,6 +4296,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                         )}
 
                         {displaySecurityFieldOrderMain.map(jsonKey => {
+                          // The MASQUE box's HTTP version select owns the ALPN.
+                          if (inbound.protocol === 'masque' && jsonKey === 'alpn') return null
                           if (inbound.protocol === 'hysteria' && inboundSecurityType === 'tls' && (jsonKey === 'minVersion' || jsonKey === 'maxVersion')) {
                             return null
                           }
@@ -4968,7 +5003,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
           </Form>
         )}
 
-        {inbound && inbound.protocol !== 'unmanaged' && !('transport' in inbound) && !isTunnelInboundProtocol(inbound.protocol) && (
+        {inbound && inbound.protocol !== 'unmanaged' && (!('transport' in inbound) || inbound.protocol === 'wireguard') && !isTunnelInboundProtocol(inbound.protocol) && (
           <Form {...form}>
             <form className="space-y-4" onSubmit={e => e.preventDefault()}>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -5094,11 +5129,12 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                               className="h-10 pr-10"
                               dir="ltr"
                               isError={!!fieldState.error}
-                              placeholder="443 or 1000-2000,444"
+                              placeholder={inbound.protocol === 'wireguard' ? '51820' : '443 or 1000-2000,444'}
                               onChange={e => {
                                 const v = e.target.value
                                 field.onChange(v)
                                 if (v.trim() === '') patchInbound({ port: undefined } as Partial<Inbound>)
+                                else if (inbound.protocol === 'wireguard') patchInbound({ port: parseWireguardInboundPort(v) ?? v } as Partial<Inbound>)
                                 else {
                                   const n = Number(v)
                                   patchInbound({ port: Number.isFinite(n) ? n : v } as Partial<Inbound>)
@@ -5264,296 +5300,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                   </div>
                 )}
 
-                {inbound.protocol === 'wireguard' && (
-                  <div className="grid w-full min-w-0 gap-3 rounded-md border p-3 sm:col-span-2">
-                    <FormField
-                      control={form.control}
-                      name="wgSecretKey"
-                      render={({ field, fieldState }) => (
-                        <FormItem className="w-full min-w-0">
-                          <FormLabel className="text-sm">{t('coreEditor.inbound.wireguard.secretKey', { defaultValue: 'Secret Key' })}</FormLabel>
-                          <FormControl className="w-full">
-                            <PasswordInput
-                              {...field}
-                              dir="ltr"
-                              className="h-10 w-full text-xs"
-                              autoComplete="new-password"
-                              isError={!!fieldState.error}
-                              onChange={e => {
-                                const v = e.target.value
-                                field.onChange(v)
-                                patchInbound({ secretKey: v.trim() === '' ? undefined : v } as Partial<Inbound>)
-                              }}
-                            />
-                          </FormControl>
-                          <div className="mt-2">
-                            <LoaderButton
-                              type="button"
-                              onClick={() => {
-                                const keyPair = generateWireGuardKeyPair()
-                                form.setValue('wgSecretKey', keyPair.privateKey)
-                                patchInbound({ secretKey: keyPair.privateKey } as Partial<Inbound>)
-                                toast.success(
-                                  t('coreConfigModal.wireguardKeyPairGenerated', {
-                                    defaultValue: 'WireGuard keypair generated',
-                                  }),
-                                )
-                              }}
-                              className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11"
-                              isLoading={false}
-                            >
-                              <span className="flex items-center gap-2 truncate">{t('coreEditor.inbound.wireguard.generateSecretKey', { defaultValue: 'Generate secret key' })}</span>
-                            </LoaderButton>
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="wgMtu"
-                      render={({ field, fieldState }) => (
-                        <FormItem className="w-full min-w-0">
-                          <FormLabel className="text-sm">{t('coreEditor.inbound.wireguard.mtu', { defaultValue: 'MTU' })}</FormLabel>
-                          <FormControl className="w-full">
-                            <Input
-                              {...field}
-                              dir="ltr"
-                              inputMode="numeric"
-                              className="h-10 w-full min-w-0"
-                              isError={!!fieldState.error}
-                              onChange={e => {
-                                const raw = e.target.value
-                                field.onChange(raw)
-                                const v = raw.trim()
-                                if (v === '') {
-                                  patchInbound({ mtu: undefined } as Partial<Inbound>)
-                                  return
-                                }
-                                const n = Number(v)
-                                patchInbound({ mtu: Number.isFinite(n) ? Math.trunc(n) : undefined } as Partial<Inbound>)
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="w-full min-w-0 space-y-1.5">
-                      <FormLabel className="text-sm">{t('coreEditor.inbound.wireguard.address', { defaultValue: 'Server Address' })}</FormLabel>
-                      <StringArrayPopoverInput
-                        value={wireguardAddressesForUi(inbound)}
-                        onChange={nextAddresses => {
-                          if (!isWireguardInboundProtocol(inbound.protocol)) return
-                          patchInbound({ address: nextAddresses.length > 0 ? nextAddresses : undefined } as Partial<Inbound>)
-                        }}
-                        placeholder={t('coreEditor.inbound.wireguard.addressHint', {
-                          defaultValue: 'Example: 10.0.0.1/24',
-                        })}
-                        addPlaceholder={t('coreEditor.inbound.wireguard.addressAddPlaceholder', {
-                          defaultValue: 'Add address',
-                        })}
-                        addButtonLabel={t('coreEditor.inbound.wireguard.addItem', { defaultValue: 'Add' })}
-                        itemsLabel={t('coreEditor.inbound.wireguard.addressItems', { defaultValue: 'Addresses' })}
-                        emptyMessage={t('coreEditor.inbound.wireguard.noAddresses', {
-                          defaultValue: 'No address added.',
-                        })}
-                        className="h-10 w-full max-w-none min-w-0"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <FormLabel className="text-sm font-medium">{t('coreEditor.inbound.wireguard.peers', { defaultValue: 'Peers' })}</FormLabel>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="size-9"
-                          title={t('coreEditor.inbound.wireguard.addPeer', { defaultValue: 'Add peer' })}
-                          aria-label={t('coreEditor.inbound.wireguard.addPeer', { defaultValue: 'Add peer' })}
-                          onClick={() => {
-                            if (!isWireguardInboundProtocol(inbound.protocol)) return
-                            const peers = wireguardPeersForUi(inbound)
-                            const keyPair = generateWireGuardKeyPair()
-                            const nextIndex = peers.length
-                            setWireguardPeerPrivateKeys(prev => ({ ...prev, [nextIndex]: keyPair.privateKey }))
-                            patchInbound({
-                              peers: [
-                                ...peers,
-                                {
-                                  publicKey: keyPair.publicKey,
-                                  preSharedKey: undefined,
-                                  allowedIPs: wireguardDefaultAllowedIpsForNewPeer(nextIndex),
-                                },
-                              ],
-                            } as Partial<Inbound>)
-                          }}
-                        >
-                          <Plus className="size-4" aria-hidden />
-                        </Button>
-                      </div>
-
-                      <div className="rounded-md border">
-                        {wireguardPeersForUi(inbound).length === 0 ? (
-                          <div className="text-muted-foreground px-3 py-2 text-xs">{t('coreEditor.inbound.wireguard.noPeers', { defaultValue: 'No peers added.' })}</div>
-                        ) : (
-                          <div className="divide-y">
-                            {wireguardPeersForUi(inbound).map((peer, index) => (
-                              <div key={`wg-peer-${index}`} className="w-full min-w-0 space-y-3 p-3">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-muted-foreground text-xs font-medium">
-                                    {t('coreEditor.inbound.wireguard.peerLabel', { defaultValue: 'Peer' })} {index + 1}
-                                  </span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-destructive hover:text-destructive size-8"
-                                    title={t('coreEditor.inbound.wireguard.removePeer', { defaultValue: 'Remove peer' })}
-                                    aria-label={t('coreEditor.inbound.wireguard.removePeer', { defaultValue: 'Remove peer' })}
-                                    onClick={() => {
-                                      if (!isWireguardInboundProtocol(inbound.protocol)) return
-                                      const nextPeers = wireguardPeersForUi(inbound).filter((_, i) => i !== index)
-                                      setWireguardPeerPrivateKeys(prev => {
-                                        const next: Record<number, string> = {}
-                                        for (const [k, v] of Object.entries(prev)) {
-                                          const oldIndex = Number(k)
-                                          if (Number.isNaN(oldIndex) || oldIndex === index) continue
-                                          next[oldIndex > index ? oldIndex - 1 : oldIndex] = v
-                                        }
-                                        return next
-                                      })
-                                      patchInbound({ peers: nextPeers.length > 0 ? nextPeers : undefined } as Partial<Inbound>)
-                                    }}
-                                  >
-                                    <Trash2 className="size-4" aria-hidden />
-                                  </Button>
-                                </div>
-
-                                <div className="w-full min-w-0 space-y-1.5">
-                                  <FormLabel className="text-sm">{t('coreEditor.inbound.wireguard.privateKey', { defaultValue: 'Private Key' })}</FormLabel>
-                                  <div dir="ltr" className={`flex w-full min-w-0 items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
-                                    <PasswordInput
-                                      className="h-10 min-w-0 flex-1 basis-0 text-xs"
-                                      autoComplete="new-password"
-                                      value={wireguardPeerPrivateKeys[index] ?? ''}
-                                      onChange={e => {
-                                        if (!isWireguardInboundProtocol(inbound.protocol)) return
-                                        const privateKey = e.target.value
-                                        setWireguardPeerPrivateKeys(prev => ({ ...prev, [index]: privateKey }))
-                                        const nextPeers = wireguardPeersForUi(inbound)
-                                        nextPeers[index] = {
-                                          ...nextPeers[index],
-                                          publicKey: getWireGuardPublicKey(privateKey),
-                                        }
-                                        patchInbound({ peers: nextPeers } as Partial<Inbound>)
-                                      }}
-                                    />
-                                    <Button
-                                      size="icon"
-                                      type="button"
-                                      variant="ghost"
-                                      className="size-10 shrink-0"
-                                      onClick={() => {
-                                        if (!isWireguardInboundProtocol(inbound.protocol)) return
-                                        const keyPair = generateWireGuardKeyPair()
-                                        setWireguardPeerPrivateKeys(prev => ({ ...prev, [index]: keyPair.privateKey }))
-                                        const nextPeers = wireguardPeersForUi(inbound)
-                                        nextPeers[index] = { ...nextPeers[index], publicKey: keyPair.publicKey }
-                                        patchInbound({ peers: nextPeers } as Partial<Inbound>)
-                                        toast.success(
-                                          t('coreEditor.inbound.wireguard.publicKeyGenerated', {
-                                            defaultValue: 'Peer public key generated',
-                                          }),
-                                        )
-                                      }}
-                                      title={t('coreEditor.inbound.wireguard.generateWireGuardKeyPair', {
-                                        defaultValue: 'Generate WireGuard keypair',
-                                      })}
-                                    >
-                                      <RefreshCcw className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </div>
-
-                                <div className="w-full min-w-0 space-y-1.5">
-                                  <FormLabel className="text-sm">{t('coreEditor.inbound.wireguard.publicKey', { defaultValue: 'Public Key' })}</FormLabel>
-                                  <Input dir="ltr" className="h-10 w-full min-w-0 text-xs" value={peer.publicKey} disabled />
-                                </div>
-
-                                <div className="w-full min-w-0 space-y-1.5">
-                                  <FormLabel className="text-sm">{t('coreEditor.inbound.wireguard.preSharedKey', { defaultValue: 'PreShared Key' })}</FormLabel>
-                                  <div dir="ltr" className={`flex w-full min-w-0 items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
-                                    <PasswordInput
-                                      className="h-10 min-w-0 flex-1 basis-0 text-xs"
-                                      autoComplete="new-password"
-                                      value={peer.preSharedKey ?? ''}
-                                      onChange={e => {
-                                        if (!isWireguardInboundProtocol(inbound.protocol)) return
-                                        const nextPeers = wireguardPeersForUi(inbound)
-                                        nextPeers[index] = {
-                                          ...nextPeers[index],
-                                          preSharedKey: e.target.value.trim() === '' ? undefined : e.target.value,
-                                        }
-                                        patchInbound({ peers: nextPeers } as Partial<Inbound>)
-                                      }}
-                                    />
-                                    <Button
-                                      size="icon"
-                                      type="button"
-                                      variant="ghost"
-                                      className="size-10 shrink-0"
-                                      onClick={() => {
-                                        if (!isWireguardInboundProtocol(inbound.protocol)) return
-                                        const keyPair = generateWireGuardKeyPair()
-                                        const nextPeers = wireguardPeersForUi(inbound)
-                                        nextPeers[index] = { ...nextPeers[index], preSharedKey: keyPair.privateKey }
-                                        patchInbound({ peers: nextPeers } as Partial<Inbound>)
-                                      }}
-                                      title={t('coreEditor.inbound.wireguard.generatePreSharedKey', {
-                                        defaultValue: 'Generate pre-shared key',
-                                      })}
-                                    >
-                                      <RefreshCcw className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </div>
-
-                                <div className="w-full min-w-0 space-y-1.5">
-                                  <FormLabel className="text-sm">{t('coreEditor.inbound.wireguard.allowedIPs', { defaultValue: 'Allowed IPs' })}</FormLabel>
-                                  <StringArrayPopoverInput
-                                    value={peer.allowedIPs}
-                                    onChange={nextAllowedIps => {
-                                      if (!isWireguardInboundProtocol(inbound.protocol)) return
-                                      const nextPeers = wireguardPeersForUi(inbound)
-                                      nextPeers[index] = { ...nextPeers[index], allowedIPs: nextAllowedIps }
-                                      patchInbound({ peers: nextPeers } as Partial<Inbound>)
-                                    }}
-                                    placeholder={t('coreEditor.inbound.wireguard.allowedIPsHint', {
-                                      defaultValue: 'Example: 10.0.0.2/32',
-                                    })}
-                                    addPlaceholder={t('coreEditor.inbound.wireguard.allowedIPsAddPlaceholder', {
-                                      defaultValue: 'Add CIDR',
-                                    })}
-                                    addButtonLabel={t('coreEditor.inbound.wireguard.addItem', { defaultValue: 'Add' })}
-                                    itemsLabel={t('coreEditor.inbound.wireguard.allowedIPsItems', { defaultValue: 'Allowed IPs' })}
-                                    emptyMessage={t('coreEditor.inbound.wireguard.noAllowedIPs', {
-                                      defaultValue: 'No CIDR added.',
-                                    })}
-                                    className="h-10 w-full max-w-none min-w-0"
-                                  />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {inbound.protocol === 'wireguard' && <WireguardInboundFields inbound={inbound} form={form} patchInbound={patchInbound} t={t} />}
 
                 {isHttpInboundProtocol(inbound.protocol) && (
                   <>

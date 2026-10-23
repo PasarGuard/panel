@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Literal
 
 import bcrypt
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field, field_validator
 
 from app.db.models import AdminStatus
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleHWIDSettings, RoleLimits, RolePermissions
@@ -135,10 +135,17 @@ class AdminDetails(AdminContactInfo):
     note: str | None = None
     role: AdminRoleData | None = None
     permission_overrides: RoleLimits | None = None
+    # Id of the custom-permission API key the request authenticated with. `role.permissions` then holds that
+    # key's permissions, not the admin's. Never serialized.
+    _custom_api_key_id: int | None = PrivateAttr(default=None)
 
     @property
     def is_owner(self) -> bool:
         return self.role.is_owner if self.role is not None else False
+
+    @property
+    def custom_api_key_id(self) -> int | None:
+        return self._custom_api_key_id
 
     @computed_field
     @property

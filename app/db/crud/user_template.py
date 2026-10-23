@@ -1,4 +1,4 @@
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -12,6 +12,7 @@ from app.models.user_template import (
     UserTemplateSimpleSortOption,
 )
 
+from .admin_role import remove_ids_from_role_access
 from .group import get_groups_by_ids
 
 
@@ -122,6 +123,7 @@ async def remove_user_template(db: AsyncSession, db_user_template: UserTemplate)
         db (AsyncSession): Database session.
         db_user_template (UserTemplate): The user template object to be removed.
     """
+    await remove_ids_from_role_access(db, "allowed_template_ids", [db_user_template.id])
     await db.delete(db_user_template)
     await db.commit()
 
@@ -237,6 +239,9 @@ async def remove_user_templates(db: AsyncSession, template_ids: list[int]) -> No
     await db.execute(
         delete(template_group_association).where(template_group_association.c.user_template_id.in_(template_ids))
     )
-    await db.execute(update(NextPlan).where(NextPlan.user_template_id.in_(template_ids)).values(user_template_id=None))
+    # A template next plan keeps its limits in the template, so it cannot outlive it: delete it like the
+    # single delete's ORM cascade does (with the reference nulled it would renew to unlimited, never expiring).
+    await db.execute(delete(NextPlan).where(NextPlan.user_template_id.in_(template_ids)))
     await db.execute(delete(UserTemplate).where(UserTemplate.id.in_(template_ids)))
+    await remove_ids_from_role_access(db, "allowed_template_ids", template_ids)
     await db.commit()

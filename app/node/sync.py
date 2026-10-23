@@ -12,7 +12,13 @@ from app.nats.node_rpc import encode_node_command, node_nats_client
 from app.nats.proto_utils import serialize_proto_message, serialize_proto_messages
 from app.node import node_manager
 from app.node.bridge import register_refresh_handler
-from app.node.user import _serialize_user_for_node, core_users, serialize_user, serialize_users_for_node
+from app.node.user import (
+    _serialize_user_for_node,
+    core_users,
+    removal_users,
+    serialize_user,
+    serialize_users_for_node,
+)
 from app.utils.logger import get_logger
 from config import nats_settings, runtime_settings
 
@@ -226,7 +232,7 @@ class CurrentStateReader:
         self._task: asyncio.Task | None = None
 
     async def get(self, user_ids: list[int]) -> dict[int, ProtoUser | None]:
-        """Current node payload per id; ``None`` means the user is gone or must be removed from nodes."""
+        """Current node payload per id; a removal carries no inbounds, and ``None`` means the user is gone."""
         if not user_ids:
             return {}
         future: asyncio.Future = asyncio.get_running_loop().create_future()
@@ -241,8 +247,13 @@ class CurrentStateReader:
         result: dict[int, ProtoUser | None] = dict.fromkeys(user_ids)
         async with asyncio.timeout(self._query_timeout), GetDB() as db:
             for start in range(0, len(user_ids), self._max_ids):
-                for proto in await core_users(db, user_ids=user_ids[start : start + self._max_ids]):
+                chunk = user_ids[start : start + self._max_ids]
+                for proto in await core_users(db, user_ids=chunk):
                     result[int(proto.email)] = proto
+                # Users a core must not carry are removals that keep their stored credentials.
+                if missing := [user_id for user_id in chunk if result[user_id] is None]:
+                    for proto in await removal_users(db, missing):
+                        result[int(proto.email)] = proto
         return result
 
     async def _run(self) -> None:
@@ -284,14 +295,16 @@ async def refresh_node_users(node_id: str, emails: list[str]) -> list[ProtoUser]
     updates were queued in) and when a refresh marker is resolved. Users that
     no longer exist, are not active/on-hold, have no inbounds, or whose admin
     blocks synchronization resolve to removals, matching a full snapshot.
-    Non-numeric emails (not panel users) are not answered; callers keep their
-    queued payload for those.
+    Removals keep the stored credentials. A user that no longer exists has
+    none, so its removal carries no ``proxies`` and the queue keeps the
+    credentials of the payload it holds. Non-numeric emails (not panel users)
+    are not answered; callers keep their queued payload for those.
     """
     ids = [int(email) for email in dict.fromkeys(emails) if email.isdigit()]
     if not ids:
         return []
     state = await _current_state.get(ids)
-    return [proto if proto is not None else _serialize_user_for_node(user_id, {}) for user_id, proto in state.items()]
+    return [proto if proto is not None else ProtoUser(email=str(user_id)) for user_id, proto in state.items()]
 
 
 register_refresh_handler(refresh_node_users)

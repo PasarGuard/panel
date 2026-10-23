@@ -407,27 +407,35 @@ class User(Base, CreatedAtUTCMixin):
         return and_(cls.data_limit.isnot(None), cls.data_limit > 0, cls.data_limit <= cls.used_traffic)
 
     @hybrid_property
+    def came_online(self) -> bool:
+        """Traffic was seen since the last edit (or creation); older traffic does not count."""
+        if not self.online_at:
+            return False
+        base_time = (self.edit_at or self.created_at).replace(tzinfo=UTC)
+        return self.online_at.replace(tzinfo=UTC) >= base_time
+
+    @came_online.expression
+    def came_online(cls):
+        base_time = case((cls.edit_at.isnot(None), cls.edit_at), else_=cls.created_at)
+        return and_(cls.online_at.isnot(None), cls.online_at >= base_time)
+
+    @hybrid_property
     def become_online(self) -> bool:
-        now = dt.now(UTC)
+        if self.came_online:
+            return True
 
-        # Check if online_at is set and greater than or equal to base time
-        if self.online_at:
-            base_time = (self.edit_at or self.created_at).replace(tzinfo=UTC)
-            return self.online_at.replace(tzinfo=UTC) >= base_time
-
-        # Check if on_hold_timeout has passed
-        return bool(self.on_hold_timeout and self.on_hold_timeout.replace(tzinfo=UTC) <= now)
+        # Check if on_hold_timeout has passed without traffic since the last edit
+        return bool(self.on_hold_timeout and self.on_hold_timeout.replace(tzinfo=UTC) <= dt.now(UTC))
 
     @become_online.expression
     def become_online(cls):
         now = func.current_timestamp()
-        base_time = case((cls.edit_at.isnot(None), cls.edit_at), else_=cls.created_at)
 
         return or_(
             # online_at condition
-            and_(cls.online_at.isnot(None), cls.online_at >= base_time),
-            # on_hold_timeout condition
-            and_(cls.online_at.is_(None), cls.on_hold_timeout.isnot(None), cls.on_hold_timeout <= now),
+            cls.came_online,
+            # on_hold_timeout condition (only matters when no traffic since the last edit)
+            and_(cls.on_hold_timeout.isnot(None), cls.on_hold_timeout <= now),
         )
 
     @hybrid_property

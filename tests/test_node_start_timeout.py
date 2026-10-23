@@ -127,7 +127,9 @@ async def test_health_check_attaches_ambiguous_timed_out_start_before_reconnect(
     node = MagicMock()
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=state)
-    db_node = SimpleNamespace(id=19, name="slow-node", status=NodeStatus.error)
+    node.get_health = AsyncMock(return_value=Health.NOT_CONNECTED)
+    node.info = AsyncMock(return_value=SimpleNamespace(started=True))
+    db_node = SimpleNamespace(id=19, name="slow-node", status=NodeStatus.error, default_timeout=10)
 
     monkeypatch.setattr(
         node_checker,
@@ -154,6 +156,7 @@ class _FakeDB:
 
 
 def _patch_health_check_db(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: True)
     monkeypatch.setattr(node_checker, "GetDB", lambda: _FakeDB())
     monkeypatch.setattr(NodeOperation, "_update_single_node_status", AsyncMock())
     monkeypatch.setattr(node_checker, "get_bridge_memory", lambda: (None, None, None))
@@ -166,7 +169,7 @@ async def test_health_check_reapplies_config_when_keep_alive_stopped_core(monkey
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=None)
     node.update_observed_lifecycle = AsyncMock()
-    db_node = SimpleNamespace(id=19, name="dead-core", status=NodeStatus.connected)
+    db_node = SimpleNamespace(id=19, name="dead-core", status=NodeStatus.connected, default_timeout=10)
 
     _patch_health_check_db(monkeypatch)
     monkeypatch.setattr(
@@ -188,7 +191,7 @@ async def test_health_check_waits_when_core_not_started_during_in_flight_start(m
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=None)
     node.update_observed_lifecycle = AsyncMock()
-    db_node = SimpleNamespace(id=19, name="starting-node", status=NodeStatus.connected)
+    db_node = SimpleNamespace(id=19, name="starting-node", status=NodeStatus.connected, default_timeout=10)
 
     _patch_health_check_db(monkeypatch)
     NodeOperation._in_flight_connects.add(19)
@@ -224,7 +227,7 @@ async def test_health_check_waits_when_core_is_still_starting(monkeypatch: pytes
     node.requires_hard_reset.return_value = False
     node.get_lifecycle_state = AsyncMock(return_value=None)
     node.update_observed_lifecycle = AsyncMock()
-    db_node = SimpleNamespace(id=19, name="starting-core", status=NodeStatus.connected)
+    db_node = SimpleNamespace(id=19, name="starting-core", status=NodeStatus.connected, default_timeout=10)
 
     _patch_health_check_db(monkeypatch)
     monkeypatch.setattr(
@@ -257,3 +260,32 @@ async def test_connect_node_skips_when_already_healthy(monkeypatch: pytest.Monke
     assert result is None
     start_or_attach.assert_not_awaited()
     pg_node.start.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_force_start_without_stop_first_keeps_core_running(monkeypatch: pytest.MonkeyPatch):
+    started = SimpleNamespace(node_version="0.5.5", core_version="26.10.10")
+    pg_node = SimpleNamespace(
+        get_lifecycle_state=AsyncMock(),
+        start=AsyncMock(return_value=started),
+        stop=AsyncMock(),
+    )
+    attach = AsyncMock(return_value=object())
+    monkeypatch.setattr(NodeOperation, "_attach_if_running", attach)
+    db_node = SimpleNamespace(name="england", keep_alive=60)
+    core = SimpleNamespace(type=None, to_str=lambda: "{}", exclude_inbound_tags=[])
+
+    result = await NodeOperation._start_or_attach_node(
+        pg_node,
+        db_node,
+        core,
+        [],
+        object(),
+        force_start=True,
+        stop_first=False,
+    )
+
+    assert result is started
+    attach.assert_not_awaited()
+    pg_node.stop.assert_not_awaited()
+    pg_node.start.assert_awaited_once()

@@ -4,7 +4,7 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import Row, and_, bindparam, case, delete, desc, func, literal, not_, or_, select, update
+from sqlalchemy import Row, and_, bindparam, case, delete, desc, func, insert, literal, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only, selectinload, with_expression
 from sqlalchemy.sql import Select
@@ -810,6 +810,14 @@ async def get_on_hold_to_active_users(db: AsyncSession) -> list[User]:
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
+async def reload_review_users(db: AsyncSession, user_ids: list[int]) -> None:
+    """Load users picked by a review query again in place, e.g. after a rollback expired them."""
+    if not user_ids:
+        return
+    stmt = _review_user_select_stmt().where(_explicit_ids(User.id, user_ids))
+    (await db.execute(stmt.execution_options(populate_existing=True))).unique().scalars().all()
+
+
 async def get_users_to_reset_data_usage(db: AsyncSession) -> list[User]:
     """
     Retrieves users whose data usage needs to be reset based on their reset strategy.
@@ -991,11 +999,21 @@ async def get_users_count_by_admin(db: AsyncSession, admin_id: int | None) -> in
 
 
 async def lock_admin_quota_row(db: AsyncSession, admin_id: int) -> None:
-    """Lock an admin row before quota-sensitive user creation."""
-    if db.bind.dialect.name == "sqlite":
+    """Lock an admin row before quota-sensitive user creation.
+
+    Call it before the transaction writes anything: the user count that follows must see the users
+    committed by the previous holder of the lock.
+    """
+    dialect = db.bind.dialect.name
+    if dialect == "sqlite":
         await db.execute(update(Admin).where(Admin.id == admin_id).values(id=Admin.id))
         return
 
+    if dialect in ("mysql", "mariadb") and db.in_transaction():
+        # REPEATABLE READ keeps the snapshot of the transaction's first read (authentication,
+        # validation), so a count after the lock would miss users committed while waiting for it.
+        # Nothing is written yet, so end that read-only transaction and let the count take a new one.
+        await db.commit()
     await db.execute(select(Admin.id).where(Admin.id == admin_id).with_for_update())
 
 
@@ -1360,20 +1378,45 @@ async def modify_user(
     return db_user
 
 
-async def _reset_user_traffic_and_log(db: AsyncSession, db_user: User):
-    """Helper to reset user traffic and log the action."""
-    await db_user.awaitable_attrs.next_plan
-    usage_log = UserUsageResetLogs(
-        user_id=db_user.id,
-        used_traffic_at_reset=db_user.used_traffic,
+async def _reset_users_traffic_and_log(
+    db: AsyncSession, user_ids: Sequence[int], *, clean_chart_data: bool = False
+) -> None:
+    """Log and zero the users' traffic, drop their next plans and passed data-usage reminders, and reactivate
+    limited users, with the same few statements for any number of users.
+
+    The traffic is logged from the row as the reset writes it, not from the copy loaded before: record_usages keeps
+    adding to `used_traffic` meanwhile, and logging a stale value then writing 0 drops that traffic from both the
+    new period and the lifetime total. The rows are locked first (PostgreSQL/MySQL); on SQLite the INSERT is the
+    first write, so it takes the write lock before it reads them."""
+    if not user_ids:
+        return
+    selected = _explicit_ids(User.id, user_ids)
+    await db.execute(select(User.id).where(selected).order_by(User.id).with_for_update())
+
+    reset_at = bindparam("reset_at", datetime.now(UTC), type_=UserUsageResetLogs.reset_at.type)
+    await db.execute(
+        insert(UserUsageResetLogs.__table__).from_select(
+            ["user_id", "used_traffic_at_reset", "reset_at"],
+            select(User.id, User.used_traffic, reset_at).where(selected),
+        )
     )
-    db.add(usage_log)
-
-    if db_user.next_plan:
-        await db.delete(db_user.next_plan)
-        db_user.next_plan = None
-
-    db_user.used_traffic = 0
+    reset_status = case((User.status == UserStatus.limited, UserStatus.active), else_=User.status)
+    await db.execute(
+        update(User)
+        .where(selected)
+        .values(used_traffic=0, status=reset_status)
+        .execution_options(synchronize_session=False)
+    )
+    await db.execute(delete(NextPlan).where(_explicit_ids(NextPlan.user_id, user_ids)))
+    await db.execute(
+        delete(NotificationReminder).where(
+            _explicit_ids(NotificationReminder.user_id, user_ids),
+            NotificationReminder.type == ReminderType.data_usage,
+            NotificationReminder.threshold > 0,
+        )
+    )
+    if clean_chart_data:
+        await db.execute(delete(NodeUserUsage).where(_explicit_ids(NodeUserUsage.user_id, user_ids)))
 
 
 async def clear_user_node_usages(db: AsyncSession, user_id: int, *, before: datetime | None = None) -> None:
@@ -1396,17 +1439,14 @@ async def reset_user_data_usage(
     Returns:
         User: The updated user object.
     """
-    await _reset_user_traffic_and_log(db, db_user)
-    await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
-    if clean_chart_data:
-        await clear_user_node_usages(db, db_user.id)
-
-    if db_user.status == UserStatus.limited:
-        db_user.status = UserStatus.active
+    await _reset_users_traffic_and_log(db, [db_user.id], clean_chart_data=clean_chart_data)
 
     if commit:
         await db.commit()
         await refresh_and_load_user(db, db_user)
+    else:
+        # The reset ran in SQL: reload what it changed so the caller keeps editing an up-to-date user
+        await db.refresh(db_user, attribute_names=["used_traffic", "status", "next_plan"])
     return db_user
 
 
@@ -1416,6 +1456,9 @@ async def bulk_reset_user_data_usage(
     """
     Resets the data usage for a list of users and logs the reset.
 
+    The users are reloaded with `populate_existing`: with `commit=False`, pending in-memory changes on them are
+    discarded, so flush them first.
+
     Args:
         db (AsyncSession): Database session.
         users (list[User]): The list of user objects whose data usage is to be reset.
@@ -1423,18 +1466,20 @@ async def bulk_reset_user_data_usage(
     Returns:
         list[User]: The updated list of user objects.
     """
-    for db_user in users:
-        await _reset_user_traffic_and_log(db, db_user)
-        await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
-        if clean_chart_data:
-            await clear_user_node_usages(db, db_user.id)
-        if db_user.status == UserStatus.limited:
-            db_user.status = UserStatus.active
+    user_ids = [db_user.id for db_user in users]
+    await _reset_users_traffic_and_log(db, user_ids, clean_chart_data=clean_chart_data)
     if commit:
         await db.commit()
-        for user in users:
-            await refresh_and_load_user(db, user, load_admin_role=True)
-    return users
+    # One reload for all users (with the node-sync relations), without materializing their reset history
+    return await get_users_by_ids(
+        db,
+        user_ids,
+        load_admin_role=True,
+        load_group_inbounds=True,
+        load_usage_logs=False,
+        load_lifetime_used_traffic=True,
+        populate_existing=True,
+    )
 
 
 def build_revoked_proxy_settings(db_user: User) -> dict:
@@ -1504,10 +1549,7 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
             db_user.proxy_settings = proxy_settings
         db_user.data_limit_reset_strategy = db_user.next_plan.user_template.data_limit_reset_strategy
 
-    await _reset_user_traffic_and_log(db, db_user)
-    await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
-    if clean_chart_data:
-        await clear_user_node_usages(db, db_user.id)
+    await _reset_users_traffic_and_log(db, [db_user.id], clean_chart_data=clean_chart_data)
     await db.commit()
     await refresh_and_load_user(db, db_user)
     return db_user
@@ -1802,7 +1844,9 @@ async def get_all_users_usages(
         node_id = -1
 
     dialect = db.bind.dialect.name
-    from_clause = NodeUserUsage.__table__.join(User, User.id == NodeUserUsage.user_id)
+    from_clause = NodeUserUsage.__table__
+    if _usage_history_needs_users_join(dialect, admins_filter, group_by_admin):
+        from_clause = from_clause.join(User, User.id == NodeUserUsage.user_id)
     if admins_filter:
         from_clause = from_clause.join(Admin, Admin.id == User.admin_id)
 
@@ -1858,6 +1902,12 @@ async def get_all_users_usages(
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
 
 
+def _usage_history_needs_users_join(dialect: str, admins_filter: Sequence[str] | None, group_by_admin: bool) -> bool:
+    # PostgreSQL, MySQL and MariaDB delete a user's history rows through ON DELETE CASCADE, so joining every row to
+    # users only matters for admin scoping. SQLite does not enforce foreign keys and keeps orphan rows to filter out.
+    return bool(admins_filter) or group_by_admin or dialect == "sqlite"
+
+
 async def get_user_count_metric_stats(
     db: AsyncSession,
     admins: Sequence[str] | None,
@@ -1875,7 +1925,9 @@ async def get_user_count_metric_stats(
     count_expr = _build_user_count_metric_expression(metric).label("count")
     total_stmt = select(count_expr).select_from(query_parts["from_clause"]).where(and_(*query_parts["conditions"]))
 
-    if group_by_node:
+    if _user_count_buckets_from_distinct_pairs(query_parts["dialect"]):
+        stmt = _build_user_count_buckets_from_distinct_pairs(query_parts, metric, group_by_node)
+    elif group_by_node:
         stmt = (
             select(
                 query_parts["trunc_expr"].label("period_start"),
@@ -1966,13 +2018,53 @@ def _build_user_count_query_parts(
 
 
 def _build_user_count_metric_expression(metric: UserCountMetric):
+    return func.count(func.distinct(_user_count_metric_user_id(metric)))
+
+
+def _user_count_metric_user_id(metric: UserCountMetric):
+    """The user id a history row counts for in this metric, NULL when the row does not count."""
     if metric == UserCountMetric.online:
-        return func.count(func.distinct(NodeUserUsage.user_id))
+        return NodeUserUsage.user_id
     if metric == UserCountMetric.expired:
-        return func.count(func.distinct(case((User.status == UserStatus.expired, NodeUserUsage.user_id), else_=None)))
+        return case((User.status == UserStatus.expired, NodeUserUsage.user_id), else_=None)
     if metric == UserCountMetric.limited:
-        return func.count(func.distinct(case((User.status == UserStatus.limited, NodeUserUsage.user_id), else_=None)))
+        return case((User.status == UserStatus.limited, NodeUserUsage.user_id), else_=None)
     raise ValueError(f"Unsupported user count metric: {metric}")
+
+
+def _user_count_buckets_from_distinct_pairs(dialect: str) -> bool:
+    # PostgreSQL cannot hash count(DISTINCT ...), so a per-bucket count sorts every history row in range.
+    # MySQL and MariaDB are faster with plain count(DISTINCT ...).
+    return dialect == "postgresql"
+
+
+def _build_user_count_buckets_from_distinct_pairs(query_parts: dict, metric: UserCountMetric, group_by_node: bool):
+    """Per-bucket distinct user counts as a count over DISTINCT (bucket, [node,] user) rows.
+
+    Same result as count(DISTINCT ...) per bucket: a NULL user id (a row the metric does not count) is kept as
+    one pair, so its bucket still appears, and count() skips it.
+    """
+    pair_columns = [query_parts["trunc_expr"].label("period_start")]
+    if group_by_node:
+        pair_columns.append(NodeUserUsage.node_id.label("node_id"))
+    pairs = (
+        select(*pair_columns, _user_count_metric_user_id(metric).label("user_id"))
+        .select_from(query_parts["from_clause"])
+        .where(and_(*query_parts["conditions"]))
+        .distinct()
+        .subquery()
+    )
+
+    group_columns = [pairs.c.period_start]
+    output_columns = [pairs.c.period_start]
+    if group_by_node:
+        group_columns.append(pairs.c.node_id)
+        output_columns.append(func.coalesce(pairs.c.node_id, 0).label("node_id"))
+    return (
+        select(*output_columns, func.count(pairs.c.user_id).label("count"))
+        .group_by(*group_columns)
+        .order_by(*group_columns)
+    )
 
 
 async def update_users_status(db: AsyncSession, users: list[User], status: UserStatus) -> list[User]:
@@ -2054,11 +2146,12 @@ async def bulk_set_owner(db: AsyncSession, users: list[User], admin: Admin) -> l
 
     for user in users:
         old_admin = user.admin
+        # Only traffic that moves from another admin counts, like set_owner.
         if old_admin and old_admin.id != admin.id:
             if old_admin.id not in admin_traffic_changes:
                 admin_traffic_changes[old_admin.id] = 0
             admin_traffic_changes[old_admin.id] -= user.used_traffic
-        total_traffic_to_add += user.used_traffic
+            total_traffic_to_add += user.used_traffic
         user.admin = admin
 
     # Update old admins' traffic

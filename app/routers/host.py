@@ -67,7 +67,7 @@ async def modify_host(
 
 @router.delete(
     "/{host_id}",
-    responses={404: responses._404},
+    responses={404: responses._404, 409: responses._409},
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def remove_host(
@@ -97,7 +97,7 @@ async def modify_hosts(
 @router.post(
     "s/bulk/delete",
     response_model=RemoveHostsResponse,
-    responses={400: responses._400, 403: responses._403, 404: responses._404},
+    responses={400: responses._400, 403: responses._403, 404: responses._404, 409: responses._409},
 )
 async def bulk_delete_hosts(
     bulk_hosts: BulkHostSelection,

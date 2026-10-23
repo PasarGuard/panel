@@ -1,8 +1,32 @@
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
+from app.models.group import GroupModify, GroupResponse
 from app.operation import OperatorType, group as group_operation
+
+
+@pytest.mark.asyncio
+async def test_group_update_commits_policy_before_scheduling_sync(monkeypatch: pytest.MonkeyPatch):
+    operation = group_operation.GroupOperation(OperatorType.SYSTEM)
+    db = SimpleNamespace(commit=AsyncMock())
+    group = SimpleNamespace(id=1, inbound_tags=["old"], is_disabled=False)
+    response = GroupResponse(id=1, name="group", inbound_tags=["new"], is_disabled=False, total_users=1)
+    monkeypatch.setattr(operation, "_get_group_with_access", AsyncMock(return_value=group))
+    monkeypatch.setattr(operation, "check_inbound_tags", AsyncMock())
+    monkeypatch.setattr(group_operation, "modify_group", AsyncMock(return_value=group))
+    monkeypatch.setattr(operation, "_build_group_response", AsyncMock(return_value=response))
+    monkeypatch.setattr(group_operation.notification, "modify_group", AsyncMock())
+    scheduled = []
+
+    def schedule(group_id, **kwargs):
+        db.commit.assert_awaited_once()
+        scheduled.append((group_id, kwargs))
+
+    monkeypatch.setattr(operation, "_schedule_group_user_sync", schedule)
+    await operation.modify_group(db, 1, GroupModify(name="group", inbound_tags=["new"]), SimpleNamespace(username="admin"))
+    assert scheduled == [(1, {"expected_inbound_tags": frozenset({"new"}), "expected_is_disabled": False})]
 
 
 @pytest.mark.asyncio

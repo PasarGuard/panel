@@ -292,6 +292,8 @@ class GroupOperation(BaseOperation):
 
         db_group = await modify_group(db, db_group, effective_modify, load_users=False)
         group = await self._build_group_response(db, db_group)
+        # CRUD only flushes; publish the group policy before a background batch reads it.
+        await db.commit()
 
         if inbound_tags_changed or status_changed:
             self._schedule_group_user_sync(
@@ -413,7 +415,8 @@ class GroupOperation(BaseOperation):
         for db_group in groups_to_update:
             db_group.is_disabled = is_disabled
 
-        await db.commit()
+        # Committed below together with the WireGuard allocations, so an exhausted subnet changes nothing.
+        await db.flush()
 
         for db_group in groups_to_update:
             await db.refresh(db_group)

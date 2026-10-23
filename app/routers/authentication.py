@@ -133,6 +133,7 @@ async def _get_admin_from_api_key_internal(
         role_data["permissions"] = permissions.model_dump()
         role_data["is_owner"] = False  # API keys are never owner-level
         admin.role = AdminRoleData.model_validate(role_data)
+        admin._custom_api_key_id = db_key.id
     return admin
 
 
