@@ -109,6 +109,9 @@ def probe(tmp_path, monkeypatch):
     # The subscription cache is keyed by user id, and SQLite reuses ids of deleted users
     clear_sub_config_cache()
     monkeypatch.setattr(events, "HANDLER_TIMEOUT", 0.5)
+    # With UVICORN_WORKERS>1 (CI runs with NATS) the 15 s notification dedup would swallow events that earlier
+    # tests already emitted for the same admin or user id; the dedup has its own tests.
+    monkeypatch.setattr("app.notification.claim_notification_slot", _always_claim)
     make_plugin(
         tmp_path,
         "probe",
@@ -139,6 +142,10 @@ def plain_admin(access_token):
     assert response.status_code == status.HTTP_200_OK
     yield response.json()["access_token"]
     delete_admin(access_token, admin["username"])
+
+
+async def _always_claim(*_args, **_kwargs) -> bool:
+    return True
 
 
 def _wait_for(predicate, timeout: float = 5.0) -> bool:
