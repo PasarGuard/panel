@@ -9,6 +9,8 @@ import { Package, Server } from 'lucide-react'
 import { useXrayReleases } from '@/hooks/use-xray-releases'
 import { useNodeReleases } from '@/hooks/use-node-releases'
 import { Separator } from '@/components/ui/separator'
+import { CountryFlag } from '@/components/common/country-flag'
+import { NoteText } from '@/components/common/note-text'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface UseNodeListColumnsProps {
@@ -60,7 +62,11 @@ export const useNodeListColumns = ({
         cell: node => (
           <div className="flex min-w-0 items-center gap-2">
             <span className={cn('h-2 w-2 shrink-0 rounded-full', getNodeStatusDotColor(node.status))} />
-            <span className="truncate font-medium">{node.name}</span>
+            <CountryFlag code={node.country_code} showCode={false} />
+            <div className="flex min-w-0 flex-col">
+              <span className="truncate font-medium">{node.name}</span>
+              <NoteText note={node.note} />
+            </div>
           </div>
         ),
       },

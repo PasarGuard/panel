@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { v4 as uuidv4 } from 'uuid'
 import { LoaderButton } from '@/components/ui/loader-button'
+import { CountrySelect } from '@/components/common/country-select'
 import type { NodeFormValues } from '@/features/nodes/forms/node-form'
 import type { CoreSimple } from '@/service/api'
 
@@ -130,6 +131,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         default_timeout: node.default_timeout ?? 10,
         internal_timeout: node.internal_timeout ?? 15,
         proxy_url: node.proxy_url ?? '',
+        country_code: node.country_code ?? null,
+        note: node.note ?? '',
       },
       { keepDirty: false, keepValues: false },
     )
@@ -186,6 +189,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           default_timeout: nodeData.default_timeout ?? 10,
           internal_timeout: nodeData.internal_timeout ?? 15,
           proxy_url: nodeData.proxy_url ?? '',
+          country_code: nodeData.country_code ?? null,
+          note: nodeData.note ?? '',
         })
         lastSyncedNodeRef.current = nodeData
         setIsFetchingNodeData(false)
@@ -216,6 +221,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               default_timeout: nodeData.default_timeout ?? 10,
               internal_timeout: nodeData.internal_timeout ?? 15,
               proxy_url: nodeData.proxy_url ?? '',
+              country_code: nodeData.country_code ?? null,
+              note: nodeData.note ?? '',
             })
             lastSyncedNodeRef.current = nodeData
           } catch (error) {
@@ -247,6 +254,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         default_timeout: 10,
         internal_timeout: 15,
         proxy_url: '',
+        country_code: null,
+        note: '',
       })
     }
   }, [editingNode, editingNodeId, isDialogOpen, cores, initialNodeData, form])
@@ -313,6 +322,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         reset_time: values.reset_time !== null && values.reset_time !== undefined ? values.reset_time : -1,
         api_port: values.api_port ?? undefined,
         proxy_url: values.proxy_url?.trim() || null,
+        country_code: values.country_code || null,
+        note: values.note?.trim() || null,
       }
 
       let nodeId: number | undefined
@@ -361,7 +372,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
-      const fields = ['name', 'address', 'port', 'core_config_id', 'api_key', 'keep_alive_unit', 'keep_alive', 'server_ca', 'connection_type', 'proxy_url', '']
+      const fields = ['name', 'address', 'port', 'core_config_id', 'api_key', 'keep_alive_unit', 'keep_alive', 'server_ca', 'connection_type', 'proxy_url', 'country_code', 'note', '']
       handleError({ error, fields, form, contextKey: 'nodes' })
     }
   }
@@ -447,19 +458,35 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
             >
               <div className="flex h-full flex-col items-start gap-4 lg:flex-row">
                 <div className="w-full flex-1 space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('nodeModal.name')}</FormLabel>
-                        <FormControl>
-                          <Input isError={!!form.formState.errors.name} placeholder={t('nodeModal.namePlaceholder')} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('nodeModal.name')}</FormLabel>
+                          <FormControl>
+                            <Input isError={!!form.formState.errors.name} placeholder={t('nodeModal.namePlaceholder')} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="country_code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('nodeModal.country')}</FormLabel>
+                          <FormControl>
+                            <CountrySelect value={field.value} onChange={field.onChange} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FormField
@@ -526,6 +553,20 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                             )}
                           </SelectContent>
                         </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="note"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('nodeModal.note')}</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder={t('nodeModal.notePlaceholder')} className="min-h-[60px] resize-y" maxLength={500} {...field} value={field.value ?? ''} />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}

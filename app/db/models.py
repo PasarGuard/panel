@@ -727,6 +727,8 @@ class Node(Base, CreatedAtUTCMixin):
     internal_timeout: Mapped[int] = mapped_column(default=15, server_default=text("15"))
     proxy_url: Mapped[str | None] = mapped_column(String(256), default="", unique=False, nullable=True)
     sort_order: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    country_code: Mapped[str | None] = mapped_column(String(2), default=None, nullable=True)
+    note: Mapped[str | None] = mapped_column(String(500), default=None, nullable=True)
     _reseted_uplink_query: Mapped[int | None] = query_expression(repr=False)
     _reseted_downlink_query: Mapped[int | None] = query_expression(repr=False)
 
@@ -932,6 +934,7 @@ class CoreConfig(Base, CreatedAtUTCMixin):
     exclude_inbound_tags: Mapped[set[str] | None] = mapped_column(StringArray(2048), default_factory=set)
     fallbacks_inbound_tags: Mapped[set[str] | None] = mapped_column(StringArray(2048), default_factory=set)
     sort_order: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    note: Mapped[str | None] = mapped_column(String(500), default=None, nullable=True)
 
 
 class WireGuardSubnet(Base, IdMixin):

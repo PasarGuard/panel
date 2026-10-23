@@ -145,7 +145,13 @@ async def get_nodes(
         search_value = params.search.strip()
         if search_value:
             like_expression = f"%{search_value}%"
-            stmt = stmt.where(or_(Node.name.ilike(like_expression), Node.api_key.ilike(like_expression)))
+            stmt = stmt.where(
+                or_(
+                    Node.name.ilike(like_expression),
+                    Node.api_key.ilike(like_expression),
+                    Node.note.ilike(like_expression),
+                )
+            )
 
     # Get count before applying offset/limit
     count_query = select(func.count()).select_from(stmt.subquery())
@@ -191,7 +197,7 @@ async def get_nodes_simple(
     Returns:
         Tuple of (list of (id, name) tuples, total_count).
     """
-    stmt = select(Node.id, Node.name, Node.status, Node.core_config_id)
+    stmt = select(Node.id, Node.name, Node.status, Node.core_config_id, Node.country_code)
 
     if query.ids:
         stmt = stmt.where(Node.id.in_(query.ids))
@@ -496,8 +502,10 @@ async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> No
     """
 
     node_data = modify.model_dump(exclude_none=True)
-    if "proxy_url" in modify.model_fields_set and modify.proxy_url is None:
-        node_data["proxy_url"] = None
+    # Explicit null (or an empty string normalized to null) clears these optional fields.
+    for field in ("proxy_url", "country_code", "note"):
+        if field in modify.model_fields_set and getattr(modify, field) is None:
+            node_data[field] = None
 
     for key, value in node_data.items():
         setattr(db_node, key, value)

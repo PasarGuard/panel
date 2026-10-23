@@ -56,6 +56,7 @@ async def create_core_config(db: AsyncSession, core_config: CoreCreate) -> CoreC
         exclude_inbound_tags=core_config.exclude_inbound_tags or set(),
         fallbacks_inbound_tags=core_config.fallbacks_inbound_tags or set(),
         sort_order=next_sort_order,
+        note=core_config.note,
     )
     db.add(db_core_config)
     await db.commit()
@@ -78,6 +79,9 @@ async def modify_core_config(
         CoreConfig: The updated CoreConfig object.
     """
     core_data = modified_core_config.model_dump(exclude_none=True)
+    # Explicit null (or an empty string normalized to null) clears the note.
+    if "note" in modified_core_config.model_fields_set and modified_core_config.note is None:
+        core_data["note"] = None
 
     for key, value in core_data.items():
         setattr(db_core_config, key, value)
