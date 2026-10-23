@@ -93,8 +93,9 @@ class ClashConfiguration(BaseSubscription):
                 selected = [name for name, host in self._proxy_hosts if directive.select.matches(host)]
                 group["proxies"] = merge_group_members(group.get("proxies"), selected)
             if not group.get("proxies") and not any(group.get(key) for key in CLASH_GROUP_MEMBER_SOURCES):
-                # mihomo rejects the whole config over a group without members.
-                group["proxies"] = ["DIRECT"]
+                # mihomo rejects the whole config over a group without members: fall back to all of the user's
+                # servers so the group's traffic never leaves the VPN, and to REJECT when there are none.
+                group["proxies"] = [name for name, _ in self._proxy_hosts] or ["REJECT"]
         return to_yaml(data)
 
     def __str__(self) -> str:

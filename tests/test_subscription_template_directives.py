@@ -408,27 +408,32 @@ def test_singbox_include_proxies_false_leaves_group_as_written():
 
 
 @pytest.mark.parametrize("include_proxies", [True, False])
-def test_singbox_empty_directive_group_falls_back_to_direct(include_proxies):
+def test_singbox_empty_directive_group_falls_back_to_all_servers(include_proxies):
     template = json.loads(json.dumps(SINGBOX_TEMPLATE))
+    template["outbounds"][0]["outbounds"] = []
+    template["outbounds"][0]["pasarguard"] = {"include_proxies": include_proxies, "select": {"host_ids": [999]}}
     template["outbounds"][1]["pasarguard"] = {
         "include_proxies": include_proxies,
         "select": {"remark_regex": "^nothing-matches"},
     }
     config = _singbox(template)
+    remarks = [remark for _, remark, _, _ in HOSTS]
 
-    assert config["outbounds"][1]["outbounds"] == ["direct"]
+    assert config["outbounds"][0]["outbounds"] == ["auto", *remarks]
+    assert config["outbounds"][1]["outbounds"] == remarks
     assert [o["tag"] for o in config["outbounds"] if o["type"] == "direct"] == ["direct"]
 
 
-def test_singbox_empty_directive_group_adds_direct_outbound_when_template_has_none():
+def test_singbox_empty_directive_group_without_any_servers():
     template = json.loads(json.dumps(SINGBOX_TEMPLATE))
-    template["outbounds"] = [o for o in template["outbounds"] if o["type"] != "direct"]
-    template["outbounds"].append({"type": "block", "tag": "direct"})
     template["outbounds"][1]["pasarguard"] = {"select": {"host_ids": [999]}}
-    config = _singbox(template)
+    config = json.loads(SingBoxConfiguration(singbox_template_content=json.dumps(template)).render())
+    assert config["outbounds"][1]["outbounds"] == ["direct"]
 
-    assert config["outbounds"][1]["outbounds"] == ["direct-2"]
-    assert {"type": "direct", "tag": "direct-2"} in config["outbounds"]
+    template["outbounds"] = template["outbounds"][:2]
+    config = json.loads(SingBoxConfiguration(singbox_template_content=json.dumps(template)).render())
+    assert config["outbounds"][1]["outbounds"] == []
+    assert [o["type"] for o in config["outbounds"]] == ["selector", "urltest"]
 
 
 def test_singbox_non_empty_directive_group_gets_no_fallback():
@@ -515,7 +520,7 @@ def test_clash_template_validation():
         validate_clash_template_directives({"proxy-groups": [{"name": "a", "pasarguard": {"select": {"bad": 1}}}]})
 
 
-def test_clash_empty_directive_group_falls_back_to_direct():
+def test_clash_empty_directive_group_falls_back_to_all_servers():
     template = CLASH_TEMPLATE.replace(
         "rules:\n",
         "- name: 'Nothing'\n  type: 'url-test'\n  proxies: []\n  pasarguard: {select: {host_ids: [999]}}\n"
@@ -525,8 +530,15 @@ def test_clash_empty_directive_group_falls_back_to_direct():
         "rules:\n",
     )
     groups = {group["name"]: group for group in yaml.safe_load(_clash(template))["proxy-groups"]}
+    remarks = [remark for _, remark, _, _ in HOSTS]
 
-    assert groups["Nothing"]["proxies"] == ["DIRECT"]
-    assert groups["Written"]["proxies"] == ["DIRECT"]
+    assert groups["Nothing"]["proxies"] == remarks
+    assert groups["Written"]["proxies"] == remarks
     assert groups["Provider"]["proxies"] == []
     assert groups["Picked"]["proxies"] == ["NL-1"]
+
+
+def test_clash_empty_directive_group_without_any_servers_rejects():
+    template = "proxies: []\nproxy-groups:\n- name: 'Nothing'\n  type: 'select'\n  pasarguard: {}\nrules: []\n"
+    data = yaml.safe_load(ClashMetaConfiguration(clash_template_content=template).render())
+    assert data["proxy-groups"] == [{"name": "Nothing", "type": "select", "proxies": ["REJECT"]}]
