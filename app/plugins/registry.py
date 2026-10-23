@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from app.plugins.context import PluginContext
@@ -17,11 +17,16 @@ class PluginRecord:
     version: str = ""
     description: str = ""
     path: Path | None = None
-    status: str = "failed"  # "loaded" | "failed"
+    status: Literal["loaded", "failed"] = "failed"
     error: str | None = None
     settings_schema: dict[str, Any] | None = None
     ui: str | None = None
     context: PluginContext | None = field(default=None, repr=False)
+
+    def mark_failed(self, exc: BaseException) -> None:
+        self.status = "failed"
+        self.error = str(exc) or type(exc).__name__
+        self.context = None
 
 
 # Every plugin listed in PLUGINS, in load order, loaded or failed.

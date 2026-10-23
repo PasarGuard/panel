@@ -195,9 +195,7 @@ def activate_all(app: FastAPI) -> None:
         except Exception as exc:
             registry.active.remove(ctx)
             record = registry.records[ctx.id]
-            record.status = "failed"
-            record.error = str(exc) or type(exc).__name__
-            record.context = None
+            record.mark_failed(exc)
             logger.exception(f"Plugin {ctx.id!r} skipped: activation failed")
 
 
@@ -209,17 +207,13 @@ async def finish_pending_setups(app: FastAPI) -> None:
         try:
             await coro
         except Exception as exc:
-            record.status = "failed"
-            record.error = str(exc) or type(exc).__name__
-            record.context = None
+            record.mark_failed(exc)
             logger.exception(f"Plugin {plugin_id!r} skipped: async setup failed")
             continue
         try:
             activate(app, record.context)
         except Exception as exc:
-            record.status = "failed"
-            record.error = str(exc) or type(exc).__name__
-            record.context = None
+            record.mark_failed(exc)
             logger.exception(f"Plugin {plugin_id!r} skipped: activation failed")
             continue
         registry.active.append(record.context)

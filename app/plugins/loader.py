@@ -161,9 +161,7 @@ def load_plugin(plugins_dir: Path, plugin_id: str, *, runs_panel: bool, runs_sch
         record.context = ctx
         record.status = "loaded"
     except Exception as exc:
-        record.status = "failed"
-        record.error = str(exc) or type(exc).__name__
-        record.context = None
+        record.mark_failed(exc)
         if isinstance(exc, PluginLoadError):
             logger.error(f"Plugin {plugin_id!r} skipped: {record.error}")
         else:

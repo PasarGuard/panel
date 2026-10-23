@@ -6,7 +6,6 @@ and can change in any release.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
@@ -82,10 +81,8 @@ class PluginSubscription:
 
 
 class PluginSettingsAccess:
-    def __init__(self, plugin_id: str, settings_schema: dict | None, logger: logging.Logger) -> None:
-        self._plugin_id = plugin_id
+    def __init__(self, settings_schema: dict | None) -> None:
         self._schema = settings_schema
-        self._logger = logger
         self._values: dict = self.defaults()
         self.change_hooks: list[Callable[[dict], Any]] = []
 
@@ -138,7 +135,7 @@ class PluginContext:
         self.router = APIRouter()
         self.deps = PluginDeps()
         self.subscription = PluginSubscription()
-        self.settings = PluginSettingsAccess(plugin_id, settings_schema, self.logger)
+        self.settings = PluginSettingsAccess(settings_schema)
         self.runs_panel = runs_panel
         self.runs_scheduler = runs_scheduler
         self.handlers: dict[str, list[EventHandler]] = {}
