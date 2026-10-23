@@ -1,3 +1,5 @@
+import { JSON_JINJA_LANGUAGE_ID } from '@/lib/json-jinja-language'
+
 /**
  * Map Monaco {@link https://microsoft.github.io/monaco-editor/monarch.html} language ids to Ace `mode` names.
  * Unsupported ids fall back to `plain_text`.
@@ -6,6 +8,7 @@ export function monacoLanguageToAceMode(monacoId: string | undefined): string {
   const id = (monacoId ?? 'plaintext').toLowerCase()
   const map: Record<string, string> = {
     json: 'json',
+    [JSON_JINJA_LANGUAGE_ID]: 'json_jinja',
     yaml: 'yaml',
     javascript: 'javascript',
     typescript: 'typescript',

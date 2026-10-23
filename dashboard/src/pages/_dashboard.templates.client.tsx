@@ -65,6 +65,7 @@ export default function ClientTemplates() {
       template_type: template.template_type,
       content: template.content,
       is_default: template.is_default,
+      use_jinja: template.use_jinja,
     })
     setIsDialogOpen(true)
   }

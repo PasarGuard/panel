@@ -1507,6 +1507,9 @@
   },
   "hostsDialog": {
     "addHost": "Добавить хост",
+    "tagPrefix": "Префикс тега",
+    "tagPrefixPlaceholder": "напр. de",
+    "tagPrefixDescription": "Клиентские шаблоны получают этот хост как «<префикс>-<id>», даже если он отключён (префикс по умолчанию: «out»). Используйте его для маршрутизации или балансировки на хост. Зарезервировано: proxy, dialer, direct, block.",
     "selectInbound": "Выберите входящий",
     "fingerprint": "Отпечаток",
     "selectStatus": "Выберите статус",

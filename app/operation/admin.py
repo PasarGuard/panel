@@ -69,6 +69,8 @@ class AdminOperation(BaseOperation):
             if existing_admins:
                 await self.raise_error(message="Telegram ID is already assigned to another admin.", code=409, db=db)
 
+        await self.check_custom_variables(new_admin.custom_variables, db)
+
         try:
             db_admin = await create_admin(db, new_admin)
         except IntegrityError:
@@ -95,6 +97,7 @@ class AdminOperation(BaseOperation):
         self, db: AsyncSession, db_admin: Admin, modified_admin: AdminModify, current_admin: AdminDetails
     ) -> AdminDetails:
         """Modify an existing admin's details."""
+        await self.check_custom_variables(modified_admin.custom_variables, db)
         # Owner can only be modified by themselves via normal routes.
         is_owner_target = self._is_owner_admin(db_admin)
         is_self = current_admin.id is not None and db_admin.id == current_admin.id

@@ -1,4 +1,5 @@
 from enum import Enum, StrEnum
+from typing import NamedTuple
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -13,11 +14,28 @@ class ClientTemplateType(StrEnum):
     grpc_user_agent = "grpc_user_agent"
 
 
+class TemplateSource(NamedTuple):
+    """A stored client template as subscriptions render it. The id names it in failure reports."""
+
+    content: str
+    use_jinja: bool
+    id: int
+
+
+def effective_use_jinja(template_type: ClientTemplateType, use_jinja: bool) -> bool:
+    """Clash always needs Jinja2: it renders `conf`, built once the proxies exist. User-Agent lists never get it."""
+    if template_type in (ClientTemplateType.user_agent, ClientTemplateType.grpc_user_agent):
+        return False
+    return use_jinja or template_type == ClientTemplateType.clash_subscription
+
+
 class ClientTemplateBase(BaseModel):
     name: str = Field(max_length=64)
     template_type: ClientTemplateType
     content: str
     is_default: bool = Field(default=False)
+    # Forced on for clash_subscription (it renders `conf`, built once the proxies exist), off for the User-Agent lists.
+    use_jinja: bool = Field(default=False)
 
     @field_validator("name")
     @classmethod
@@ -43,6 +61,7 @@ class ClientTemplateModify(BaseModel):
     name: str | None = Field(default=None, max_length=64)
     content: str | None = None
     is_default: bool | None = None
+    use_jinja: bool | None = None
 
     @field_validator("name")
     @classmethod
@@ -64,6 +83,19 @@ class ClientTemplateModify(BaseModel):
         return value
 
 
+class ClientTemplateValidate(BaseModel):
+    template_type: ClientTemplateType
+    content: str
+    use_jinja: bool = Field(default=False)
+
+
+class ClientTemplateValidation(BaseModel):
+    valid: bool
+    error: str | None = None
+    # Line of `content` the error points at, when it can be told.
+    line: int | None = None
+
+
 class ClientTemplateResponse(BaseModel):
     id: int
     name: str
@@ -71,6 +103,7 @@ class ClientTemplateResponse(BaseModel):
     content: str
     is_default: bool
     is_system: bool
+    use_jinja: bool
 
     model_config = ConfigDict(from_attributes=True)
 
