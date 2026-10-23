@@ -230,7 +230,7 @@ class FeatureSettings(EnvSettings):
     stop_nodes_on_shutdown: bool = Field(default=True, validation_alias="STOP_NODES_ON_SHUTDOWN")
 
 
-class PluginSettings(EnvSettings):
+class PluginEnvSettings(EnvSettings):
     plugins_dir: str = Field(default="/var/lib/pasarguard/plugins", validation_alias="PLUGINS_DIR")
     enabled_raw: str = Field(default="", validation_alias="PLUGINS")
 
@@ -259,7 +259,7 @@ auth_settings = AuthSettings()
 usage_settings = UsageSettings()
 job_settings = JobSettings()
 feature_settings = FeatureSettings()
-plugin_settings = PluginSettings()
+plugin_env_settings = PluginEnvSettings()
 
 if not database_settings.is_postgresql:
     usage_settings.enable_recording_nodes_stats = False

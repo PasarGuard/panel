@@ -18,7 +18,7 @@ from app.settings import handle_settings_message
 from app.subscription.client_templates import handle_client_template_message
 from app.utils.logger import get_logger
 from app.version import __version__
-from config import database_settings, plugin_settings, runtime_settings, server_settings, subscription_env_settings
+from config import database_settings, plugin_env_settings, runtime_settings, server_settings, subscription_env_settings
 
 logger = get_logger("app-factory")
 
@@ -332,14 +332,14 @@ def _register_jobs():
 
 def _setup_plugins(app: FastAPI):
     # PLUGINS empty: the plugin system is off and no plugin code is imported
-    if not plugin_settings.enabled:
+    if not plugin_env_settings.enabled:
         return
     from app.plugins.manager import init_plugins
 
     init_plugins(
         app,
-        plugin_settings.plugins_dir,
-        plugin_settings.enabled,
+        plugin_env_settings.plugins_dir,
+        plugin_env_settings.enabled,
         runs_panel=runtime_settings.role.runs_panel,
         runs_scheduler=runtime_settings.role.runs_scheduler,
     )
