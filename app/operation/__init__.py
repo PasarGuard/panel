@@ -18,14 +18,25 @@ from app.db.crud import (
     get_user_template,
 )
 from app.db.crud.admin import get_admin_by_id
+from app.db.crud.client_profile import get_client_profile_by_id
 from app.db.crud.group import get_groups_by_ids
 from app.db.crud.user import get_user_by_id, get_wireguard_subscription_user
-from app.db.models import Admin as DBAdmin, ClientTemplate, CoreConfig, Group, Node, ProxyHost, User, UserTemplate
+from app.db.models import (
+    Admin as DBAdmin,
+    ClientProfile,
+    ClientTemplate,
+    CoreConfig,
+    Group,
+    Node,
+    ProxyHost,
+    User,
+    UserTemplate,
+)
 from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
 from app.models.user import UserCreate, UserModify
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
-from app.operation.permissions import apply_group_access, get_scope_admin_id
+from app.operation.permissions import apply_group_access, can_assign_client_profile, get_scope_admin_id
 from app.utils.helpers import ensure_datetime_timezone
 from app.utils.jwt import get_subscription_payload
 
@@ -338,3 +349,29 @@ class BaseOperation:
         if not db_client_template:
             await self.raise_error(message="Client template not found", code=404)
         return db_client_template
+
+    async def get_validated_client_profile(self, db: AsyncSession, profile_id: int) -> ClientProfile:
+        db_client_profile = await get_client_profile_by_id(db, profile_id)
+        if not db_client_profile:
+            await self.raise_error(message="Client profile not found", code=404)
+        return db_client_profile
+
+    async def validate_client_profile_id(
+        self,
+        db: AsyncSession,
+        profile_id: int | None,
+        admin: AdminDetails | None = None,
+        *,
+        current_profile_id: int | None = None,
+    ) -> None:
+        """Check a client_profile_id being set on a user or user template.
+
+        Unchanged values pass (so payloads echoing the stored value keep working); a change needs
+        client_profiles.read or read_simple for non-owner admins, and the profile must exist.
+        """
+        if profile_id == current_profile_id:
+            return
+        if admin is not None and not can_assign_client_profile(admin):
+            await self.raise_error(message="Permission denied: client_profiles.read", code=403, db=db)
+        if profile_id is not None:
+            await self.get_validated_client_profile(db, profile_id)

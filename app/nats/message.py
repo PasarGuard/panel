@@ -11,6 +11,7 @@ class MessageTopic(str, Enum):
     HOST = "host"
     SETTING = "setting"
     CLIENT_TEMPLATE = "client_template"
+    CLIENT_PROFILE = "client_profile"
     NODE = "node"
 
 
