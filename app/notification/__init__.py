@@ -10,6 +10,7 @@ from app.models.host import BaseHost
 from app.models.node import NodeNotification, NodeResponse
 from app.models.user import UserNotificationResponse
 from app.models.user_template import UserTemplateResponse
+from app.plugins import events as plugin_events, registry as plugin_registry
 from app.settings import notification_enable
 from app.utils.logger import get_logger
 
@@ -35,7 +36,11 @@ def _safe_notification_task(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
-            if not await claim_notification_slot(func.__name__, args, kwargs):
+            notify = await claim_notification_slot(func.__name__, args, kwargs)
+            if plugin_registry.active:
+                # Plugin events ignore the notification toggles and have their own dedup; see app/plugins/events.py
+                plugin_events.emit_notification(func.__name__, func, args, kwargs)
+            if not notify:
                 return None
             return await func(*args, **kwargs)
         except asyncio.CancelledError:

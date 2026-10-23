@@ -18,6 +18,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { useSystemVersion } from '@/hooks/use-system-version'
 import { useVersionCheck } from '@/hooks/use-version-check'
 import { cn } from '@/lib/utils'
+import { useGetPlugins } from '@/service/api'
 import { canReadResourcePage, hasPermission, hasScopeAll, isOwner } from '@/utils/rbac'
 import {
   ArrowUpDown,
@@ -44,6 +45,7 @@ import {
   Network,
   Palette,
   PieChart,
+  Puzzle,
   RssIcon,
   Send,
   Settings,
@@ -76,6 +78,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canReadNodeLogs = hasPermission(admin, 'nodes', 'logs')
   const canBulkCreateFromTemplate = hasPermission(admin, 'users', 'create') && canReadTemplates
   const canBulkUpdateUsers = hasScopeAll(admin, 'users', 'update')
+  // Plugins are owner-only; the item stays hidden while no plugin is enabled
+  const { data: pluginsData } = useGetPlugins({ query: { enabled: isOwner(admin), staleTime: 5 * 60 * 1000, retry: false } })
+  const plugins = isOwner(admin) ? (pluginsData?.plugins ?? []) : []
+  const pluginNavItems = [
+    { title: 'plugins.title', url: '/plugins', icon: Puzzle },
+    ...plugins
+      .filter(plugin => plugin.status === 'loaded' && plugin.has_ui)
+      .map(plugin => ({ title: `plugin:${plugin.id}`, label: plugin.name, url: `/plugins/${encodeURIComponent(plugin.id)}`, icon: Puzzle })),
+  ]
   const nodeNavItems = [
     ...(canReadNodes
       ? [
@@ -262,6 +273,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             url: '/api-keys',
             icon: Key,
           }]
+        : []),
+      ...(plugins.length > 0
+        ? [
+            {
+              title: 'plugins.title',
+              url: '/plugins',
+              icon: Puzzle,
+              ...(pluginNavItems.length > 1 ? { items: pluginNavItems } : {}),
+            },
+          ]
         : []),
       ...(nodeNavItems.length > 0
         ? [

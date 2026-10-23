@@ -51,8 +51,14 @@ async def claim_notification_slot(event_name: str, args: tuple[Any, ...], kwargs
     """Return True if this worker should emit the notification."""
     if server_settings.workers <= 1:
         return True
+    return await claim_slot(notification_fingerprint(event_name, args, kwargs), event_name)
 
-    key = notification_fingerprint(event_name, args, kwargs)
+
+async def claim_slot(key: str, event_name: str) -> bool:
+    """Claim ``key`` for the dedup window; False if this or another worker already claimed it."""
+    if server_settings.workers <= 1:
+        return True
+
     now = time.time()
     async with _local_lock:
         _prune_local(now)

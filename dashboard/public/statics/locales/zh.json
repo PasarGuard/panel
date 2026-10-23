@@ -815,6 +815,27 @@
     },
     "disabled": "已禁用"
   },
+  "plugins": {
+    "title": "插件",
+    "description": "通过 PLUGINS 设置启用的服务端插件",
+    "empty": "未启用任何插件",
+    "loaded": "已加载",
+    "failed": "失败",
+    "settings": "设置",
+    "settingsDescription": "保存后立即在所有面板进程中生效",
+    "noSettings": "此插件没有设置项",
+    "saved": "插件设置已保存",
+    "saveFailed": "无法保存插件设置",
+    "loadFailed": "无法加载插件设置",
+    "invalidJson": "JSON 无效",
+    "invalidNumber": "请输入有效的数字",
+    "oneValuePerLine": "每行一个值",
+    "jsonValue": "JSON 值",
+    "openPage": "打开页面",
+    "notFound": "此插件没有页面或未加载",
+    "uiLoading": "正在打开插件页面...",
+    "uiError": "无法打开插件页面"
+  },
   "apiKeys": {
     "title": "API 密钥",
     "description": "管理用于编程访问的 API 密钥",

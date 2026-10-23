@@ -12,6 +12,7 @@ from . import (
     hwid,
     node,
     passkey,
+    plugin,
     settings,
     setup,
     subscription,
@@ -40,6 +41,7 @@ routers = [
     user_template.router,
     hwid.router,
     passkey.router,
+    plugin.router,
 ]
 
 for router in routers:

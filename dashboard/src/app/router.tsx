@@ -30,6 +30,8 @@ const Nodes = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes'))
 const NodesPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes._index'))
 const NodeLogs = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes.logs'))
 const NodeWireGuard = lazyWithChunkRecovery(() => import('../pages/_dashboard.nodes.wireguard'))
+const PluginsPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.plugins'))
+const PluginPage = lazyWithChunkRecovery(() => import('../pages/_dashboard.plugins.page'))
 const Settings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings'))
 const CleanupSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.cleanup'))
 const GeneralSettings = lazyWithChunkRecovery(() => import('../pages/_dashboard.settings.general'))
@@ -255,6 +257,22 @@ export const router = createHashRouter([
         element: (
           <Suspense fallback={<LoadingSpinner />}>
             <ApiKeysPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/plugins',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <PluginsPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/plugins/:pluginId',
+        element: (
+          <Suspense fallback={<LoadingSpinner />}>
+            <PluginPage />
           </Suspense>
         ),
       },

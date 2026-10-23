@@ -17,10 +17,13 @@ interface PageHeaderProps {
   buttonTooltip?: string
   tutorialUrl?: string
   className?: string
+  /** Set to false when title and description are plain text (for example a plugin name), not i18n keys. */
+  translate?: boolean
 }
 
-export default function PageHeader({ title, description, buttonText, onButtonClick, buttonIcon: Icon = Plus, buttonTooltip, tutorialUrl, className }: PageHeaderProps) {
+export default function PageHeader({ title, description, buttonText, onButtonClick, buttonIcon: Icon = Plus, buttonTooltip, tutorialUrl, className, translate = true }: PageHeaderProps) {
   const { t } = useTranslation()
+  const text = (value: string) => (translate ? t(value) : value)
   const dir = useDirDetection()
   const location = useLocation()
 
@@ -32,7 +35,7 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
       <Snowfall className="snowfall--header" />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-y-1">
         <div className="flex min-w-0 items-center gap-2.5">
-          <h1 className="truncate text-xl sm:text-2xl font-semibold tracking-tight">{t(title)}</h1>
+          <h1 className="truncate text-xl sm:text-2xl font-semibold tracking-tight">{text(title)}</h1>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -52,7 +55,7 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
             </Tooltip>
           </TooltipProvider>
         </div>
-        {description && <span className="text-muted-foreground text-sm leading-relaxed whitespace-normal">{t(description)}</span>}
+        {description && <span className="text-muted-foreground text-sm leading-relaxed whitespace-normal">{text(description)}</span>}
       </div>
       {buttonText && onButtonClick && (
         <div className="relative z-10 shrink-0">

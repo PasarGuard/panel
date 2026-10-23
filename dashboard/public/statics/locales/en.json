@@ -822,6 +822,27 @@
     },
     "disabled": "Disabled"
   },
+  "plugins": {
+    "title": "Plugins",
+    "description": "Server-side plugins enabled with the PLUGINS setting",
+    "empty": "No plugins are enabled",
+    "loaded": "Loaded",
+    "failed": "Failed",
+    "settings": "Settings",
+    "settingsDescription": "Changes apply to all panel workers right after saving",
+    "noSettings": "This plugin has no settings",
+    "saved": "Plugin settings saved",
+    "saveFailed": "Could not save plugin settings",
+    "loadFailed": "Could not load plugin settings",
+    "invalidJson": "Invalid JSON",
+    "invalidNumber": "Enter a valid number",
+    "oneValuePerLine": "One value per line",
+    "jsonValue": "JSON value",
+    "openPage": "Open page",
+    "notFound": "This plugin has no page or is not loaded",
+    "uiLoading": "Opening plugin page...",
+    "uiError": "Could not open the plugin page"
+  },
   "apiKeys": {
     "title": "API Keys",
     "description": "Manage API keys for programmatic access",
