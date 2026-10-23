@@ -1,12 +1,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
+import type { AdminDetails } from '@/service/api'
+
 import {
   clientProfileFormDefaultValues,
   clientProfileFormSchema,
   clientProfileFormToPayload,
   clientProfileToFormValues,
   DEFAULT_TEMPLATE_VALUE,
+  detachAllAccess,
   profileIdsToDetach,
   type ClientProfileFormValues,
 } from './client-profile-form'
@@ -142,6 +145,24 @@ test('schema rejects bad interval, header names, duplicate and built-in variable
   assert.deepEqual(issues({ name: '   ' }), ['validation.required'])
 })
 
+test('header values must be latin-1 except profile-title and announce', () => {
+  const issues = (patch: Partial<ClientProfileFormValues>) => {
+    const result = clientProfileFormSchema.safeParse(withValues(patch))
+    return result.success ? [] : result.error.issues.map(issue => issue.message)
+  }
+  assert.deepEqual(issues({ response_headers: [{ key: 'X-Plan', value: 'Премиум' }] }), ['clientProfiles.validation.headerLatin1'])
+  assert.deepEqual(issues({ response_headers: [{ key: 'X-Plan', value: 'Café' }] }), [])
+  assert.deepEqual(
+    issues({
+      response_headers: [
+        { key: 'Profile-Title', value: 'Премиум' },
+        { key: 'announce', value: '你好' },
+      ],
+    }),
+    [],
+  )
+})
+
 test('detaching selected users from their profiles', () => {
   const loaded = [
     { id: 1, client_profile_id: 5 },
@@ -154,4 +175,16 @@ test('detaching selected users from their profiles', () => {
   assert.deepEqual(profileIdsToDetach([1, 4], loaded, [5, 9, 11]), [5, 9])
   // A selected user that is not loaded (another page): fall back to every profile
   assert.deepEqual(profileIdsToDetach([1, 42], loaded, [5, 9, 11]), [5, 9, 11])
+})
+
+test('remove from all users needs users.update and hides the panel-wide count for scope own', () => {
+  const adminWith = (users?: Record<string, unknown>) =>
+    ({ username: 'a', role: { is_owner: false, permissions: { client_profiles: { update: true }, ...(users ? { users } : {}) } } }) as unknown as AdminDetails
+  assert.deepEqual(detachAllAccess(adminWith(), true), { canDetach: false, ownUsersOnly: true })
+  assert.deepEqual(detachAllAccess(adminWith({ update: { scope: 0 } }), true), { canDetach: false, ownUsersOnly: true })
+  assert.deepEqual(detachAllAccess(adminWith({ update: { scope: 1 } }), true), { canDetach: true, ownUsersOnly: true })
+  assert.deepEqual(detachAllAccess(adminWith({ update: { scope: 2 } }), true), { canDetach: true, ownUsersOnly: false })
+  assert.deepEqual(detachAllAccess(adminWith({ update: true }), false), { canDetach: false, ownUsersOnly: false })
+  const owner = { username: 'o', role: { is_owner: true, permissions: {} } } as unknown as AdminDetails
+  assert.deepEqual(detachAllAccess(owner, true), { canDetach: true, ownUsersOnly: false })
 })
