@@ -6,6 +6,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models import DataLimitResetStrategy, UserStatus
 from app.models.admin import AdminBase, AdminContactInfo
+from app.models.client_profile import ClientProfile
 from app.models.proxy import ProxyTable, ShadowsocksMethods
 from app.models.stats import Period, PeriodStartStat, StatList
 from app.utils.helpers import fix_datetime_timezone
@@ -51,6 +52,8 @@ class User(BaseModel):
     auto_delete_in_days: int | None = Field(default=None)
     hwid_limit: int | None = Field(default=None)
     next_plan: NextPlanModel | None = Field(default=None)
+    # Panel-only: how the subscription is delivered. On modify, omitted = unchanged, null = clear.
+    client_profile_id: int | None = Field(default=None)
 
 
 class UserWithValidator(User):
@@ -164,12 +167,15 @@ class SubscriptionUserResponse(UserResponse):
     note: str | None = Field(None, exclude=True)
     auto_delete_in_days: int | None = Field(None, exclude=True)
     subscription_url: str | None = Field(None, exclude=True)
+    client_profile_id: int | None = Field(None, exclude=True)
     ip: str | None = Field(default=None)
     model_config = ConfigDict(from_attributes=True)
 
 
 class UsersResponseWithInbounds(SubscriptionUserResponse):
     inbounds: list[str] | None = Field(default_factory=list)
+    # Resolved from the profiles cache when a subscription is built; never serialized.
+    client_profile: ClientProfile | None = Field(default=None, exclude=True)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -430,6 +436,8 @@ class BulkUsersSetOwner(BulkUsersSelection):
 class ModifyUserByTemplate(BaseModel):
     user_template_id: int
     note: str | None = Field(max_length=500, default=None)
+    # When sent (even as null) it wins over the template's client profile.
+    client_profile_id: int | None = Field(default=None)
 
 
 class BulkUsersApplyTemplate(BulkUsersSelection, ModifyUserByTemplate):

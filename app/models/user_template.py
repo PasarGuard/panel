@@ -37,6 +37,8 @@ class UserTemplate(BaseModel):
     on_hold_timeout: int | None = None
     data_limit_reset_strategy: DataLimitResetStrategy = Field(default=DataLimitResetStrategy.no_reset)
     is_disabled: bool | None = None
+    # On modify, omitted = unchanged, null = clear.
+    client_profile_id: int | None = None
 
 
 class UserTemplateWithValidator(UserTemplate):

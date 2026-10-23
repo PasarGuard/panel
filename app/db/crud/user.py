@@ -1333,6 +1333,9 @@ async def modify_user(
     if modify.hwid_limit is not None:
         db_user.hwid_limit = modify.hwid_limit
 
+    if "client_profile_id" in modify.model_fields_set:
+        db_user.client_profile_id = modify.client_profile_id
+
     if "next_plan" in modify.model_fields_set:
         if modify.next_plan is not None:
             db_user.next_plan = NextPlan(
@@ -1533,6 +1536,9 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
             )
             db_user.proxy_settings = proxy_settings
         db_user.data_limit_reset_strategy = db_user.next_plan.user_template.data_limit_reset_strategy
+        # Same rule as applying a template: a template without a profile keeps the user's profile
+        if db_user.next_plan.user_template.client_profile_id is not None:
+            db_user.client_profile_id = db_user.next_plan.user_template.client_profile_id
 
     await _reset_users_traffic_and_log(db, [db_user.id], clean_chart_data=clean_chart_data)
     await db.commit()
