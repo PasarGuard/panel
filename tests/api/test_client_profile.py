@@ -965,3 +965,86 @@ def test_modify_user_and_user_template_need_client_profile_permission(access_tok
         delete_group(access_token, group["id"])
         delete_client_profile(access_token, profile["id"])
         delete_client_profile(access_token, other_profile["id"])
+
+
+def test_bulk_delete_client_profiles(access_token):
+    headers = auth_headers(access_token)
+    first = create_client_profile(access_token)
+    second = create_client_profile(access_token)
+    try:
+        # One unknown id refuses the whole request
+        response = client.post(
+            "/api/client_profiles/bulk/delete", headers=headers, json={"ids": [first["id"], 999999999]}
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert client.get(f"/api/client_profile/{first['id']}", headers=headers).status_code == 200
+
+        response = client.post(
+            "/api/client_profiles/bulk/delete", headers=headers, json={"ids": [first["id"], second["id"]]}
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["count"] == 2
+        assert sorted(response.json()["profiles"]) == sorted([first["name"], second["name"]])
+        for profile in (first, second):
+            assert client.get(f"/api/client_profile/{profile['id']}", headers=headers).status_code == 404
+    finally:
+        for profile in (first, second):
+            client.delete(f"/api/client_profile/{profile['id']}", headers=headers)
+
+
+def test_assign_and_unassign_need_users_update_and_own_users(access_token):
+    headers = auth_headers(access_token)
+    profile = create_client_profile(access_token)
+    group = create_group(access_token)
+    owner_user = create_user(access_token, group_ids=[group["id"]])
+    no_update_role = client.post(
+        "/api/admin-role",
+        headers=headers,
+        json={
+            "name": unique_name("cp_role"),
+            "permissions": {"users": {"read": True}, "client_profiles": {"read": True, "update": True}},
+        },
+    ).json()
+    own_role = _create_role(access_token, {"read": True, "update": True})
+    no_update = create_admin(access_token, role_id=no_update_role["id"])
+    reseller = create_admin(access_token, role_id=own_role["id"])
+    try:
+        client.post(
+            f"/api/client_profile/{profile['id']}/users", headers=headers, json={"user_ids": [owner_user["id"]]}
+        )
+
+        token = auth_headers(_login(no_update["username"], no_update["password"]))
+        url = f"/api/client_profile/{profile['id']}/users"
+        assert client.post(url, headers=token, json={"user_ids": [owner_user["id"]]}).status_code == 403
+        assert client.request("DELETE", url, headers=token, json={"user_ids": [owner_user["id"]]}).status_code == 403
+        assert client.request("DELETE", url, headers=token, json={"all": True}).status_code == 403
+
+        # Own scope: another admin's user can't be detached
+        token = auth_headers(_login(reseller["username"], reseller["password"]))
+        response = client.request("DELETE", url, headers=token, json={"user_ids": [owner_user["id"]]})
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        user = client.get(f"/api/user/{owner_user['username']}", headers=headers).json()
+        assert user["client_profile_id"] == profile["id"]
+    finally:
+        delete_user(access_token, owner_user["username"])
+        delete_admin(access_token, no_update["username"])
+        delete_admin(access_token, reseller["username"])
+        client.delete(f"/api/admin-role/{no_update_role['id']}", headers=headers)
+        client.delete(f"/api/admin-role/{own_role['id']}", headers=headers)
+        delete_group(access_token, group["id"])
+        delete_client_profile(access_token, profile["id"])
+
+
+def test_builtin_administrator_role_manages_client_profiles(access_token):
+    administrator = create_admin(access_token, role_id=2)
+    profile = None
+    try:
+        token = auth_headers(_login(administrator["username"], administrator["password"]))
+        assert client.get("/api/client_profiles", headers=token).status_code == status.HTTP_200_OK
+        response = client.post("/api/client_profile", headers=token, json={"name": unique_name("cp_adm")})
+        assert response.status_code == status.HTTP_201_CREATED, response.text
+        profile = response.json()
+    finally:
+        if profile is not None:
+            delete_client_profile(access_token, profile["id"])
+        delete_admin(access_token, administrator["username"])
