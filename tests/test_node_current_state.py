@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 
 import pytest
+from PasarGuardNodeBridge import create_proxy
 from PasarGuardNodeBridge.common.service_pb2 import User
 
 from app.node import sync as node_sync
@@ -30,7 +31,18 @@ def reader(monkeypatch):
         calls.append(sorted(user_ids))
         return [proto(user_id) for user_id in user_ids if user_id % 2 == 1]  # odd ids exist and are active
 
+    async def removal_users(db, user_ids):
+        # Multiples of 4 exist but must be removed (disabled, no inbounds, admin-blocked); other even ids are gone.
+        return [
+            User(
+                email=str(user_id), proxies=create_proxy(wireguard_public_key="key", wireguard_peer_ips=["10.0.0.2/32"])
+            )
+            for user_id in user_ids
+            if user_id % 4 == 0
+        ]
+
     monkeypatch.setattr(node_sync, "core_users", core_users)
+    monkeypatch.setattr(node_sync, "removal_users", removal_users)
     instance = node_sync.CurrentStateReader(gather_seconds=0.01, max_ids_per_query=400, query_timeout=0.5)
     monkeypatch.setattr(node_sync, "_current_state", instance)
     return instance, calls
@@ -117,16 +129,20 @@ async def test_large_batches_are_split_into_bounded_queries(reader):
     ids = list(range(1, 901))
     result = await instance.get(ids)
     assert len(calls) == 3 and all(len(call) <= 400 for call in calls)
-    assert sum(1 for value in result.values() if value is not None) == 450
+    assert sum(1 for value in result.values() if value is not None and value.inbounds) == 450
+    assert sum(1 for value in result.values() if value is not None and not value.inbounds) == 225
 
 
 @pytest.mark.asyncio
 async def test_refresh_resolves_missing_disabled_and_blocked_users_to_removals(reader):
     del reader  # fixture installs the fake reader
-    # Even ids are not returned by the query (deleted, disabled/expired, no inbounds, or admin-blocked).
+    # Even ids are not returned by the core query: 2 is deleted, 4 is disabled/expired, has no inbounds, or is admin-blocked.
     payloads = {user.email: user for user in await node_sync.refresh_node_users("9", ["1", "2", "not-a-user", "4"])}
     assert list(payloads["1"].inbounds) == ["in"]
     assert list(payloads["2"].inbounds) == [] and list(payloads["4"].inbounds) == []
+    # A removal keeps the stored credentials; a deleted user has none (the queue keeps its queued ones).
+    assert payloads["4"].proxies.wireguard.public_key == "key"
+    assert not payloads["2"].HasField("proxies")
     assert "not-a-user" not in payloads  # callers keep their queued payload for non-panel identities
 
 

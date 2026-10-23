@@ -20,6 +20,8 @@ class TelegramNotification(BaseModel):
     topic_id: int | None = Field(default=None)
     tries: int = Field(default=0, ge=0)
     send_at: float = Field(default=0, allow_inf_nan=False)
+    # Position in a rate-limited destination's schedule (see app.notification.client)
+    slot: float | None = Field(default=None, allow_inf_nan=False)
 
 
 class DiscordNotification(BaseModel):
@@ -30,6 +32,8 @@ class DiscordNotification(BaseModel):
     webhook: str
     tries: int = Field(default=0, ge=0)
     send_at: float = Field(default=0, allow_inf_nan=False)
+    # Position in a rate-limited destination's schedule (see app.notification.client)
+    slot: float | None = Field(default=None, allow_inf_nan=False)
 
 
 class WebhookNotification(BaseModel):

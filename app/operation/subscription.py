@@ -509,6 +509,10 @@ class SubscriptionOperation(BaseOperation):
                 )
             )
         else:
+            # Reject unsupported clients before registering the HWID, so they never use up a device slot
+            client_type = matched_rule.target if matched_rule else None
+            if client_type == ConfigFormat.block or not client_type:
+                await self.raise_error(message="Client not supported", code=406)
             await self.validate_and_register_hwid(
                 db,
                 db_user.id,
@@ -519,9 +523,6 @@ class SubscriptionOperation(BaseOperation):
                 x_ver_os,
                 x_device_model,
             )
-            client_type = matched_rule.target if matched_rule else None
-            if client_type == ConfigFormat.block or not client_type:
-                await self.raise_error(message="Client not supported", code=406)
 
             # Update user subscription info
             await user_sub_update(db, db_user.id, user_agent, ip=ip, hwid=x_hwid)

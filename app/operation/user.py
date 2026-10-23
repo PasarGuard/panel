@@ -55,6 +55,7 @@ from app.db.crud.user import (
     revoke_user_sub,
     set_owner,
 )
+from app.db.crud.wireguard import ensure_wireguard_subnet_pools
 from app.db.models import User, UserStatus, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.proxy import ProxyTable
@@ -890,8 +891,12 @@ class UserOperation(BaseOperation):
         new_status = UserStatus.disabled if toggle.disabled else _resolve_enabled_user_status(db_user)
 
         if db_user.status != new_status:
+            changed_at = dt.now(UTC)
+            if new_status == UserStatus.on_hold:
+                # Back on hold: like an edit, it makes earlier traffic not count as coming online.
+                db_user.edit_at = changed_at
             db_user.status = new_status
-            db_user.last_status_change = dt.now(UTC)
+            db_user.last_status_change = changed_at
             await db.commit()
             await load_user_attrs(db_user, load_admin_role=True)
 
@@ -1244,6 +1249,9 @@ class UserOperation(BaseOperation):
                 if db_user.id is None:
                     continue
                 original_statuses[db_user.id] = db_user.status
+                if new_status == UserStatus.on_hold:
+                    # Back on hold: like an edit, it makes earlier traffic not count as coming online.
+                    db_user.edit_at = changed_at
                 db_user.status = new_status
                 db_user.last_status_change = changed_at
                 changed_user_ids.append(db_user.id)
@@ -1929,15 +1937,19 @@ class UserOperation(BaseOperation):
 
         modified_user_ids: list[int] = []
         try:
-            for db_user, modified_user_model, validated_groups, _, _ in prepared_updates:
-                if user_template.reset_usages:
-                    await reset_user_data_usage(
-                        db,
-                        db_user,
-                        clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
-                        commit=False,
-                    )
+            if user_template.reset_usages:
+                # The modify below allocates WireGuard IPs, which locks the pool rows before user rows everywhere
+                # else: take them before the reset locks the users, or a concurrent modify can deadlock with us
+                await ensure_wireguard_subnet_pools(db)
+                # One set-based reset for all users; it reloads them, so each one below is edited from fresh state
+                await bulk_reset_user_data_usage(
+                    db,
+                    [db_user for db_user, *_ in prepared_updates],
+                    clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+                    commit=False,
+                )
 
+            for db_user, modified_user_model, validated_groups, _, _ in prepared_updates:
                 self._apply_explicit_null_hwid_limit(db_user, modified_user_model)
                 await crud_modify_user(
                     db,

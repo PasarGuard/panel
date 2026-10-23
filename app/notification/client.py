@@ -2,7 +2,9 @@ import asyncio
 import json
 import math
 import time
+import weakref
 from contextlib import suppress
+from dataclasses import dataclass
 
 import aiohttp
 from pydantic import ValidationError
@@ -62,6 +64,14 @@ on_shutdown(close_client, priority=90)
 logger = get_logger("Notification")
 
 
+class RateLimitedError(Exception):
+    """The destination answered 429 and asked to wait retry_after seconds."""
+
+    def __init__(self, retry_after: float):
+        super().__init__(retry_after)
+        self.retry_after = retry_after
+
+
 async def _post_notification(url: str, **kwargs) -> tuple[bool, float]:
     """Attempt once; queue delays keep rate-limited destinations off the worker."""
     await define_client()
@@ -78,7 +88,7 @@ async def _post_notification(url: str, **kwargs) -> tuple[bool, float]:
                 body = json.loads(body_bytes)
                 delay = float(body.get("parameters", body).get("retry_after", 1))
                 if math.isfinite(delay):
-                    return False, max(1, min(delay, 3600))
+                    raise RateLimitedError(max(1, min(delay, 3600)))
             except ValueError, TypeError, AttributeError:
                 pass
         logger.warning("Notification delivery failed with HTTP %s", response.status)
@@ -103,6 +113,49 @@ async def send_telegram_message(message, chat_id: int | None = None, topic_id: i
     if not chat_id:
         return
     await enqueue_telegram(message, chat_id, topic_id)
+
+
+# Telegram limits messages per chat and Discord per webhook. After a 429 the
+# destination gets a schedule: each message to it takes the next slot (kept on
+# the queued item), and every later 429 moves the whole schedule back. Waiting
+# messages keep their order, and other destinations are not held up.
+RATE_LIMIT_SPACING = 1.0  # seconds between slots: Telegram asks for at most one message a second per chat
+RATE_LIMIT_IDLE = 60.0  # forget a schedule this long after its last slot
+
+
+@dataclass
+class _RateLimit:
+    first_slot: float
+    next_slot: float
+    offset: float = 0.0  # added to a slot to get its send time
+
+
+_rate_limits: dict[str, _RateLimit] = {}
+# One delivery at a time per destination, so a 429 is seen before the next send.
+_destination_locks: weakref.WeakValueDictionary[str, asyncio.Lock] = weakref.WeakValueDictionary()
+
+
+def _destination_lock(destination: str) -> asyncio.Lock:
+    lock = _destination_locks.get(destination)
+    if lock is None:
+        lock = _destination_locks[destination] = asyncio.Lock()
+    return lock
+
+
+def _rate_limit(destination: str, now: float) -> _RateLimit | None:
+    for key, limit in list(_rate_limits.items()):
+        if limit.next_slot + limit.offset + RATE_LIMIT_IDLE < now:
+            del _rate_limits[key]
+    return _rate_limits.get(destination)
+
+
+def _take_slot(limit: _RateLimit, notification: TelegramNotification | DiscordNotification, now: float) -> float:
+    """Return the notification's slot, giving it the next free one if it has none in this schedule."""
+    if notification.slot is not None and notification.slot >= limit.first_slot:
+        return notification.slot
+    slot = max(limit.next_slot, now - limit.offset)
+    limit.next_slot = slot + RATE_LIMIT_SPACING
+    return slot
 
 
 async def process_notification(delivery: NotificationDelivery):
@@ -132,35 +185,69 @@ async def process_notification(delivery: NotificationDelivery):
             await delivery.release(delay)
             return
 
-        try:
-            if isinstance(notification, DiscordNotification):
-                if not settings.notify_discord:
-                    await delivery.ack()
-                    return
-                await delivery.prepare(notification.model_dump())
-                success, delay = await _post_notification(notification.webhook, json=notification.json_data)
-            else:
-                if not settings.notify_telegram or not settings.telegram_api_token or not notification.chat_id:
-                    await delivery.ack()
-                    return
-                payload = {"parse_mode": "HTML", "text": notification.message, "chat_id": notification.chat_id}
-                if notification.topic_id:
-                    payload["message_thread_id"] = notification.topic_id
-                await delivery.prepare(notification.model_dump())
-                success, delay = await _post_notification(
-                    f"https://api.telegram.org/bot{settings.telegram_api_token}/sendMessage", data=payload
-                )
-        except aiohttp.ClientError, TimeoutError:
-            logger.warning("Notification delivery failed due to a connection error or timeout")
-            success, delay = False, 1
-
-        if success or notification.tries + 1 >= settings.max_retries:
-            if not success:
-                logger.warning("Notification exhausted its delivery attempts")
-            await delivery.ack()
+        if isinstance(notification, DiscordNotification):
+            if not settings.notify_discord:
+                await delivery.ack()
+                return
+            destination = f"discord:{notification.webhook}"
         else:
-            retry = notification.model_copy(update={"tries": notification.tries + 1, "send_at": time.time() + delay})
-            await delivery.retry(retry.model_dump(), delay=delay)
+            if not settings.notify_telegram or not settings.telegram_api_token or not notification.chat_id:
+                await delivery.ack()
+                return
+            destination = f"telegram:{notification.chat_id}"
+
+        async with _destination_lock(destination):
+            now = time.time()
+            limit = _rate_limit(destination, now)
+            if limit is not None:
+                slot = _take_slot(limit, notification, now)
+                send_at = slot + limit.offset
+                # A message that just took its slot, or whose slot a later 429 moved back, goes
+                # behind the messages ahead of it in the queue even when its time has come.
+                if slot != notification.slot or notification.send_at < send_at:
+                    scheduled = notification.model_copy(update={"slot": slot, "send_at": send_at})
+                    try:
+                        await delivery.retry(scheduled.model_dump(), delay=send_at - now)
+                    except asyncio.QueueFull:
+                        # No room to keep the slot: come back then and take a new one.
+                        await delivery.release(send_at - now)
+                    return
+
+            try:
+                await delivery.prepare(notification.model_dump())
+                if isinstance(notification, DiscordNotification):
+                    success, delay = await _post_notification(notification.webhook, json=notification.json_data)
+                else:
+                    payload = {"parse_mode": "HTML", "text": notification.message, "chat_id": notification.chat_id}
+                    if notification.topic_id:
+                        payload["message_thread_id"] = notification.topic_id
+                    success, delay = await _post_notification(
+                        f"https://api.telegram.org/bot{settings.telegram_api_token}/sendMessage", data=payload
+                    )
+            except RateLimitedError as error:
+                # Not a failed attempt: wait as asked, and move the rest of the schedule back with it.
+                now = time.time()
+                limit = _rate_limits.get(destination)
+                if limit is None:
+                    limit = _rate_limits[destination] = _RateLimit(first_slot=now, next_slot=now)
+                slot = _take_slot(limit, notification, now)
+                limit.offset = max(limit.offset, now + error.retry_after - slot)
+                retry = notification.model_copy(update={"slot": slot, "send_at": slot + limit.offset})
+                await delivery.retry(retry.model_dump(), delay=retry.send_at - now)
+                return
+            except aiohttp.ClientError, TimeoutError:
+                logger.warning("Notification delivery failed due to a connection error or timeout")
+                success, delay = False, 1
+
+            if success or notification.tries + 1 >= settings.max_retries:
+                if not success:
+                    logger.warning("Notification exhausted its delivery attempts")
+                await delivery.ack()
+            else:
+                retry = notification.model_copy(
+                    update={"tries": notification.tries + 1, "send_at": time.time() + delay}
+                )
+                await delivery.retry(retry.model_dump(), delay=delay)
 
 
 async def run_notification_dispatcher():

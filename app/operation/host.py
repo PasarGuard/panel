@@ -48,6 +48,21 @@ class HostOperation(BaseOperation):
             return (settings.get("xhttp_settings") or {}).get("download_settings")
         return settings.xhttp_settings.download_settings if settings and settings.xhttp_settings else None
 
+    @classmethod
+    def _dependent_hosts(cls, db_hosts: list[ProxyHost], host_ids: set[int]) -> list[ProxyHost]:
+        """Return the hosts outside ``host_ids`` that use one of them as their xHTTP download host."""
+        return [host for host in db_hosts if host.id not in host_ids and cls._download_host_id(host) in host_ids]
+
+    async def check_download_hosts_unused(self, db: AsyncSession, host_ids: set[int]) -> None:
+        """Refuse to delete a download host that a remaining host still uses."""
+        if dependents := self._dependent_hosts(await get_hosts(db=db), host_ids):
+            names = ", ".join(f'"{host.remark}" (id {host.id})' for host in dependents)
+            await self.raise_error(
+                f"Host is the xHTTP download host of {names}; remove it from their download settings first",
+                409,
+                db=db,
+            )
+
     async def validate_ds_host(
         self,
         db: AsyncSession,
@@ -112,6 +127,7 @@ class HostOperation(BaseOperation):
 
     async def remove_host(self, db: AsyncSession, host_id: int, admin: AdminDetails):
         db_host = await self.get_validated_host(db, host_id)
+        await self.check_download_hosts_unused(db, {db_host.id})
         await remove_host(db, db_host)
         logger.info(f'Host "{db_host.id}" deleted by admin "{admin.username}"')
 
@@ -169,6 +185,7 @@ class HostOperation(BaseOperation):
             await self.raise_error(message="Host not found", code=404)
 
         host_ids = [h.id for h in db_hosts]
+        await self.check_download_hosts_unused(db, set(host_ids))
 
         # Batch delete using CRUD function
         await remove_hosts(db, host_ids)
@@ -217,7 +234,9 @@ class HostOperation(BaseOperation):
             await db.refresh(db_host)
 
         if hosts_to_update:
-            await host_manager.add_hosts(db, hosts_to_update)
+            # Hosts that use a toggled host as their download host embed it, so rebuild them too
+            dependents = self._dependent_hosts(await get_hosts(db=db), {db_host.id for db_host in hosts_to_update})
+            await host_manager.add_hosts(db, [*hosts_to_update, *dependents])
 
         for db_host in hosts_to_update:
             host = BaseHost.model_validate(db_host)

@@ -90,8 +90,16 @@ run-cli:
 	@uv run pasarguard-cli.py
 
 # Run tests
-.PHONY: test
+.PHONY: test test-serial
+TEST_WORKERS ?= 4
 test:
+	@if [ "$${TEST_FROM:-local}" = "local" ]; then \
+		uv run pytest tests/ -n $(TEST_WORKERS) --dist loadfile; \
+	else \
+		uv run pytest tests/; \
+	fi
+
+test-serial:
 	@uv run pytest tests/
 
 # Run tests-watch
@@ -110,7 +118,7 @@ run-watch:
 # Cross-platform: the Python helper sets OPENAPI_INPUT and invokes orval itself.
 .PHONY: gen-api
 gen-api:
-	@uv run python scripts/export_openapi.py --gen-client
+	@uv run python export_openapi.py --gen-client
 
 # Check code
 .PHONY: check
