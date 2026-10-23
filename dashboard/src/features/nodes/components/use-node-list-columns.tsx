@@ -10,6 +10,7 @@ import { useXrayReleases } from '@/hooks/use-xray-releases'
 import { useNodeReleases } from '@/hooks/use-node-releases'
 import { Separator } from '@/components/ui/separator'
 import { CountryFlag } from '@/components/common/country-flag'
+import { NoteText } from '@/components/common/note-text'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface UseNodeListColumnsProps {
@@ -64,11 +65,7 @@ export const useNodeListColumns = ({
             <CountryFlag code={node.country_code} showCode={false} />
             <div className="flex min-w-0 flex-col">
               <span className="truncate font-medium">{node.name}</span>
-              {node.note && (
-                <span className="text-muted-foreground truncate text-xs" title={node.note}>
-                  {node.note}
-                </span>
-              )}
+              <NoteText note={node.note} />
             </div>
           </div>
         ),

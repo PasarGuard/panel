@@ -1,4 +1,5 @@
 import { Card } from '@/components/ui/card'
+import { NoteText } from '@/components/common/note-text'
 import { CoreResponse } from '@/service/api'
 import CoreActionsMenu from './core-actions-menu'
 import { cn } from '@/lib/utils'
@@ -37,11 +38,7 @@ export default function Core({ core, onEdit, onDuplicate, onDelete, canUpdate = 
                 <div className="truncate font-medium">{core.name}</div>
               </div>
             </div>
-            {core.note && (
-              <p className="text-muted-foreground mt-0.5 truncate text-xs" title={core.note}>
-                {core.note}
-              </p>
-            )}
+            <NoteText note={core.note} className="mt-0.5" />
           </div>
           <CoreActionsMenu core={core} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} canUpdate={canUpdate} canCreate={canCreate} canDelete={canDelete} />
         </div>

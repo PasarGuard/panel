@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ListColumn } from '@/components/common/list-generator'
+import { NoteText } from '@/components/common/note-text'
 import { CoreResponse } from '@/service/api'
 import CoreActionsMenu from '@/features/nodes/components/cores/core-actions-menu'
 
@@ -27,11 +28,7 @@ export const useCoresListColumns = ({ onEdit, onDuplicate, onDelete, canUpdate =
             <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
             <div className="flex min-w-0 flex-col">
               <span className="truncate font-medium">{core.name}</span>
-              {core.note && (
-                <span className="text-muted-foreground truncate text-xs" title={core.note}>
-                  {core.note}
-                </span>
-              )}
+              <NoteText note={core.note} />
             </div>
           </div>
         ),

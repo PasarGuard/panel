@@ -5,6 +5,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Separator } from '@/components/ui/separator'
 import { CountryFlag } from '@/components/common/country-flag'
+import { NoteText } from '@/components/common/note-text'
 import { cn } from '@/lib/utils'
 import { CoresSimpleResponse, NodeResponse } from '@/service/api'
 import { useXrayReleases } from '@/hooks/use-xray-releases'
@@ -174,11 +175,7 @@ export default function Node({
                 </span>
               </div>
 
-              {node.note && (
-                <p className="text-muted-foreground truncate text-[10px] sm:text-xs" title={node.note}>
-                  {node.note}
-                </p>
-              )}
+              <NoteText note={node.note} className="text-[10px] sm:text-xs" />
 
               {/* Version Info */}
               {(coreVersion || node.node_version) && (
