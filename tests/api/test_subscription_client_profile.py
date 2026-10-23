@@ -430,3 +430,51 @@ def test_profile_saved_before_stricter_checks_does_not_break_subscriptions(env):
     response = client.get(stored_user["subscription_url"], headers=BROWSER_HEADERS)
     assert response.status_code == status.HTTP_200_OK, response.text
     assert "javascript:" not in response.text
+
+
+@pytest.mark.parametrize("endpoint", ["head", "info", "raw", "admin_links"])
+def test_profile_headers_on_every_subscription_endpoint(env, endpoint):
+    env.add_host()
+    profile = env.profile(
+        settings={
+            "support_url": "https://support.example.com",
+            "announce": "Profile news",
+            "announce_url": "https://news.example.com",
+            "response_headers": {"X-Profile": "acme"},
+            "remove_response_headers": ["subscription-userinfo", "announce-url"],
+        }
+    )
+    user = env.user(profile)
+    plain = env.user()
+
+    def fetch(target: dict):
+        if endpoint == "head":
+            return client.head(target["subscription_url"], headers={"User-Agent": "v2rayNG/1.8"})
+        if endpoint == "info":
+            return client.get(f"{target['subscription_url']}/info")
+        if endpoint == "raw":
+            return client.get(f"{target['subscription_url']}/raw")
+        return client.get(f"/api/user/{target['id']}/subscription/links", headers=env.headers)
+
+    def headers_of(target: dict) -> dict[str, str]:
+        response = fetch(target)
+        assert response.status_code == status.HTTP_200_OK, response.text
+        if endpoint == "raw":
+            # /raw returns the headers in the body for the client app to apply
+            return {name.lower(): value for name, value in response.json()["headers"].items()}
+        return dict(response.headers)
+
+    headers = headers_of(user)
+    assert headers["support-url"] == "https://support.example.com"
+    assert _decode_title(headers["announce"]) == "Profile news"
+    assert "announce-url" not in headers
+    if endpoint != "info":
+        assert headers["x-profile"] == "acme"
+        assert "subscription-userinfo" not in headers
+
+    # Without a profile the same endpoint keeps the global headers
+    headers = headers_of(plain)
+    assert headers.get("support-url") != "https://support.example.com"
+    assert "x-profile" not in headers
+    if endpoint != "info":
+        assert "subscription-userinfo" in headers
