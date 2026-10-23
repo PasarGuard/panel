@@ -55,9 +55,14 @@ interface PluginFrameProps {
   title: string
 }
 
+// The UI cookie token lives 30 minutes; renew it while the page is open
+const UI_SESSION_REFRESH_MS = 10 * 60 * 1000
+
 /**
- * Sandboxed iframe for a plugin page. The iframe cannot send the Authorization header:
- * 1. a path-scoped cookie (POST /api/plugins/<id>/ui-session) lets it load its own files;
+ * Iframe for a plugin page. It is same-origin with the panel, so it is not isolated: plugins are trusted code.
+ * The iframe cannot send the Authorization header:
+ * 1. a path-scoped cookie (POST /api/plugins/<id>/ui-session) with a short token that opens only this
+ *    plugin's files lets it load them; it is renewed while the page is open;
  * 2. when the page posts {type: "pasarguard:ready"}, we answer with the token, theme and language.
  * Both directions check the window and the origin of the other side.
  */
@@ -73,11 +78,16 @@ export function PluginFrame({ pluginId, title }: PluginFrameProps) {
     let cancelled = false
     setReady(false)
     setError(null)
-    fetch(getCreatePluginUiSessionUrl(pluginId), { method: 'POST', credentials: 'include' })
+    const createSession = () => fetch(getCreatePluginUiSessionUrl(pluginId), { method: 'POST', credentials: 'include' })
+    createSession()
       .then(() => !cancelled && setReady(true))
       .catch(err => !cancelled && setError(getErrorMessage(err)))
+    const timer = window.setInterval(() => {
+      createSession().catch(() => undefined)
+    }, UI_SESSION_REFRESH_MS)
     return () => {
       cancelled = true
+      window.clearInterval(timer)
     }
   }, [pluginId])
 

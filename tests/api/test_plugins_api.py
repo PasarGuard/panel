@@ -356,6 +356,26 @@ def test_plugin_ui_files_need_owner_and_block_traversal(probe, access_token, pla
     assert client.get(https_index).status_code == status.HTTP_401_UNAUTHORIZED
 
 
+def test_plugin_ui_cookie_opens_only_this_plugin_ui(probe, access_token):
+    session = client.post("/api/plugins/probe/ui-session", headers=auth_headers(access_token))
+    cookie = session.headers["set-cookie"]
+    # A session cookie: gone when the browser closes, the token inside expires on its own
+    assert "Max-Age" not in cookie and "expires" not in cookie.lower()
+    ui_token = cookie.split(";", 1)[0].split("=", 1)[1]
+    assert ui_token and ui_token != access_token
+    client.cookies.clear()
+
+    as_cookie = {"Cookie": f"pasarguard_plugin_ui={ui_token}"}
+    assert client.get("/api/plugins/probe/ui/", headers=as_cookie).status_code == status.HTTP_200_OK
+    # Not an API token: a copied cookie opens neither the panel API nor another plugin's UI
+    assert client.get("/api/admin", headers=auth_headers(ui_token)).status_code == status.HTTP_401_UNAUTHORIZED
+    assert client.get("/api/plugins", headers=auth_headers(ui_token)).status_code == status.HTTP_401_UNAUTHORIZED
+    assert client.get("/api/plugins/broken/ui/", headers=as_cookie).status_code == status.HTTP_401_UNAUTHORIZED
+    # A full admin token in the cookie is not accepted any more
+    full = {"Cookie": f"pasarguard_plugin_ui={access_token}"}
+    assert client.get("/api/plugins/probe/ui/", headers=full).status_code == status.HTTP_401_UNAUTHORIZED
+
+
 def test_plugin_ui_file_with_nul_byte_is_404(probe, access_token, monkeypatch):
     # On Linux Path.resolve() raises ValueError for a NUL byte (Windows drops it); simulate that everywhere
     original_resolve = pathlib.Path.resolve
@@ -381,10 +401,14 @@ def test_plugin_ui_file_with_nul_byte_is_404(probe, access_token, monkeypatch):
         ("http://localhost/api/plugins/probe/ui-session", {}, False),
         ("http://127.0.0.1/api/plugins/probe/ui-session", {}, False),
         ("http://testserver/api/plugins/probe/ui-session", {"Host": "[::1]:8000"}, False),
+        # Plain HTTP on a private address is allowed by the panel (no SSL), so the cookie must work there
+        ("http://192.168.1.10:8000/api/plugins/probe/ui-session", {}, False),
+        ("http://10.0.0.5/api/plugins/probe/ui-session", {}, False),
+        ("http://8.8.8.8/api/plugins/probe/ui-session", {}, True),
         ("http://localhost/api/plugins/probe/ui-session", {"X-Forwarded-Proto": "https"}, True),
     ],
 )
-def test_plugin_ui_cookie_is_secure_except_plain_localhost(probe, access_token, url, headers, secure):
+def test_plugin_ui_cookie_is_secure_except_plain_local_address(probe, access_token, url, headers, secure):
     response = client.post(url, headers={**auth_headers(access_token), **headers})
     assert response.status_code == status.HTTP_204_NO_CONTENT
     assert ("Secure" in response.headers["set-cookie"]) is secure

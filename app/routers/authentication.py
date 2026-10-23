@@ -23,7 +23,13 @@ from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePerm
 from app.models.settings import Telegram
 from app.operation.permissions import PermissionDenied, enforce_permission, intersect_permissions, is_scope_all
 from app.settings import telegram_settings
-from app.utils.jwt import get_admin_payload, get_admin_token_binding, get_secret_key
+from app.utils.jwt import (
+    create_plugin_ui_token,
+    get_admin_payload,
+    get_admin_token_binding,
+    get_plugin_ui_payload,
+    get_secret_key,
+)
 from config import auth_settings, runtime_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token", auto_error=False)
@@ -142,7 +148,32 @@ async def get_admin(db: AsyncSession, token: str) -> AdminDetails | None:
     payload = await get_admin_payload(token, secret_key=secret_key)
     if not payload:
         return None
+    return await _get_admin_for_payload(db, payload, secret_key)
 
+
+async def get_plugin_ui_admin(db: AsyncSession, token: str, plugin_id: str) -> AdminDetails | None:
+    """Admin of a plugin UI cookie token, only for the plugin it was issued for."""
+    secret_key = await get_secret_key()
+    payload = await get_plugin_ui_payload(token, plugin_id, secret_key=secret_key)
+    if not payload:
+        return None
+    return await _get_admin_for_payload(db, payload, secret_key)
+
+
+async def create_plugin_ui_session_token(db: AsyncSession, token: str, plugin_id: str) -> str | None:
+    """Exchange a valid admin token for a plugin UI token (same admin, same password binding)."""
+    payload = await get_admin_payload(token)
+    if not payload:
+        return None
+    if payload["admin_id"] is None:
+        return await create_plugin_ui_token(None, payload["username"], None, plugin_id)
+    db_admin = await get_admin_by_id_crud(db, payload["admin_id"], load_users=False, load_usage_logs=False)
+    if db_admin is None:
+        return None
+    return await create_plugin_ui_token(db_admin.id, db_admin.username, db_admin.hashed_password, plugin_id)
+
+
+async def _get_admin_for_payload(db: AsyncSession, payload: dict, secret_key: str) -> AdminDetails | None:
     db_admin = None
     if payload.get("admin_id") is not None:
         db_admin = await get_admin_by_id_crud(db, payload["admin_id"], load_users=False, load_usage_logs=False)
