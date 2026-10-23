@@ -74,6 +74,23 @@ def _check_routes(routes, owner: str) -> None:
         )
 
 
+# Served by the panel under /api/plugins/<id> and matched first, so a plugin route there would never run
+RESERVED_PATHS = frozenset({"/settings", "/ui-session"})
+RESERVED_PREFIX = "/ui/"
+
+
+def _check_reserved_paths(routes, owner: str) -> None:
+    for route in routes:
+        candidates = route.effective_candidates() if hasattr(route, "effective_candidates") else [route]
+        for candidate in candidates:
+            path = getattr(candidate, "path", None) or ""
+            if path in RESERVED_PATHS or path.startswith(RESERVED_PREFIX):
+                raise ValueError(
+                    f"Plugin route {path!r} of {owner!r} is reserved by the panel "
+                    f"({', '.join(sorted(RESERVED_PATHS))} and {RESERVED_PREFIX}...)"
+                )
+
+
 def split_routes(ctx: PluginContext) -> tuple[APIRouter, APIRouter]:
     """Split ``ctx.router`` into admin-only and public routes; raises on routes auth cannot protect."""
     protected = APIRouter()
@@ -81,6 +98,7 @@ def split_routes(ctx: PluginContext) -> tuple[APIRouter, APIRouter]:
     if not ctx.runs_panel:
         return protected, public
     _check_routes(ctx.router.routes, ctx.id)
+    _check_reserved_paths(ctx.router.routes, ctx.id)
     for route in ctx.router.routes:
         if isinstance(route, APIRoute) and _is_public(route):
             public.routes.append(route)

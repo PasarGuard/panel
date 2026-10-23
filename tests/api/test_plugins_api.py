@@ -595,6 +595,54 @@ def test_plugin_routes_without_panel_auth_are_refused(activate_plugins, access_t
     assert client.get("/api/plugins/subrouter/sub/raw", headers=auth_headers(access_token)).json() == {"ok": True}
 
 
+RESERVED_ROUTES = {
+    "settings": '@ctx.router.get("/settings")',
+    "session": '@ctx.router.post("/ui-session")',
+    "ui-file": '@ctx.router.get("/ui/page")',
+}
+
+RESERVED_ROUTE = """
+from fastapi import APIRouter
+
+
+def setup(ctx):
+    @ctx.router.get("/ok")
+    async def ok():
+        return {"ok": True}
+
+    DECORATOR
+    async def clash():
+        return {}
+"""
+
+RESERVED_SUBROUTER = """
+from fastapi import APIRouter
+
+
+def setup(ctx):
+    @ctx.router.get("/ok")
+    async def ok():
+        return {"ok": True}
+
+    sub = APIRouter()
+
+    @sub.get("/index.html")
+    async def page():
+        return {}
+
+    ctx.router.include_router(sub, prefix="/ui")
+"""
+
+
+def test_plugin_routes_on_reserved_panel_paths_are_refused(activate_plugins, access_token):
+    plugins = {name: RESERVED_ROUTE.replace("DECORATOR", line) for name, line in RESERVED_ROUTES.items()}
+    records = activate_plugins({**plugins, "ui-sub": RESERVED_SUBROUTER})
+    for plugin_id in (*plugins, "ui-sub"):
+        assert records[plugin_id].status == "failed", plugin_id
+        assert "is reserved by the panel" in records[plugin_id].error, plugin_id
+        assert client.get(f"/api/plugins/{plugin_id}/ok", headers=auth_headers(access_token)).status_code == 404
+
+
 def test_plugin_with_invalid_cron_fails_without_routes(activate_plugins, access_token):
     records = activate_plugins({"badcron": ROUTE_AND_JOB.replace("CRON", '"61 * * * *"')}, runs_scheduler=True)
     assert records["badcron"].status == "failed"
