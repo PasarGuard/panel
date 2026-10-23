@@ -550,7 +550,8 @@ class HostManager:
     # what unchanged hosts prepare to, so NATS installs rebuild instead of serving the old data.
     # v3: the inbound finalmask no longer carries server-only "filter" layers ("state_v2" is taken by PR #1020).
     # v4: a disabled, deleted or unserved xHTTP download host is no longer embedded in its parent.
-    STATE_CACHE_KEY = "state_v4"
+    # v5: a disabled xHTTP download host can still supply settings to its parent.
+    STATE_CACHE_KEY = "state_v5"
     KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):
@@ -684,7 +685,8 @@ class HostManager:
         if host.is_disabled or (host.inbound_tag not in inbounds_list):
             return None
 
-        # Handle downstream for xhttp. Without a usable (existing, enabled, served) download host,
+        # Handle downstream for xhttp. A disabled host can still supply download settings,
+        # although it is not served as a standalone host. Without an existing, served download host,
         # clients use this host both ways: the inbound's own downloadSettings only apply to hosts without one.
         downstream_data = None
         has_download_host = False
@@ -700,7 +702,7 @@ class HostManager:
                     f'Download host "{ds_host}" of host "{host.id}" is missing or its inbound is gone, '
                     "serving the host without it"
                 )
-            elif not downstream.is_disabled:
+            else:
                 try:
                     downstream_base = BaseHost.model_validate(downstream)
                     downstream_data = await _prepare_subscription_inbound_data(downstream_base)
