@@ -308,6 +308,40 @@ def test_bulk_assign_and_unassign_users(access_token):
         delete_client_profile(access_token, other_profile["id"])
 
 
+def test_bulk_assign_and_unassign_accept_more_ids_than_bind_parameters(access_token):
+    from app.db.crud.client_profile import set_users_client_profile
+
+    headers = auth_headers(access_token)
+    profile = create_client_profile(access_token)
+    group = create_group(access_token)
+    user = create_user(access_token, group_ids=[group["id"]])
+    # More ids than SQLite/asyncpg allow as bind parameters in one statement
+    unknown_ids = list(range(2_000_000_000, 2_000_040_000))
+    try:
+        response = client.post(
+            f"/api/client_profile/{profile['id']}/users", headers=headers, json={"user_ids": [user["id"], *unknown_ids]}
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND, response.text
+        response = client.request(
+            "DELETE",
+            f"/api/client_profile/{profile['id']}/users",
+            headers=headers,
+            json={"user_ids": [user["id"], *unknown_ids]},
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND, response.text
+
+        async def _set() -> int:
+            async with GetTestDB() as db:
+                return await set_users_client_profile(db, profile["id"], user_ids=[user["id"], *unknown_ids])
+
+        assert asyncio.run(_set()) == 1
+        assert client.get(f"/api/user/{user['username']}", headers=headers).json()["client_profile_id"] == profile["id"]
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        delete_client_profile(access_token, profile["id"])
+
+
 def test_user_create_modify_and_template_carry_client_profile(access_token):
     headers = auth_headers(access_token)
     profile = create_client_profile(access_token)
