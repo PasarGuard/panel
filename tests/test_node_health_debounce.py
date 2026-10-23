@@ -29,6 +29,8 @@ def _make_node():
     node.get_health = AsyncMock(return_value=Health.HEALTHY)
     node.set_health = AsyncMock()
     node.get_versions = AsyncMock(return_value=("0.5.4", "26.3.27"))
+    node.info = AsyncMock(return_value=SimpleNamespace(started=True, node_version="0.5.4", core_version="26.3.27"))
+    node.set_reported_versions = AsyncMock()
     return node
 
 
@@ -99,6 +101,19 @@ async def test_errored_node_needs_consecutive_good_probes_to_recover(checker):
     assert _written_statuses(checker.update_status) == [NodeStatus.connected]
     assert checker.update_status.await_args.kwargs["expected_status"] is NodeStatus.error
     node_checker.notification.recovered_node.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_recovery_uses_live_versions_after_node_restart(checker):
+    db_node, node = _db_node(NodeStatus.connecting), _make_node()
+    node.info.return_value = SimpleNamespace(started=True, node_version="0.5.5", core_version="26.10.21")
+
+    await checker.run(db_node, node, HEALTHY, HEALTHY)
+
+    assert checker.update_status.await_args.kwargs["node_version"] == "0.5.5"
+    assert checker.update_status.await_args.kwargs["xray_version"] == "26.10.21"
+    node.set_reported_versions.assert_awaited_once_with("0.5.5", "26.10.21")
+    node.get_versions.assert_not_awaited()
 
 
 @pytest.mark.asyncio

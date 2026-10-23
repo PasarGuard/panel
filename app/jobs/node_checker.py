@@ -31,6 +31,8 @@ _SYNC_RECOVERY_INTERVAL = 60.0
 _sync_recovery_deadlines: dict[int, float] = {}
 _VERSION_REFRESH_INTERVAL = 300.0
 _version_refresh_deadlines: dict[int, float] = {}
+_CORE_STARTING_GRACE = 60.0
+_core_starting_since: dict[int, tuple[PasarGuardNode, float]] = {}
 
 
 @dataclass
@@ -216,6 +218,24 @@ async def _start_already_in_progress(db_node: Node, shared_state) -> bool:
     return coordinator is not None and await coordinator.has_active_lease(str(db_node.id))
 
 
+async def _core_still_stopped_after_grace(db_node: Node, node: PasarGuardNode, timeout: int) -> bool:
+    """Distinguish a slow Start from a core left stopped after a node restart."""
+    now = time.monotonic()
+    first_seen = _core_starting_since.get(db_node.id)
+    if first_seen is None or first_seen[0] is not node:
+        _core_starting_since[db_node.id] = (node, now)
+        return False
+    if now - first_seen[1] < _CORE_STARTING_GRACE:
+        return False
+    if await _start_already_in_progress(db_node, await node.get_lifecycle_state()):
+        return False
+    try:
+        info = await node.info(timeout=timeout)
+    except Exception:
+        return False
+    return info is not None and not info.started
+
+
 async def verify_node_backend_health(
     node: PasarGuardNode, node_name: str, timeout: int | None = None
 ) -> tuple[Health, int | None, str | None]:
@@ -245,6 +265,7 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
     if node is None or db_node.status not in ACTIVE_NODE_STATUSES:
         _health_streaks.pop(db_node.id, None)
         _probe_backoffs.pop(db_node.id, None)
+        _core_starting_since.pop(db_node.id, None)
         return
     if _in_probe_backoff(db_node, node):
         return
@@ -271,12 +292,18 @@ async def _check_node(db_node: Node, node: PasarGuardNode, attempt: _ProbeAttemp
             raise
         # A code above 0 is a reply from the node; the bridge uses 0 and below when none came.
         attempt.unanswered = health is Health.BROKEN and (error_code is None or error_code <= 0)
+        if health is Health.BROKEN and is_core_starting_error(error_code, error_message):
+            stopped_after_grace = await _core_still_stopped_after_grace(db_node, node, _probe_timeout(db_node))
+        else:
+            _core_starting_since.pop(db_node.id, None)
+            stopped_after_grace = False
+        core_is_dead = is_core_dead_error(error_code, error_message) or stopped_after_grace
 
         if health in (Health.HEALTHY, Health.BROKEN):
             if not _accept_health(db_node, node, health):
                 # An explicitly absent backend needs repair immediately; only
                 # its downtime reporting waits for the configured threshold.
-                if health is Health.BROKEN and is_core_dead_error(error_code, error_message):
+                if health is Health.BROKEN and core_is_dead:
                     shared_state = await node.get_lifecycle_state()
                     if _owns_health_checks() and not await _start_already_in_progress(db_node, shared_state):
                         await _set_node_health(node, health, db_node.name)
@@ -397,15 +424,23 @@ async def _check_node(db_node: Node, node: PasarGuardNode, attempt: _ProbeAttemp
                 await node.update_observed_lifecycle(LifecycleStatus.BROKEN, expected_epoch=shared_state.epoch)
             if not starting and (
                 should_reconnect_after_health_error(error_code, error_message)
-                or is_core_dead_error(error_code, error_message)
+                or core_is_dead
             ):
                 await _repair_node(db_node.id)
             return health
 
         if db_node.status in (NodeStatus.connecting, NodeStatus.error) and health is Health.HEALTHY:
-            node_version, core_version = await node.get_versions()
+            try:
+                info = await node.info(timeout=_probe_timeout(db_node))
+            except Exception as exc:
+                logger.debug("[%s] Could not read live versions during recovery: %s", db_node.name, exc)
+                return health
+            if info is None or not info.started or not info.node_version or not info.core_version:
+                return health
+            node_version, core_version = info.node_version, info.core_version
             if not _owns_health_checks():
                 return health
+            await node.set_reported_versions(node_version, core_version)
             async with GetDB() as db:
                 updated = await NodeOperation._update_single_node_status(
                     db,
@@ -465,7 +500,13 @@ async def node_health_check():
 
     dict_nodes = await node_manager.get_nodes()
     active_ids = {db_node.id for db_node in db_nodes if db_node.id in dict_nodes}
-    for cache in (_sync_recovery_deadlines, _version_refresh_deadlines, _health_streaks, _probe_backoffs):
+    for cache in (
+        _sync_recovery_deadlines,
+        _version_refresh_deadlines,
+        _core_starting_since,
+        _health_streaks,
+        _probe_backoffs,
+    ):
         for node_id in cache.keys() - active_ids:
             cache.pop(node_id, None)
     tasks = [_start_check(db_node, dict_nodes.get(db_node.id)) for db_node in db_nodes]

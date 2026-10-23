@@ -12,45 +12,48 @@ from app.operation.node import NodeOperation
 
 
 @pytest.mark.asyncio
-async def test_successful_core_update_reads_and_persists_live_versions(monkeypatch):
+async def test_core_update_leaves_reconnection_to_health_job(monkeypatch):
     db_node = SimpleNamespace(id=7, status=NodeStatus.connected, node_version="0.5.4", xray_version="25.1.1")
-    db = SimpleNamespace(commit=AsyncMock())
+    db = object()
     response = SimpleNamespace(json=lambda: {"detail": "node core updated successfully"})
     node = SimpleNamespace(
         update_core=AsyncMock(return_value=response),
-        info=AsyncMock(return_value=SimpleNamespace(started=True, node_version="0.5.5", core_version="26.10.21")),
-        set_reported_versions=AsyncMock(),
+        set_health=AsyncMock(),
     )
     monkeypatch.setattr(node_operation.node_manager, "get_node", AsyncMock(return_value=node))
     monkeypatch.setattr(node_operation, "get_node_by_id", AsyncMock(return_value=db_node))
+    update_status = AsyncMock()
+    monkeypatch.setattr(node_operation, "update_node_status", update_status)
 
     operation = NodeOperation(OperatorType.SYSTEM)
     result = await operation._update_core_local(db, 7, NodeCoreUpdate(core_version="v26.10.21"))
 
     assert result == {"detail": "node core updated successfully"}
-    assert db_node.node_version == "0.5.5"
-    assert db_node.xray_version == "26.10.21"
-    db.commit.assert_awaited_once()
-    node.set_reported_versions.assert_awaited_once_with("0.5.5", "26.10.21")
+    update_status.assert_awaited_once_with(
+        db, db_node, NodeStatus.connecting, message="", xray_version="", node_version=""
+    )
+    node.set_health.assert_awaited_once_with(Health.NOT_CONNECTED)
 
 
 @pytest.mark.asyncio
-async def test_successful_node_update_reads_live_version(monkeypatch):
+async def test_node_update_leaves_reconnection_to_health_job(monkeypatch):
     db_node = SimpleNamespace(id=7, status=NodeStatus.connected, node_version="0.5.4", xray_version="26.10.21")
-    db = SimpleNamespace(commit=AsyncMock())
+    db = object()
     node = SimpleNamespace(
         update_node=AsyncMock(return_value=SimpleNamespace(json=lambda: {"detail": "node updated successfully"})),
-        info=AsyncMock(return_value=SimpleNamespace(started=True, node_version="0.5.5", core_version="26.10.21")),
-        set_reported_versions=AsyncMock(),
+        set_health=AsyncMock(),
     )
     monkeypatch.setattr(node_operation.node_manager, "get_node", AsyncMock(return_value=node))
     monkeypatch.setattr(node_operation, "get_node_by_id", AsyncMock(return_value=db_node))
+    update_status = AsyncMock()
+    monkeypatch.setattr(node_operation, "update_node_status", update_status)
 
     operation = NodeOperation(OperatorType.SYSTEM)
     assert await operation._update_node_api_local(db, 7) == {"detail": "node updated successfully"}
-    assert db_node.node_version == "0.5.5"
-    assert db_node.xray_version == "26.10.21"
-    db.commit.assert_awaited_once()
+    update_status.assert_awaited_once_with(
+        db, db_node, NodeStatus.connecting, message="", xray_version="", node_version=""
+    )
+    node.set_health.assert_awaited_once_with(Health.NOT_CONNECTED)
 
 
 @pytest.mark.asyncio
