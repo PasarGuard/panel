@@ -31,6 +31,9 @@ class SettingsOperation(BaseOperation):
         db_settings = await get_settings(db)
         old_settings = SettingsSchema.model_validate(db_settings)
 
+        await self.check_custom_variables(modify.general.custom_variables if modify.general else None, db)
+        await self.check_custom_variables(modify.subscription.custom_variables if modify.subscription else None, db)
+
         if modify.general and modify.general.custom_variables is not None:
             subscription = modify.subscription or Subscription.model_validate(db_settings.subscription)
             modify.subscription = subscription.model_copy(update={"custom_variables": modify.general.custom_variables})
