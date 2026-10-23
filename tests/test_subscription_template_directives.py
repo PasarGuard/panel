@@ -428,7 +428,8 @@ def test_singbox_empty_directive_group_without_any_servers():
     template = json.loads(json.dumps(SINGBOX_TEMPLATE))
     template["outbounds"][1]["pasarguard"] = {"select": {"host_ids": [999]}}
     config = json.loads(SingBoxConfiguration(singbox_template_content=json.dumps(template)).render())
-    assert config["outbounds"][1]["outbounds"] == ["direct"]
+    # Never fall back to a direct outbound: an empty group keeps the config from silently bypassing the VPN
+    assert config["outbounds"][1]["outbounds"] == []
 
     template["outbounds"] = template["outbounds"][:2]
     config = json.loads(SingBoxConfiguration(singbox_template_content=json.dumps(template)).render())

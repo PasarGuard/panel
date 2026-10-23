@@ -94,7 +94,7 @@ class SingBoxConfiguration(BaseSubscription):
         for outbound in self.config["outbounds"]:
             if outbound.get("type") in SINGBOX_GROUP_TYPES and DIRECTIVE_KEY in outbound:
                 default_members = urltest_tags if outbound.get("type") == "urltest" else selector_tags
-                self._apply_group_directive(outbound, default_members, has_proxies=bool(urltest_tags))
+                self._apply_group_directive(outbound, default_members)
                 directive_groups.add(id(outbound))
 
         for outbound in self.config["outbounds"]:
@@ -105,12 +105,12 @@ class SingBoxConfiguration(BaseSubscription):
             if outbound.get("type") == "selector" and id(outbound) not in directive_groups:
                 outbound["outbounds"] = selector_tags
 
-    def _apply_group_directive(self, outbound: dict, default_members: list[str], has_proxies: bool) -> None:
+    def _apply_group_directive(self, outbound: dict, default_members: list[str]) -> None:
         """Fill a selector/urltest that has a pasarguard directive with the proxies it selects.
 
         A group left without members (sing-box rejects the whole config over one) falls back to what a group
         without the directive gets, i.e. all of the user's servers, so its traffic never leaves the VPN. With no
-        servers at all it gets the first non-group outbound of the template, or stays empty as upstream does.
+        servers at all it stays empty, as upstream does, rather than routing around the VPN.
         """
         directive = parse_group_directive(outbound.pop(DIRECTIVE_KEY), f"sing-box outbound {outbound.get('tag')!r}")
         if directive.include_proxies:
@@ -118,18 +118,8 @@ class SingBoxConfiguration(BaseSubscription):
             outbound["outbounds"] = merge_group_members(outbound.get("outbounds"), selected)
         if outbound.get("outbounds"):
             return
-        if has_proxies:
-            outbound["outbounds"] = list(default_members)
-            return
-        fallback = next(
-            (
-                item["tag"]
-                for item in self.config["outbounds"]
-                if item.get("type") not in SINGBOX_GROUP_TYPES and item.get("tag")
-            ),
-            None,
-        )
-        outbound["outbounds"] = [fallback] if fallback else []
+        # Without servers this is exactly what upstream gives the group, never a direct outbound
+        outbound["outbounds"] = list(default_members)
 
     def add(
         self,
