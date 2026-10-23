@@ -1,6 +1,5 @@
 import json
 
-import yaml
 from sqlalchemy.exc import IntegrityError
 
 from app.db import AsyncSession
@@ -38,6 +37,7 @@ from app.subscription.template_directives import (
     validate_clash_template_directives,
     validate_singbox_template_directives,
     validate_xray_template_directive,
+    yaml_safe_load,
 )
 from app.templates import render_template_string
 from app.utils.logger import get_logger
@@ -63,7 +63,7 @@ class ClientTemplateOperation(BaseOperation):
                         "proxy_remarks": [],
                     },
                 )
-                validate_clash_template_directives(yaml.safe_load(rendered))
+                validate_clash_template_directives(yaml_safe_load(rendered))
                 return
 
             rendered = render_template_string(content)
@@ -102,15 +102,16 @@ class ClientTemplateOperation(BaseOperation):
         db_settings = await get_settings(db)
         rules = ((db_settings.subscription if db_settings else None) or {}).get("rules") or []
         for db_template in db_templates:
-            patterns = [
-                rule.get("pattern", "")
-                for rule in rules
+            # Rule numbers only: the patterns are subscription settings, which this admin may not be allowed to read.
+            numbers = [
+                f"#{number}"
+                for number, rule in enumerate(rules, start=1)
                 if isinstance(rule, dict) and rule.get("template_id") == db_template.id
             ]
-            if patterns:
+            if numbers:
                 await self.raise_error(
                     message=(
-                        f'Client template "{db_template.name}" is used by subscription rules: {", ".join(patterns)}.'
+                        f'Client template "{db_template.name}" is used by subscription rules {", ".join(numbers)}.'
                         " Remove it from those rules first."
                     ),
                     code=409,
