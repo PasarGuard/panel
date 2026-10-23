@@ -32,7 +32,7 @@ from tests.api.helpers import (
     get_inbounds,
     unique_name,
 )
-from tests.plugin_helpers import make_plugin, reset_plugins
+from tests.plugin_helpers import make_plugin, reset_plugins, route_paths
 
 PROBE = """
 import asyncio
@@ -385,6 +385,60 @@ def test_plugin_settings_get_put_validation(probe, access_token, plain_admin, mo
     assert probe["changes"][-1] == {"days": 3, "label": "x"}
 
 
+def test_settings_change_clears_cached_subscriptions(probe, access_token, monkeypatch):
+    from app.db.crud.plugin import save_plugin_settings
+
+    monkeypatch.setattr(plugin_settings_module, "GetDB", GetTestDB)
+    url = "/api/plugins/probe/settings"
+    username = unique_name("plugin_cache_user")
+    user = create_user(access_token, payload={"username": username})
+    links = f"{user['subscription_url']}/links"
+    try:
+        client.get(links)
+        client.get(links)
+        assert probe["cached"] == 1
+        # Same values: nothing changed, the cache stays
+        assert client.put(url, headers=auth_headers(access_token), json={"days": 7}).status_code == 200
+        client.get(links)
+        assert probe["cached"] == 1
+        # New values: cached bodies may hold old plugin output, so they are rendered again
+        assert client.put(url, headers=auth_headers(access_token), json={"days": 3}).status_code == 200
+        client.get(links)
+        assert probe["cached"] == 2
+
+        # The same through another worker's NATS refresh
+        async def saved_elsewhere():
+            async with TestSession() as session:
+                await save_plugin_settings(session, "probe", {"days": 4, "label": "x"})
+            await plugin_settings_module.handle_plugin_message({"action": "settings", "plugin_id": "probe"})
+            await plugin_settings_module.drain()
+
+        asyncio.run(saved_elsewhere())
+        client.get(links)
+        assert probe["cached"] == 3
+    finally:
+        delete_user(access_token, username)
+
+
+def test_invalid_stored_settings_fall_back_to_defaults(probe, access_token, monkeypatch):
+    from app.db.crud.plugin import save_plugin_settings
+
+    monkeypatch.setattr(plugin_settings_module, "GetDB", GetTestDB)
+    ctx = registry.get_active("probe")
+    for bad in ({"days": 0}, ["not", "an", "object"]):
+        ctx.settings.set_values({"days": 9, "label": "y"})
+
+        async def stored_and_reloaded(data=bad):
+            async with TestSession() as session:
+                await save_plugin_settings(session, "probe", data)
+            await plugin_settings_module.load_settings_from_db(["probe"], notify=False)
+
+        asyncio.run(stored_and_reloaded())
+        assert ctx.settings.get() == {"days": 7, "label": "x"}, bad
+        response = client.get("/api/plugins/probe/settings", headers=auth_headers(access_token))
+        assert response.json() == {"days": 7, "label": "x"}
+
+
 def test_first_settings_save_racing_another_worker_updates_the_row(probe):
     from app.db.crud.plugin import save_plugin_settings
 
@@ -411,6 +465,78 @@ def test_first_settings_save_racing_another_worker_updates_the_row(probe):
             return data
 
     assert asyncio.run(race()) == {"days": 2}
+
+
+SETTINGS_ONLY = """
+def setup(ctx):
+    pass
+"""
+
+FAILING_ASYNC_SETUP = """
+async def setup(ctx):
+    raise RuntimeError("async setup failed on purpose")
+"""
+
+FAILING_ACTIVATION = """
+async def setup(ctx):
+    @ctx.router.get("/settings")
+    async def clash():
+        return {}
+"""
+
+
+def test_init_plugins_wires_startup_settings_and_nats(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+
+    from app.db.crud.plugin import save_plugin_settings
+    from app.lifecycle import _invoke
+    from app.nats.message import MessageTopic
+    from app.nats.router import router as nats_router
+
+    reset_plugins()
+    monkeypatch.setattr(plugin_settings_module, "GetDB", GetTestDB)
+    startup, shutdown, handlers = [], [], []
+    monkeypatch.setattr("app.lifecycle.on_startup", startup.append)
+    monkeypatch.setattr("app.lifecycle.on_shutdown", shutdown.append)
+    monkeypatch.setattr(nats_router, "register_handler", lambda topic, fn: handlers.append((topic, fn)))
+    make_plugin(tmp_path, "stored", SETTINGS_ONLY, manifest={"settings_schema": SETTINGS_SCHEMA})
+    make_plugin(tmp_path, "async-broken", FAILING_ASYNC_SETUP)
+    make_plugin(tmp_path, "clash", FAILING_ACTIVATION)
+
+    async def store():
+        async with TestSession() as session:
+            await save_plugin_settings(session, "stored", {"days": 2, "label": "saved"})
+
+    asyncio.run(store())
+    panel = FastAPI()
+    try:
+        manager.init_plugins(
+            panel, tmp_path, ["stored", "async-broken", "clash"], runs_panel=True, runs_scheduler=False
+        )
+        assert handlers == [(MessageTopic.PLUGIN, plugin_settings_module.handle_plugin_message)]
+        assert len(startup) == 1 and len(shutdown) == 1
+        asyncio.run(_invoke(startup[0], panel))
+        # Settings saved earlier are in place after a restart
+        assert registry.get_active("stored").settings.get() == {"days": 2, "label": "saved"}
+        # A failing async setup or activation marks the plugin failed and leaves nothing behind
+        for plugin_id in ("async-broken", "clash"):
+            record = registry.records[plugin_id]
+            assert record.status == "failed", plugin_id
+            assert record.error
+            assert record.context is None
+            assert registry.get_active(plugin_id) is None
+        assert not [path for path in route_paths(panel.routes) if path.startswith("/api/plugins/clash")]
+        asyncio.run(_invoke(shutdown[0], panel))
+    finally:
+        reset_plugins()
+
+        async def cleanup():
+            async with TestSession() as session:
+                row = await session.get(PluginSettings, "stored")
+                await session.delete(row)
+                await session.commit()
+
+        asyncio.run(cleanup())
 
 
 def test_plugin_ui_files_need_owner_and_block_traversal(probe, access_token, plain_admin):
