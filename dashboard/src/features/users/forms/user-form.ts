@@ -64,6 +64,7 @@ const userSharedSchemaShape = {
   auto_delete_in_days: z.number().optional(),
   next_plan: nextPlanModelSchema.optional(),
   template_id: z.number().optional(),
+  client_profile_id: z.number().nullable().optional(),
 } satisfies z.ZodRawShape
 
 function refineOnHoldExpireDuration(data: { status?: string | null; on_hold_expire_duration?: number | null }, ctx: z.RefinementCtx) {

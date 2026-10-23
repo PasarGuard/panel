@@ -113,6 +113,11 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { resource: 'client_templates', action: 'create' },
       { resource: 'client_templates', action: 'update' },
       { resource: 'client_templates', action: 'delete' },
+      { resource: 'client_profiles', action: 'read' },
+      { resource: 'client_profiles', action: 'read_simple' },
+      { resource: 'client_profiles', action: 'create' },
+      { resource: 'client_profiles', action: 'update' },
+      { resource: 'client_profiles', action: 'delete' },
     ],
   },
   {

@@ -2,6 +2,8 @@ import { setupColumns } from '@/features/users/components/columns'
 import { ActionButtonsModalHost } from '@/features/users/components/action-buttons'
 import SetOwnerModal from '@/features/users/dialogs/set-owner-modal'
 import ApplyTemplateModal from '@/features/templates/dialogs/apply-template-modal'
+import SetClientProfileModal from '@/features/users/dialogs/set-client-profile-modal'
+import { useCanAssignClientProfile } from '@/features/templates/components/use-client-profile-options'
 import { DataTable } from '@/features/users/components/data-table'
 import { Filters } from '@/features/users/components/filters'
 import { type UseEditFormValues } from '@/features/users/forms/user-form'
@@ -35,7 +37,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Layers, Link2Off, Power, PowerOff, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
+import { Layers, Link2Off, Power, PowerOff, RefreshCcw, SlidersHorizontal, Trash2, UserCog, Users } from 'lucide-react'
 import UserModal from '../dialogs/user-modal.lazy'
 import { PaginationControls } from './filters'
 import AdvanceSearchModal from '@/features/users/dialogs/advance-search-modal'
@@ -165,6 +167,8 @@ const UsersTable = memo(() => {
   const canReadAllUsers = hasScopeAll(admin, 'users', 'read')
   const canReadHwids = hasPermission(admin, 'hwids', 'read')
   const canUpdateUsers = hasPermission(admin, 'users', 'update')
+  const canAssignClientProfile = useCanAssignClientProfile()
+  const canBulkSetClientProfile = canUpdateUsers && canAssignClientProfile && hasPermission(admin, 'client_profiles', 'update')
   const canUpdateAllUsers = hasScopeAll(admin, 'users', 'update')
   const canDeleteUsers = hasPermission(admin, 'users', 'delete')
   const canBulkMutateUsers = canUpdateUsers || canDeleteUsers
@@ -216,6 +220,7 @@ const UsersTable = memo(() => {
   const [bulkAction, setBulkAction] = useState<'delete' | 'reset' | 'revoke' | 'disable' | 'enable' | 'apply_template' | null>(null)
   const [isBulkSetOwnerModalOpen, setIsBulkSetOwnerModalOpen] = useState(false)
   const [isBulkApplyTemplateModalOpen, setIsBulkApplyTemplateModalOpen] = useState(false)
+  const [isBulkSetClientProfileModalOpen, setIsBulkSetClientProfileModalOpen] = useState(false)
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
   const [isAdvanceSearchApplying, setIsAdvanceSearchApplying] = useState(false)
   const resetAdvanceSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -388,6 +393,7 @@ const UsersTable = memo(() => {
       note: selectedUser?.note || '',
       data_limit_reset_strategy: selectedUser?.data_limit_reset_strategy || undefined,
       group_ids: selectedUser?.group_ids || [],
+      client_profile_id: selectedUser?.client_profile_id ?? null,
       on_hold_expire_duration: selectedUser?.on_hold_expire_duration || undefined,
       on_hold_timeout: normalizeDatePickerValueForEditForm(selectedUser?.on_hold_timeout),
       proxy_settings: selectedUser?.proxy_settings || undefined,
@@ -413,6 +419,7 @@ const UsersTable = memo(() => {
         note: selectedUser.note || '',
         data_limit_reset_strategy: selectedUser.data_limit_reset_strategy || undefined,
         group_ids: selectedUser.group_ids || [],
+        client_profile_id: selectedUser.client_profile_id ?? null,
         on_hold_expire_duration: selectedUser.on_hold_expire_duration || undefined,
         on_hold_timeout: normalizeDatePickerValueForEditForm(selectedUser.on_hold_timeout),
         proxy_settings: selectedUser.proxy_settings || undefined,
@@ -907,6 +914,16 @@ const UsersTable = memo(() => {
               } as BulkActionItem,
             ]
           : []),
+        ...(canBulkSetClientProfile
+          ? [
+              {
+                key: 'client_profile',
+                label: t('clientProfiles.bulkAssignTitle', { defaultValue: 'Set client profile' }),
+                icon: SlidersHorizontal,
+                onClick: () => setIsBulkSetClientProfileModalOpen(true),
+              } as BulkActionItem,
+            ]
+          : []),
         ...(canUpdateUsers && disableEligibleCount > 0
           ? [
               {
@@ -1335,6 +1352,19 @@ const UsersTable = memo(() => {
           open={isBulkApplyTemplateModalOpen}
           onClose={() => setIsBulkApplyTemplateModalOpen(false)}
           userIds={selectedUserIds}
+          selectedCount={selectedCount}
+          onSuccess={() => {
+            invalidateUsers()
+            clearSelection()
+          }}
+        />
+      )}
+      {canBulkSetClientProfile && (
+        <SetClientProfileModal
+          open={isBulkSetClientProfileModalOpen}
+          onClose={() => setIsBulkSetClientProfileModalOpen(false)}
+          userIds={selectedUserIds}
+          loadedUsers={selectedUsers}
           selectedCount={selectedCount}
           onSuccess={() => {
             invalidateUsers()

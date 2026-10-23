@@ -13,7 +13,8 @@ from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
-from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
+from app.subscription.client_profiles import resolve_client_templates
+from app.subscription.client_templates import subscription_xray_templates
 from app.subscription.config_cache import (
     get_or_create_sub_config,
     get_sub_config,
@@ -95,7 +96,7 @@ async def generate_subscription(
 ) -> str | bytes:
     cache_key = make_sub_config_key(user, config_format, as_base64, randomize_order)
     async def render() -> str | bytes:
-        client_templates = await subscription_client_templates()
+        client_templates = await resolve_client_templates(getattr(user, "client_profile", None))
         xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
         conf = _build_subscription_config(config_format, client_templates)
         if conf is None:
@@ -181,6 +182,10 @@ def get_effective_custom_variables(
     variables = list(custom_variables or [])
     admin_variables = getattr(getattr(user, "admin", None), "custom_variables", None) or []
     variables.extend(admin_variables)
+    # Client profile variables come last, so they win over global and admin ones with the same key
+    profile = getattr(user, "client_profile", None)
+    if profile is not None:
+        variables.extend(profile.settings.custom_variables)
     return variables
 
 

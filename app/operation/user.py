@@ -687,6 +687,8 @@ class UserOperation(BaseOperation):
             await self._get_validated_template_with_access(db, new_user.next_plan.user_template_id, admin)
 
         all_groups = await self.validate_all_groups(db, new_user, admin)
+        # Template-based creation validates an explicit override itself; the template's own profile needs no check
+        await self.validate_client_profile_id(db, new_user.client_profile_id, None if skip_role_limits else admin)
         db_admin = await get_admin(db, admin.username, load_users=False, load_usage_logs=False)
         # peer IPs are never taken from input; the subnet pool assigns them at creation
         new_user.proxy_settings.wireguard.peer_ips = []
@@ -817,6 +819,14 @@ class UserOperation(BaseOperation):
 
         if modified_user.next_plan is not None and modified_user.next_plan.user_template_id is not None:
             await self._get_validated_template_with_access(db, modified_user.next_plan.user_template_id, admin)
+
+        if "client_profile_id" in modified_fields:
+            await self.validate_client_profile_id(
+                db,
+                modified_user.client_profile_id,
+                None if skip_role_limits else admin,
+                current_profile_id=db_user.client_profile_id,
+            )
 
         effective_groups = validated_groups if validated_groups is not None else db_user.groups
         current_proxy_settings = ProxyTable.model_validate(db_user.proxy_settings)
@@ -1702,6 +1712,9 @@ class UserOperation(BaseOperation):
             "hwid_limit": template.hwid_limit,
             "next_plan": None,
         }
+        # A template without a profile leaves the user's profile as it is
+        if template.client_profile_id is not None:
+            user_args["client_profile_id"] = template.client_profile_id
 
         if template.status == UserStatus.active:
             if template.expire_duration:
@@ -1736,6 +1749,32 @@ class UserOperation(BaseOperation):
             f"{user_template.username_suffix if user_template.username_suffix else ''}"
         )
 
+    @staticmethod
+    def _apply_template_client_profile_override(user_args: dict, payload: ModifyUserByTemplate) -> None:
+        # An explicit client_profile_id in the request (null included) wins over the template's
+        if "client_profile_id" in payload.model_fields_set:
+            user_args["client_profile_id"] = payload.client_profile_id
+
+    async def _validate_template_client_profile_override(
+        self,
+        db: AsyncSession,
+        payload: ModifyUserByTemplate,
+        admin: AdminDetails,
+        current_profile_ids: list[int | None],
+    ) -> None:
+        """Check an explicit client_profile_id against the profile each affected user has now.
+
+        New users pass the template's profile (what they would get without the override); existing users pass
+        their stored profile, so a template whose own profile is empty cannot be used to change or clear it.
+        """
+        if "client_profile_id" not in payload.model_fields_set:
+            return
+        if all(pid == payload.client_profile_id for pid in current_profile_ids):
+            return
+        # A user without a profile (None) is a change too, so do not use None as the "nothing differs" marker
+        changed_from = next(pid for pid in current_profile_ids if pid != payload.client_profile_id)
+        await self.validate_client_profile_id(db, payload.client_profile_id, admin, current_profile_id=changed_from)
+
     def _build_user_create_from_template(
         self,
         user_template: UserTemplate,
@@ -1743,6 +1782,7 @@ class UserOperation(BaseOperation):
         apply_template_username_affixes: bool = True,
     ) -> UserCreate:
         new_user_args = self.load_base_user_args(user_template)
+        self._apply_template_client_profile_override(new_user_args, payload)
         username = payload.username
         if apply_template_username_affixes:
             username = self._apply_template_username_affixes(username, user_template)
@@ -1765,6 +1805,9 @@ class UserOperation(BaseOperation):
         if user_template.is_disabled:
             await self.raise_error("this template is disabled", 403)
 
+        await self._validate_template_client_profile_override(
+            db, new_template_user, admin, [user_template.client_profile_id]
+        )
         new_user = self._build_user_create_from_template(user_template, new_template_user)
 
         # Template defines data_limit/expire/etc — only check max_users
@@ -1788,7 +1831,9 @@ class UserOperation(BaseOperation):
         if user_template.is_disabled:
             await self.raise_error("this template is disabled", 403)
 
+        await self._validate_template_client_profile_override(db, modified_template, admin, [db_user.client_profile_id])
         user_args = self.load_base_user_args(user_template)
+        self._apply_template_client_profile_override(user_args, modified_template)
         user_args["proxy_settings"] = db_user.proxy_settings
 
         try:
@@ -1858,11 +1903,21 @@ class UserOperation(BaseOperation):
             username_suffix=user_template.username_suffix,
         )
 
+        await self._validate_template_client_profile_override(
+            db, template_payload, admin, [user_template.client_profile_id]
+        )
+        profile_override = (
+            {"client_profile_id": template_payload.client_profile_id}
+            if "client_profile_id" in template_payload.model_fields_set
+            else {}
+        )
+
         def builder(username: str):
             payload = CreateUserFromTemplate(
                 username=username,
                 user_template_id=template_payload.user_template_id,
                 note=template_payload.note,
+                **profile_override,
             )
             return self._build_user_create_from_template(
                 user_template,
@@ -1916,10 +1971,14 @@ class UserOperation(BaseOperation):
         if user_template.is_disabled:
             await self.raise_error("this template is disabled", 403)
 
+        await self._validate_template_client_profile_override(
+            db, body, admin, [db_user.client_profile_id for db_user in db_users]
+        )
         prepared_updates = []
         for db_user in db_users:
             original_status = db_user.status
             user_args = self.load_base_user_args(user_template)
+            self._apply_template_client_profile_override(user_args, body)
             user_args["proxy_settings"] = db_user.proxy_settings
 
             try:

@@ -96,6 +96,7 @@ export default function UserTemplates() {
       on_hold_timeout: typeof userTemplate.on_hold_timeout === 'number' ? userTemplate.on_hold_timeout : undefined,
       data_limit_reset_strategy: userTemplate.data_limit_reset_strategy || undefined,
       reset_usages: userTemplate.reset_usages || false,
+      client_profile_id: userTemplate.client_profile_id ?? null,
     })
 
     setIsDialogOpen(true)

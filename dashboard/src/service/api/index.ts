@@ -134,7 +134,7 @@ export type CRUDPermissionsDelete = boolean | {[key: string]: PermissionScope | 
 
 /**
  * Standard create/read/read_simple/update/delete permissions.
- * Used directly by: groups, templates, client_templates, cores, admin_roles.
+ * Used directly by: groups, templates, client_templates, client_profiles, cores, admin_roles.
  * Also serves as base for resources with additional actions.
  */
 export interface CRUDPermissions {
@@ -212,6 +212,7 @@ export interface RolePermissions {
   hosts?: HostsPermissions | null;
   templates?: CRUDPermissions | null;
   client_templates?: CRUDPermissions | null;
+  client_profiles?: CRUDPermissions | null;
   cores?: CRUDPermissions | null;
   settings?: SettingsPermissions | null;
   system?: SystemPermissions | null;
@@ -1238,6 +1239,13 @@ export interface BulkAdminsActionResponse {
 }
 
 /**
+ * Model for bulk client profile selection by IDs
+ */
+export interface BulkClientProfileSelection {
+  ids?: number[];
+}
+
+/**
  * Model for bulk client template selection by IDs
  */
 export interface BulkClientTemplateSelection {
@@ -1342,6 +1350,7 @@ export interface BulkUsersActionResponse {
 export interface BulkUsersApplyTemplate {
   user_template_id: number;
   note?: string | null;
+  client_profile_id?: number | null;
   ids?: number[];
 }
 
@@ -1361,6 +1370,7 @@ export const UsernameGenerationStrategy = {
 export interface BulkUsersFromTemplate {
   user_template_id: number;
   note?: string | null;
+  client_profile_id?: number | null;
   username?: string | null;
   /**
      * @maximum 500
@@ -1400,6 +1410,97 @@ export interface BulkUsersSelection {
 export interface BulkUsersSetOwner {
   ids?: number[];
   admin_username: string;
+}
+
+/**
+ * Attach the listed users to the profile.
+ */
+export interface ClientProfileAssignUsers {
+  user_ids?: number[];
+}
+
+/**
+ * Client template types that render a whole subscription config (clash covers clash and clash_meta).
+ */
+export type ClientProfileTemplateType = typeof ClientProfileTemplateType[keyof typeof ClientProfileTemplateType];
+
+
+export const ClientProfileTemplateType = {
+  xray_subscription: 'xray_subscription',
+  singbox_subscription: 'singbox_subscription',
+  clash_subscription: 'clash_subscription',
+} as const;
+
+export type ClientProfileSettingsResponseHeaders = {[key: string]: string};
+
+/**
+ * Delivery overrides; None (or an empty string) means inherit from the admin/global settings.
+ */
+export interface ClientProfileSettings {
+  profile_title?: string | null;
+  support_url?: string | null;
+  announce?: string | null;
+  announce_url?: string | null;
+  update_interval?: number | null;
+  randomize_order?: boolean | null;
+  response_headers?: ClientProfileSettingsResponseHeaders;
+  remove_response_headers?: string[];
+  custom_variables?: CustomVariable[];
+}
+
+export interface ClientProfileCreate {
+  /** @maxLength 64 */
+  name: string;
+  note?: string | null;
+  templates?: Partial<Record<ClientProfileTemplateType, number>>;
+  settings?: ClientProfileSettings;
+}
+
+/**
+ * Partial update: omitted fields are unchanged; templates/settings replace the stored value as a whole.
+ */
+export interface ClientProfileModify {
+  name?: string | null;
+  note?: string | null;
+  templates?: Partial<Record<ClientProfileTemplateType, number>> | null;
+  settings?: ClientProfileSettings | null;
+}
+
+export interface ClientProfileResponse {
+  id: number;
+  name: string;
+  note?: string | null;
+  templates?: Partial<Record<ClientProfileTemplateType, number>>;
+  settings?: ClientProfileSettings;
+  created_at: string;
+  users_count?: number;
+}
+
+export interface ClientProfileResponseList {
+  count: number;
+  profiles?: ClientProfileResponse[];
+}
+
+export interface ClientProfileSimple {
+  id: number;
+  name: string;
+}
+
+/**
+ * Detach the listed users (or, with all=true, every user) from the profile.
+ */
+export interface ClientProfileUnassignUsers {
+  user_ids?: number[];
+  all?: boolean;
+}
+
+export interface ClientProfileUsersResponse {
+  count: number;
+}
+
+export interface ClientProfilesSimpleResponse {
+  profiles: ClientProfileSimple[];
+  total: number;
 }
 
 export type ClientTemplateType = typeof ClientTemplateType[keyof typeof ClientTemplateType];
@@ -1578,6 +1679,7 @@ export interface CreateHost {
 export interface CreateUserFromTemplate {
   user_template_id: number;
   note?: string | null;
+  client_profile_id?: number | null;
   username: string;
 }
 
@@ -1739,6 +1841,7 @@ export interface MasqueSettings {
 export interface ModifyUserByTemplate {
   user_template_id: number;
   note?: string | null;
+  client_profile_id?: number | null;
 }
 
 export interface NextPlanModel {
@@ -2141,6 +2244,14 @@ export interface RemoveAdminsResponse {
 }
 
 /**
+ * Response model for bulk client profile deletion
+ */
+export interface RemoveClientProfilesResponse {
+  profiles: string[];
+  count: number;
+}
+
+/**
  * Response model for bulk client template deletion
  */
 export interface RemoveClientTemplatesResponse {
@@ -2409,6 +2520,7 @@ export interface UserCreate {
   auto_delete_in_days?: number | null;
   hwid_limit?: number | null;
   next_plan?: NextPlanModel | null;
+  client_profile_id?: number | null;
   username: string;
   status?: UserStatus | null;
 }
@@ -2460,6 +2572,7 @@ export interface UserListItem {
   auto_delete_in_days?: number | null;
   hwid_limit?: number | null;
   next_plan?: NextPlanModel | null;
+  client_profile_id?: number | null;
   id: number;
   username: string;
   status: UserStatus;
@@ -2487,6 +2600,7 @@ export interface UserModify {
   auto_delete_in_days?: number | null;
   hwid_limit?: number | null;
   next_plan?: NextPlanModel | null;
+  client_profile_id?: number | null;
   status?: UserStatus | null;
 }
 
@@ -2504,6 +2618,7 @@ export interface UserResponse {
   auto_delete_in_days?: number | null;
   hwid_limit?: number | null;
   next_plan?: NextPlanModel | null;
+  client_profile_id?: number | null;
   id: number;
   username: string;
   status: UserStatus;
@@ -2585,6 +2700,7 @@ export interface UserTemplateCreate {
   on_hold_timeout?: number | null;
   data_limit_reset_strategy?: DataLimitResetStrategy;
   is_disabled?: boolean | null;
+  client_profile_id?: number | null;
 }
 
 export interface UserTemplateModify {
@@ -2603,6 +2719,7 @@ export interface UserTemplateModify {
   on_hold_timeout?: number | null;
   data_limit_reset_strategy?: DataLimitResetStrategy;
   is_disabled?: boolean | null;
+  client_profile_id?: number | null;
 }
 
 export interface UserTemplateResponse {
@@ -2621,6 +2738,7 @@ export interface UserTemplateResponse {
   on_hold_timeout?: number | null;
   data_limit_reset_strategy?: DataLimitResetStrategy;
   is_disabled?: boolean | null;
+  client_profile_id?: number | null;
   id: number;
 }
 
@@ -2810,6 +2928,22 @@ limit?: number | null;
 export type GetClientTemplatesSimpleParams = {
 ids?: number[] | null;
 template_type?: ClientTemplateType | null;
+offset?: number | null;
+limit?: number | null;
+search?: string | null;
+sort?: string | null;
+all?: boolean;
+};
+
+export type GetClientProfilesParams = {
+ids?: number[] | null;
+search?: string | null;
+offset?: number | null;
+limit?: number | null;
+};
+
+export type GetClientProfilesSimpleParams = {
+ids?: number[] | null;
 offset?: number | null;
 limit?: number | null;
 search?: string | null;
@@ -10786,6 +10920,774 @@ export const useBulkDeleteClientTemplates = <TError = ErrorType<HTTPException | 
         TContext
       > => {
       return useMutation(getBulkDeleteClientTemplatesMutationOptions(options), queryClient);
+    }
+
+export const getCreateClientProfileUrl = () => {
+
+
+
+
+  return `/api/client_profile`
+}
+
+/**
+ * Create a client profile: per-format client templates and subscription delivery overrides.
+ * @summary Create Client Profile
+ */
+export const createClientProfile = async (clientProfileCreate: ClientProfileCreate, options?: RequestInit): Promise<ClientProfileResponse> => {
+
+  return orvalFetcher<ClientProfileResponse>(getCreateClientProfileUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(clientProfileCreate)
+  }
+);}
+
+
+
+
+
+export const getCreateClientProfileMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | Conflict | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClientProfile>>, TError,{data: BodyType<ClientProfileCreate>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof createClientProfile>>, TError,{data: BodyType<ClientProfileCreate>}, TContext> => {
+
+const mutationKey = ['createClientProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createClientProfile>>, {data: BodyType<ClientProfileCreate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createClientProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateClientProfileMutationResult = NonNullable<Awaited<ReturnType<typeof createClientProfile>>>
+    export type CreateClientProfileMutationBody = BodyType<ClientProfileCreate>
+    export type CreateClientProfileMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | Conflict | HTTPValidationError>
+
+    /**
+ * @summary Create Client Profile
+ */
+export const useCreateClientProfile = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | Conflict | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClientProfile>>, TError,{data: BodyType<ClientProfileCreate>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createClientProfile>>,
+        TError,
+        {data: BodyType<ClientProfileCreate>},
+        TContext
+      > => {
+      return useMutation(getCreateClientProfileMutationOptions(options), queryClient);
+    }
+
+export const getGetClientProfileUrl = (profileId: number,) => {
+
+
+
+
+  return `/api/client_profile/${profileId}`
+}
+
+/**
+ * @summary Get Client Profile
+ */
+export const getClientProfile = async (profileId: number, options?: RequestInit): Promise<ClientProfileResponse> => {
+
+  return orvalFetcher<ClientProfileResponse>(getGetClientProfileUrl(profileId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClientProfileQueryKey = (profileId: number,) => {
+    return [
+    `/api/client_profile/${profileId}`
+    ] as const;
+    }
+
+
+export const getGetClientProfileQueryOptions = <TData = Awaited<ReturnType<typeof getClientProfile>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(profileId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfile>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClientProfileQueryKey(profileId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClientProfile>>> = ({ signal }) => getClientProfile(profileId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: profileId !== null && profileId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClientProfile>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetClientProfileQueryResult = NonNullable<Awaited<ReturnType<typeof getClientProfile>>>
+export type GetClientProfileQueryError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+
+export function useGetClientProfile<TData = Awaited<ReturnType<typeof getClientProfile>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+ profileId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfile>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClientProfile>>,
+          TError,
+          Awaited<ReturnType<typeof getClientProfile>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientProfile<TData = Awaited<ReturnType<typeof getClientProfile>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+ profileId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfile>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClientProfile>>,
+          TError,
+          Awaited<ReturnType<typeof getClientProfile>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientProfile<TData = Awaited<ReturnType<typeof getClientProfile>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+ profileId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfile>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Client Profile
+ */
+
+export function useGetClientProfile<TData = Awaited<ReturnType<typeof getClientProfile>>, TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>>(
+ profileId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfile>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetClientProfileQueryOptions(profileId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getModifyClientProfileUrl = (profileId: number,) => {
+
+
+
+
+  return `/api/client_profile/${profileId}`
+}
+
+/**
+ * Partial update; `templates` and `settings`, when sent, replace the stored value as a whole.
+ * @summary Modify Client Profile
+ */
+export const modifyClientProfile = async (profileId: number,
+    clientProfileModify: ClientProfileModify, options?: RequestInit): Promise<ClientProfileResponse> => {
+
+  return orvalFetcher<ClientProfileResponse>(getModifyClientProfileUrl(profileId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(clientProfileModify)
+  }
+);}
+
+
+
+
+
+export const getModifyClientProfileMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof modifyClientProfile>>, TError,{profileId: number;data: BodyType<ClientProfileModify>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof modifyClientProfile>>, TError,{profileId: number;data: BodyType<ClientProfileModify>}, TContext> => {
+
+const mutationKey = ['modifyClientProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof modifyClientProfile>>, {profileId: number;data: BodyType<ClientProfileModify>}> = (props) => {
+          const {profileId,data} = props ?? {};
+
+          return  modifyClientProfile(profileId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ModifyClientProfileMutationResult = NonNullable<Awaited<ReturnType<typeof modifyClientProfile>>>
+    export type ModifyClientProfileMutationBody = BodyType<ClientProfileModify>
+    export type ModifyClientProfileMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
+
+    /**
+ * @summary Modify Client Profile
+ */
+export const useModifyClientProfile = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof modifyClientProfile>>, TError,{profileId: number;data: BodyType<ClientProfileModify>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof modifyClientProfile>>,
+        TError,
+        {profileId: number;data: BodyType<ClientProfileModify>},
+        TContext
+      > => {
+      return useMutation(getModifyClientProfileMutationOptions(options), queryClient);
+    }
+
+export const getRemoveClientProfileUrl = (profileId: number,) => {
+
+
+
+
+  return `/api/client_profile/${profileId}`
+}
+
+/**
+ * Delete a client profile; its users and user templates fall back to the default delivery.
+ * @summary Remove Client Profile
+ */
+export const removeClientProfile = async (profileId: number, options?: RequestInit): Promise<void> => {
+
+  return orvalFetcher<void>(getRemoveClientProfileUrl(profileId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveClientProfileMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeClientProfile>>, TError,{profileId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeClientProfile>>, TError,{profileId: number}, TContext> => {
+
+const mutationKey = ['removeClientProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeClientProfile>>, {profileId: number}> = (props) => {
+          const {profileId} = props ?? {};
+
+          return  removeClientProfile(profileId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveClientProfileMutationResult = NonNullable<Awaited<ReturnType<typeof removeClientProfile>>>
+
+    export type RemoveClientProfileMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+    /**
+ * @summary Remove Client Profile
+ */
+export const useRemoveClientProfile = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeClientProfile>>, TError,{profileId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof removeClientProfile>>,
+        TError,
+        {profileId: number},
+        TContext
+      > => {
+      return useMutation(getRemoveClientProfileMutationOptions(options), queryClient);
+    }
+
+export const getAssignClientProfileUsersUrl = (profileId: number,) => {
+
+
+
+
+  return `/api/client_profile/${profileId}/users`
+}
+
+/**
+ * Attach users to the profile (also needs users.update; scope own limits it to own users).
+ * @summary Assign Client Profile Users
+ */
+export const assignClientProfileUsers = async (profileId: number,
+    clientProfileAssignUsers: ClientProfileAssignUsers, options?: RequestInit): Promise<ClientProfileUsersResponse> => {
+
+  return orvalFetcher<ClientProfileUsersResponse>(getAssignClientProfileUsersUrl(profileId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(clientProfileAssignUsers)
+  }
+);}
+
+
+
+
+
+export const getAssignClientProfileUsersMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignClientProfileUsers>>, TError,{profileId: number;data: BodyType<ClientProfileAssignUsers>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof assignClientProfileUsers>>, TError,{profileId: number;data: BodyType<ClientProfileAssignUsers>}, TContext> => {
+
+const mutationKey = ['assignClientProfileUsers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof assignClientProfileUsers>>, {profileId: number;data: BodyType<ClientProfileAssignUsers>}> = (props) => {
+          const {profileId,data} = props ?? {};
+
+          return  assignClientProfileUsers(profileId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AssignClientProfileUsersMutationResult = NonNullable<Awaited<ReturnType<typeof assignClientProfileUsers>>>
+    export type AssignClientProfileUsersMutationBody = BodyType<ClientProfileAssignUsers>
+    export type AssignClientProfileUsersMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+    /**
+ * @summary Assign Client Profile Users
+ */
+export const useAssignClientProfileUsers = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignClientProfileUsers>>, TError,{profileId: number;data: BodyType<ClientProfileAssignUsers>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof assignClientProfileUsers>>,
+        TError,
+        {profileId: number;data: BodyType<ClientProfileAssignUsers>},
+        TContext
+      > => {
+      return useMutation(getAssignClientProfileUsersMutationOptions(options), queryClient);
+    }
+
+export const getUnassignClientProfileUsersUrl = (profileId: number,) => {
+
+
+
+
+  return `/api/client_profile/${profileId}/users`
+}
+
+/**
+ * Detach the listed users, or with `all: true` every user, from the profile.
+ * @summary Unassign Client Profile Users
+ */
+export const unassignClientProfileUsers = async (profileId: number,
+    clientProfileUnassignUsers: ClientProfileUnassignUsers, options?: RequestInit): Promise<ClientProfileUsersResponse> => {
+
+  return orvalFetcher<ClientProfileUsersResponse>(getUnassignClientProfileUsersUrl(profileId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(clientProfileUnassignUsers)
+  }
+);}
+
+
+
+
+
+export const getUnassignClientProfileUsersMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unassignClientProfileUsers>>, TError,{profileId: number;data: BodyType<ClientProfileUnassignUsers>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof unassignClientProfileUsers>>, TError,{profileId: number;data: BodyType<ClientProfileUnassignUsers>}, TContext> => {
+
+const mutationKey = ['unassignClientProfileUsers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unassignClientProfileUsers>>, {profileId: number;data: BodyType<ClientProfileUnassignUsers>}> = (props) => {
+          const {profileId,data} = props ?? {};
+
+          return  unassignClientProfileUsers(profileId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnassignClientProfileUsersMutationResult = NonNullable<Awaited<ReturnType<typeof unassignClientProfileUsers>>>
+    export type UnassignClientProfileUsersMutationBody = BodyType<ClientProfileUnassignUsers>
+    export type UnassignClientProfileUsersMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+    /**
+ * @summary Unassign Client Profile Users
+ */
+export const useUnassignClientProfileUsers = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unassignClientProfileUsers>>, TError,{profileId: number;data: BodyType<ClientProfileUnassignUsers>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof unassignClientProfileUsers>>,
+        TError,
+        {profileId: number;data: BodyType<ClientProfileUnassignUsers>},
+        TContext
+      > => {
+      return useMutation(getUnassignClientProfileUsersMutationOptions(options), queryClient);
+    }
+
+export const getGetClientProfilesUrl = (params?: GetClientProfilesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["ids"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : String(v));
+      });
+      return;
+    }
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/client_profiles?${stringifiedParams}` : `/api/client_profiles`
+}
+
+/**
+ * @summary Get Client Profiles
+ */
+export const getClientProfiles = async (params?: GetClientProfilesParams, options?: RequestInit): Promise<ClientProfileResponseList> => {
+
+  return orvalFetcher<ClientProfileResponseList>(getGetClientProfilesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClientProfilesQueryKey = (params?: GetClientProfilesParams,) => {
+    return [
+    `/api/client_profiles`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetClientProfilesQueryOptions = <TData = Awaited<ReturnType<typeof getClientProfiles>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(params?: GetClientProfilesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfiles>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClientProfilesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClientProfiles>>> = ({ signal }) => getClientProfiles(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClientProfiles>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetClientProfilesQueryResult = NonNullable<Awaited<ReturnType<typeof getClientProfiles>>>
+export type GetClientProfilesQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+
+export function useGetClientProfiles<TData = Awaited<ReturnType<typeof getClientProfiles>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params: undefined |  GetClientProfilesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfiles>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClientProfiles>>,
+          TError,
+          Awaited<ReturnType<typeof getClientProfiles>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientProfiles<TData = Awaited<ReturnType<typeof getClientProfiles>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetClientProfilesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfiles>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClientProfiles>>,
+          TError,
+          Awaited<ReturnType<typeof getClientProfiles>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientProfiles<TData = Awaited<ReturnType<typeof getClientProfiles>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetClientProfilesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfiles>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Client Profiles
+ */
+
+export function useGetClientProfiles<TData = Awaited<ReturnType<typeof getClientProfiles>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetClientProfilesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfiles>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetClientProfilesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetClientProfilesSimpleUrl = (params?: GetClientProfilesSimpleParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["ids"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : String(v));
+      });
+      return;
+    }
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/client_profiles/simple?${stringifiedParams}` : `/api/client_profiles/simple`
+}
+
+/**
+ * @summary Get Client Profiles Simple
+ */
+export const getClientProfilesSimple = async (params?: GetClientProfilesSimpleParams, options?: RequestInit): Promise<ClientProfilesSimpleResponse> => {
+
+  return orvalFetcher<ClientProfilesSimpleResponse>(getGetClientProfilesSimpleUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClientProfilesSimpleQueryKey = (params?: GetClientProfilesSimpleParams,) => {
+    return [
+    `/api/client_profiles/simple`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetClientProfilesSimpleQueryOptions = <TData = Awaited<ReturnType<typeof getClientProfilesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(params?: GetClientProfilesSimpleParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfilesSimple>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClientProfilesSimpleQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClientProfilesSimple>>> = ({ signal }) => getClientProfilesSimple(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClientProfilesSimple>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetClientProfilesSimpleQueryResult = NonNullable<Awaited<ReturnType<typeof getClientProfilesSimple>>>
+export type GetClientProfilesSimpleQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+
+export function useGetClientProfilesSimple<TData = Awaited<ReturnType<typeof getClientProfilesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params: undefined |  GetClientProfilesSimpleParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfilesSimple>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClientProfilesSimple>>,
+          TError,
+          Awaited<ReturnType<typeof getClientProfilesSimple>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientProfilesSimple<TData = Awaited<ReturnType<typeof getClientProfilesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetClientProfilesSimpleParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfilesSimple>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getClientProfilesSimple>>,
+          TError,
+          Awaited<ReturnType<typeof getClientProfilesSimple>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetClientProfilesSimple<TData = Awaited<ReturnType<typeof getClientProfilesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetClientProfilesSimpleParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfilesSimple>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Client Profiles Simple
+ */
+
+export function useGetClientProfilesSimple<TData = Awaited<ReturnType<typeof getClientProfilesSimple>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetClientProfilesSimpleParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getClientProfilesSimple>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetClientProfilesSimpleQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getBulkDeleteClientProfilesUrl = () => {
+
+
+
+
+  return `/api/client_profiles/bulk/delete`
+}
+
+/**
+ * Delete selected client profiles by ID.
+ * @summary Bulk Delete Client Profiles
+ */
+export const bulkDeleteClientProfiles = async (bulkClientProfileSelection: BulkClientProfileSelection, options?: RequestInit): Promise<RemoveClientProfilesResponse> => {
+
+  return orvalFetcher<RemoveClientProfilesResponse>(getBulkDeleteClientProfilesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkClientProfileSelection)
+  }
+);}
+
+
+
+
+
+export const getBulkDeleteClientProfilesMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteClientProfiles>>, TError,{data: BodyType<BulkClientProfileSelection>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteClientProfiles>>, TError,{data: BodyType<BulkClientProfileSelection>}, TContext> => {
+
+const mutationKey = ['bulkDeleteClientProfiles'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeleteClientProfiles>>, {data: BodyType<BulkClientProfileSelection>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  bulkDeleteClientProfiles(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BulkDeleteClientProfilesMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteClientProfiles>>>
+    export type BulkDeleteClientProfilesMutationBody = BodyType<BulkClientProfileSelection>
+    export type BulkDeleteClientProfilesMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+    /**
+ * @summary Bulk Delete Client Profiles
+ */
+export const useBulkDeleteClientProfiles = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteClientProfiles>>, TError,{data: BodyType<BulkClientProfileSelection>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof bulkDeleteClientProfiles>>,
+        TError,
+        {data: BodyType<BulkClientProfileSelection>},
+        TContext
+      > => {
+      return useMutation(getBulkDeleteClientProfilesMutationOptions(options), queryClient);
     }
 
 export const getGetHostUrl = (hostId: number,) => {

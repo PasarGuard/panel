@@ -30,6 +30,7 @@ const userTemplateFormObjectSchema = z.object({
     ])
     .optional(),
   reset_usages: z.boolean().optional(),
+  client_profile_id: z.number().nullable().optional(),
 })
 
 function refineUserTemplateOnHold(data: z.infer<typeof userTemplateFormObjectSchema>, ctx: z.RefinementCtx) {
@@ -61,6 +62,7 @@ export const userTemplateFormDefaultValues: Partial<UserTemplatesFromValueInput>
   on_hold_timeout: undefined,
   groups: [],
   reset_usages: false,
+  client_profile_id: null,
 }
 
 /** Wraps zodResolver: turns `validation.required` into fully translated messages (same idea as `user-modal` `setError` with `t('validation.required', { field: … })`). */

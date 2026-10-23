@@ -203,6 +203,7 @@ const buildUserEditFormValues = (user: UserResponse): UseEditFormValues => ({
   note: user.note || '',
   data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
   group_ids: user.group_ids || [],
+  client_profile_id: user.client_profile_id ?? null,
   on_hold_expire_duration: user.on_hold_expire_duration || undefined,
   on_hold_timeout: normalizeDatePickerValueForEditForm(user.on_hold_timeout),
   proxy_settings: user.proxy_settings || undefined,

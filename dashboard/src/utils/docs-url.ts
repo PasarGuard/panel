@@ -21,7 +21,7 @@ export function getDocsUrl(pagePath: string): string {
   if (pagePath.startsWith('/settings')) {
     return `${DOCUMENTATION}/${normalizedLocale}/panel/settings`
   }
-  if (pagePath === '/templates/client') {
+  if (pagePath === '/templates/client' || pagePath === '/templates/profiles') {
     return `${DOCUMENTATION}/${normalizedLocale}/panel/client_template`
   }
   if (pagePath === '/templates/user') {
