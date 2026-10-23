@@ -83,6 +83,7 @@ def checker(monkeypatch):
     monkeypatch.setattr(node_checker.job_settings, "node_health_probe_timeout", 0.2)
     monkeypatch.setattr(node_checker.job_settings, "node_health_max_backoff", 60)
     monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: True)
+    monkeypatch.setattr(node_checker, "node_reconciliation_revision", AsyncMock(return_value=None))
     monkeypatch.setattr(node_checker, "needs_shared_bridge_memory", lambda: False)
     monkeypatch.setattr(node_checker, "GetDB", lambda: _FakeDB())
     monkeypatch.setattr(node_checker, "get_bridge_memory", lambda: (None, None, None))
