@@ -12,6 +12,7 @@ class MessageTopic(str, Enum):
     SETTING = "setting"
     CLIENT_TEMPLATE = "client_template"
     NODE = "node"
+    PLUGIN = "plugin"
 
 
 class NatsMessage(BaseModel):

@@ -18,7 +18,7 @@ from app.settings import handle_settings_message
 from app.subscription.client_templates import handle_client_template_message
 from app.utils.logger import get_logger
 from app.version import __version__
-from config import database_settings, runtime_settings, server_settings, subscription_env_settings
+from config import database_settings, plugin_settings, runtime_settings, server_settings, subscription_env_settings
 
 logger = get_logger("app-factory")
 
@@ -330,6 +330,21 @@ def _register_jobs():
     from app import jobs  # noqa: F401
 
 
+def _setup_plugins(app: FastAPI):
+    # PLUGINS empty: the plugin system is off and no plugin code is imported
+    if not plugin_settings.enabled:
+        return
+    from app.plugins.manager import init_plugins
+
+    init_plugins(
+        app,
+        plugin_settings.plugins_dir,
+        plugin_settings.enabled,
+        runs_panel=runtime_settings.role.runs_panel,
+        runs_scheduler=runtime_settings.role.runs_scheduler,
+    )
+
+
 def _warn_deprecated_role():
     role = runtime_settings.role
     if not role.is_deprecated:
@@ -395,6 +410,8 @@ def create_app() -> FastAPI:
     _register_jobs()
 
     _use_route_names_as_operation_ids(app)
+    # After operation ids are simplified: plugin routes keep FastAPI's unique default ids
+    _setup_plugins(app)
 
     on_startup(lambda: logger.info(f"PasarGuard v{__version__} ({runtime_settings.role.value})"))
     on_startup(_log_database_pool_budget)
