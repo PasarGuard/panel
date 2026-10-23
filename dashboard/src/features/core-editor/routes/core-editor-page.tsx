@@ -15,7 +15,7 @@ import { WireGuardCoreEditor } from '@/features/core-editor/components/wg/wiregu
 import { XrayCoreEditor } from '@/features/core-editor/components/xray/xray-core-editor'
 import { profileToPersistedConfig } from '@/features/core-editor/kit/xray-adapter'
 import { getWireGuardPersistConfig } from '@/features/core-editor/kit/wireguard-adapter'
-import { selectCoreEditorHasActualChanges } from '@/features/core-editor/kit/core-editor-change-state'
+import { selectCoreEditorHasActualChanges, selectCoreEditorNoteOnlyChange } from '@/features/core-editor/kit/core-editor-change-state'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import type { WgCoreSection, XrayCoreSection } from '@/features/core-editor/state/core-editor-store'
 import type { CoreKind } from '@pasarguard/core-kit'
@@ -182,6 +182,8 @@ export default function CoreEditorPage() {
   const coreNote = useCoreEditorStore(s => s.coreNote)
   const setCoreNote = useCoreEditorStore(s => s.setCoreNote)
   const hasActualChanges = useCoreEditorStore(selectCoreEditorHasActualChanges)
+  // A note-only save has nothing to sync, so nodes are not restarted for it.
+  const noteOnlyChange = useCoreEditorStore(selectCoreEditorNoteOnlyChange)
   const discardDraft = useCoreEditorStore(s => s.discardDraft)
   const markClean = useCoreEditorStore(s => s.markClean)
   const restartNodes = useCoreEditorStore(s => s.restartNodes)
@@ -275,7 +277,7 @@ export default function CoreEditorPage() {
       return
     }
     setNameSubmitAttempted(false)
-    // Empty note clears it on the server (null); the note alone never restarts nodes.
+    // Empty note clears it on the server (null).
     const note = coreNote.trim() || null
     setSaving(true)
     try {
@@ -316,7 +318,7 @@ export default function CoreEditorPage() {
               fallbacks_inbound_tags: [],
               note,
             },
-            params: { restart_nodes: restartNodes },
+            params: { restart_nodes: restartNodes && !noteOnlyChange },
           })
           toast.success(t('coreConfigModal.editSuccess', { name }))
           markClean()
@@ -356,7 +358,7 @@ export default function CoreEditorPage() {
               fallbacks_inbound_tags: fallbacksInboundTags,
               note,
             },
-            params: { restart_nodes: restartNodes },
+            params: { restart_nodes: restartNodes && !noteOnlyChange },
           })
           toast.success(t('coreConfigModal.editSuccess', { name }))
           markClean()
@@ -386,6 +388,7 @@ export default function CoreEditorPage() {
     fallbacksInboundTags,
     excludeInboundTags,
     restartNodes,
+    noteOnlyChange,
     createMutation,
     modifyMutation,
     markClean,
@@ -602,6 +605,7 @@ export default function CoreEditorPage() {
         saving={saving || createMutation.isPending || modifyMutation.isPending}
         showRestart={!isNew}
         restartNodes={restartNodes}
+        restartDisabled={noteOnlyChange}
         onRestartChange={setRestartNodes}
       />
       <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>

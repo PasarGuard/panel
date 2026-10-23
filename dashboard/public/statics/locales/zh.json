@@ -2404,6 +2404,7 @@
     "copyPrivateKey": "复制私钥",
     "copyShortId": "复制短 ID",
     "restartNodes": "同步节点",
+    "restartNodesNoteOnly": "仅修改了备注，节点不会重启",
     "generateShadowsocksPassword": "Shadowsocks 密码",
     "generatingShadowsocksPassword": "正在生成密码...",
     "shadowsocksPassword": "Shadowsocks 密码",

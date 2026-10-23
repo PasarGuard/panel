@@ -2451,6 +2451,7 @@
     "copyPrivateKey": "Copy Private Key",
     "copyShortId": "Copy Short ID",
     "restartNodes": "Sync Nodes",
+    "restartNodesNoteOnly": "Only the note changed, nodes are not restarted",
     "generateShadowsocksPassword": "Shadowsocks Password",
     "generatingShadowsocksPassword": "Generating Password...",
     "shadowsocksPassword": "Shadowsocks Password",

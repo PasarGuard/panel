@@ -2336,6 +2336,7 @@
     "copyPrivateKey": "Копировать приватный ключ",
     "copyShortId": "Копировать короткий ID",
     "restartNodes": "Синхронизировать узлы",
+    "restartNodesNoteOnly": "Изменена только заметка, узлы не перезапускаются",
     "generateShadowsocksPassword": "Пароль Shadowsocks",
     "generatingShadowsocksPassword": "Генерация пароля...",
     "shadowsocksPassword": "Пароль Shadowsocks",

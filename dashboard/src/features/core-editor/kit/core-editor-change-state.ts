@@ -1,4 +1,4 @@
-import type { CoreEditorStoreState } from '@/features/core-editor/state/core-editor-store'
+import type { CoreEditorStoreState, PersistedSnapshot } from '@/features/core-editor/state/core-editor-store'
 import { profileToPersistedConfig } from '@/features/core-editor/kit/xray-adapter'
 import { draftToPersistedConfig } from '@/features/core-editor/kit/wireguard-adapter'
 
@@ -54,16 +54,32 @@ function baselineConfigString(s: CoreEditorStoreState): string {
   return ''
 }
 
+function hasChangesBesidesNote(s: CoreEditorStoreState, snap: PersistedSnapshot): boolean {
+  if (s.kind !== snap.kind) return true
+  if (s.coreName.trim() !== snap.coreName.trim()) return true
+  if (!sameStringArray(s.fallbacksInboundTags, snap.fallbacksInboundTags)) return true
+  if (!sameStringArray(s.excludeInboundTags, snap.excludeInboundTags)) return true
+
+  return currentConfigString(s) !== baselineConfigString(s)
+}
+
 export function selectCoreEditorHasActualChanges(s: CoreEditorStoreState): boolean {
   if (!s.hydrated) return false
 
   const snap = s.persistedSnapshot
   if (!snap) return s.dirty
-  if (s.kind !== snap.kind) return true
-  if (s.coreName.trim() !== snap.coreName.trim()) return true
   if (s.coreNote.trim() !== snap.coreNote.trim()) return true
-  if (!sameStringArray(s.fallbacksInboundTags, snap.fallbacksInboundTags)) return true
-  if (!sameStringArray(s.excludeInboundTags, snap.excludeInboundTags)) return true
 
-  return currentConfigString(s) !== baselineConfigString(s)
+  return hasChangesBesidesNote(s, snap)
+}
+
+/** Only the panel-only note differs from the saved core, so there is nothing to sync to nodes. */
+export function selectCoreEditorNoteOnlyChange(s: CoreEditorStoreState): boolean {
+  if (!s.hydrated) return false
+
+  const snap = s.persistedSnapshot
+  if (!snap) return false
+  if (s.coreNote.trim() === snap.coreNote.trim()) return false
+
+  return !hasChangesBesidesNote(s, snap)
 }

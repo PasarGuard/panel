@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import type { CoreResponse } from '@/service/api'
-import { selectCoreEditorHasActualChanges } from '@/features/core-editor/kit/core-editor-change-state'
+import { selectCoreEditorHasActualChanges, selectCoreEditorNoteOnlyChange } from '@/features/core-editor/kit/core-editor-change-state'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 
 const core = {
@@ -19,6 +19,7 @@ const core = {
 
 const store = useCoreEditorStore
 const hasChanges = () => selectCoreEditorHasActualChanges(store.getState())
+const noteOnly = () => selectCoreEditorNoteOnlyChange(store.getState())
 
 test('core note is hydrated from the server and starts clean', () => {
   store.getState().reset()
@@ -61,4 +62,28 @@ test('core without a note (old records) hydrates to an empty note', () => {
   assert.equal(hasChanges(), false)
   store.getState().initNew('xray', 'new core')
   assert.equal(store.getState().coreNote, '')
+})
+
+test('a note-only edit is detected so the save does not sync nodes', () => {
+  store.getState().reset()
+  store.getState().initFromCore(core)
+  assert.equal(noteOnly(), false)
+  store.getState().setCoreNote('edited')
+  assert.equal(noteOnly(), true)
+  store.getState().setCoreNote(' EU config ')
+  assert.equal(noteOnly(), false)
+})
+
+test('a note edit together with another change is not note-only', () => {
+  store.getState().reset()
+  store.getState().initFromCore(core)
+  store.getState().setCoreNote('edited')
+  store.getState().setCoreName('renamed')
+  assert.equal(noteOnly(), false)
+  store.getState().setCoreName('main')
+  store.getState().setFallbacksInboundTags(['vless-in'])
+  assert.equal(noteOnly(), false)
+  store.getState().setFallbacksInboundTags([])
+  store.getState().setExcludeInboundTags(['vless-in'])
+  assert.equal(noteOnly(), false)
 })
