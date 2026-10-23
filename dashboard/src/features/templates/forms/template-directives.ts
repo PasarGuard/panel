@@ -5,12 +5,46 @@ export const SERVER_GROUP_TEMPLATE_TYPES: readonly ClientTemplateType[] = ['xray
 
 export const supportsServerGroups = (templateType: string) => (SERVER_GROUP_TEMPLATE_TYPES as readonly string[]).includes(templateType)
 
-// Cheap check for list badges: a `pasarguard` key in JSON (`"pasarguard":`) or YAML (`pasarguard:`).
-export const hasServerGroupDirective = (content: string | null | undefined) => /(^|[\s{,"'])pasarguard["']?\s*:/m.test(content ?? '')
+// Cheap check for list badges: a `pasarguard` key in JSON (`"pasarguard":`) or YAML (`pasarguard:`, also as a list item).
+// Comments and string values that merely contain the word do not count.
+export const hasServerGroupDirective = (content: string | null | undefined) =>
+  /"pasarguard"\s*:|^[ \t]*(?:-[ \t]+)?pasarguard[ \t]*:|[{,][ \t]*pasarguard[ \t]*:/m.test(content ?? '')
 
-// What "Insert example" adds to an Xray template: every server of the user as extra outbounds proxy-1, proxy-2, …
-// per_host keeps the template's own `proxy` outbound, so an existing config keeps working.
-export const XRAY_SERVER_GROUP_DIRECTIVE = { mode: 'per_host', inject: [{ select: {}, tag_prefix: 'proxy' }] }
+// What "Insert example" adds to an Xray template: one config with every server of the user as proxy-1, proxy-2, …
+// "single" keeps the config small; "per_host" with an empty select would copy all servers into every config.
+export const XRAY_SERVER_GROUP_DIRECTIVE = { mode: 'single', inject: [{ select: {}, tag_prefix: 'proxy' }] }
+
+// True for an Xray template whose per-host configs each get all of the user's servers (n configs x n outbounds).
+export const xrayDirectiveCopiesAllServersPerHost = (content: string): boolean => {
+  let parsed: any
+  try {
+    parsed = JSON.parse(content)
+  } catch {
+    return false
+  }
+  const directive = parsed && typeof parsed === 'object' ? parsed.pasarguard : undefined
+  if (!directive || typeof directive !== 'object' || (directive.mode ?? 'per_host') !== 'per_host' || !Array.isArray(directive.inject)) {
+    return false
+  }
+  return directive.inject.some((inject: any) => {
+    const select = inject && typeof inject === 'object' ? inject.select : undefined
+    return select === undefined || select === null || (typeof select === 'object' && Object.keys(select).length === 0)
+  })
+}
+
+// Puts `example` on lines of its own at the cursor (`offset`), so it never glues to the text around it:
+// at the start of a line it goes before that line, otherwise after the end of the current line.
+export const insertExampleOnOwnLine = (content: string, offset: number, example: string): string => {
+  const cursor = Math.min(Math.max(offset, 0), content.length)
+  if (cursor === 0 || content[cursor - 1] === '\n') {
+    return `${content.slice(0, cursor)}${example}\n${content.slice(cursor)}`
+  }
+  const lineEnd = content.indexOf('\n', cursor)
+  if (lineEnd === -1) {
+    return `${content}\n${example}\n`
+  }
+  return `${content.slice(0, lineEnd)}\n${example}${content.slice(lineEnd)}`
+}
 
 export const SERVER_GROUP_EXAMPLES: Record<'xray_subscription' | 'singbox_subscription' | 'clash_subscription', string> = {
   xray_subscription: `{

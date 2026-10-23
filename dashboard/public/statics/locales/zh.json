@@ -286,11 +286,13 @@
         "headerValue": "头值",
         "advanced": "高级规则选项",
         "advancedTitle": "规则选项",
-        "advancedDescription": "为此规则选择客户端模板和可选响应头。",
+        "advancedDescription": "在此规则匹配时配置可选响应头。",
+        "advancedDescriptionWithTemplate": "为此规则选择客户端模板和可选响应头。",
         "advancedHeadersHint": "{{count}} 个自定义响应头 — 点击编辑",
         "template": "模板",
         "templateDescription": "匹配此规则的客户端将使用此模板，而不是该格式的默认模板。",
         "defaultTemplate": "默认模板",
+        "templatesUnavailable": "您的角色无法查看模板列表。此规则的客户端将获得此处显示的模板。",
         "templateBadge": "模板：{{name}}"
       },
       "formats": {
@@ -1199,14 +1201,15 @@
       "clash": "Clash / Mihomo：把该块放在 proxy-groups 的某个分组里，选中的服务器会被添加到该分组。此类模板中的注释不会保留。",
       "select": "\"select\" 按 inbound_tags、inbound_tag_regex、remark_regex 或 host_ids 选择服务器；所有给定条件都必须满足，空的 {} 表示用户的全部服务器。",
       "insertHint": {
-        "xray": "\"插入示例\" 会向模板添加一个 \"pasarguard\" 块，把所有服务器添加为 proxy-1、proxy-2……；当前配置仍可正常使用。",
+        "xray": "\"插入示例\" 会添加一个 \"single\" 模式的 \"pasarguard\" 块：客户端获得一个配置，所有服务器为 proxy-1、proxy-2…… 请像示例一样添加 selector 为 \"proxy-\" 的负载均衡器，并把使用 \"proxy\" 出站的规则指向它。",
         "singbox": "示例会插入到光标处；请把这些分组移到您的 \"outbounds\" 列表中。",
         "clash": "示例会插入到光标处；请将其与您的 \"proxy-groups\" 列表合并。"
       },
       "rulesHint": "如果只想让部分应用使用此模板，请在订阅规则中选择它（设置 → 订阅 → 规则）。",
       "insertExample": "插入示例",
       "insertInvalidJson": "请先修正 JSON，再插入示例。",
-      "insertExists": "此模板已包含 \"pasarguard\" 块。"
+      "insertExists": "此模板已包含 \"pasarguard\" 块。",
+      "perHostAllWarning": "此模板的每个配置都会获得用户的全部服务器（\"per_host\" 且 select 为空）。服务器很多时订阅会很大且生成缓慢；建议使用 \"mode\": \"single\" 或更窄的 select。"
     }
   },
   "core.configuration": "配置",

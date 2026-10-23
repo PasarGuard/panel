@@ -1,11 +1,12 @@
 import { templateIdAfterTargetChange, type SubscriptionSettingsForm } from './subscription-settings-schema'
 import { configFormatOptions } from '@/features/subscriptions/components/config-format-options'
 import { SubscriptionRuleAdvancedSheet, useRuleTemplates } from '@/features/subscriptions/components/subscription-rule-advanced-sheet'
-import { Badge } from '@/components/ui/badge'
+import { badgeVariants } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Bolt, FileCode2, GripVertical, Trash2 } from 'lucide-react'
@@ -187,15 +188,16 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
               </div>
               {templateName !== null && (
                 <div className="flex min-w-0 sm:col-span-2">
-                  <Badge
-                    variant="secondary"
-                    className="max-w-full min-w-0 cursor-pointer gap-1 px-1.5 py-0 text-[10px] font-normal sm:text-[11px]"
+                  <button
+                    type="button"
+                    className={cn(badgeVariants({ variant: 'secondary' }), 'max-w-full min-w-0 cursor-pointer gap-1 px-1.5 py-0 text-[10px] font-normal sm:text-[11px]')}
                     title={t('settings.subscriptions.rules.templateBadge', { name: templateName })}
+                    aria-label={t('settings.subscriptions.rules.templateBadge', { name: templateName })}
                     onClick={() => setIsAdvancedOpen(true)}
                   >
                     <FileCode2 className="h-3 w-3 shrink-0" />
                     <span className="truncate">{templateName}</span>
-                  </Badge>
+                  </button>
                 </div>
               )}
             </div>

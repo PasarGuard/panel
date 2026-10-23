@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'bun:test'
 
-import { hasServerGroupDirective, mergeXrayServerGroupDirective, SERVER_GROUP_EXAMPLES, supportsServerGroups, XRAY_SERVER_GROUP_DIRECTIVE } from './template-directives'
+import {
+  hasServerGroupDirective,
+  insertExampleOnOwnLine,
+  mergeXrayServerGroupDirective,
+  SERVER_GROUP_EXAMPLES,
+  supportsServerGroups,
+  XRAY_SERVER_GROUP_DIRECTIVE,
+  xrayDirectiveCopiesAllServersPerHost,
+} from './template-directives'
 
 describe('server group directive', () => {
   it('detects the directive in JSON and YAML templates', () => {
@@ -14,6 +22,13 @@ describe('server group directive', () => {
     expect(hasServerGroupDirective('{"remarks": "pasarguard"}')).toBe(false)
     expect(hasServerGroupDirective('')).toBe(false)
     expect(hasServerGroupDirective(undefined)).toBe(false)
+    expect(hasServerGroupDirective('mode: rule\n  # pasarguard: put groups here')).toBe(false)
+    expect(hasServerGroupDirective('{"remarks": "pasarguard: DE"}')).toBe(false)
+  })
+
+  it('detects the directive as a YAML list item and in flow mappings', () => {
+    expect(hasServerGroupDirective('groups:\n- pasarguard: {}')).toBe(true)
+    expect(hasServerGroupDirective('- {name: DE, pasarguard: {select: {}}}')).toBe(true)
   })
 
   it('is offered only for subscription templates', () => {
@@ -29,6 +44,31 @@ describe('server group directive', () => {
     expect(result.status).toBe('merged')
     if (result.status !== 'merged') return
     expect(JSON.parse(result.content)).toEqual({ log: { loglevel: 'warning' }, outbounds: [], pasarguard: XRAY_SERVER_GROUP_DIRECTIVE })
+  })
+
+  it('inserts the Xray example in single mode', () => {
+    expect(XRAY_SERVER_GROUP_DIRECTIVE.mode).toBe('single')
+    expect(xrayDirectiveCopiesAllServersPerHost(JSON.stringify({ pasarguard: XRAY_SERVER_GROUP_DIRECTIVE }))).toBe(false)
+  })
+
+  it('warns about per-host configs that copy every server', () => {
+    expect(xrayDirectiveCopiesAllServersPerHost('{"pasarguard": {"mode": "per_host", "inject": [{"select": {}}]}}')).toBe(true)
+    expect(xrayDirectiveCopiesAllServersPerHost('{"pasarguard": {"inject": [{"tag_prefix": "p"}]}}')).toBe(true)
+    expect(xrayDirectiveCopiesAllServersPerHost('{"pasarguard": {"inject": [{"select": {"host_ids": [1]}}]}}')).toBe(false)
+    expect(xrayDirectiveCopiesAllServersPerHost('{"pasarguard": {"mode": "single", "inject": [{}]}}')).toBe(false)
+    expect(xrayDirectiveCopiesAllServersPerHost('{"outbounds": []}')).toBe(false)
+    expect(xrayDirectiveCopiesAllServersPerHost('{"pasarguard": ')).toBe(false)
+  })
+
+  it('puts an inserted example on lines of its own', () => {
+    const example = 'proxy-groups:\n- name: DE'
+    expect(insertExampleOnOwnLine('mode: rule\nrules: []\n', 0, example)).toBe(`${example}\nmode: rule\nrules: []\n`)
+    expect(insertExampleOnOwnLine('mode: rule\nrules: []\n', 2, example)).toBe(`mode: rule\n${example}\nrules: []\n`)
+    expect(insertExampleOnOwnLine('mode: rule\nrules: []\n', 11, example)).toBe(`mode: rule\n${example}\nrules: []\n`)
+    expect(insertExampleOnOwnLine('mode: rule', 4, example)).toBe(`mode: rule\n${example}\n`)
+    expect(insertExampleOnOwnLine('mode: rule', 10, example)).toBe(`mode: rule\n${example}\n`)
+    expect(insertExampleOnOwnLine('mode: rule\n', 11, example)).toBe(`mode: rule\n${example}\n`)
+    expect(insertExampleOnOwnLine('', 0, example)).toBe(`${example}\n`)
   })
 
   it('does not touch invalid JSON, non-objects or an existing directive', () => {

@@ -2,7 +2,7 @@ import { CodeEditorPanel } from '@/components/common/code-editor-panel'
 import ClientTemplateServerGroupsHelp from '@/features/templates/components/client-template-server-groups-help'
 import type { ClientTemplateFormValues } from '@/features/templates/forms/client-template-form'
 import { DEFAULT_TEMPLATE_CONTENT } from '@/features/templates/forms/client-template-form'
-import { mergeXrayServerGroupDirective, SERVER_GROUP_EXAMPLES } from '@/features/templates/forms/template-directives'
+import { insertExampleOnOwnLine, mergeXrayServerGroupDirective, SERVER_GROUP_EXAMPLES, xrayDirectiveCopiesAllServersPerHost } from '@/features/templates/forms/template-directives'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -30,21 +30,14 @@ const TEMPLATE_TYPE_LABELS: Record<string, string> = {
 
 const isYamlType = (templateType: string) => templateType === ClientTemplateType.clash_subscription
 
-// Inserts text at the cursor of the Monaco (desktop) or Ace (mobile) editor; false if there is no editor to insert into.
-const insertAtCursor = (editor: any, text: string) => {
-  if (editor?.executeEdits && editor.getSelection) {
-    const selection = editor.getSelection()
-    if (!selection) return false
-    editor.executeEdits('server-groups-example', [{ range: selection, text, forceMoveMarkers: true }])
-    editor.focus?.()
-    return true
-  }
-  if (typeof editor?.insert === 'function') {
-    editor.insert(text)
-    editor.focus?.()
-    return true
-  }
-  return false
+// Cursor offset in the Monaco (desktop) or Ace (mobile) editor; undefined if there is no editor.
+const getCursorOffset = (editor: any): number | undefined => {
+  const position = editor?.getPosition?.()
+  const model = editor?.getModel?.()
+  if (position && model?.getOffsetAt) return model.getOffsetAt(position)
+  const doc = editor?.session?.doc
+  if (doc?.positionToIndex && editor.getCursorPosition) return doc.positionToIndex(editor.getCursorPosition())
+  return undefined
 }
 
 interface ValidationResult {
@@ -161,12 +154,11 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
 
     const example = SERVER_GROUP_EXAMPLES[templateType as keyof typeof SERVER_GROUP_EXAMPLES]
     if (!example) return
-    if (!insertAtCursor(editorRef.current, example)) {
-      const separator = !content || content.endsWith('\n') ? '' : '\n'
-      const nextContent = `${content}${separator}${example}\n`
-      form.setValue('content', nextContent, { shouldDirty: true })
-      validateContent(nextContent)
-    }
+    // On lines of its own, so YAML (which has no client-side check) never gets the example glued to a line.
+    const nextContent = insertExampleOnOwnLine(content, getCursorOffset(editorRef.current) ?? content.length, example)
+    form.setValue('content', nextContent, { shouldDirty: true })
+    validateContent(nextContent)
+    editorRef.current?.focus?.()
   }
 
   const handleSubmit = form.handleSubmit(async values => {
@@ -258,6 +250,9 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                             />
                           </FormControl>
                           {validation.error && !validation.isValid && <FormMessage>{validation.error}</FormMessage>}
+                          {templateType === ClientTemplateType.xray_subscription && xrayDirectiveCopiesAllServersPerHost(field.value || '') && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400">{t('clientTemplates.serverGroups.perHostAllWarning')}</p>
+                          )}
                         </FormItem>
                       )}
                     />
