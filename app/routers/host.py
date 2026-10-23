@@ -45,7 +45,8 @@ async def modify_host_customization(
     """
     Set the current admin's own remark for a host, or hide it from the admin's users.
 
-    Send an empty **remark** to use the host's remark, and **is_disabled** false to show the host again.
+    Only the fields sent are changed. Send an empty **remark** to use the host's remark again, and
+    **is_disabled** false to show the host again.
     """
     return await host_operator.modify_host_customization(db, host_id=host_id, modification=modification, admin=admin)
 

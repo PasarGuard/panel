@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { getGetHostCustomizationsQueryKey, HostCustomization, useGetHostCustomizations, useModifyHostCustomization } from '@/service/api'
+import { getGetHostCustomizationsQueryKey, HostCustomization, HostCustomizationModify, useGetHostCustomizations, useModifyHostCustomization } from '@/service/api'
 import { getErrorMessage } from '@/utils/error-utils'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
@@ -26,8 +26,12 @@ function HostCustomizationCard({ host }: { host: HostCustomization }) {
   const isDirty = remark.trim() !== (host.custom_remark ?? '') || isDisabled !== (host.is_disabled ?? false)
 
   const save = async (data: { remark: string; is_disabled: boolean }) => {
+    // Send only what changed, so a stale card cannot reset a field edited elsewhere
+    const update: HostCustomizationModify = {}
+    if (data.remark.trim() !== (host.custom_remark ?? '')) update.remark = data.remark.trim() || null
+    if (data.is_disabled !== (host.is_disabled ?? false)) update.is_disabled = data.is_disabled
     try {
-      await modifyCustomization.mutateAsync({ hostId: host.host_id, data: { remark: data.remark.trim() || null, is_disabled: data.is_disabled } })
+      await modifyCustomization.mutateAsync({ hostId: host.host_id, data: update })
       await queryClient.invalidateQueries({ queryKey: getGetHostCustomizationsQueryKey() })
       toast.success(t('hostCustomizations.saved', { defaultValue: 'Host updated for your users' }))
     } catch (error) {
@@ -76,7 +80,7 @@ function HostCustomizationCard({ host }: { host: HostCustomization }) {
 
 export default function HostCustomizationsList() {
   const { t } = useTranslation()
-  const { data, isLoading } = useGetHostCustomizations()
+  const { data, isLoading, isError, isFetching, refetch } = useGetHostCustomizations()
 
   if (isLoading) {
     return (
@@ -84,6 +88,17 @@ export default function HostCustomizationsList() {
         {Array.from({ length: 3 }).map((_, index) => (
           <Skeleton key={index} className="h-40 w-full" />
         ))}
+      </div>
+    )
+  }
+
+  if (isError && !data) {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <p className="text-destructive text-sm">{t('hostCustomizations.loadError', { defaultValue: 'Could not load your hosts.' })}</p>
+        <LoaderButton size="sm" variant="outline" isLoading={isFetching} onClick={() => refetch()}>
+          {t('hostCustomizations.retry', { defaultValue: 'Retry' })}
+        </LoaderButton>
       </div>
     )
   }

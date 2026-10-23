@@ -4001,6 +4001,8 @@
     "disabledByOwner": "已被所有者禁用",
     "customRemark": "对您用户显示的名称",
     "visible": "向我的用户显示",
-    "empty": "暂无可用主机。"
+    "empty": "暂无可用主机。",
+    "loadError": "无法加载您的主机。",
+    "retry": "重试"
   }
 }

@@ -3994,6 +3994,8 @@
     "disabledByOwner": "Disabled by owner",
     "customRemark": "Name for your users",
     "visible": "Show to my users",
-    "empty": "No hosts are available to you yet."
+    "empty": "No hosts are available to you yet.",
+    "loadError": "Could not load your hosts.",
+    "retry": "Retry"
   }
 }

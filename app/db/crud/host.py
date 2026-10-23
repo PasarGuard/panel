@@ -276,13 +276,24 @@ async def set_admin_host_override(
     """
     Store an admin's override for a host, or remove it when it no longer changes anything.
 
+    Only the fields sent in ``override`` change; omitted fields keep their stored value, so a stale
+    client that edits one field cannot reset the other.
+
     Returns:
         AdminHostOverride | None: The stored override, or None when the host is back to its defaults.
     """
     stmt = select(AdminHostOverride).where(AdminHostOverride.admin_id == admin_id, AdminHostOverride.host_id == host_id)
     db_override = (await db.execute(stmt)).scalar_one_or_none()
 
-    if override.remark is None and not override.is_disabled:
+    fields = override.model_fields_set
+    if not fields:
+        return db_override
+    remark = override.remark if "remark" in fields else (db_override.remark if db_override else None)
+    is_disabled = (
+        override.is_disabled if "is_disabled" in fields else (db_override.is_disabled if db_override else False)
+    )
+
+    if remark is None and not is_disabled:
         if db_override is not None:
             await db.delete(db_override)
             await db.commit()
@@ -291,8 +302,8 @@ async def set_admin_host_override(
     if db_override is None:
         db_override = AdminHostOverride(admin_id=admin_id, host_id=host_id)
         db.add(db_override)
-    db_override.remark = override.remark
-    db_override.is_disabled = override.is_disabled
+    db_override.remark = remark
+    db_override.is_disabled = is_disabled
     await db.commit()
     await db.refresh(db_override)
     return db_override

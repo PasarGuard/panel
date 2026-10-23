@@ -43,6 +43,9 @@ export default function HostsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
+  // The Refresh button also brings the admin's own customization cards up to date
+  const handleRefresh = useCallback(() => Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: getGetHostCustomizationsQueryKey() })]), [refetch, queryClient])
+
   const handleDialogOpen = (open: boolean) => {
     setIsDialogOpen(open)
     if (!open) {
@@ -287,7 +290,7 @@ export default function HostsPage() {
             onSubmit={handleSubmit}
             editingHost={editingHost}
             setEditingHost={setEditingHost}
-            onRefresh={refetch}
+            onRefresh={handleRefresh}
             isRefreshing={isFetching}
             canCreate={canCreateHosts}
             canUpdate={canUpdateHosts}

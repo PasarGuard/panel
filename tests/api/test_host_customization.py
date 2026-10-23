@@ -122,8 +122,12 @@ def test_admin_customizes_hosts_for_own_users_only(access_token):
         assert "198.51.100.7" not in _sub_links(admin_user)
         assert "198.51.100.7" in _sub_links(owner_user)
 
-        # Defaults remove the customization
-        response = client.put(f"/api/host/{host['id']}/customization", headers=auth_headers(admin_token), json={})
+        # Explicit defaults remove the customization
+        response = client.put(
+            f"/api/host/{host['id']}/customization",
+            headers=auth_headers(admin_token),
+            json={"remark": None, "is_disabled": False},
+        )
         assert response.status_code == status.HTTP_200_OK, response.text
         assert response.json()["custom_remark"] is None
         assert _override_count(host["id"]) == 0
@@ -135,6 +139,46 @@ def test_admin_customizes_hosts_for_own_users_only(access_token):
         delete_admin(access_token, admin["username"])
         client.delete(f"/api/admin-role/{role['id']}", headers=auth_headers(access_token))
         delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
+
+
+def test_customization_updates_only_the_fields_sent(access_token):
+    core = create_core(access_token)
+    role = _create_role(access_token, CUSTOMIZE_PERMISSIONS)
+    admin = create_admin(access_token, role_id=role["id"])
+    admin_token = _login(admin["username"], admin["password"])
+    host = _create_host(access_token, unique_name("partial"))
+    url = f"/api/host/{host['id']}/customization"
+    try:
+        response = client.put(url, headers=auth_headers(admin_token), json={"is_disabled": True})
+        assert response.status_code == status.HTTP_200_OK, response.text
+
+        # A stale client that only renames must not show the hidden host again
+        response = client.put(url, headers=auth_headers(admin_token), json={"remark": "Renamed"})
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["custom_remark"] == "Renamed"
+        assert response.json()["is_disabled"] is True
+
+        # Showing it again keeps the remark
+        response = client.put(url, headers=auth_headers(admin_token), json={"is_disabled": False})
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["custom_remark"] == "Renamed"
+        assert response.json()["is_disabled"] is False
+
+        # An empty body changes nothing
+        response = client.put(url, headers=auth_headers(admin_token), json={})
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["custom_remark"] == "Renamed"
+
+        # Clearing the remark of a visible host removes the stored override
+        response = client.put(url, headers=auth_headers(admin_token), json={"remark": ""})
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["custom_remark"] is None
+        assert _override_count(host["id"]) == 0
+    finally:
+        client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
+        delete_admin(access_token, admin["username"])
+        client.delete(f"/api/admin-role/{role['id']}", headers=auth_headers(access_token))
         delete_core(access_token, core["id"])
 
 
