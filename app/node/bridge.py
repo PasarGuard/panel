@@ -124,6 +124,12 @@ class _QueuedBatchSync:
         if resolver is None and hasattr(self._user_sync_store, "refresh_resolver"):
             self._user_sync_store.refresh_resolver = _resolve_refresh
 
+    async def set_reported_versions(self, node_version: str, core_version: str) -> None:
+        """Refresh versions from Info without restarting the bridge's sync worker."""
+        async with self._version_lock:
+            self._node_version = node_version
+            self._core_version = core_version
+
     # ------------------------------------------------------------------ transport
     def _delivery_budget(self) -> float:
         """Seconds left before the current batch's claim may have expired."""

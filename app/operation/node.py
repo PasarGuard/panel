@@ -857,11 +857,11 @@ class NodeOperation(BaseOperation):
 
     async def update_node(self, db: AsyncSession, node_id: int) -> dict:
         await self.get_validated_node(db, node_id, load_usage_logs=False)
-        return await self._update_node_api_impl(node_id)
+        return await self._update_node_api_impl(db, node_id)
 
     async def update_core(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
         await self.get_validated_node(db, node_id, load_usage_logs=False)
-        return await self._update_core_impl(node_id, node_core_update)
+        return await self._update_core_impl(db, node_id, node_core_update)
 
     async def update_geofiles(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
         await self.get_validated_node(db, node_id, load_usage_logs=False)
@@ -1329,7 +1329,37 @@ class NodeOperation(BaseOperation):
         )
         return NodeResponse.model_validate(await self.get_validated_node(db, node_id))
 
-    async def _update_node_api_local(self, node_id: int) -> dict:
+    @staticmethod
+    async def refresh_node_versions(
+        db: AsyncSession,
+        node_id: int,
+        node: PasarGuardNode,
+        timeout: int | None = None,
+        *,
+        persist: bool = True,
+    ) -> bool:
+        """Read live versions and persist them only for the current connected node."""
+        info = await node.info(timeout=timeout)
+        if info is None or not info.started or not info.node_version or not info.core_version:
+            return False
+        if await node_manager.get_node(node_id) is not node:
+            return False
+
+        if not persist:
+            await node.set_reported_versions(info.node_version, info.core_version)
+            return True
+
+        db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
+        if db_node is None or db_node.status != NodeStatus.connected:
+            return False
+        if db_node.node_version != info.node_version or db_node.xray_version != info.core_version:
+            db_node.node_version = info.node_version
+            db_node.xray_version = info.core_version
+            await db.commit()
+        await node.set_reported_versions(info.node_version, info.core_version)
+        return True
+
+    async def _update_node_api_local(self, db: AsyncSession, node_id: int) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -1337,9 +1367,13 @@ class NodeOperation(BaseOperation):
             response = await node.update_node()
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
+        try:
+            await self.refresh_node_versions(db, node_id, node)
+        except Exception as exc:
+            logger.warning("Could not refresh versions after updating node %s: %s", node_id, exc)
         return response.json()
 
-    async def _update_node_api_remote(self, node_id: int) -> dict:
+    async def _update_node_api_remote(self, db: AsyncSession, node_id: int) -> dict:
         try:
             return await node_nats_client.request(
                 "update_node_api", {"node_id": node_id}, timeout=_MAINTENANCE_RPC_TIMEOUT
@@ -1347,7 +1381,7 @@ class NodeOperation(BaseOperation):
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
 
-    async def _update_core_local(self, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
+    async def _update_core_local(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -1355,9 +1389,13 @@ class NodeOperation(BaseOperation):
             response = await node.update_core(node_core_update.model_dump(mode="json"))
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
+        try:
+            await self.refresh_node_versions(db, node_id, node)
+        except Exception as exc:
+            logger.warning("Could not refresh versions after updating core on node %s: %s", node_id, exc)
         return response.json()
 
-    async def _update_core_remote(self, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
+    async def _update_core_remote(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
         return await node_nats_client.request(
             "update_core",
             {"node_id": node_id, "core_update": node_core_update.model_dump(mode="json")},

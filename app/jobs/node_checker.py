@@ -29,6 +29,8 @@ NODE_CHECK_SEM = asyncio.Semaphore(5)  # Max 5 concurrent node health checks
 ACTIVE_NODE_STATUSES = [NodeStatus.connected, NodeStatus.connecting, NodeStatus.error]
 _SYNC_RECOVERY_INTERVAL = 60.0
 _sync_recovery_deadlines: dict[int, float] = {}
+_VERSION_REFRESH_INTERVAL = 300.0
+_version_refresh_deadlines: dict[int, float] = {}
 
 
 @dataclass
@@ -286,6 +288,20 @@ async def _check_node(db_node: Node, node: PasarGuardNode, attempt: _ProbeAttemp
 
         # Skip nodes that are already healthy and connected
         if health == Health.HEALTHY and db_node.status == NodeStatus.connected:
+            now = time.monotonic()
+            next_refresh = _version_refresh_deadlines.setdefault(db_node.id, now + _VERSION_REFRESH_INTERVAL)
+            if now >= next_refresh:
+                _version_refresh_deadlines[db_node.id] = now + _VERSION_REFRESH_INTERVAL
+                try:
+                    async with GetDB() as db:
+                        refreshed = await NodeOperation.refresh_node_versions(
+                            db, db_node.id, node, timeout=_probe_timeout(db_node), persist=_owns_health_checks()
+                        )
+                    if not refreshed:
+                        _version_refresh_deadlines[db_node.id] = now + _SYNC_RECOVERY_INTERVAL
+                except Exception as exc:
+                    _version_refresh_deadlines[db_node.id] = now + _SYNC_RECOVERY_INTERVAL
+                    logger.debug("[%s] Could not refresh node versions: %s", db_node.name, exc)
             requires_recovery = node.requires_hard_reset()
             if requires_recovery or needs_shared_bridge_memory():
                 # A slow user-sync RPC does not mean the backend is dead. Repair
@@ -449,7 +465,7 @@ async def node_health_check():
 
     dict_nodes = await node_manager.get_nodes()
     active_ids = {db_node.id for db_node in db_nodes if db_node.id in dict_nodes}
-    for cache in (_sync_recovery_deadlines, _health_streaks, _probe_backoffs):
+    for cache in (_sync_recovery_deadlines, _version_refresh_deadlines, _health_streaks, _probe_backoffs):
         for node_id in cache.keys() - active_ids:
             cache.pop(node_id, None)
     tasks = [_start_check(db_node, dict_nodes.get(db_node.id)) for db_node in db_nodes]
