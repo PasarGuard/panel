@@ -12,6 +12,7 @@ export const coreConfigFormSchema = z.object({
   public_key: z.string().optional(),
   private_key: z.string().optional(),
   restart_nodes: z.boolean().optional(),
+  note: z.string().max(500, 'Note must be 500 characters or fewer').optional(),
 })
 
 export type CoreConfigFormValues = z.infer<typeof coreConfigFormSchema>
@@ -23,4 +24,5 @@ export const coreConfigFormDefaultValues: Partial<CoreConfigFormValues> = {
   fallback_id: [],
   excluded_inbound_ids: [],
   restart_nodes: true,
+  note: '',
 }

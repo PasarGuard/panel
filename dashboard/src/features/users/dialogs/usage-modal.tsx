@@ -35,6 +35,7 @@ import {
   resolvePeriodOverride,
 } from '@/utils/chart-period-utils'
 import { getChartBrushWindow, getChartRenderFlags } from '@/utils/chart-performance'
+import { CountryFlag } from '@/components/common/country-flag'
 
 interface UsageModalProps {
   open: boolean
@@ -666,7 +667,10 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                       <SelectItem value="all">{t('userDialog.allNodes', { defaultValue: 'All Nodes' })}</SelectItem>
                       {nodeList.map(node => (
                         <SelectItem key={node.id} value={node.id.toString()}>
-                          {node.name}
+                          <span className="flex min-w-0 items-center gap-2">
+                            <CountryFlag code={node.country_code} />
+                            <span className="min-w-0 truncate">{node.name}</span>
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>

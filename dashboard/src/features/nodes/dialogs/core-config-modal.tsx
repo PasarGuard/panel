@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -401,6 +402,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
             config: configObj,
             fallbacks_inbound_tags: fallbackTags,
             exclude_inbound_tags: excludeInboundTags,
+            note: values.note?.trim() || null,
           },
           params: {
             restart_nodes: values.restart_nodes ?? true,
@@ -415,6 +417,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
             config: configObj,
             fallbacks_inbound_tags: fallbackTags,
             exclude_inbound_tags: excludeInboundTags,
+            note: values.note?.trim() || null,
           },
         })
       }
@@ -542,6 +545,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
           excluded_inbound_ids: [],
           fallback_id: [],
           restart_nodes: true,
+          note: '',
         })
       } else {
         // Set restart_nodes to true for editing
@@ -979,6 +983,20 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                                 <SelectItem value="wg">WireGuard</SelectItem>
                               </SelectContent>
                             </Select>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="note"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('coreConfigModal.note')}</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder={t('coreConfigModal.notePlaceholder')} className="min-h-[60px] resize-y" maxLength={500} {...field} value={field.value ?? ''} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

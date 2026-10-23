@@ -37,6 +37,11 @@ export default function Core({ core, onEdit, onDuplicate, onDelete, canUpdate = 
                 <div className="truncate font-medium">{core.name}</div>
               </div>
             </div>
+            {core.note && (
+              <p className="text-muted-foreground mt-0.5 truncate text-xs" title={core.note}>
+                {core.note}
+              </p>
+            )}
           </div>
           <CoreActionsMenu core={core} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} canUpdate={canUpdate} canCreate={canCreate} canDelete={canDelete} />
         </div>

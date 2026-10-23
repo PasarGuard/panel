@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Separator } from '@/components/ui/separator'
+import { CountryFlag } from '@/components/common/country-flag'
 import { cn } from '@/lib/utils'
 import { CoresSimpleResponse, NodeResponse } from '@/service/api'
 import { useXrayReleases } from '@/hooks/use-xray-releases'
@@ -136,6 +137,7 @@ export default function Node({
                       <p>{statusConfig.label}</p>
                     </TooltipContent>
                   </Tooltip>
+                  <CountryFlag code={node.country_code} />
                   <h3 className="truncate text-sm leading-tight font-semibold tracking-tight sm:text-base">{node.name}</h3>
                   {node.status === 'error' && node.message ? (
                     <Tooltip>
@@ -171,6 +173,12 @@ export default function Node({
                   {node.address}:{node.port}
                 </span>
               </div>
+
+              {node.note && (
+                <p className="text-muted-foreground truncate text-[10px] sm:text-xs" title={node.note}>
+                  {node.note}
+                </p>
+              )}
 
               {/* Version Info */}
               {(coreVersion || node.node_version) && (

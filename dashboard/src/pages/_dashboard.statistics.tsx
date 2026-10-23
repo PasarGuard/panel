@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 import { useAdmin } from '@/hooks/use-admin'
 import { hasPermission } from '@/utils/rbac'
+import { CountryFlag } from '@/components/common/country-flag'
 
 const Statistics = () => {
   const { t } = useTranslation()
@@ -112,6 +113,7 @@ const Statistics = () => {
                             <SelectItem key={node.id} value={String(node.id)} className="text-xs sm:text-sm">
                               <span className="flex min-w-0 items-center gap-2">
                                 <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', getNodeStatusDotColor(node.status))} />
+                                <CountryFlag code={node.country_code} />
                                 <span className="min-w-0 truncate">{node.name}</span>
                               </span>
                             </SelectItem>

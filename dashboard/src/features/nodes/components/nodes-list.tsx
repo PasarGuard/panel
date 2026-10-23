@@ -299,7 +299,13 @@ export default function NodesList() {
   const filteredNodes = useMemo(() => {
     if (shouldUseLocalSearch && localSearchTerm && allNodes.length > 0) {
       const searchLower = localSearchTerm.toLowerCase()
-      return allNodes.filter((node: NodeResponse) => node.name.toLowerCase().includes(searchLower) || node.address.toLowerCase().includes(searchLower) || node.port?.toString().includes(searchLower))
+      return allNodes.filter(
+        (node: NodeResponse) =>
+          node.name.toLowerCase().includes(searchLower) ||
+          node.address.toLowerCase().includes(searchLower) ||
+          node.port?.toString().includes(searchLower) ||
+          node.note?.toLowerCase().includes(searchLower),
+      )
     }
     return nodesResponse?.nodes || []
   }, [shouldUseLocalSearch, localSearchTerm, allNodes, nodesResponse?.nodes])

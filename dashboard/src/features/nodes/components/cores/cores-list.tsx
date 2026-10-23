@@ -84,6 +84,7 @@ export default function Cores({ cores, onDuplicateCore, onDeleteCore, canCreate 
         fallback_id: core.fallbacks_inbound_tags ?? [],
         excluded_inbound_ids: core.exclude_inbound_tags ?? [],
         restart_nodes: true,
+        note: core.note ?? '',
       })
       setEditingCoreIdInModal(core.id)
       setIsEditingCoreInModal(true)

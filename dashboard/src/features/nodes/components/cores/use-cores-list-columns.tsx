@@ -25,7 +25,14 @@ export const useCoresListColumns = ({ onEdit, onDuplicate, onDelete, canUpdate =
         cell: core => (
           <div className="flex min-w-0 items-center gap-2">
             <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
-            <span className="truncate font-medium">{core.name}</span>
+            <div className="flex min-w-0 flex-col">
+              <span className="truncate font-medium">{core.name}</span>
+              {core.note && (
+                <span className="text-muted-foreground truncate text-xs" title={core.note}>
+                  {core.note}
+                </span>
+              )}
+            </div>
           </div>
         ),
       },

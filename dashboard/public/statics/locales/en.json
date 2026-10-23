@@ -2149,6 +2149,12 @@
   "searchInbounds": "Search inbounds...",
   "noInboundsFound": "No inbounds found",
   "nodeModal": {
+    "country": "Country",
+    "countryNone": "None",
+    "countrySearch": "Search country",
+    "countryNotFound": "No country found",
+    "note": "Note",
+    "notePlaceholder": "Optional note for admins",
     "title": "Create Node",
     "description": "Create a new node to your network",
     "name": "Node Name",
@@ -2407,6 +2413,8 @@
     "previewMuted": "Usage"
   },
   "coreConfigModal": {
+    "note": "Note",
+    "notePlaceholder": "Optional note for admins",
     "addConfig": "Create Core Configuration",
     "createNewConfig": "Create a new core configuration",
     "editCore": "Modify Core Configuration",

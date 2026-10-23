@@ -18,6 +18,7 @@ import { SinceLogsFilter, type TimeFilter } from '@/features/nodes/components/si
 import { StatusLogsFilter } from '@/features/nodes/components/status-logs-filter'
 import { appendTrim, parseLogs, type LogLine } from '@/utils/logsUtils'
 import { EventSource } from 'eventsource'
+import { CountryFlag } from '@/components/common/country-flag'
 
 /** Max raw SSE chunks kept in memory; display "lines" is sliced client-side (no reconnect). */
 const RAW_LOG_BUFFER_MAX = 10000
@@ -307,7 +308,10 @@ export default function NodeLogs() {
               <SelectContent>
                 {connectedNodes.map(node => (
                   <SelectItem key={node.id} value={node.id.toString()} className="text-sm">
-                    {node.name}
+                    <span className="flex min-w-0 items-center gap-2">
+                      <CountryFlag code={node.country_code} />
+                      <span className="min-w-0 truncate">{node.name}</span>
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
