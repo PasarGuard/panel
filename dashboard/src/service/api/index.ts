@@ -2244,6 +2244,7 @@ export interface SubRule {
   pattern: string;
   target: ConfigFormat;
   response_headers?: SubRuleResponseHeaders;
+  template_id?: number | null;
 }
 
 export interface SubFormatEnable {
@@ -10439,7 +10440,7 @@ export const removeClientTemplate = async (templateId: number, options?: Request
 
 
 
-export const getRemoveClientTemplateMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+export const getRemoveClientTemplateMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeClientTemplate>>, TError,{templateId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof removeClientTemplate>>, TError,{templateId: number}, TContext> => {
 
@@ -10468,12 +10469,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type RemoveClientTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof removeClientTemplate>>>
 
-    export type RemoveClientTemplateMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+    export type RemoveClientTemplateMutationError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>
 
     /**
  * @summary Remove Client Template
  */
-export const useRemoveClientTemplate = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+export const useRemoveClientTemplate = <TError = ErrorType<Unauthorized | Forbidden | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeClientTemplate>>, TError,{templateId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof removeClientTemplate>>,
@@ -10743,7 +10744,7 @@ export const bulkDeleteClientTemplates = async (bulkClientTemplateSelection: Bul
 
 
 
-export const getBulkDeleteClientTemplatesMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const getBulkDeleteClientTemplatesMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteClientTemplates>>, TError,{data: BodyType<BulkClientTemplateSelection>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteClientTemplates>>, TError,{data: BodyType<BulkClientTemplateSelection>}, TContext> => {
 
@@ -10772,12 +10773,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type BulkDeleteClientTemplatesMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteClientTemplates>>>
     export type BulkDeleteClientTemplatesMutationBody = BodyType<BulkClientTemplateSelection>
-    export type BulkDeleteClientTemplatesMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+    export type BulkDeleteClientTemplatesMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
 
     /**
  * @summary Bulk Delete Client Templates
  */
-export const useBulkDeleteClientTemplates = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const useBulkDeleteClientTemplates = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteClientTemplates>>, TError,{data: BodyType<BulkClientTemplateSelection>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof bulkDeleteClientTemplates>>,

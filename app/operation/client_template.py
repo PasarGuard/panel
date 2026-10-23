@@ -16,6 +16,7 @@ from app.db.crud.client_template import (
     remove_client_templates,
     set_default_template,
 )
+from app.db.crud.settings import get_settings
 from app.models.admin import AdminDetails
 from app.models.client_template import (
     BulkClientTemplateSelection,
@@ -96,6 +97,25 @@ class ClientTemplateOperation(BaseOperation):
         except Exception as exc:
             await self.raise_error(message=f"Invalid template content: {exc!s}", code=400)
 
+    async def _ensure_not_used_by_rules(self, db: AsyncSession, db_templates: list) -> None:
+        """Refuse to delete templates that subscription rules point to."""
+        db_settings = await get_settings(db)
+        rules = ((db_settings.subscription if db_settings else None) or {}).get("rules") or []
+        for db_template in db_templates:
+            patterns = [
+                rule.get("pattern", "")
+                for rule in rules
+                if isinstance(rule, dict) and rule.get("template_id") == db_template.id
+            ]
+            if patterns:
+                await self.raise_error(
+                    message=(
+                        f'Client template "{db_template.name}" is used by subscription rules: {", ".join(patterns)}.'
+                        " Remove it from those rules first."
+                    ),
+                    code=409,
+                )
+
     async def create_client_template(
         self,
         db: AsyncSession,
@@ -170,6 +190,7 @@ class ClientTemplateOperation(BaseOperation):
 
         if db_template.is_system:
             await self.raise_error(message="Cannot delete system template", code=403)
+        await self._ensure_not_used_by_rules(db, [db_template])
 
         template_count = await count_client_templates_by_type(db, template_type)
         if template_count <= 1:
@@ -219,6 +240,8 @@ class ClientTemplateOperation(BaseOperation):
             if template_type not in templates_by_type:
                 templates_by_type[template_type] = []
             templates_by_type[template_type].append(db_template)
+
+        await self._ensure_not_used_by_rules(db, db_templates)
 
         # Validate we won't leave any type without templates
         for template_type, templates_of_type in templates_by_type.items():

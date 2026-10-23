@@ -30,6 +30,7 @@ from app.subscription.share import (
     generate_subscription,
     get_effective_custom_variables,
     inject_body_placement,
+    resolve_profile_title,
     setup_format_variables,
 )
 from app.templates import render_template
@@ -145,19 +146,7 @@ class SubscriptionOperation(BaseOperation):
         user: UsersResponseWithInbounds, format_variables: dict, sub_settings: SubSettings
     ) -> str:
         """Format profile title with dynamic variables, falling back to default if needed."""
-        # Prefer admin's profile_title over subscription settings
-        profile_title = (
-            getattr(user.admin, "profile_title", None) if user.admin else None
-        ) or sub_settings.profile_title
-
-        if not profile_title:
-            return "Subscription"
-
-        try:
-            return profile_title.format_map(format_variables)
-        except ValueError, KeyError:
-            # Invalid format string, return original title
-            return profile_title
+        return resolve_profile_title(user, format_variables, sub_settings) or "Subscription"
 
     @staticmethod
     def _format_announce(sub_settings: SubSettings, format_variables: dict) -> str:
@@ -335,7 +324,9 @@ class SubscriptionOperation(BaseOperation):
         # Only include headers that have values
         return {k: v for k, v in headers.items() if v}
 
-    async def fetch_config(self, user: UsersResponseWithInbounds, client_type: ConfigFormat) -> tuple[str | bytes, str]:
+    async def fetch_config(
+        self, user: UsersResponseWithInbounds, client_type: ConfigFormat, template_id: int | None = None
+    ) -> tuple[str | bytes, str]:
         # Get client configuration
         config = client_config.get(client_type, {})
         sub_settings = await subscription_settings()
@@ -348,6 +339,7 @@ class SubscriptionOperation(BaseOperation):
                 config_format=config.get("config_format", ""),
                 as_base64=config.get("as_base64", ""),
                 randomize_order=randomize_order,
+                template_id=template_id,
             ),
             config["media_type"],
         )
@@ -527,7 +519,7 @@ class SubscriptionOperation(BaseOperation):
             # Update user subscription info
             await user_sub_update(db, db_user.id, user_agent, ip=ip, hwid=x_hwid)
             with phase("subscription.render"):
-                conf, media_type = await self.fetch_config(user, client_type)
+                conf, media_type = await self.fetch_config(user, client_type, template_id=matched_rule.template_id)
 
             # If disable_sub_template is True and it's a browser request, use inline to view instead of download
             inline_view = sub_settings.disable_sub_template and is_browser_request
