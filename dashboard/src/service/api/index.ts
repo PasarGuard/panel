@@ -1600,6 +1600,13 @@ export interface Forbidden {
   detail?: string;
 }
 
+export interface MyHostsPolicy {
+  enabled?: boolean;
+  allow_rename?: boolean;
+  allow_reorder?: boolean;
+  allow_disable?: boolean;
+}
+
 export type OnHoldTimeoutAction = typeof OnHoldTimeoutAction[keyof typeof OnHoldTimeoutAction];
 
 
@@ -1610,6 +1617,7 @@ export const OnHoldTimeoutAction = {
 } as const;
 
 export interface General {
+  my_hosts?: MyHostsPolicy | null;
   default_method?: ShadowsocksMethods;
   on_hold_timeout_action?: OnHoldTimeoutAction;
   custom_variables?: CustomVariable[] | null;
@@ -1720,6 +1728,12 @@ export interface HostNotificationEnable {
   modify_hosts?: boolean;
 }
 
+export interface HostPreference {
+  remark?: string | null;
+  position?: number | null;
+  is_disabled?: boolean;
+}
+
 export interface HysteriaSettings {
   /** @minLength 1 */
   auth?: string;
@@ -1739,6 +1753,35 @@ export interface MasqueSettings {
 export interface ModifyUserByTemplate {
   user_template_id: number;
   note?: string | null;
+}
+
+export interface MyHost {
+  id: number;
+  default_position: number;
+  original_remark: string;
+  inbound_tag: string | null;
+  remark: string;
+  is_disabled: boolean;
+  globally_disabled: boolean;
+  preference: HostPreference;
+}
+
+export interface MyHostUpdate {
+  remark?: string | null;
+  position?: number | null;
+  is_disabled?: boolean;
+  /** @exclusiveMinimum 0 */
+  id: number;
+}
+
+export interface MyHostsResponse {
+  policy: MyHostsPolicy;
+  hosts: MyHost[];
+}
+
+export interface MyHostsUpdate {
+  /** @maxItems 10000 */
+  hosts: MyHostUpdate[];
 }
 
 export interface NextPlanModel {
@@ -11514,6 +11557,279 @@ export const useBulkEnableHosts = <TError = ErrorType<HTTPException | Unauthoriz
         TContext
       > => {
       return useMutation(getBulkEnableHostsMutationOptions(options), queryClient);
+    }
+
+export const getGetMyHostsPolicyUrl = () => {
+
+
+
+
+  return `/api/my-hosts/policy`
+}
+
+/**
+ * @summary Get My Hosts Policy
+ */
+export const getMyHostsPolicy = async ( options?: RequestInit): Promise<MyHostsPolicy> => {
+
+  return orvalFetcher<MyHostsPolicy>(getGetMyHostsPolicyUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyHostsPolicyQueryKey = () => {
+    return [
+    `/api/my-hosts/policy`
+    ] as const;
+    }
+
+
+export const getGetMyHostsPolicyQueryOptions = <TData = Awaited<ReturnType<typeof getMyHostsPolicy>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyHostsPolicy>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyHostsPolicyQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyHostsPolicy>>> = ({ signal }) => getMyHostsPolicy({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyHostsPolicy>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyHostsPolicyQueryResult = NonNullable<Awaited<ReturnType<typeof getMyHostsPolicy>>>
+export type GetMyHostsPolicyQueryError = ErrorType<unknown>
+
+
+export function useGetMyHostsPolicy<TData = Awaited<ReturnType<typeof getMyHostsPolicy>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyHostsPolicy>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyHostsPolicy>>,
+          TError,
+          Awaited<ReturnType<typeof getMyHostsPolicy>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyHostsPolicy<TData = Awaited<ReturnType<typeof getMyHostsPolicy>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyHostsPolicy>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyHostsPolicy>>,
+          TError,
+          Awaited<ReturnType<typeof getMyHostsPolicy>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyHostsPolicy<TData = Awaited<ReturnType<typeof getMyHostsPolicy>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyHostsPolicy>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get My Hosts Policy
+ */
+
+export function useGetMyHostsPolicy<TData = Awaited<ReturnType<typeof getMyHostsPolicy>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyHostsPolicy>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyHostsPolicyQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyHostsUrl = () => {
+
+
+
+
+  return `/api/my-hosts`
+}
+
+/**
+ * @summary Get My Hosts
+ */
+export const getMyHosts = async ( options?: RequestInit): Promise<MyHostsResponse> => {
+
+  return orvalFetcher<MyHostsResponse>(getGetMyHostsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyHostsQueryKey = () => {
+    return [
+    `/api/my-hosts`
+    ] as const;
+    }
+
+
+export const getGetMyHostsQueryOptions = <TData = Awaited<ReturnType<typeof getMyHosts>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyHosts>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyHostsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyHosts>>> = ({ signal }) => getMyHosts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyHosts>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyHostsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyHosts>>>
+export type GetMyHostsQueryError = ErrorType<unknown>
+
+
+export function useGetMyHosts<TData = Awaited<ReturnType<typeof getMyHosts>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyHosts>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyHosts>>,
+          TError,
+          Awaited<ReturnType<typeof getMyHosts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyHosts<TData = Awaited<ReturnType<typeof getMyHosts>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyHosts>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyHosts>>,
+          TError,
+          Awaited<ReturnType<typeof getMyHosts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyHosts<TData = Awaited<ReturnType<typeof getMyHosts>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyHosts>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get My Hosts
+ */
+
+export function useGetMyHosts<TData = Awaited<ReturnType<typeof getMyHosts>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyHosts>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyHostsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getModifyMyHostsUrl = () => {
+
+
+
+
+  return `/api/my-hosts`
+}
+
+/**
+ * @summary Modify My Hosts
+ */
+export const modifyMyHosts = async (myHostsUpdate: MyHostsUpdate, options?: RequestInit): Promise<MyHostsResponse> => {
+
+  return orvalFetcher<MyHostsResponse>(getModifyMyHostsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(myHostsUpdate)
+  }
+);}
+
+
+
+
+
+export const getModifyMyHostsMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof modifyMyHosts>>, TError,{data: BodyType<MyHostsUpdate>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof modifyMyHosts>>, TError,{data: BodyType<MyHostsUpdate>}, TContext> => {
+
+const mutationKey = ['modifyMyHosts'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof modifyMyHosts>>, {data: BodyType<MyHostsUpdate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  modifyMyHosts(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ModifyMyHostsMutationResult = NonNullable<Awaited<ReturnType<typeof modifyMyHosts>>>
+    export type ModifyMyHostsMutationBody = BodyType<MyHostsUpdate>
+    export type ModifyMyHostsMutationError = ErrorType<HTTPValidationError>
+
+    /**
+ * @summary Modify My Hosts
+ */
+export const useModifyMyHosts = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof modifyMyHosts>>, TError,{data: BodyType<MyHostsUpdate>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof modifyMyHosts>>,
+        TError,
+        {data: BodyType<MyHostsUpdate>},
+        TContext
+      > => {
+      return useMutation(getModifyMyHostsMutationOptions(options), queryClient);
     }
 
 export const getGetNodeSettingsUrl = () => {

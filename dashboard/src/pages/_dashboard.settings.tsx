@@ -8,7 +8,7 @@ import { createContext, useCallback, useContext, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import { hasPermission } from '@/utils/rbac'
+import { hasPermission, isOwner } from '@/utils/rbac'
 
 interface Tab {
   id: string
@@ -37,6 +37,7 @@ export const useSettingsContext = () => {
 }
 
 const allTabs: Tab[] = [
+  { id: 'myHosts', label: 'settings.myHosts.title', icon: ListTodo, url: '/settings/my-hosts' },
   { id: 'general', label: 'settings.general.title', icon: SettingsIcon, url: '/settings/general' },
   { id: 'notifications', label: 'settings.notifications.title', icon: Bell, url: '/settings/notifications' },
   { id: 'subscriptions', label: 'settings.subscriptions.title', icon: ListTodo, url: '/settings/subscriptions' },
@@ -56,6 +57,7 @@ export default function Settings() {
   const canReadSettings = hasPermission(admin, 'settings', 'read') && canUpdateSettings
   const canReadGeneral = hasPermission(admin, 'settings', 'read_general') && canUpdateSettings
   const tabs = allTabs.filter(tab => {
+    if (tab.id === 'myHosts') return isOwner(admin)
     if (tab.id === 'theme') return true
     if (tab.id === 'general') return canReadGeneral
     return canReadSettings

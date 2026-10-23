@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field, 
 
 from app.db.models import AdminStatus
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleHWIDSettings, RoleLimits, RolePermissions
+from app.models.my_hosts import HostPreference
 from app.models.settings import CustomVariable, validate_custom_variables
 from app.models.stats import Period
 from app.utils.helpers import has_markup_unsafe_chars
@@ -91,6 +92,7 @@ class AdminContactInfo(AdminBase):
     """Base model containing the core admin identification fields."""
 
     telegram_id: int | None = None
+    host_preferences: dict[str, HostPreference] | None = Field(default=None, exclude=True)
     discord_webhook: str | None = None
     sub_domain: str | None = None
     profile_title: str | None = None

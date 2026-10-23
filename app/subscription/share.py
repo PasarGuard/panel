@@ -9,10 +9,11 @@ from jdatetime import date as jd
 from app.core.hosts import host_manager
 from app.db.crud.wireguard import pick_peer_ip_for_inbound
 from app.db.models import UserStatus
+from app.models.my_hosts import MyHostsPolicy
 from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
-from app.settings import subscription_settings
+from app.settings import general_settings, subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
 from app.subscription.config_cache import (
     get_or_create_sub_config,
@@ -20,6 +21,7 @@ from app.subscription.config_cache import (
     make_sub_config_key,
     put_sub_config,
 )
+from app.subscription.my_hosts import personalize_hosts
 from app.utils.helpers import has_markup_unsafe_chars, has_oversized_format_spec
 from app.utils.system import readable_size
 
@@ -458,8 +460,15 @@ async def process_inbounds_and_tags(
 ) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
-    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
-    if randomize_order and len(hosts) > 1:
+    policy = (await general_settings()).my_hosts or MyHostsPolicy()
+    preferences = getattr(user.admin, "host_preferences", None) if user.admin else None
+    available_hosts = {
+        host_id: host
+        for host_id, host in (await host_manager.get_hosts()).items()
+        if host.inbound_tag in user.inbounds and (not host.status or user.status in host.status)
+    }
+    hosts, personally_ordered = personalize_hosts(available_hosts, preferences, policy)
+    if randomize_order and not personally_ordered and len(hosts) > 1:
         random.shuffle(hosts)
 
     def _resolve_host_xray_template_content(inbound: SubscriptionInboundData) -> str | None:

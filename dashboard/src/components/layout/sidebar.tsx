@@ -14,6 +14,7 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, Sid
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { DISCUSSION_GROUP, DOCUMENTATION, DONATION_URL, REPO_URL } from '@/constants/Project'
 import { useAdmin } from '@/hooks/use-admin'
+import { useGetMyHostsPolicy } from '@/service/api'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useSystemVersion } from '@/hooks/use-system-version'
 import { useVersionCheck } from '@/hooks/use-version-check'
@@ -64,6 +65,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isRTL = useDirDetection() === 'rtl'
   const { t } = useTranslation()
   const { admin } = useAdmin()
+  const { data: myHostsPolicy } = useGetMyHostsPolicy({ query: { enabled: !!admin?.id, refetchInterval: 30_000 } })
   const canReadSystem = hasPermission(admin, 'system', 'read')
   const canReadHosts = canReadResourcePage(admin, 'hosts')
   const canReadGroups = canReadResourcePage(admin, 'groups')
@@ -229,6 +231,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             },
           ]
         : []),
+      ...(myHostsPolicy?.enabled && admin?.id ? [{ title: 'myHosts.title', url: '/my-hosts', icon: ListTodo }] : []),
       ...(canReadGroups
         ? [
             {
@@ -332,6 +335,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         url: '/settings',
         icon: Settings2,
         items: [
+          ...(isOwner(admin) ? [{ title: 'settings.myHosts.title', url: '/settings/my-hosts', icon: ListTodo }] : []),
           ...(hasPermission(admin, 'settings', 'read_general') && hasPermission(admin, 'settings', 'update')
             ? [
                 {

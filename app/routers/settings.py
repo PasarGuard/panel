@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.db import AsyncSession, get_db
+from app.models.admin import AdminDetails
 from app.models.settings import General, SettingsSchema
 from app.operation import OperatorType
 from app.operation.settings import SettingsOperation
@@ -26,6 +27,10 @@ async def get_general_settings(
 
 @router.put("", response_model=SettingsSchema)
 async def modify_settings(
-    modify: SettingsSchema, db: AsyncSession = Depends(get_db), _=Depends(require_permission("settings", "update"))
+    modify: SettingsSchema,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("settings", "update")),
 ):
+    if modify.general and modify.general.my_hosts is not None and not admin.is_owner:
+        raise HTTPException(403, "Only the owner can change My Hosts policy")
     return await settings_operator.modify_settings(db, modify)
