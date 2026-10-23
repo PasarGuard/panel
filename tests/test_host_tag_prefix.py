@@ -263,16 +263,27 @@ async def test_share_links_do_not_depend_on_the_xray_template(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_formats_without_templates_are_not_refused_by_a_busy_pool(monkeypatch):
+async def test_renders_without_jinja_are_not_refused_by_a_busy_pool(monkeypatch):
     from app.templates.pool import TemplatesBusy, subscription_pool
 
     async def busy(*args, **kwargs):
         raise TemplatesBusy("too many templates are being rendered")
 
     monkeypatch.setattr(subscription_pool, "run", busy)
-    set_templates(monkeypatch)
     set_hosts(monkeypatch, [make_host(1, "NL")])
+    plain_xray = TemplateSource('{"inbounds": [{"tag": "in"}], "outbounds": []}', False, 3)
+    templates = {
+        "USER_AGENT_TEMPLATE": TemplateSource('{"list": []}', False, 1),
+        "GRPC_USER_AGENT_TEMPLATE": TemplateSource('{"list": []}', False, 2),
+        "XRAY_SUBSCRIPTION_TEMPLATE": plain_xray,
+    }
+    monkeypatch.setattr("app.subscription.share.subscription_client_templates", AsyncMock(return_value=templates))
 
-    await generate_subscription(make_user(), "outline", False)
+    # Nothing to render: no Jinja template, no Jinja variable
+    for config_format in ("outline", "links", "xray"):
+        await generate_subscription(make_user(), config_format, False)
+
+    config_cache.clear_sub_config_cache()
+    set_templates(monkeypatch, XRAY_SUBSCRIPTION_TEMPLATE=XRAY_TEMPLATE)
     with pytest.raises(TemplatesBusy):
         await generate_subscription(make_user(), "xray", False)

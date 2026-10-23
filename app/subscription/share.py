@@ -198,12 +198,12 @@ async def generate_subscription(
                 randomize_order=randomize_order,
             )
 
-        # Jinja is CPU work: it runs in the render pool's threads so it does not block the event loop. Formats with
-        # no client template (WireGuard, Outline) and no Jinja variable have none, so a busy pool cannot refuse them.
-        if FORMAT_TEMPLATE_KEYS[config_format] or any(_custom_variable_parts(v)[2] for v in custom_variables):
-            config = await subscription_pool.run(build)
-        else:
-            config = build()
+        # Jinja is CPU work: it runs in the render pool's threads so it does not block the event loop. Without any, as
+        # with share links, WireGuard and Outline, a busy pool cannot refuse the request.
+        needs_pool = any(source.use_jinja for source in used_templates.values()) or any(
+            _custom_variable_parts(variable)[2] for variable in custom_variables
+        )
+        config = await subscription_pool.run(build) if needs_pool else build()
         if as_base64 and not isinstance(config, bytes):
             config = base64.b64encode(config.encode()).decode()
         return config
