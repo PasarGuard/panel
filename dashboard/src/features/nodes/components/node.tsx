@@ -137,7 +137,7 @@ export default function Node({
                       <p>{statusConfig.label}</p>
                     </TooltipContent>
                   </Tooltip>
-                  <CountryFlag code={node.country_code} />
+                  <CountryFlag code={node.country_code} showCode={false} />
                   <h3 className="truncate text-sm leading-tight font-semibold tracking-tight sm:text-base">{node.name}</h3>
                   {node.status === 'error' && node.message ? (
                     <Tooltip>

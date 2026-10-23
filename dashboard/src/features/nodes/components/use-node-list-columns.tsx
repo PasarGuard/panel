@@ -61,7 +61,7 @@ export const useNodeListColumns = ({
         cell: node => (
           <div className="flex min-w-0 items-center gap-2">
             <span className={cn('h-2 w-2 shrink-0 rounded-full', getNodeStatusDotColor(node.status))} />
-            <CountryFlag code={node.country_code} />
+            <CountryFlag code={node.country_code} showCode={false} />
             <div className="flex min-w-0 flex-col">
               <span className="truncate font-medium">{node.name}</span>
               {node.note && (

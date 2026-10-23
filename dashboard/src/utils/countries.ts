@@ -79,6 +79,38 @@ export const getCountryFlag = (code: string | null | undefined): string => {
   return String.fromCodePoint(...Array.from(normalized, char => REGIONAL_INDICATOR_A + char.charCodeAt(0) - A_CODE))
 }
 
+let flagEmojiSupport: boolean | null = null
+
+/**
+ * Whether the platform draws flag emoji. Windows has no flag glyphs and shows regional
+ * indicators as two plain letters, so callers show the country code instead.
+ */
+export const supportsFlagEmoji = (): boolean => {
+  if (flagEmojiSupport !== null) return flagEmojiSupport
+  flagEmojiSupport = false
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 16
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (!context) return flagEmojiSupport
+    context.textBaseline = 'top'
+    context.font = '16px sans-serif'
+    context.fillStyle = '#000'
+    context.fillText(getCountryFlag('DE'), 0, 0)
+    const pixels = context.getImageData(0, 0, 16, 16).data
+    // Letters fall back to the black fill; a real flag has colored pixels
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index + 3] && (pixels[index] !== pixels[index + 1] || pixels[index + 1] !== pixels[index + 2])) {
+        flagEmojiSupport = true
+        break
+      }
+    }
+  } catch {
+    flagEmojiSupport = false
+  }
+  return flagEmojiSupport
+}
+
 export const getCountryName = (code: string | null | undefined, locale = 'en'): string => {
   const normalized = normalizeCountryCode(code)
   if (!normalized) return ''

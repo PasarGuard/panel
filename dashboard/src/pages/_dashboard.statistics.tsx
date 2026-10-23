@@ -113,7 +113,7 @@ const Statistics = () => {
                             <SelectItem key={node.id} value={String(node.id)} className="text-xs sm:text-sm">
                               <span className="flex min-w-0 items-center gap-2">
                                 <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', getNodeStatusDotColor(node.status))} />
-                                <CountryFlag code={node.country_code} />
+                                <CountryFlag code={node.country_code} showCode={false} />
                                 <span className="min-w-0 truncate">{node.name}</span>
                               </span>
                             </SelectItem>

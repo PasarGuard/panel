@@ -668,7 +668,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                       {nodeList.map(node => (
                         <SelectItem key={node.id} value={node.id.toString()}>
                           <span className="flex min-w-0 items-center gap-2">
-                            <CountryFlag code={node.country_code} />
+                            <CountryFlag code={node.country_code} showCode={false} />
                             <span className="min-w-0 truncate">{node.name}</span>
                           </span>
                         </SelectItem>
