@@ -311,11 +311,9 @@ def custom_variable_render_error(value: str) -> str | None:
     CPU work of unbounded length: call it from `check_custom_variables`, not from a validator."""
     for sample in (SAMPLE_FORMAT_VARIABLES, UNLIMITED_FORMAT_VARIABLES):
         try:
-            rendered = render_variables(value, sample, use_jinja=True)
+            rendered = render_variables(value, sample, use_jinja=True, cache=False)
         except ValueError as exc:
             return f"Invalid formatting variables: {exc}"
-        except KeyError:
-            continue
         # Variables end up in response headers, which refuse line breaks. Block tags leave them behind inside the text.
         if "\n" in rendered or "\r" in rendered:
             return "Invalid formatting variables: the result contains a line break"

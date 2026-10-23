@@ -57,17 +57,18 @@ def render_template_string(template_content: str, context: dict | None = None, *
     return render_compiled(compile_template(template_content, cache=cache), context)
 
 
-def render_variables(text: str, variables: Mapping, *, use_jinja: bool) -> str:
+def render_variables(text: str, variables: Mapping, *, use_jinja: bool, cache: bool = True) -> str:
     """Fill `text` with `variables`: Jinja2 when `use_jinja` is True, else str.format_map.
 
     `use_jinja` is an explicit, author-chosen flag now, not sniffed from the text, so there is no ambiguity with
     format_map's own "{{" escape for a literal brace.
     Failures raise ValueError, which is what callers of format_map already fall back on.
+    Pass `cache=False` for text that is only being checked, so drafts do not evict the templates being served.
     """
     if not use_jinja:
         return text.format_map(variables)
     try:
         # Block tags leave newlines behind, which are not allowed in header values.
-        return render_template_string(text, dict(variables)).strip()
+        return render_template_string(text, dict(variables), cache=cache).strip()
     except Exception as exc:
         raise ValueError(f"Invalid template: {exc}") from exc

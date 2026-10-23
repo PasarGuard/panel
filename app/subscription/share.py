@@ -106,7 +106,7 @@ def _build_subscription_config(
     config_format: str,
     client_templates: dict[str, str],
     format_variables: dict,
-    clash_template_ref: str | None = None,
+    clash_template_id: int | None = None,
 ) -> (
     StandardLinks
     | XrayConfiguration
@@ -128,14 +128,16 @@ def _build_subscription_config(
         return ClashConfiguration(
             clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
             format_variables=format_variables,
-            template_ref=clash_template_ref,
+            template_ref=template_ref(clash_template_id) if clash_template_id is not None else None,
+            template_id=clash_template_id,
             **common_kwargs,
         )
     if config_format == "clash_meta":
         return ClashMetaConfiguration(
             clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
             format_variables=format_variables,
-            template_ref=clash_template_ref,
+            template_ref=template_ref(clash_template_id) if clash_template_id is not None else None,
+            template_id=clash_template_id,
             **common_kwargs,
         )
     if config_format == "sing_box":
@@ -201,8 +203,9 @@ async def generate_subscription(
             template_context = {**format_variables, "hosts": refs}
             client_templates = _render_client_templates(used_templates, template_context)
             clash = raw_client_templates.get("CLASH_SUBSCRIPTION_TEMPLATE")
-            clash_template_ref = template_ref(clash.id) if clash else None
-            conf = _build_subscription_config(config_format, client_templates, template_context, clash_template_ref)
+            conf = _build_subscription_config(
+                config_format, client_templates, template_context, clash.id if clash else None
+            )
             if conf is None:
                 raise ValueError(f'Unsupported format "{config_format}"')
 
@@ -305,12 +308,18 @@ def apply_custom_format_variables(format_variables: dict, custom_variables: list
         {key: value for key, value in format_variables.items() if key not in custom_keys},
     )
 
+    # Jinja copies the variables into a plain dict, which loses the default: name the custom keys, so a reference to
+    # another custom variable reads "<missing>" there as well, not an empty string.
+    jinja_variables = {**dict.fromkeys(custom_keys, "<missing>"), **base_variables}
+
     for variable in custom_variables:
         key, raw_value, use_jinja, owner = _custom_variable_parts(variable)
         if not key:
             continue
         try:
-            format_variables[key] = render_variables(raw_value, base_variables, use_jinja=use_jinja)
+            format_variables[key] = render_variables(
+                raw_value, jinja_variables if use_jinja else base_variables, use_jinja=use_jinja
+            )
         except (ValueError, KeyError) as exc:
             report_failure(variable_ref(key, owner), exc)
             format_variables[key] = raw_value
@@ -723,6 +732,12 @@ def process_inbounds_and_tags(
             kwargs["template_content"] = _resolve_host_xray_template_content(prepared)
         conf.add(**kwargs)
 
+    if isinstance(conf, ClashConfiguration):
+        # Like the other formats, a failing template answers with its id instead of the raw Jinja error
+        try:
+            return conf.render()
+        except Exception as exc:
+            raise TemplateRenderError(conf.template_id) from exc
     return conf.render()
 
 

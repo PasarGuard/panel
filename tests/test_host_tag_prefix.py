@@ -317,3 +317,12 @@ async def test_a_jinja_xray_override_of_a_host_goes_through_the_pool(monkeypatch
     overrides[9] = TemplateSource(override, True, 9)
     with pytest.raises(TemplatesBusy):
         await generate_subscription(make_user(), "xray", False)
+
+
+@pytest.mark.asyncio
+async def test_a_broken_clash_template_answers_like_the_other_formats(monkeypatch):
+    set_templates(monkeypatch, CLASH_SUBSCRIPTION_TEMPLATE="{{ NOPE.x() }}")
+    set_hosts(monkeypatch, [make_host(1, "NL")])
+
+    with pytest.raises(TemplateRenderError, match="template 3 failed"):
+        await generate_subscription(make_user(), "clash", False)

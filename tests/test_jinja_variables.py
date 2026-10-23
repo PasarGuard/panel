@@ -109,9 +109,7 @@ def test_custom_variable_render_errors():
     assert "not supported" in custom_variable_render_error("{{ 'soon' if DAYS_LEFT < 5 else '' }}")
     assert custom_variable_render_error("{{ 'soon' if DAYS_LEFT is number and DAYS_LEFT < 5 else '' }}") is None
     # Headers refuse line breaks, and block tags leave them behind inside the text
-    assert "line break" in custom_variable_render_error(
-        "{% if USERNAME %}x{% endif %}\n{% if USERNAME %}y{% endif %}"
-    )
+    assert "line break" in custom_variable_render_error("{% if USERNAME %}x{% endif %}\n{% if USERNAME %}y{% endif %}")
     assert custom_variable_render_error("{% if USERNAME %}x{% endif %}\n") is None
     assert CustomVariable(key="HOSTS", value="x").key == "HOSTS"
 
@@ -413,3 +411,17 @@ async def test_validate_endpoint_accepts_update_only_admins():
     with pytest.raises(HTTPException) as exc:
         await _require_create_or_update(_admin_with(CRUDPermissions()))
     assert exc.value.status_code == 403
+
+
+def test_a_jinja_variable_reads_missing_for_another_custom_variable_like_a_plain_one():
+    variables = apply_custom_format_variables(
+        {"USERNAME": "bob"},
+        [
+            {"key": "A", "value": "x"},
+            {"key": "PLAIN", "value": "{A}"},
+            {"key": "JINJA", "value": "{{ A }}", "use_jinja": True},
+        ],
+    )
+
+    assert variables["PLAIN"] == "<missing>"
+    assert variables["JINJA"] == "<missing>"
