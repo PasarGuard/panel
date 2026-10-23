@@ -16,6 +16,9 @@ async def test_group_update_commits_policy_before_scheduling_sync(monkeypatch: p
     monkeypatch.setattr(operation, "_get_group_with_access", AsyncMock(return_value=group))
     monkeypatch.setattr(operation, "check_inbound_tags", AsyncMock())
     monkeypatch.setattr(group_operation, "modify_group", AsyncMock(return_value=group))
+    monkeypatch.setattr(group_operation, "get_wg_cores", AsyncMock(return_value=[]))
+    load_users = AsyncMock(side_effect=AssertionError("Ordinary group updates must not load all members"))
+    monkeypatch.setattr(group_operation, "get_users", load_users)
     monkeypatch.setattr(operation, "_build_group_response", AsyncMock(return_value=response))
     monkeypatch.setattr(group_operation.notification, "modify_group", AsyncMock())
     scheduled = []
@@ -27,6 +30,7 @@ async def test_group_update_commits_policy_before_scheduling_sync(monkeypatch: p
     monkeypatch.setattr(operation, "_schedule_group_user_sync", schedule)
     await operation.modify_group(db, 1, GroupModify(name="group", inbound_tags=["new"]), SimpleNamespace(username="admin"))
     assert scheduled == [(1, {"expected_inbound_tags": frozenset({"new"}), "expected_is_disabled": False})]
+    load_users.assert_not_awaited()
 
 
 @pytest.mark.asyncio

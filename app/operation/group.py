@@ -20,7 +20,7 @@ from app.db.crud.group import (
 )
 from app.db.crud.group_lock import lock_group_policy_writes, lock_group_rows_for_sync
 from app.db.crud.user import get_users, get_users_for_node_sync
-from app.db.crud.wireguard import get_users_accessible_tags, sync_users_allocations
+from app.db.crud.wireguard import get_users_accessible_tags, get_wg_cores, sync_users_allocations, wg_core_tags
 from app.db.models import Admin, User
 from app.models.group import (
     BulkGroup,
@@ -280,6 +280,7 @@ class GroupOperation(BaseOperation):
             db_group.inbound_tags
         )
         status_changed = modified_group.is_disabled is not None and modified_group.is_disabled != db_group.is_disabled
+        previous_access = set(db_group.inbound_tags) if not db_group.is_disabled else set()
 
         if inbound_tags_changed:
             await self.check_inbound_tags(modified_group.inbound_tags)
@@ -291,11 +292,29 @@ class GroupOperation(BaseOperation):
             effective_modify = modified_group.model_copy(update={"inbound_tags": None})
 
         db_group = await modify_group(db, db_group, effective_modify, load_users=False)
+        wireguard_users = None
+        if inbound_tags_changed or status_changed:
+            current_access = set(db_group.inbound_tags) if not db_group.is_disabled else set()
+            changed_tags = previous_access ^ current_access
+            if changed_tags and changed_tags & wg_core_tags(await get_wg_cores(db)):
+                # Address exhaustion must roll back the policy and every allocation together.
+                # Keep ordinary group edits on the background path; WireGuard edits must
+                # reserve their finite resources before committing or sending users to nodes.
+                wireguard_users = await get_users(
+                    db,
+                    query=UserListQuery(group_ids=[db_group.id]),
+                    load_admin_role=True,
+                    load_usage_logs=False,
+                    load_group_inbounds=True,
+                )
+                await self._sync_users_allocations(db, wireguard_users)
         group = await self._build_group_response(db, db_group)
         # CRUD only flushes; publish the group policy before a background batch reads it.
         await db.commit()
 
-        if inbound_tags_changed or status_changed:
+        if wireguard_users is not None:
+            await sync_users(wireguard_users, wait_for_dispatch=True)
+        elif inbound_tags_changed or status_changed:
             self._schedule_group_user_sync(
                 db_group.id,
                 expected_inbound_tags=frozenset(group.inbound_tags),
