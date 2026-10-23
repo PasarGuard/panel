@@ -458,7 +458,10 @@ async def process_inbounds_and_tags(
 ) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
-    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
+    all_hosts = await host_manager.get_hosts()
+    hosts = await filter_hosts(list(all_hosts.values()), user.status)
+    # Template directives select hosts by id; get_hosts() returns fresh copies, so object ids are stable here.
+    host_ids = {id(host): host_id for host_id, host in all_hosts.items()}
     if randomize_order and len(hosts) > 1:
         random.shuffle(hosts)
 
@@ -516,6 +519,15 @@ async def process_inbounds_and_tags(
                 inbound=inbound_copy,
                 settings=settings,
                 template_content=template_content,
+                host_id=host_ids.get(id(host_data)),
+            )
+        elif isinstance(conf, (SingBoxConfiguration, ClashConfiguration)):
+            conf.add(
+                remark=remark,
+                address=formatted_address,
+                inbound=inbound_copy,
+                settings=settings,
+                host_id=host_ids.get(id(host_data)),
             )
         else:
             conf.add(

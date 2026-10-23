@@ -12,6 +12,13 @@ from app.models.subscription import (
 
 from . import BaseSubscription
 from .base import dumps_compact
+from .template_directives import (
+    DIRECTIVE_KEY,
+    SINGBOX_GROUP_TYPES,
+    HostCandidate,
+    merge_group_members,
+    parse_group_directive,
+)
 
 
 class SingBoxConfiguration(BaseSubscription):
@@ -28,6 +35,8 @@ class SingBoxConfiguration(BaseSubscription):
         self.config = json.loads(singbox_template_content) if singbox_template_content else {}
         self.config.setdefault("endpoints", [])
         self.config.setdefault("outbounds", [])
+        # (outbound or endpoint tag, host) for every proxy added, in order
+        self._proxy_hosts: list[tuple[str, HostCandidate]] = []
 
         # Registry for transport handlers
         self.transport_handlers = {
@@ -80,15 +89,37 @@ class SingBoxConfiguration(BaseSubscription):
         urltest_tags.extend(endpoint_tags)
         selector_tags.extend(endpoint_tags)
 
+        # Groups with a pasarguard directive get only what it selects; the others keep getting every proxy.
+        directive_groups = set()
         for outbound in self.config["outbounds"]:
-            if outbound.get("type") == "urltest":
+            if outbound.get("type") in SINGBOX_GROUP_TYPES and DIRECTIVE_KEY in outbound:
+                self._apply_group_directive(outbound)
+                directive_groups.add(id(outbound))
+
+        for outbound in self.config["outbounds"]:
+            if outbound.get("type") == "urltest" and id(outbound) not in directive_groups:
                 outbound["outbounds"] = urltest_tags
 
         for outbound in self.config["outbounds"]:
-            if outbound.get("type") == "selector":
+            if outbound.get("type") == "selector" and id(outbound) not in directive_groups:
                 outbound["outbounds"] = selector_tags
 
-    def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
+    def _apply_group_directive(self, outbound: dict) -> None:
+        """Fill a selector/urltest that has a pasarguard directive with the proxies it selects."""
+        directive = parse_group_directive(outbound.pop(DIRECTIVE_KEY), f"sing-box outbound {outbound.get('tag')!r}")
+        if not directive.include_proxies:
+            return
+        selected = [tag for tag, host in self._proxy_hosts if directive.select.matches(host)]
+        outbound["outbounds"] = merge_group_members(outbound.get("outbounds"), selected)
+
+    def add(
+        self,
+        remark: str,
+        address: str,
+        inbound: SubscriptionInboundData,
+        settings: dict,
+        host_id: int | None = None,
+    ):
         """Add outbound using registry pattern"""
         # Not supported by sing-box
         if inbound.network in ("kcp", "splithttp", "xhttp"):
@@ -96,6 +127,7 @@ class SingBoxConfiguration(BaseSubscription):
         if inbound.network == "quic" and getattr(inbound.transport_config, "header_type", "none") != "none":
             return
 
+        host = HostCandidate(host_id, inbound.inbound_tag, remark)
         remark = self._remark_validation(remark)
         self.proxy_remarks.append(remark)
 
@@ -107,6 +139,7 @@ class SingBoxConfiguration(BaseSubscription):
         # Build outbound or WireGuard endpoint (sing-box 1.11+)
         built = handler(remark=remark, address=address, inbound=inbound, settings=settings)
         if built:
+            self._proxy_hosts.append((built.get("tag", remark), host))
             if inbound.protocol == "wireguard":
                 self.add_endpoint(built)
             else:

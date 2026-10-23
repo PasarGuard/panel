@@ -33,6 +33,11 @@ from app.models.client_template import (
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.subscription.client_templates import refresh_client_templates_cache
+from app.subscription.template_directives import (
+    validate_clash_template_directives,
+    validate_singbox_template_directives,
+    validate_xray_template_directive,
+)
 from app.templates import render_template_string
 from app.utils.logger import get_logger
 
@@ -57,7 +62,7 @@ class ClientTemplateOperation(BaseOperation):
                         "proxy_remarks": [],
                     },
                 )
-                yaml.safe_load(rendered)
+                validate_clash_template_directives(yaml.safe_load(rendered))
                 return
 
             rendered = render_template_string(content)
@@ -84,6 +89,10 @@ class ClientTemplateOperation(BaseOperation):
                     )
                 if not out:
                     raise ValueError("Subscription template content must contain at least one outbound proxy")
+                if template_type == ClientTemplateType.xray_subscription:
+                    validate_xray_template_directive(parsed)
+                else:
+                    validate_singbox_template_directives(parsed)
         except Exception as exc:
             await self.raise_error(message=f"Invalid template content: {exc!s}", code=400)
 

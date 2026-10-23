@@ -1,4 +1,7 @@
 import json
+import re
+from copy import deepcopy
+from dataclasses import dataclass
 from random import choice
 
 from pydantic import BaseModel
@@ -20,6 +23,24 @@ from app.models.subscription import (
 
 from . import BaseSubscription
 from .base import dumps_compact
+from .template_directives import DIRECTIVE_KEY, HostCandidate, XrayDirective, parse_xray_directive
+
+SINGLE_CONFIG_DEFAULT_REMARKS = "PasarGuard"
+
+
+@dataclass(slots=True)
+class _XrayHost:
+    candidate: HostCandidate
+    outbounds: list[dict]
+
+
+@dataclass(slots=True)
+class _DirectiveConfig:
+    """A config whose template has a pasarguard directive; built in render() once every host is known."""
+
+    host_index: int
+    template: dict
+    directive: XrayDirective
 
 
 class XrayConfiguration(BaseSubscription):
@@ -28,6 +49,7 @@ class XrayConfiguration(BaseSubscription):
         xray_template_content: str | None = None,
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
+        single_remarks: str | None = None,
     ):
         """Initialize an empty subscription builder from optional JSON templates.
 
@@ -42,6 +64,12 @@ class XrayConfiguration(BaseSubscription):
         )
         self.config = []
         self.template = json.loads(xray_template_content) if xray_template_content else {}
+        # Remarks of the one config a "single" mode template produces (the subscription profile title).
+        self.single_remarks = single_remarks
+        self._hosts: list[_XrayHost] = []
+        self._directives: dict[str | None, XrayDirective | None] = {}
+        self._single_templates: set[str | None] = set()
+        self._has_directive_configs = False
 
         # Registry for transport handlers
         self.transport_handlers = {
@@ -73,12 +101,107 @@ class XrayConfiguration(BaseSubscription):
 
     def add_config(self, remarks, outbounds, template_content: str | None = None):
         json_template = json.loads(template_content) if template_content is not None else self.template.copy()
+        if DIRECTIVE_KEY in json_template:
+            directive = self._template_directive(template_content, json_template.pop(DIRECTIVE_KEY))
+            if directive is not None and self._hosts:
+                if directive.mode == "single":
+                    # One config per template, placed where its first host would be.
+                    if template_content in self._single_templates:
+                        return
+                    self._single_templates.add(template_content)
+                self.config.append(_DirectiveConfig(len(self._hosts) - 1, json_template, directive))
+                self._has_directive_configs = True
+                return
         json_template["remarks"] = remarks
         json_template["outbounds"] = outbounds + json_template["outbounds"]
         self.config.append(json_template)
 
+    def _template_directive(self, template_content: str | None, raw_directive) -> XrayDirective | None:
+        if template_content not in self._directives:
+            self._directives[template_content] = parse_xray_directive(raw_directive)
+        return self._directives[template_content]
+
     def render(self):
-        return dumps_compact(self.config)
+        if not self._has_directive_configs:
+            return dumps_compact(self.config)
+        return dumps_compact(
+            [self._build_directive_config(item) if isinstance(item, _DirectiveConfig) else item for item in self.config]
+        )
+
+    def _build_directive_config(self, item: _DirectiveConfig) -> dict:
+        json_template = dict(item.template)
+        template_outbounds = json_template.get("outbounds") or []
+        used_tags = {outbound.get("tag") for outbound in template_outbounds if isinstance(outbound, dict)}
+
+        if item.directive.mode == "single":
+            outbounds = []
+            skip_index = None
+            json_template["remarks"] = (
+                self.single_remarks or json_template.get("remarks") or SINGLE_CONFIG_DEFAULT_REMARKS
+            )
+        else:
+            host = self._hosts[item.host_index]
+            outbounds = list(host.outbounds)
+            used_tags.update(outbound.get("tag") for outbound in outbounds)
+            skip_index = item.host_index
+            json_template["remarks"] = host.candidate.remark
+
+        for inject in item.directive.inject:
+            selected = [
+                host
+                for index, host in enumerate(self._hosts)
+                if index != skip_index and inject.select.matches(host.candidate)
+            ]
+            for number, host in enumerate(selected, start=1):
+                if inject.tag_from == "remark":
+                    name = self._sanitize_tag(host.candidate.remark) or str(number)
+                    base_tag = f"{inject.tag_prefix}-{name}" if inject.tag_prefix else name
+                else:
+                    base_tag = f"{inject.tag_prefix or 'proxy'}-{number}"
+                outbounds.extend(self._retag_outbounds(host.outbounds, base_tag, used_tags))
+
+        json_template["outbounds"] = outbounds + template_outbounds
+        return json_template
+
+    @staticmethod
+    def _sanitize_tag(remark: str) -> str:
+        return re.sub(r"[^\w.-]+", "-", remark).strip("-")
+
+    @staticmethod
+    def _unique_tag(base_tag: str, used_tags: set) -> str:
+        tag = base_tag
+        suffix = 2
+        while tag in used_tags:
+            tag = f"{base_tag}-{suffix}"
+            suffix += 1
+        used_tags.add(tag)
+        return tag
+
+    @classmethod
+    def _retag_outbounds(cls, outbounds: list[dict], base_tag: str, used_tags: set) -> list[dict]:
+        """Copy a host's outbounds under a new tag; helper outbounds (fragment/noise dialer) follow the new tag."""
+        main, *helpers = deepcopy(outbounds)
+        main["tag"] = cls._unique_tag(base_tag, used_tags)
+        renamed = {}
+        for helper in helpers:
+            old_tag = helper.get("tag")
+            helper["tag"] = cls._unique_tag(f"{main['tag']}-{old_tag}", used_tags)
+            renamed[old_tag] = helper["tag"]
+        if renamed:
+            cls._rename_dialer_proxies(main, renamed)
+        return [main, *helpers]
+
+    @classmethod
+    def _rename_dialer_proxies(cls, value, renamed: dict[str, str]) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key == "dialerProxy" and item in renamed:
+                    value[key] = renamed[item]
+                else:
+                    cls._rename_dialer_proxies(item, renamed)
+        elif isinstance(value, list):
+            for item in value:
+                cls._rename_dialer_proxies(item, renamed)
 
     def add(
         self,
@@ -87,6 +210,7 @@ class XrayConfiguration(BaseSubscription):
         inbound: SubscriptionInboundData,
         settings: dict,
         template_content: str | None = None,
+        host_id: int | None = None,
     ):
         """Add outbound using registry pattern"""
 
@@ -108,6 +232,7 @@ class XrayConfiguration(BaseSubscription):
         else:
             all_outbounds = [result]
 
+        self._hosts.append(_XrayHost(HostCandidate(host_id, inbound.inbound_tag, remark), all_outbounds))
         self.add_config(remarks=remark, outbounds=all_outbounds, template_content=template_content)
 
     # ========== Transport Handlers (Registry Methods) ==========
@@ -776,7 +901,7 @@ class XrayConfiguration(BaseSubscription):
                 finalmask = finalmask.model_dump(exclude_none=True, by_alias=True, mode="json")
             try:
                 finalmask = FinalMask.model_validate(finalmask)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 pass
             if isinstance(finalmask, (FinalMask, dict)):
                 stream_settings["finalmask"] = dump_final_mask_for_xray(finalmask)
