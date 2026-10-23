@@ -70,6 +70,7 @@
         -   [✨ 功能](#-功能)
 -   [🚀 安装指南](#-安装指南)
 -   [📚 文档](#-文档)
+-   [🧩 插件](#-插件)
 -   [💖 捐赠](#-捐赠)
 
 ---
@@ -219,6 +220,20 @@ pasarguard --help
 </div>
 
 > **贡献：** 在 [GitHub](https://github.com/PasarGuard/PasarGuard.github.io) 上帮助改进文档
+
+---
+
+# 🧩 插件
+
+插件是您自己安装到服务器上的小型 Python 包。插件可以响应面板事件、添加 API 端点、修改订阅内容、运行定时任务、
+在仪表板中提供设置，并在仪表板中显示自己的页面。
+
+> **插件是受信任的代码。** 它们在面板进程内运行，拥有数据库的完全访问权限，仪表板中的插件页面会获得 owner 的
+> 令牌。只安装您读过代码的插件。
+
+将插件文件夹放入 `PLUGINS_DIR`（默认 `/var/lib/pasarguard/plugins`），在 `PLUGINS` 中列出要启用的插件（例如
+`PLUGINS = "expiring-report,sub-banner"`），然后重启面板。`PLUGINS` 为空时不会加载任何插件代码。如何编写插件（英文）：
+[examples/plugins/README.md](examples/plugins/README.md)。
 
 ---
 
