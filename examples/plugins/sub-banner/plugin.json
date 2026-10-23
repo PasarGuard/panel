@@ -1,0 +1,28 @@
+{
+  "id": "sub-banner",
+  "name": "Subscription banner",
+  "version": "1.0.0",
+  "panel": ">=5.5.0",
+  "entry": "plugin:setup",
+  "description": "Adds an info line on top of links subscriptions (e.g. \"⏳ 12 days left\") and a {PLAN} format variable.",
+  "settings_schema": {
+    "type": "object",
+    "properties": {
+      "enabled": { "type": "boolean", "title": "Show banner", "default": true },
+      "text": {
+        "type": "string",
+        "title": "Banner text",
+        "description": "Variables: {DAYS_LEFT}, {DATA_LEFT}, {USERNAME}, {PLAN}",
+        "default": "⏳ {DAYS_LEFT} days left · {PLAN}"
+      },
+      "plans": {
+        "type": "object",
+        "title": "Plan name by group name",
+        "description": "JSON object, e.g. {\"premium\": \"Premium\"}",
+        "default": {}
+      },
+      "default_plan": { "type": "string", "title": "Plan when no group matches", "default": "Basic" }
+    },
+    "additionalProperties": false
+  }
+}

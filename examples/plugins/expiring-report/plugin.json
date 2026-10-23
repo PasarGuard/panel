@@ -1,0 +1,23 @@
+{
+  "id": "expiring-report",
+  "name": "Expiring users report",
+  "version": "1.0.0",
+  "panel": ">=5.5.0",
+  "entry": "plugin:setup",
+  "description": "Lists users whose subscription expires within N days, with CSV export and a daily log line.",
+  "ui": "ui/index.html",
+  "settings_schema": {
+    "type": "object",
+    "properties": {
+      "days": {
+        "type": "integer",
+        "title": "Days ahead",
+        "description": "Report users expiring within this many days",
+        "minimum": 1,
+        "maximum": 365,
+        "default": 7
+      }
+    },
+    "additionalProperties": false
+  }
+}

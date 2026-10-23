@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Expiring users</title>
+    <script src="/api/plugins/sdk.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: system-ui, sans-serif;
+        background: hsl(var(--background, 0 0% 100%));
+        color: hsl(var(--foreground, 0 0% 10%));
+      }
+      .bar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      input,
+      button {
+        font: inherit;
+        padding: 6px 10px;
+        border-radius: 6px;
+        border: 1px solid hsl(var(--border, 0 0% 85%));
+        background: hsl(var(--background, 0 0% 100%));
+        color: inherit;
+      }
+      button {
+        background: hsl(var(--primary, 220 90% 50%));
+        color: hsl(var(--primary-foreground, 0 0% 100%));
+        cursor: pointer;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: start;
+        padding: 8px;
+        border-bottom: 1px solid hsl(var(--border, 0 0% 85%));
+      }
+      th,
+      .muted {
+        color: hsl(var(--muted-foreground, 0 0% 40%));
+        font-weight: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <label>Days <input id="days" type="number" min="1" max="3650" style="width: 6em" /></label>
+      <button id="load" type="button">Show</button>
+      <button id="csv" type="button">CSV</button>
+      <span id="status" class="muted"></span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Status</th>
+          <th>Expires</th>
+          <th>Days left</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <script>
+      var current = [];
+      var statusEl = document.getElementById("status");
+      var daysEl = document.getElementById("days");
+
+      function cell(text) {
+        var td = document.createElement("td");
+        td.textContent = text;
+        return td;
+      }
+
+      function render(data) {
+        current = data.users;
+        daysEl.value = data.days;
+        var rows = document.getElementById("rows");
+        rows.replaceChildren();
+        data.users.forEach(function (u) {
+          var tr = document.createElement("tr");
+          tr.append(cell(u.username), cell(u.status), cell(new Date(u.expire).toLocaleString()), cell(u.days_left));
+          rows.append(tr);
+        });
+        statusEl.textContent = data.users.length + " user(s)";
+      }
+
+      function load() {
+        var path = "/api/plugins/expiring-report/users" + (daysEl.value ? "?days=" + encodeURIComponent(daysEl.value) : "");
+        statusEl.textContent = "...";
+        PasarGuard.api(path)
+          .then(render)
+          .catch(function (err) {
+            statusEl.textContent = String(err.message || err);
+          });
+      }
+
+      function quoteCsv(value) {
+        return '"' + String(value).replace(/"/g, '""') + '"';
+      }
+
+      function downloadCsv() {
+        var lines = ["username,status,expire,days_left"];
+        current.forEach(function (u) {
+          lines.push([u.username, u.status, u.expire, u.days_left].map(quoteCsv).join(","));
+        });
+        var link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+        link.download = "expiring-users.csv";
+        link.click();
+        setTimeout(function () {
+          URL.revokeObjectURL(link.href);
+        }, 1000);
+      }
+
+      document.getElementById("load").addEventListener("click", load);
+      document.getElementById("csv").addEventListener("click", downloadCsv);
+      PasarGuard.ready().then(load);
+    </script>
+  </body>
+</html>
