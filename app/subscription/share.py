@@ -106,7 +106,7 @@ def _build_subscription_config(
     config_format: str,
     client_templates: dict[str, str],
     format_variables: dict,
-    clash_template_ref: str | None = None,
+    clash_template_id: int | None = None,
 ) -> (
     StandardLinks
     | XrayConfiguration
@@ -128,14 +128,16 @@ def _build_subscription_config(
         return ClashConfiguration(
             clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
             format_variables=format_variables,
-            template_ref=clash_template_ref,
+            template_ref=template_ref(clash_template_id) if clash_template_id is not None else None,
+            template_id=clash_template_id,
             **common_kwargs,
         )
     if config_format == "clash_meta":
         return ClashMetaConfiguration(
             clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
             format_variables=format_variables,
-            template_ref=clash_template_ref,
+            template_ref=template_ref(clash_template_id) if clash_template_id is not None else None,
+            template_id=clash_template_id,
             **common_kwargs,
         )
     if config_format == "sing_box":
@@ -153,6 +155,24 @@ def _build_subscription_config(
             **common_kwargs,
         )
     return None
+
+
+def _hosts_use_jinja_override(
+    hosts: list[SubscriptionInboundData], xray_template_overrides: dict[int, TemplateSource] | None
+) -> bool:
+    """Whether a host selects an Xray template of its own that is Jinja. Any host counts, filtered out or not: which
+    ones this user gets is only known while building, and the pool is chosen before."""
+    if not xray_template_overrides:
+        return False
+    for host in hosts:
+        template_id = host.subscription_templates.get("xray") if isinstance(host.subscription_templates, dict) else None
+        if (
+            isinstance(template_id, int)
+            and (override := xray_template_overrides.get(template_id))
+            and override.use_jinja
+        ):
+            return True
+    return False
 
 
 async def generate_subscription(
@@ -183,8 +203,9 @@ async def generate_subscription(
             template_context = {**format_variables, "hosts": refs}
             client_templates = _render_client_templates(used_templates, template_context)
             clash = raw_client_templates.get("CLASH_SUBSCRIPTION_TEMPLATE")
-            clash_template_ref = template_ref(clash.id) if clash else None
-            conf = _build_subscription_config(config_format, client_templates, template_context, clash_template_ref)
+            conf = _build_subscription_config(
+                config_format, client_templates, template_context, clash.id if clash else None
+            )
             if conf is None:
                 raise ValueError(f'Unsupported format "{config_format}"')
 
@@ -198,8 +219,14 @@ async def generate_subscription(
                 randomize_order=randomize_order,
             )
 
-        # Jinja is CPU work: it runs in the render pool's threads so it does not block the event loop
-        config = await subscription_pool.run(build)
+        # Jinja is CPU work: it runs in the render pool's threads so it does not block the event loop. Without any, as
+        # with share links, WireGuard and Outline, a busy pool cannot refuse the request.
+        needs_pool = (
+            any(source.use_jinja for source in used_templates.values())
+            or _hosts_use_jinja_override(all_hosts, xray_template_overrides)
+            or any(_custom_variable_parts(variable)[2] for variable in custom_variables)
+        )
+        config = await subscription_pool.run(build) if needs_pool else build()
         if as_base64 and not isinstance(config, bytes):
             config = base64.b64encode(config.encode()).decode()
         return config
@@ -281,12 +308,18 @@ def apply_custom_format_variables(format_variables: dict, custom_variables: list
         {key: value for key, value in format_variables.items() if key not in custom_keys},
     )
 
+    # Jinja copies the variables into a plain dict, which loses the default: name the custom keys, so a reference to
+    # another custom variable reads "<missing>" there as well, not an empty string.
+    jinja_variables = {**dict.fromkeys(custom_keys, "<missing>"), **base_variables}
+
     for variable in custom_variables:
         key, raw_value, use_jinja, owner = _custom_variable_parts(variable)
         if not key:
             continue
         try:
-            format_variables[key] = render_variables(raw_value, base_variables, use_jinja=use_jinja)
+            format_variables[key] = render_variables(
+                raw_value, jinja_variables if use_jinja else base_variables, use_jinja=use_jinja
+            )
         except (ValueError, KeyError) as exc:
             report_failure(variable_ref(key, owner), exc)
             format_variables[key] = raw_value
@@ -699,6 +732,12 @@ def process_inbounds_and_tags(
             kwargs["template_content"] = _resolve_host_xray_template_content(prepared)
         conf.add(**kwargs)
 
+    if isinstance(conf, ClashConfiguration):
+        # Like the other formats, a failing template answers with its id instead of the raw Jinja error
+        try:
+            return conf.render()
+        except Exception as exc:
+            raise TemplateRenderError(conf.template_id) from exc
     return conf.render()
 
 

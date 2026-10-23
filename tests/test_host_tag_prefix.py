@@ -260,3 +260,69 @@ async def test_share_links_do_not_depend_on_the_xray_template(monkeypatch):
     set_hosts(monkeypatch, [make_host(1, "NL")])
 
     assert "vless://" in await generate_subscription(make_user(), "links", False)
+
+
+@pytest.mark.asyncio
+async def test_renders_without_jinja_are_not_refused_by_a_busy_pool(monkeypatch):
+    from app.templates.pool import TemplatesBusy, subscription_pool
+
+    async def busy(*args, **kwargs):
+        raise TemplatesBusy("too many templates are being rendered")
+
+    monkeypatch.setattr(subscription_pool, "run", busy)
+    set_hosts(monkeypatch, [make_host(1, "NL")])
+    plain_xray = TemplateSource('{"inbounds": [{"tag": "in"}], "outbounds": []}', False, 3)
+    templates = {
+        "USER_AGENT_TEMPLATE": TemplateSource('{"list": []}', False, 1),
+        "GRPC_USER_AGENT_TEMPLATE": TemplateSource('{"list": []}', False, 2),
+        "XRAY_SUBSCRIPTION_TEMPLATE": plain_xray,
+    }
+    monkeypatch.setattr("app.subscription.share.subscription_client_templates", AsyncMock(return_value=templates))
+
+    # Nothing to render: no Jinja template, no Jinja variable
+    for config_format in ("outline", "links", "xray"):
+        await generate_subscription(make_user(), config_format, False)
+
+    config_cache.clear_sub_config_cache()
+    set_templates(monkeypatch, XRAY_SUBSCRIPTION_TEMPLATE=XRAY_TEMPLATE)
+    with pytest.raises(TemplatesBusy):
+        await generate_subscription(make_user(), "xray", False)
+
+
+@pytest.mark.asyncio
+async def test_a_jinja_xray_override_of_a_host_goes_through_the_pool(monkeypatch):
+    from app.templates.pool import TemplatesBusy, subscription_pool
+
+    async def busy(*args, **kwargs):
+        raise TemplatesBusy("too many templates are being rendered")
+
+    monkeypatch.setattr(subscription_pool, "run", busy)
+    templates = {
+        "USER_AGENT_TEMPLATE": TemplateSource('{"list": []}', False, 1),
+        "GRPC_USER_AGENT_TEMPLATE": TemplateSource('{"list": []}', False, 2),
+        "XRAY_SUBSCRIPTION_TEMPLATE": TemplateSource('{"inbounds": [{"tag": "in"}], "outbounds": []}', False, 3),
+    }
+    monkeypatch.setattr("app.subscription.share.subscription_client_templates", AsyncMock(return_value=templates))
+    override = '{"inbounds": [{"tag": "in"}], "outbounds": [], "tag": "{{ USERNAME }}"}'
+    overrides = {9: TemplateSource(override, False, 9)}
+    monkeypatch.setattr("app.subscription.share.subscription_xray_templates", AsyncMock(return_value=overrides))
+    host = make_host(1, "NL")
+    host.subscription_templates = {"xray": 9}
+    set_hosts(monkeypatch, [host])
+
+    # A plain override renders without the pool
+    await generate_subscription(make_user(), "xray", False)
+
+    config_cache.clear_sub_config_cache()
+    overrides[9] = TemplateSource(override, True, 9)
+    with pytest.raises(TemplatesBusy):
+        await generate_subscription(make_user(), "xray", False)
+
+
+@pytest.mark.asyncio
+async def test_a_broken_clash_template_answers_like_the_other_formats(monkeypatch):
+    set_templates(monkeypatch, CLASH_SUBSCRIPTION_TEMPLATE="{{ NOPE.x() }}")
+    set_hosts(monkeypatch, [make_host(1, "NL")])
+
+    with pytest.raises(TemplateRenderError, match="template 3 failed"):
+        await generate_subscription(make_user(), "clash", False)

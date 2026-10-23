@@ -1,4 +1,5 @@
 import re
+from collections.abc import Iterable
 from enum import Enum, StrEnum
 from functools import lru_cache
 from typing import Any
@@ -6,7 +7,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.proxy import ShadowsocksMethods
-from app.templates import render_variables
+from app.templates import compile_template, render_variables
 from app.templates.variables import (
     BUILTIN_CUSTOM_VARIABLE_KEYS,
     BUILTIN_FORMAT_VARIABLES,
@@ -285,25 +286,47 @@ class CustomVariable(BaseModel):
 
 @lru_cache(maxsize=512)
 def _format_string_error(value: str, use_jinja: bool) -> str | None:
-    # Stored values are validated again on every load of the settings or an admin, and subscriptions validate the
-    # admin's variables on each request, so the answer is cached. Plain format strings keep the lenient check they
-    # always had; only Jinja, which can compare the numbers, is checked against typed samples.
-    samples = (
-        (SAMPLE_FORMAT_VARIABLES, UNLIMITED_FORMAT_VARIABLES)
-        if use_jinja
-        else (dict.fromkeys(BUILTIN_FORMAT_VARIABLES, ""),)
-    )
-    for sample in samples:
+    # Stored values are validated again on every load of the settings or an admin, and this runs inside a pydantic
+    # validator, on the event loop. So Jinja is only parsed here, which costs in proportion to the text. Rendering it
+    # can take as long as the template likes: that is `custom_variable_render_error`, which the operations that save
+    # a variable run in the validation pool.
+    if use_jinja:
         try:
-            rendered = render_variables(value, sample, use_jinja=use_jinja)
+            compile_template(value, cache=False)
+        except Exception as exc:
+            return f"Invalid formatting variables: {exc}"
+        return None
+    try:
+        render_variables(value, dict.fromkeys(BUILTIN_FORMAT_VARIABLES, ""), use_jinja=False)
+    except ValueError as exc:
+        return f"Invalid formatting variables: {exc}"
+    except KeyError:
+        pass
+    return None
+
+
+def custom_variable_render_error(value: str) -> str | None:
+    """Renders a Jinja variable the way a subscription will, for a user with limits and for one without.
+
+    CPU work of unbounded length: call it from `check_custom_variables`, not from a validator."""
+    for sample in (SAMPLE_FORMAT_VARIABLES, UNLIMITED_FORMAT_VARIABLES):
+        try:
+            rendered = render_variables(value, sample, use_jinja=True, cache=False)
         except ValueError as exc:
             return f"Invalid formatting variables: {exc}"
-        except KeyError:
-            continue
         # Variables end up in response headers, which refuse line breaks. Block tags leave them behind inside the text.
-        if use_jinja and ("\n" in rendered or "\r" in rendered):
+        if "\n" in rendered or "\r" in rendered:
             return "Invalid formatting variables: the result contains a line break"
     return None
+
+
+def jinja_variable_errors(variables: Iterable[CustomVariable]) -> dict[str, str]:
+    """Key -> error for the Jinja variables that do not render. Run it in a render pool."""
+    return {
+        variable.key: error
+        for variable in variables
+        if variable.use_jinja and (error := custom_variable_render_error(variable.value))
+    }
 
 
 def validate_custom_variables(value: list[CustomVariable]) -> list[CustomVariable]:

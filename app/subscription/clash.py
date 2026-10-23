@@ -24,6 +24,7 @@ class ClashConfiguration(BaseSubscription):
         grpc_user_agent_template_content: str | None = None,
         format_variables: dict | None = None,
         template_ref: str | None = None,
+        template_id: int | None = None,
     ):
         super().__init__(
             user_agent_template_content=user_agent_template_content,
@@ -32,6 +33,7 @@ class ClashConfiguration(BaseSubscription):
         self.clash_template_content = clash_template_content
         self.format_variables = format_variables or {}
         self.template_ref = template_ref
+        self.template_id = template_id
         self.data = {
             "proxies": [],
             "proxy-groups": [],
@@ -608,6 +610,7 @@ class ClashMetaConfiguration(ClashConfiguration):
         grpc_user_agent_template_content: str | None = None,
         format_variables: dict | None = None,
         template_ref: str | None = None,
+        template_id: int | None = None,
     ):
         super().__init__(
             clash_template_content=clash_template_content,
@@ -615,6 +618,7 @@ class ClashMetaConfiguration(ClashConfiguration):
             grpc_user_agent_template_content=grpc_user_agent_template_content,
             format_variables=format_variables,
             template_ref=template_ref,
+            template_id=template_id,
         )
         # Override protocol handlers to include vless
         self.protocol_handlers = {
