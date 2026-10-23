@@ -209,10 +209,9 @@ async def clear_host_subscription_template_overrides(db: AsyncSession, template_
 async def create_client_template(db: AsyncSession, client_template: ClientTemplateCreate) -> ClientTemplate:
     type_count = await count_client_templates_by_type(db, client_template.template_type)
     # Happ routing templates are only used through subscription rules: no default, no system template
-    is_first_for_type = type_count == 0 and client_template.template_type != ClientTemplateType.happ_routing
-    should_be_default = (client_template.is_default or is_first_for_type) and (
-        client_template.template_type != ClientTemplateType.happ_routing
-    )
+    is_happ_routing = client_template.template_type == ClientTemplateType.happ_routing
+    is_first_for_type = type_count == 0 and not is_happ_routing
+    should_be_default = (client_template.is_default or is_first_for_type) and not is_happ_routing
 
     if should_be_default:
         await db.execute(
