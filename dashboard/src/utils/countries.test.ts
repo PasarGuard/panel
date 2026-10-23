@@ -40,3 +40,15 @@ test('options are sorted by localized name', () => {
   const names = options.map(option => option.name)
   assert.deepEqual(names, [...names].sort(new Intl.Collator(['en']).compare))
 })
+
+test('deprecated aliases and non-country groupings are not offered', () => {
+  const codes = getCountryCodes()
+  for (const code of ['DD', 'UK', 'SU', 'YU', 'CS', 'AN', 'EU', 'EZ', 'UN', 'ZZ', 'QO']) {
+    assert.ok(!codes.includes(code), `${code} should not be listed`)
+  }
+  for (const code of ['DE', 'GB', 'RU', 'RS', 'CW', 'XK']) {
+    assert.ok(codes.includes(code), `${code} should be listed`)
+  }
+  const names = getCountryOptions('en').map(option => option.name)
+  assert.equal(new Set(names).size, names.length)
+})

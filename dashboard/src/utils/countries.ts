@@ -9,7 +9,23 @@ const COUNTRY_CODE_PATTERN = /^[A-Za-z]{2}$/
 // ISO 3166-1 user-assigned codes (AA, QM-QZ, XA-XZ, ZZ) are CLDR pseudo-regions; XK (Kosovo) is the common exception
 const USER_ASSIGNED_PATTERN = /^(AA|Q[M-Z]|X[A-Z]|ZZ)$/
 
+// Groupings and exceptionally reserved codes that CLDR names but are not countries
+const NON_COUNTRY_CODES = new Set(['EU', 'EZ', 'UN', 'AC', 'CP', 'DG', 'EA', 'IC', 'TA'])
+
 const isUserAssigned = (code: string) => code !== 'XK' && USER_ASSIGNED_PATTERN.test(code)
+
+// Deprecated ISO/CLDR aliases that still have display names (DD=Germany, SU=Russia, UK=United Kingdom, ...).
+// Listed explicitly because not every engine canonicalizes them (JavaScriptCore keeps und-UK as is).
+const DEPRECATED_ALIASES = new Set(['AN', 'BU', 'CS', 'DD', 'DY', 'FQ', 'FX', 'HV', 'NH', 'NT', 'RH', 'SU', 'TP', 'UK', 'VD', 'YD', 'YU', 'ZR'])
+
+const isCanonicalRegion = (code: string) => {
+  if (DEPRECATED_ALIASES.has(code)) return false
+  try {
+    return Intl.getCanonicalLocales(`und-${code}`)[0] === `und-${code}`
+  } catch {
+    return false
+  }
+}
 
 let cachedCodes: string[] | null = null
 const displayNamesCache = new Map<string, Intl.DisplayNames | null>()
@@ -44,7 +60,7 @@ export const getCountryCodes = (): string[] => {
     for (let first = 0; first < 26; first++) {
       for (let second = 0; second < 26; second++) {
         const code = String.fromCharCode(A_CODE + first, A_CODE + second)
-        if (isUserAssigned(code)) continue
+        if (isUserAssigned(code) || NON_COUNTRY_CODES.has(code) || !isCanonicalRegion(code)) continue
         try {
           if (displayNames.of(code)) codes.push(code)
         } catch {
