@@ -10,6 +10,8 @@ def test_general_settings_custom_variables_round_trip(access_token):
     original_subscription = settings_response.json()["subscription"]
 
     custom_variables = [{"key": "CUSTOM_GENERAL_HOST", "value": "{USERNAME}.example.com"}]
+    # The response always carries `use_jinja` (default False for plain format_map variables like this one).
+    expected = [{**custom_variables[0], "use_jinja": False}]
 
     try:
         update_response = client.put(
@@ -23,12 +25,12 @@ def test_general_settings_custom_variables_round_trip(access_token):
             },
         )
         assert update_response.status_code == status.HTTP_200_OK
-        assert update_response.json()["general"]["custom_variables"] == custom_variables
-        assert update_response.json()["subscription"]["custom_variables"] == custom_variables
+        assert update_response.json()["general"]["custom_variables"] == expected
+        assert update_response.json()["subscription"]["custom_variables"] == expected
 
         general_response = client.get("/api/settings/general", headers=auth_headers(access_token))
         assert general_response.status_code == status.HTTP_200_OK
-        assert general_response.json()["custom_variables"] == custom_variables
+        assert general_response.json()["custom_variables"] == expected
     finally:
         restore_response = client.put(
             "/api/settings",

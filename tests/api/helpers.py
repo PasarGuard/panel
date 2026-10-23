@@ -92,12 +92,14 @@ def create_client_template(
     template_type: str = "xray_subscription",
     content: str = '{"outbounds": [{"tag":"direct","protocol":"freedom","settings":{}}],"inbounds":[{"tag":"proxy","protocol":"vmess","settings":{"clients":[{"id":"uuid","alterId":0,"email":"}',
     is_default: bool = False,
+    use_jinja: bool = False,
 ) -> dict:
     payload = {
         "name": name or unique_name("client_template"),
         "template_type": template_type,
         "content": content,
         "is_default": is_default,
+        "use_jinja": use_jinja,
     }
     response = client.post("/api/client_template", headers=auth_headers(access_token), json=payload)
     assert response.status_code == status.HTTP_201_CREATED

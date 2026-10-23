@@ -509,6 +509,9 @@ FinalMaskUdpSettings = (
 )
 
 
+# Outbound tags the subscription builders and clients (e.g. Happ stats and ping) rely on
+RESERVED_TAG_PREFIXES = frozenset({"proxy", "dialer", "direct", "block"})
+
 FINAL_MASK_TCP_SETTINGS_MODELS = {
     FinalMaskTcpType.header_custom: FinalMaskTcpHeaderCustomSettings,
     FinalMaskTcpType.fragment: FinalMaskFragmentSettings,
@@ -928,6 +931,7 @@ class BaseHost(BaseModel):
     subscription_templates: SubscriptionTemplates | None = Field(None)
     final_mask_settings: FinalMask | None = Field(None)
     cipher_suites: str | None = Field(None)
+    tag_prefix: str | None = Field(default=None, max_length=32, pattern=r"^[A-Za-z0-9_]*$")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -936,6 +940,13 @@ class BaseHost(BaseModel):
         if self.address:
             return ",".join(self.address)
         return ""
+
+    @field_validator("tag_prefix", mode="after")
+    @classmethod
+    def validate_tag_prefix(cls, value: str | None):
+        if value and value.lower() in RESERVED_TAG_PREFIXES:
+            raise ValueError(f"'{value}' is reserved, it is the tag of a built-in outbound")
+        return value or None
 
     @field_validator("subscription_templates", mode="after")
     @classmethod

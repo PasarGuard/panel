@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { CustomVariablesPopover, normalizeCustomVariableKey } from '@/components/ui/variables-popover'
 import { builtInVariableKeys, withCustomVariableDefaults, type SubscriptionFormData, type SubscriptionSettingsForm } from '@/features/subscriptions/components/subscription-settings-schema'
@@ -35,7 +36,7 @@ export function SubscriptionCustomVariablesSection({ form }: SubscriptionCustomV
   }
 
   const addVariable = () => {
-    setCustomVariables([...customVariables, { key: nextCustomVariableKey(customVariables), value: '' }])
+    setCustomVariables([...customVariables, { key: nextCustomVariableKey(customVariables), value: '', use_jinja: false }])
   }
 
   const updateVariable = (index: number, patch: Partial<NonNullable<SubscriptionFormData['custom_variables']>[number]>) => {
@@ -96,10 +97,16 @@ export function SubscriptionCustomVariablesSection({ form }: SubscriptionCustomV
                 <Textarea
                   value={variable.value}
                   onChange={event => updateVariable(index, { value: event.target.value })}
-                  placeholder="{USERNAME}.example.com"
+                  placeholder={variable.use_jinja ? '{{ USERNAME | upper }}' : '{USERNAME}.example.com'}
                   className="min-h-[60px] resize-none font-mono text-xs"
                   rows={2}
                 />
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor={`custom-variable-jinja-${index}`} className="text-muted-foreground cursor-pointer text-xs">
+                    {t('settings.subscriptions.customVariables.useJinja', { defaultValue: 'Render as Jinja2' })}
+                  </label>
+                  <Switch id={`custom-variable-jinja-${index}`} checked={!!variable.use_jinja} onCheckedChange={checked => updateVariable(index, { use_jinja: checked })} />
+                </div>
               </div>
             )
           })

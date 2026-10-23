@@ -1,36 +1,23 @@
 import re
 from enum import Enum, StrEnum
+from functools import lru_cache
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.proxy import ShadowsocksMethods
+from app.templates import render_variables
+from app.templates.variables import (
+    BUILTIN_CUSTOM_VARIABLE_KEYS,
+    BUILTIN_FORMAT_VARIABLES,
+    SAMPLE_FORMAT_VARIABLES,
+    UNLIMITED_FORMAT_VARIABLES,
+)
 
 from .notification_enable import NotificationEnable
 from .validators import DiscordValidator, ProxyValidator, URLValidator
 
 TELEGRAM_TOKEN_PATTERN = r"^\d{8,12}:[A-Za-z0-9_-]{35}$"
-BUILTIN_FORMAT_VARIABLES = {
-    "SERVER_IP",
-    "SERVER_IPV6",
-    "USERNAME",
-    "DATA_USAGE",
-    "DATA_LIMIT",
-    "DATA_LEFT",
-    "DAYS_LEFT",
-    "EXPIRE_DATE",
-    "JALALI_EXPIRE_DATE",
-    "TIME_LEFT",
-    "STATUS_EMOJI",
-    "USAGE_PERCENTAGE",
-    "ADMIN_USERNAME",
-    "PROFILE_TITLE",
-    "PROTOCOL",
-    "TRANSPORT",
-    "url",
-    "format",
-}
-BUILTIN_CUSTOM_VARIABLE_KEYS = {variable.upper() for variable in BUILTIN_FORMAT_VARIABLES}
 
 
 class RunMethod(StrEnum):
@@ -270,6 +257,7 @@ class Application(BaseModel):
 class CustomVariable(BaseModel):
     key: str = Field(max_length=64)
     value: str = Field(default="", max_length=512)
+    use_jinja: bool = Field(default=False)
 
     @field_validator("key", mode="before")
     @classmethod
@@ -288,16 +276,34 @@ class CustomVariable(BaseModel):
             raise ValueError("Variable key must use uppercase letters, numbers, and underscores")
         return value
 
-    @field_validator("value")
-    @classmethod
-    def validate_value_format(cls, value: str) -> str:
+    @model_validator(mode="after")
+    def validate_value_format(self) -> CustomVariable:
+        if error := _format_string_error(self.value, self.use_jinja):
+            raise ValueError(error)
+        return self
+
+
+@lru_cache(maxsize=512)
+def _format_string_error(value: str, use_jinja: bool) -> str | None:
+    # Stored values are validated again on every load of the settings or an admin, and subscriptions validate the
+    # admin's variables on each request, so the answer is cached. Plain format strings keep the lenient check they
+    # always had; only Jinja, which can compare the numbers, is checked against typed samples.
+    samples = (
+        (SAMPLE_FORMAT_VARIABLES, UNLIMITED_FORMAT_VARIABLES)
+        if use_jinja
+        else (dict.fromkeys(BUILTIN_FORMAT_VARIABLES, ""),)
+    )
+    for sample in samples:
         try:
-            value.format_map({key: "" for key in BUILTIN_FORMAT_VARIABLES})
-        except ValueError:
-            raise ValueError("Invalid formatting variables")
+            rendered = render_variables(value, sample, use_jinja=use_jinja)
+        except ValueError as exc:
+            return f"Invalid formatting variables: {exc}"
         except KeyError:
-            pass
-        return value
+            continue
+        # Variables end up in response headers, which refuse line breaks. Block tags leave them behind inside the text.
+        if use_jinja and ("\n" in rendered or "\r" in rendered):
+            return "Invalid formatting variables: the result contains a line break"
+    return None
 
 
 def validate_custom_variables(value: list[CustomVariable]) -> list[CustomVariable]:

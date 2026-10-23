@@ -122,7 +122,7 @@ async def test_process_host_does_not_mutate_cached_inbound():
     original_host = list(inbound.transport_config.host)
     original_path = inbound.transport_config.path
 
-    result = await process_host(
+    result = process_host(
         inbound,
         defaultdict(lambda: "<missing>", {"USERNAME": "u1"}),
         ["in1"],
@@ -130,7 +130,7 @@ async def test_process_host_does_not_mutate_cached_inbound():
     )
 
     assert result is not None
-    copy, settings = result
+    copy, settings, _ = result
     assert inbound.tls_config.sni == original_sni
     assert inbound.transport_config.host == original_host
     assert inbound.transport_config.path == original_path

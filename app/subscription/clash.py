@@ -11,6 +11,7 @@ from app.models.subscription import (
     XHTTPTransportConfig,
 )
 from app.templates import render_template_string
+from app.templates.failures import report_failure
 
 from . import BaseSubscription
 
@@ -21,12 +22,16 @@ class ClashConfiguration(BaseSubscription):
         clash_template_content: str | None = None,
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
+        format_variables: dict | None = None,
+        template_ref: str | None = None,
     ):
         super().__init__(
             user_agent_template_content=user_agent_template_content,
             grpc_user_agent_template_content=grpc_user_agent_template_content,
         )
         self.clash_template_content = clash_template_content
+        self.format_variables = format_variables or {}
+        self.template_ref = template_ref
         self.data = {
             "proxies": [],
             "proxy-groups": [],
@@ -57,10 +62,16 @@ class ClashConfiguration(BaseSubscription):
         }
 
     def render(self):
-        return render_template_string(
-            self.clash_template_content,
-            {"conf": self.data, "proxy_remarks": self.proxy_remarks},
-        )
+        try:
+            return render_template_string(
+                self.clash_template_content,
+                {**self.format_variables, "conf": self.data, "proxy_remarks": self.proxy_remarks},
+            )
+        except Exception as exc:
+            # There is nothing to fall back to: Clash is built into the template. The failure is still reported.
+            if self.template_ref:
+                report_failure(self.template_ref, exc)
+            raise
 
     def __str__(self) -> str:
         return self.render()
@@ -595,11 +606,15 @@ class ClashMetaConfiguration(ClashConfiguration):
         clash_template_content: str | None = None,
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
+        format_variables: dict | None = None,
+        template_ref: str | None = None,
     ):
         super().__init__(
             clash_template_content=clash_template_content,
             user_agent_template_content=user_agent_template_content,
             grpc_user_agent_template_content=grpc_user_agent_template_content,
+            format_variables=format_variables,
+            template_ref=template_ref,
         )
         # Override protocol handlers to include vless
         self.protocol_handlers = {

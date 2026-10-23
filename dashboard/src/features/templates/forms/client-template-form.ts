@@ -12,9 +12,18 @@ export const clientTemplateFormSchema = z.object({
   ]),
   content: z.string().min(1, 'Content is required'),
   is_default: z.boolean().optional(),
+  use_jinja: z.boolean().optional(),
 })
 
 export type ClientTemplateFormValues = z.infer<typeof clientTemplateFormSchema>
+
+// Clash always needs Jinja2: it renders `conf`, built once the proxies exist. Not a real per-template choice.
+export const isAlwaysJinja = (templateType: ClientTemplateType) => templateType === ClientTemplateType.clash_subscription
+
+// The User-Agent lists are plain JSON: the server never renders them.
+export const isNeverJinja = (templateType: ClientTemplateType) =>
+  templateType === ClientTemplateType.user_agent || templateType === ClientTemplateType.grpc_user_agent
+
 const DEFAULT_USER_AGENT_TEMPLATE = {
   list: [],
 }
@@ -198,4 +207,5 @@ export const clientTemplateFormDefaultValues: Partial<ClientTemplateFormValues> 
   template_type: ClientTemplateType.xray_subscription,
   content: DEFAULT_TEMPLATE_CONTENT[ClientTemplateType.xray_subscription],
   is_default: false,
+  use_jinja: false,
 }

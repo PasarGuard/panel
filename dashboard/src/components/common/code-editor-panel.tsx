@@ -1,4 +1,5 @@
 import { useTheme } from '@/app/providers/theme-provider'
+import type { Monaco } from '@monaco-editor/react'
 import { Button } from '@/components/ui/button'
 import { DEFAULT_MONACO_CODE_EDITOR_OPTIONS } from '@/components/common/code-editor-defaults'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -11,6 +12,11 @@ import { useTranslation } from 'react-i18next'
 const MonacoEditor = lazy(() => import('@/components/common/monaco-editor'))
 const MobileCodeAceEditor = lazy(() => import('@/components/common/mobile-code-ace-editor'))
 
+/** An error on a 1-based line, shown in the editor next to the editor's own diagnostics. */
+export type CodeEditorMarker = { line: number; message: string }
+
+const MARKER_OWNER = 'code-editor-panel'
+
 export type CodeEditorPanelProps = {
   value: string
   onChange: (value: string) => void
@@ -20,6 +26,8 @@ export type CodeEditorPanelProps = {
   /** Merged into {@link DEFAULT_MONACO_CODE_EDITOR_OPTIONS} (desktop only). */
   monacoOptions?: Record<string, unknown>
   onValidate?: (markers: any[]) => void
+  /** Extra errors to show, e.g. from the server. Pass `[]` to clear; leave undefined to not manage any. */
+  markers?: CodeEditorMarker[]
   /** Editor instance: Monaco `IStandaloneCodeEditor` or Ace editor. */
   onMount?: (editor: any) => void
   /** Desktop Monaco only. */
@@ -61,6 +69,7 @@ export function CodeEditorPanel({
   readOnly,
   monacoOptions,
   onValidate,
+  markers,
   onMount,
   onDidBlur,
   enableFullscreen = false,
@@ -78,6 +87,7 @@ export function CodeEditorPanel({
   const [editorInstance, setEditorInstance] = useState<any>(null)
 
   const blurDisposableRef = useRef<{ dispose: () => void } | null>(null)
+  const monacoRef = useRef<Monaco | null>(null)
 
   useEffect(() => () => blurDisposableRef.current?.dispose(), [])
 
@@ -114,7 +124,8 @@ export function CodeEditorPanel({
   }, [relayoutEditor])
 
   const handleEditorDidMount = useCallback(
-    (editor: any) => {
+    (editor: any, monaco?: Monaco) => {
+      monacoRef.current = monaco ?? null
       setIsEditorReady(true)
       setEditorInstance(editor)
 
@@ -160,6 +171,22 @@ export function CodeEditorPanel({
     setTimeout(() => relayoutEditor(), 150)
   }, [editorInstance, isEditorFullscreen, isEditorReady, relayoutEditor])
 
+  // Monaco keeps markers per owner, so ours are cleared without touching the language service's own.
+  // (Ace takes them as annotations.)
+  useEffect(() => {
+    const monaco = monacoRef.current
+    const model = editorInstance?.getModel?.()
+    if (!markers || !monaco || !model) return
+    monaco.editor.setModelMarkers(
+      model,
+      MARKER_OWNER,
+      markers.map(({ line, message }) => {
+        const startLineNumber = Math.min(Math.max(line, 1), model.getLineCount())
+        return { severity: monaco.MarkerSeverity.Error, message, startLineNumber, endLineNumber: startLineNumber, startColumn: 1, endColumn: model.getLineMaxColumn(startLineNumber) }
+      }),
+    )
+  }, [editorInstance, markers])
+
   const monacoOptionsMerged = {
     ...DEFAULT_MONACO_CODE_EDITOR_OPTIONS,
     readOnly,
@@ -172,7 +199,7 @@ export function CodeEditorPanel({
     if (isMobile) {
       return (
         <Suspense fallback={editorFallback}>
-          <MobileCodeAceEditor value={value} language={language} theme={resolvedTheme} onChange={onChange} onLoad={handleEditorDidMount} readOnly={readOnly} />
+          <MobileCodeAceEditor value={value} language={language} theme={resolvedTheme} onChange={onChange} onLoad={handleEditorDidMount} readOnly={readOnly} markers={markers} />
         </Suspense>
       )
     }

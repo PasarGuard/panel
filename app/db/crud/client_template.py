@@ -13,6 +13,8 @@ from app.models.client_template import (
     ClientTemplateSimpleSortField,
     ClientTemplateSimpleSortOption,
     ClientTemplateType,
+    TemplateSource,
+    effective_use_jinja,
 )
 
 TEMPLATE_TYPE_TO_LEGACY_KEY: dict[ClientTemplateType, str] = {
@@ -34,7 +36,8 @@ def _build_client_template_simple_sort_clause(sort_option: ClientTemplateSimpleS
     return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
-async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
+async def get_client_template_values(db: AsyncSession) -> dict[str, TemplateSource]:
+    """Maps each legacy key to its template. Writes and the migration keep the flag valid for its type."""
     try:
         rows = (
             await db.execute(
@@ -43,44 +46,41 @@ async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
                     ClientTemplate.template_type,
                     ClientTemplate.content,
                     ClientTemplate.is_default,
+                    ClientTemplate.use_jinja,
                 ).order_by(ClientTemplate.template_type.asc(), ClientTemplate.id.asc())
             )
         ).all()
     except SQLAlchemyError:
         return {}
 
-    by_type: dict[str, list[tuple[int, str, bool]]] = defaultdict(list)
+    by_type: dict[str, list[tuple[TemplateSource, bool]]] = defaultdict(list)
     for row in rows:
-        by_type[row.template_type].append((row.id, row.content, row.is_default))
+        by_type[row.template_type].append((TemplateSource(row.content, row.use_jinja, row.id), row.is_default))
 
-    values: dict[str, str] = {}
+    values: dict[str, TemplateSource] = {}
     for template_type, legacy_key in TEMPLATE_TYPE_TO_LEGACY_KEY.items():
         type_rows = by_type.get(template_type.value, [])
         if not type_rows:
             continue
 
-        selected_content = ""
-        for _, content, is_default in type_rows:
-            if is_default:
-                selected_content = content
-                break
-
-        if not selected_content:
-            selected_content = type_rows[0][1]
-
-        if selected_content:
-            values[legacy_key] = selected_content
+        selected = next((source for source, is_default in type_rows if is_default), type_rows[0][0])
+        if selected.content:
+            values[legacy_key] = selected
 
     return values
 
 
-async def get_client_template_contents_by_type(db: AsyncSession, template_type: ClientTemplateType) -> dict[int, str]:
+async def get_client_template_contents_by_type(
+    db: AsyncSession, template_type: ClientTemplateType
+) -> dict[int, TemplateSource]:
     rows = (
         await db.execute(
-            select(ClientTemplate.id, ClientTemplate.content).where(ClientTemplate.template_type == template_type.value)
+            select(ClientTemplate.id, ClientTemplate.content, ClientTemplate.use_jinja).where(
+                ClientTemplate.template_type == template_type.value
+            )
         )
     ).all()
-    return {row.id: row.content for row in rows}
+    return {row.id: TemplateSource(row.content, row.use_jinja, row.id) for row in rows}
 
 
 async def get_client_template_by_id(db: AsyncSession, template_id: int) -> ClientTemplate | None:
@@ -224,6 +224,7 @@ async def create_client_template(db: AsyncSession, client_template: ClientTempla
         content=client_template.content,
         is_default=should_be_default,
         is_system=is_first_for_type,
+        use_jinja=effective_use_jinja(client_template.template_type, client_template.use_jinja),
     )
     db.add(db_template)
     try:
@@ -254,6 +255,10 @@ async def modify_client_template(
         db_template.name = template_data["name"]
     if "content" in template_data:
         db_template.content = template_data["content"]
+    if "use_jinja" in template_data:
+        db_template.use_jinja = effective_use_jinja(
+            ClientTemplateType(db_template.template_type), template_data["use_jinja"]
+        )
 
     try:
         await db.commit()
