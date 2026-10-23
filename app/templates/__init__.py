@@ -3,12 +3,12 @@ from datetime import UTC, datetime as dt
 from functools import lru_cache
 
 from jinja2 import Environment, FileSystemLoader
-from jinja2.sandbox import SandboxedEnvironment
 
 from app.utils.logger import get_logger
 from config import template_settings
 
 from .filters import CUSTOM_FILTERS
+from .limits import LimitedSandboxEnvironment
 
 logger = get_logger("templates")
 
@@ -22,8 +22,13 @@ env = Environment(loader=FileSystemLoader(template_directories), autoescape=True
 env.filters.update(CUSTOM_FILTERS)
 env.globals["now"] = lambda: dt.now(UTC)
 
-sandbox_env = SandboxedEnvironment()
-sandbox_env.filters.update(CUSTOM_FILTERS)
+# Renders what admins write, so it is limited in the work it may cause.
+sandbox_env = LimitedSandboxEnvironment(
+    budget=template_settings.render_budget,
+    max_value_size=template_settings.max_value_size,
+    max_output_size=template_settings.max_output_size,
+)
+sandbox_env.add_filters(CUSTOM_FILTERS)
 sandbox_env.globals["now"] = lambda: dt.now(UTC)
 
 
@@ -44,16 +49,16 @@ def compile_template(template_content: str, *, cache: bool = True):
 
 def render_compiled(template, context: dict | None = None) -> str:
     try:
-        return template.render(context or {})
+        return sandbox_env.render_limited(template, context or {})
     except (MemoryError, RecursionError) as exc:
-        # Nothing bounds the work or memory of a template; one that exhausts either is worth a trace, unlike an
-        # admin's typo, which is routine.
-        logger.error("%s rendering a Jinja template: %s", type(exc).__name__, exc)
+        # limits.py's budget is meant to make these unreachable; one getting through is worth a trace, unlike
+        # an admin's typo, which is routine.
+        logger.error("%s rendering a Jinja template, despite the sandbox's budget: %s", type(exc).__name__, exc)
         raise
 
 
 def render_template_string(template_content: str, context: dict | None = None, *, cache: bool = True) -> str:
-    """Renders admin-written Jinja2 in `sandbox_env`."""
+    """Renders admin-written Jinja2 within the limits of `sandbox_env`."""
     return render_compiled(compile_template(template_content, cache=cache), context)
 
 
