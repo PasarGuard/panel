@@ -83,7 +83,8 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
   const responseHeaders = (form.watch(`rules.${index}.response_headers`) || {}) as Record<string, string>
   const responseHeaderCount = Object.keys(responseHeaders).length
-  const advancedSheetItemCount = responseHeaderCount
+  const hasHappRouting = form.watch(`rules.${index}.happ_routing_template_id`) != null
+  const advancedSheetItemCount = responseHeaderCount + (hasHappRouting ? 1 : 0)
 
   const style = {
     transform: CSS.Transform.toString(transform),

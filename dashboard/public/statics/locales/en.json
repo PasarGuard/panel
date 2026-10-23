@@ -318,7 +318,10 @@
         "advanced": "Advanced rule options",
         "advancedTitle": "Rule options",
         "advancedDescription": "Configure optional response headers when this rule matches.",
-        "advancedHeadersHint": "{{count}} custom response header(s) — click to edit"
+        "advancedHeadersHint": "{{count}} custom response header(s) — click to edit",
+        "happRouting": "Happ routing",
+        "happRoutingDescription": "Send a Happ routing profile with the subscription. Happ adds it and turns it on automatically.",
+        "happRoutingNone": "None"
       },
       "formats": {
         "title": "Manual Subscription Formats",
@@ -1191,7 +1194,14 @@
     "noSearchResults": "No client templates match your search.",
     "default": "Default",
     "system": "System",
-    "defaultSystem": "Default System"
+    "defaultSystem": "Default System",
+    "happRouting": {
+      "help": "A routing profile for the Happ app: which sites and IPs go direct, through the VPN or are blocked, and which DNS to use. Pick it in a subscription rule (for example ^Happ/) and Happ users get it with the subscription automatically.",
+      "nameHelp": "Happ updates the profile by its \"Name\": keep the same Name to update it for users, a new Name adds a second profile.",
+      "listsHelp": "Lists accept domains, IPs/CIDRs and geosite:/geoip: entries. You can build a profile on",
+      "linkSize": "Link size: {{size}} KB",
+      "largeWarning": "The link is larger than 4 KB. Large headers can be cut by proxies; turn on sending headers in the subscription body."
+    }
   },
   "core.configuration": "Configuration",
   "core.generalErrorMessage": "Something went wrong, please check the configuration",
