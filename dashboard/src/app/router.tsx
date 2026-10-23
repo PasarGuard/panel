@@ -42,6 +42,7 @@ const Statistics = lazyWithChunkRecovery(() => import('../pages/_dashboard.stati
 const TemplatesLayout = lazyWithChunkRecovery(() => import('../pages/_dashboard.templates'))
 const UserTemplates = lazyWithChunkRecovery(() => import('../pages/_dashboard.templates.user'))
 const ClientTemplates = lazyWithChunkRecovery(() => import('../pages/_dashboard.templates.client'))
+const ClientProfiles = lazyWithChunkRecovery(() => import('../pages/_dashboard.templates.profiles'))
 const Users = lazyWithChunkRecovery(() => import('../pages/_dashboard.users'))
 const Login = lazyWithChunkRecovery(() => import('../pages/login'))
 
@@ -57,7 +58,13 @@ function SettingsIndex() {
 
 function TemplatesIndex() {
   const { admin } = useAdmin()
-  const defaultPath = hasPermission(admin, 'templates', 'read') ? '/templates/user' : hasPermission(admin, 'client_templates', 'read') ? '/templates/client' : '/settings/theme'
+  const defaultPath = hasPermission(admin, 'templates', 'read')
+    ? '/templates/user'
+    : hasPermission(admin, 'client_templates', 'read')
+      ? '/templates/client'
+      : hasPermission(admin, 'client_profiles', 'read')
+        ? '/templates/profiles'
+        : '/settings/theme'
 
   return <Navigate to={defaultPath} replace />
 }
@@ -229,6 +236,14 @@ export const router = createHashRouter([
             element: (
               <Suspense fallback={<LoadingSpinner />}>
                 <ClientTemplates />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/templates/profiles',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <ClientProfiles />
               </Suspense>
             ),
           },

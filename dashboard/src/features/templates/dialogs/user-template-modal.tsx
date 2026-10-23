@@ -31,6 +31,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ChevronDown, FileUser, Pencil } from 'lucide-react'
 import { userTemplateFormDefaultValues, type UserTemplatesFromValueInput } from '@/features/templates/forms/user-template-form'
+import { ClientProfileSelect } from '@/features/templates/components/client-profile-select'
+import { useCanAssignClientProfile } from '@/features/templates/components/use-client-profile-options'
 
 interface UserTemplatesModalprops {
   isDialogOpen: boolean
@@ -121,6 +123,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
   const { admin } = useAdmin()
   const { t } = useTranslation()
   const canUseResetStrategy = admin?.role?.features?.can_use_reset_strategy !== false
+  const canAssignClientProfile = useCanAssignClientProfile()
   const addUserTemplateMutation = useCreateUserTemplate()
   const handleError = useDynamicErrorHandler()
   const modifyUserTemplateMutation = useModifyUserTemplate()
@@ -204,6 +207,8 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
               method: values.method,
             }
           : undefined,
+        // Only sent when the admin can see the field; omitted keeps the stored profile
+        ...(canAssignClientProfile ? { client_profile_id: values.client_profile_id ?? null } : {}),
       }
 
       if (editingUserTemplate && editingUserTemplateId) {
@@ -247,6 +252,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
         'data_limit_reset_strategy',
         'method',
         'reset_usages',
+        'client_profile_id',
       ]
       handleError({ error, fields, form, contextKey: 'groups' })
     } finally {
@@ -431,6 +437,27 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                     </FormItem>
                   )}
                 />
+
+                {canAssignClientProfile && (
+                  <FormField
+                    control={form.control}
+                    name="client_profile_id"
+                    render={({ field }) => (
+                      <FormItem className="relative flex-1">
+                        <FormLabel>{t('clientProfiles.userField', { defaultValue: 'Client profile' })}</FormLabel>
+                        <FormControl>
+                          <ClientProfileSelect
+                            value={field.value}
+                            enabled={isDialogOpen}
+                            onChange={field.onChange}
+                            noneLabel={t('clientProfiles.templateNone', { defaultValue: "No profile (keep the user's current one)" })}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <FormField
                   control={form.control}

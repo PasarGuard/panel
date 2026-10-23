@@ -23,6 +23,7 @@ import {
   Send,
   Settings as SettingsIcon,
   Share2,
+  SlidersHorizontal,
   UserPlus,
   Webhook,
 } from 'lucide-react'
@@ -63,6 +64,7 @@ const BULK_NON_SUDO_TABS: TabDef[] = [{ id: 'create', labelKey: 'bulk.createUser
 const TEMPLATES_TABS: TabDef[] = [
   { id: 'templates.userTemplates', labelKey: 'templates.userTemplates', icon: FileUser, url: '/templates/user' },
   { id: 'templates.clientTemplates', labelKey: 'templates.clientTemplates', icon: FileCode2, url: '/templates/client' },
+  { id: 'templates.clientProfiles', labelKey: 'templates.clientProfiles', icon: SlidersHorizontal, url: '/templates/profiles' },
 ]
 
 function nodesActiveTabId(pathname: string): string {
@@ -113,6 +115,9 @@ function bulkHeader(pathname: string): { title: string; description: string } {
 function templatesHeader(pathname: string): { title: string; description: string } {
   if (pathname === '/templates/client') {
     return { title: 'clientTemplates.title', description: 'clientTemplates.description' }
+  }
+  if (pathname === '/templates/profiles') {
+    return { title: 'clientProfiles.title', description: 'clientProfiles.description' }
   }
   return { title: 'templates.title', description: 'templates.description' }
 }
@@ -200,7 +205,7 @@ function BulkTabbedFallback({ pathname, isSudo }: { pathname: string; isSudo: bo
 
 function TemplatesTabbedFallback({ pathname }: { pathname: string }) {
   const header = templatesHeader(pathname)
-  const activeId = pathname === '/templates/client' ? 'templates.clientTemplates' : 'templates.userTemplates'
+  const activeId = pathname === '/templates/client' ? 'templates.clientTemplates' : pathname === '/templates/profiles' ? 'templates.clientProfiles' : 'templates.userTemplates'
   return (
     <div className="flex w-full flex-col items-start gap-0">
       <PageHeader title={header.title} description={header.description} tutorialUrl={getDocsUrl(pathname)} />

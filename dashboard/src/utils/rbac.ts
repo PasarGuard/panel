@@ -64,6 +64,7 @@ export const firstAllowedRoute = (admin: AdminDetails | null | undefined) => {
   if (hasPermission(admin, 'nodes', 'logs')) return '/nodes/logs'
   if (canReadResourcePage(admin, 'templates')) return '/templates/user'
   if (canReadResourcePage(admin, 'client_templates')) return '/templates/client'
+  if (canReadResourcePage(admin, 'client_profiles')) return '/templates/profiles'
   return '/settings/theme'
 }
 
@@ -75,8 +76,9 @@ export const canAccessRoute = (admin: AdminDetails | null | undefined, pathname:
   if (pathname.startsWith('/statistics')) return hasPermission(admin, 'nodes', 'stats')
   if (pathname.startsWith('/hosts')) return canReadResourcePage(admin, 'hosts')
   if (pathname.startsWith('/groups')) return canReadResourcePage(admin, 'groups')
-  if (pathname === '/templates') return canReadResourcePage(admin, 'templates') || canReadResourcePage(admin, 'client_templates')
+  if (pathname === '/templates') return canReadResourcePage(admin, 'templates') || canReadResourcePage(admin, 'client_templates') || canReadResourcePage(admin, 'client_profiles')
   if (pathname.startsWith('/templates/client')) return canReadResourcePage(admin, 'client_templates')
+  if (pathname.startsWith('/templates/profiles')) return canReadResourcePage(admin, 'client_profiles')
   if (pathname.startsWith('/templates/user')) return canReadResourcePage(admin, 'templates')
   if (pathname.startsWith('/templates')) return false
   if (pathname.startsWith('/admin-roles')) return isOwner(admin)

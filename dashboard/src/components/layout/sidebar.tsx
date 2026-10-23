@@ -49,6 +49,7 @@ import {
   Settings,
   Settings2,
   Share2Icon,
+  SlidersHorizontal,
   UserCog,
   UserKey,
   UserPlus,
@@ -73,6 +74,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canReadCores = canReadResourcePage(admin, 'cores')
   const canReadTemplates = canReadResourcePage(admin, 'templates')
   const canReadClientTemplates = canReadResourcePage(admin, 'client_templates')
+  const canReadClientProfiles = canReadResourcePage(admin, 'client_profiles')
   const canReadNodeLogs = hasPermission(admin, 'nodes', 'logs')
   const canBulkCreateFromTemplate = hasPermission(admin, 'users', 'create') && canReadTemplates
   const canBulkUpdateUsers = hasScopeAll(admin, 'users', 'update')
@@ -127,6 +129,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             title: 'templates.clientTemplates',
             url: '/templates/client',
             icon: FileCode2,
+          },
+        ]
+      : []),
+    ...(canReadClientProfiles
+      ? [
+          {
+            title: 'templates.clientProfiles',
+            url: '/templates/profiles',
+            icon: SlidersHorizontal,
           },
         ]
       : []),
