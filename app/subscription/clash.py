@@ -17,6 +17,9 @@ from app.templates.filters import to_yaml
 from . import BaseSubscription
 from .template_directives import DIRECTIVE_KEY, HostCandidate, merge_group_members, parse_group_directive
 
+# Group keys that give a proxy group members besides its "proxies" list.
+CLASH_GROUP_MEMBER_SOURCES = ("use", "include-all", "include-all-proxies", "include-all-providers")
+
 
 class ClashConfiguration(BaseSubscription):
     def __init__(
@@ -89,6 +92,9 @@ class ClashConfiguration(BaseSubscription):
             if directive.include_proxies:
                 selected = [name for name, host in self._proxy_hosts if directive.select.matches(host)]
                 group["proxies"] = merge_group_members(group.get("proxies"), selected)
+            if not group.get("proxies") and not any(group.get(key) for key in CLASH_GROUP_MEMBER_SOURCES):
+                # mihomo rejects the whole config over a group without members.
+                group["proxies"] = ["DIRECT"]
         return to_yaml(data)
 
     def __str__(self) -> str:

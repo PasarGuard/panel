@@ -2,6 +2,7 @@ import json
 import re
 from copy import deepcopy
 from dataclasses import dataclass
+from itertools import chain
 from random import choice
 
 from pydantic import BaseModel
@@ -146,19 +147,31 @@ class XrayConfiguration(BaseSubscription):
             skip_index = item.host_index
             json_template["remarks"] = host.candidate.remark
 
+        injected: list[tuple[_XrayHost, str]] = []
+        # Balancers and observatories select outbounds by tag prefix, so helper outbounds (freedom dialers that
+        # go direct) must never start with an injected tag or tag prefix.
+        reserved_prefixes: set[str] = set()
         for inject in item.directive.inject:
             selected = [
                 host
                 for index, host in enumerate(self._hosts)
                 if index != skip_index and inject.select.matches(host.candidate)
             ]
+            if inject.tag_prefix or inject.tag_from == "index":
+                reserved_prefixes.add(inject.tag_prefix or "proxy")
             for number, host in enumerate(selected, start=1):
                 if inject.tag_from == "remark":
                     name = self._sanitize_tag(host.candidate.remark) or str(number)
                     base_tag = f"{inject.tag_prefix}-{name}" if inject.tag_prefix else name
                 else:
                     base_tag = f"{inject.tag_prefix or 'proxy'}-{number}"
-                outbounds.extend(self._retag_outbounds(host.outbounds, base_tag, used_tags))
+                reserved_prefixes.add(base_tag)
+                injected.append((host, base_tag))
+
+        if skip_index is not None:
+            outbounds = self._retag_outbounds(outbounds, None, used_tags, reserved_prefixes)
+        for host, base_tag in injected:
+            outbounds.extend(self._retag_outbounds(host.outbounds, base_tag, used_tags, reserved_prefixes))
 
         json_template["outbounds"] = outbounds + template_outbounds
         return json_template
@@ -177,15 +190,32 @@ class XrayConfiguration(BaseSubscription):
         used_tags.add(tag)
         return tag
 
+    @staticmethod
+    def _helper_tag(old_tag: str, main_tag: str, reserved_prefixes: set[str]) -> str:
+        """Tag for a helper outbound that no balancer/observatory prefix selector of the injected tags matches."""
+        base = f"{old_tag}-{main_tag}"
+        if not any(base.startswith(prefix) for prefix in reserved_prefixes):
+            return base
+        taken_first_chars = {prefix[0] for prefix in reserved_prefixes if prefix}
+        candidates = chain("_~", map(chr, range(0x21, 0x110000)))
+        lead = next(char for char in candidates if char not in taken_first_chars)
+        return f"{lead}{base}"
+
     @classmethod
-    def _retag_outbounds(cls, outbounds: list[dict], base_tag: str, used_tags: set) -> list[dict]:
-        """Copy a host's outbounds under a new tag; helper outbounds (fragment/noise dialer) follow the new tag."""
+    def _retag_outbounds(
+        cls, outbounds: list[dict], base_tag: str | None, used_tags: set, reserved_prefixes: set[str]
+    ) -> list[dict]:
+        """Copy a host's outbounds, the main one under ``base_tag`` (None keeps it); helper outbounds
+        (fragment/noise dialer) get tags outside ``reserved_prefixes`` and dialerProxy references follow them."""
         main, *helpers = deepcopy(outbounds)
-        main["tag"] = cls._unique_tag(base_tag, used_tags)
+        if base_tag is not None:
+            main["tag"] = cls._unique_tag(base_tag, used_tags)
         renamed = {}
         for helper in helpers:
             old_tag = helper.get("tag")
-            helper["tag"] = cls._unique_tag(f"{main['tag']}-{old_tag}", used_tags)
+            if base_tag is None and not any(str(old_tag).startswith(prefix) for prefix in reserved_prefixes):
+                continue
+            helper["tag"] = cls._unique_tag(cls._helper_tag(old_tag, main["tag"], reserved_prefixes), used_tags)
             renamed[old_tag] = helper["tag"]
         if renamed:
             cls._rename_dialer_proxies(main, renamed)
@@ -901,7 +931,7 @@ class XrayConfiguration(BaseSubscription):
                 finalmask = finalmask.model_dump(exclude_none=True, by_alias=True, mode="json")
             try:
                 finalmask = FinalMask.model_validate(finalmask)
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 pass
             if isinstance(finalmask, (FinalMask, dict)):
                 stream_settings["finalmask"] = dump_final_mask_for_xray(finalmask)

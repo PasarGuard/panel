@@ -171,7 +171,7 @@ def test_subscription_uses_rule_template_only_for_matching_client(access_token, 
         assert "pasarguard" not in config
         tags = [outbound["tag"] for outbound in config["outbounds"]]
         assert tags[-1] == "single-template-marker"
-        assert len([tag for tag in tags if tag.startswith("pool-") and "dialer" not in tag]) == len(rule_configs)
+        assert len([tag for tag in tags if tag.startswith("pool-")]) == len(rule_configs)
     finally:
         mock_settings["subscription"]["rules"] = original_mock_rules
         _restore(access_token, original)

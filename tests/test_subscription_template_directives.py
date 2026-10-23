@@ -27,6 +27,12 @@ HOSTS = [
     (4, "US-1", "us-ws", "us1.example.com"),
 ]
 
+# HOSTS with fragment settings, so every xray host also gets a freedom "dialer" helper outbound
+FRAGMENT_HOSTS = [
+    (*host, {"fragment_settings": {"xray": {"packets": "tlshello", "length": "100-200", "interval": "10-20"}}})
+    for host in HOSTS
+]
+
 XRAY_TEMPLATE = {
     "inbounds": [{"tag": "socks", "protocol": "socks", "port": 10808}],
     "outbounds": [
@@ -107,8 +113,9 @@ def _host(remark: str, inbound_tag: str, address: str, **extra) -> SubscriptionI
 
 
 def _fill(conf, hosts=HOSTS, **add_kwargs):
-    for host_id, remark, inbound_tag, address in hosts:
-        conf.add(remark, address, _host(remark, inbound_tag, address), SETTINGS, host_id=host_id, **add_kwargs)
+    for host_id, remark, inbound_tag, address, *extra in hosts:
+        inbound = _host(remark, inbound_tag, address, **(extra[0] if extra else {}))
+        conf.add(remark, address, inbound, SETTINGS, host_id=host_id, **add_kwargs)
     return conf
 
 
@@ -271,10 +278,60 @@ def test_xray_inject_renames_fragment_dialer_helpers():
     (config,) = json.loads(conf.render())
 
     tags = [o["tag"] for o in config["outbounds"]]
-    assert tags == ["proxy-1", "proxy-1-dialer", "proxy-2", "proxy-2-dialer", "direct", "block"]
-    assert config["outbounds"][0]["streamSettings"]["sockopt"]["dialerProxy"] == "proxy-1-dialer"
-    assert config["outbounds"][2]["streamSettings"]["sockopt"]["dialerProxy"] == "proxy-2-dialer"
+    assert tags == ["proxy-1", "dialer-proxy-1", "proxy-2", "dialer-proxy-2", "direct", "block"]
+    assert config["outbounds"][0]["streamSettings"]["sockopt"]["dialerProxy"] == "dialer-proxy-1"
+    assert config["outbounds"][2]["streamSettings"]["sockopt"]["dialerProxy"] == "dialer-proxy-2"
     assert config["outbounds"][1]["settings"]["fragment"]["packets"] == "tlshello"
+
+
+@pytest.mark.parametrize(
+    "directive",
+    [
+        {"mode": "single", "inject": [{}]},
+        {"mode": "single", "inject": [{"tag_prefix": "dialer"}]},
+        {"mode": "single", "inject": [{"tag_prefix": "d"}, {"tag_prefix": "_", "tag_from": "remark"}]},
+        {"mode": "single", "inject": [{"tag_from": "remark"}]},
+        {"inject": [{}]},
+        {"inject": [{"tag_prefix": "di"}]},
+        {"inject": [{"select": {"remark_regex": "^DE"}, "tag_prefix": "de"}, {"tag_prefix": "fallback"}]},
+    ],
+)
+def test_xray_helper_outbounds_never_match_injected_tag_prefixes(directive):
+    """Balancers/observatories select by tag prefix: a direct freedom dialer must never fall under one."""
+    template = {**XRAY_TEMPLATE, "pasarguard": directive}
+    configs = json.loads(_fill(XrayConfiguration(xray_template_content=json.dumps(template)), FRAGMENT_HOSTS).render())
+    assert configs
+
+    injects = directive["inject"]
+    prefixes = {inject.get("tag_prefix") or "proxy" for inject in injects if inject.get("tag_from") != "remark"}
+    prefixes |= {inject["tag_prefix"] for inject in injects if inject.get("tag_prefix")}
+    for config in configs:
+        outbounds = config["outbounds"][: -len(XRAY_TEMPLATE["outbounds"])]
+        tags = [outbound["tag"] for outbound in outbounds]
+        assert len(tags) == len(set(tags))
+        mains = [outbound for outbound in outbounds if outbound["protocol"] == "vless"]
+        helpers = [outbound for outbound in outbounds if outbound["protocol"] == "freedom"]
+        assert helpers and len(helpers) == len(mains)
+        injected_main_tags = {outbound["tag"] for outbound in mains} - {"proxy"}
+        for helper in helpers:
+            assert not any(helper["tag"].startswith(prefix) for prefix in prefixes | injected_main_tags), helper["tag"]
+        # every main points at its own, existing helper
+        dialers = [outbound["streamSettings"]["sockopt"]["dialerProxy"] for outbound in mains]
+        assert sorted(dialers) == sorted(helper["tag"] for helper in helpers)
+
+
+def test_xray_per_host_own_helper_keeps_upstream_tag_when_it_does_not_collide():
+    template = {**XRAY_TEMPLATE, "pasarguard": {"inject": [{"tag_prefix": "pool"}]}}
+    configs = json.loads(_fill(XrayConfiguration(xray_template_content=json.dumps(template)), FRAGMENT_HOSTS).render())
+    own_main, own_helper = configs[0]["outbounds"][:2]
+    assert (own_main["tag"], own_helper["tag"]) == ("proxy", "dialer")
+    assert own_main["streamSettings"]["sockopt"]["dialerProxy"] == "dialer"
+
+
+def test_xray_without_directive_keeps_upstream_helper_tags():
+    conf = XrayConfiguration(xray_template_content=json.dumps(XRAY_TEMPLATE))
+    configs = json.loads(_fill(conf, FRAGMENT_HOSTS).render())
+    assert all([o["tag"] for o in config["outbounds"]] == ["proxy", "dialer", "direct", "block"] for config in configs)
 
 
 def test_xray_host_level_template_directive_uses_host_ids():
@@ -350,6 +407,39 @@ def test_singbox_include_proxies_false_leaves_group_as_written():
     assert config["outbounds"][0] == {"type": "selector", "tag": "select", "outbounds": ["auto", "direct"]}
 
 
+@pytest.mark.parametrize("include_proxies", [True, False])
+def test_singbox_empty_directive_group_falls_back_to_direct(include_proxies):
+    template = json.loads(json.dumps(SINGBOX_TEMPLATE))
+    template["outbounds"][1]["pasarguard"] = {
+        "include_proxies": include_proxies,
+        "select": {"remark_regex": "^nothing-matches"},
+    }
+    config = _singbox(template)
+
+    assert config["outbounds"][1]["outbounds"] == ["direct"]
+    assert [o["tag"] for o in config["outbounds"] if o["type"] == "direct"] == ["direct"]
+
+
+def test_singbox_empty_directive_group_adds_direct_outbound_when_template_has_none():
+    template = json.loads(json.dumps(SINGBOX_TEMPLATE))
+    template["outbounds"] = [o for o in template["outbounds"] if o["type"] != "direct"]
+    template["outbounds"].append({"type": "block", "tag": "direct"})
+    template["outbounds"][1]["pasarguard"] = {"select": {"host_ids": [999]}}
+    config = _singbox(template)
+
+    assert config["outbounds"][1]["outbounds"] == ["direct-2"]
+    assert {"type": "direct", "tag": "direct-2"} in config["outbounds"]
+
+
+def test_singbox_non_empty_directive_group_gets_no_fallback():
+    template = json.loads(json.dumps(SINGBOX_TEMPLATE))
+    template["outbounds"][1]["pasarguard"] = {"select": {"host_ids": [3]}}
+    config = _singbox(template)
+
+    assert config["outbounds"][1]["outbounds"] == ["NL-1"]
+    assert [o["tag"] for o in config["outbounds"] if o["type"] == "direct"] == ["direct"]
+
+
 def test_singbox_template_validation():
     good = json.loads(json.dumps(SINGBOX_TEMPLATE))
     good["outbounds"][1]["pasarguard"] = {"select": {"inbound_tag_regex": "^de"}}
@@ -423,3 +513,20 @@ def test_clash_template_validation():
     validate_clash_template_directives({"proxy-groups": [{"name": "a", "pasarguard": {"include-proxies": True}}]})
     with pytest.raises(ValueError):
         validate_clash_template_directives({"proxy-groups": [{"name": "a", "pasarguard": {"select": {"bad": 1}}}]})
+
+
+def test_clash_empty_directive_group_falls_back_to_direct():
+    template = CLASH_TEMPLATE.replace(
+        "rules:\n",
+        "- name: 'Nothing'\n  type: 'url-test'\n  proxies: []\n  pasarguard: {select: {host_ids: [999]}}\n"
+        "- name: 'Written'\n  type: 'select'\n  pasarguard: {include-proxies: false}\n"
+        "- name: 'Provider'\n  type: 'select'\n  use: ['remote']\n  pasarguard: {select: {host_ids: [999]}}\n"
+        "- name: 'Picked'\n  type: 'select'\n  proxies: []\n  pasarguard: {select: {host_ids: [3]}}\n"
+        "rules:\n",
+    )
+    groups = {group["name"]: group for group in yaml.safe_load(_clash(template))["proxy-groups"]}
+
+    assert groups["Nothing"]["proxies"] == ["DIRECT"]
+    assert groups["Written"]["proxies"] == ["DIRECT"]
+    assert groups["Provider"]["proxies"] == []
+    assert groups["Picked"]["proxies"] == ["NL-1"]

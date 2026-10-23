@@ -107,10 +107,26 @@ class SingBoxConfiguration(BaseSubscription):
     def _apply_group_directive(self, outbound: dict) -> None:
         """Fill a selector/urltest that has a pasarguard directive with the proxies it selects."""
         directive = parse_group_directive(outbound.pop(DIRECTIVE_KEY), f"sing-box outbound {outbound.get('tag')!r}")
-        if not directive.include_proxies:
-            return
-        selected = [tag for tag, host in self._proxy_hosts if directive.select.matches(host)]
-        outbound["outbounds"] = merge_group_members(outbound.get("outbounds"), selected)
+        if directive.include_proxies:
+            selected = [tag for tag, host in self._proxy_hosts if directive.select.matches(host)]
+            outbound["outbounds"] = merge_group_members(outbound.get("outbounds"), selected)
+        if not outbound.get("outbounds"):
+            # sing-box rejects the whole config over a group without members.
+            outbound["outbounds"] = [self._direct_outbound_tag()]
+
+    def _direct_outbound_tag(self) -> str:
+        """Tag of the config's direct outbound, adding ``{"type": "direct", "tag": "direct"}`` if there is none."""
+        for outbound in self.config["outbounds"]:
+            if outbound.get("type") == "direct" and outbound.get("tag"):
+                return outbound["tag"]
+        used_tags = {item.get("tag") for item in [*self.config["outbounds"], *self.config.get("endpoints", [])]}
+        tag = "direct"
+        suffix = 2
+        while tag in used_tags:
+            tag = f"direct-{suffix}"
+            suffix += 1
+        self.config["outbounds"].append({"type": "direct", "tag": tag})
+        return tag
 
     def add(
         self,
