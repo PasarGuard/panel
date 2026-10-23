@@ -1,9 +1,9 @@
 """A pool of its own for the work that renders admin-written templates.
 
-Rendering is CPU-bound Python that cannot be interrupted, only bounded (see limits.py). On the default executor, a
-burst of heavy renders would queue up behind the same threads everything else offloads to. Here it can only make
-subscriptions slower or, past the backlog, refuse them: `RenderPool.run` raises `TemplatesBusy` and the caller answers 503,
-which clients retry.
+Rendering is CPU-bound Python that cannot be interrupted, only bounded (by the timeout and backlog below). On the
+default executor, a burst of heavy renders would queue up behind the same threads everything else offloads to. Here it
+can only make subscriptions slower or, past the backlog, refuse them: `RenderPool.run` raises `TemplatesBusy` and the
+caller answers 503, which clients retry.
 
 Checking a template in the editor is rendering too, with many sample hosts. It has a pool of its own, so an admin who
 validates in a loop can only get refused themselves, not the subscriptions of everyone.

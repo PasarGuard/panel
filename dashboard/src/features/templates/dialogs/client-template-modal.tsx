@@ -140,8 +140,9 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
         const result = await validateClientTemplate({ template_type: templateType, content, use_jinja: useJinja })
         if (!stale) setLiveCheck(result.valid ? null : { error: result.error ?? '', line: result.line ?? null })
       } catch {
-        // The check is advisory (it can fail for lack of permission, or when the server is busy), so a failed call
-        // keeps what was shown; saving validates on the server regardless.
+        // The check is advisory (it can fail for lack of permission, or when the server is busy). A failed call must not
+        // leave the previous error behind, as it would keep Submit disabled; saving validates on the server regardless.
+        if (!stale) setLiveCheck(null)
       }
     }, LIVE_CHECK_DELAY_MS)
 
