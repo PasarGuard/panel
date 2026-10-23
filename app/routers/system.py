@@ -128,10 +128,12 @@ async def webhook_handler(request: Request, X_Telegram_Bot_Api_Secret_Token: str
 
     bot = get_bot()
     if not bot:
-        return JSONResponse(status_code=200, content={"status": "ok"})
+        raise HTTPException(status_code=503, detail="Telegram dispatcher is temporarily unavailable")
     dp = get_dispatcher()
 
     update_data = await request.json()
     update = Update.model_validate(update_data, context={"bot": bot})
-    asyncio.create_task(dp.feed_update(bot, update))
+    # A 200 acknowledges delivery to Telegram. Keep failed/shared-state-unavailable
+    # updates retryable rather than abandoning them in an untracked background task.
+    await dp.feed_update(bot, update)
     return JSONResponse(status_code=200, content={"status": "ok"})

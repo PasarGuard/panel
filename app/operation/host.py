@@ -135,7 +135,7 @@ class HostOperation(BaseOperation):
 
         asyncio.create_task(notification.remove_host(host, admin.username))
 
-        await host_manager.remove_host(host.id)
+        await host_manager.remove_host(host.id, db=db)
 
     async def modify_hosts(
         self, db: AsyncSession, modified_hosts: list[CreateHost], admin: AdminDetails
@@ -189,13 +189,13 @@ class HostOperation(BaseOperation):
 
         # Batch delete using CRUD function
         await remove_hosts(db, host_ids)
+        await host_manager.remove_hosts(host_ids, db=db)
 
         # Update host manager and notify
         for db_host in db_hosts:
             logger.info(f'Host "{db_host.id}" deleted by admin "{admin.username}"')
             host = BaseHost.model_validate(db_host)
             asyncio.create_task(notification.remove_host(host, admin.username))
-            await host_manager.remove_host(host.id)
 
         return RemoveHostsResponse(hosts=[str(h.id) for h in db_hosts], count=len(db_hosts))
 

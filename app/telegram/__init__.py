@@ -1,6 +1,8 @@
 import asyncio
 import hashlib
+import time
 from asyncio import Lock
+from contextlib import nullcontext
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -9,10 +11,13 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from nats.js.kv import KeyValue
 
 from app import on_shutdown, on_startup
+from app.db import GetDB
+from app.db.crud.settings import get_settings
 from app.models.settings import RunMethod, Telegram
 from app.nats import is_nats_enabled
 from app.nats.client import setup_nats_kv
-from app.settings import telegram_settings
+from app.nats.kv_cas import kv_get_json, kv_put_json
+from app.nats.lease import kv_lease
 from app.utils.logger import get_logger
 from config import nats_settings
 
@@ -36,6 +41,9 @@ class TelegramBotManager:
         self._settings_key: tuple | None = None
         self._kv: KeyValue | None = None
         self._nats_conn = None
+        self._retry_task: asyncio.Task | None = None
+        self._webhook_verified_until = 0.0
+        self._last_webhook_token: str | None = None
 
     @staticmethod
     def _create_dispatcher() -> Dispatcher:
@@ -63,79 +71,145 @@ class TelegramBotManager:
             settings.webhook_secret,
         )
 
-    async def _try_claim_webhook_initiator(self, settings: Telegram) -> bool:
-        """
-        Determine if this worker should call set_webhook.
+    @staticmethod
+    async def _read_settings() -> Telegram:
+        """Webhook coordination must use the committed settings, not a worker's cache."""
+        async with GetDB() as db:
+            row = await get_settings(db)
+            return Telegram.model_validate(row.telegram)
 
-        In single-worker mode (NATS disabled): always return True.
-        In multi-worker mode (NATS enabled): use KV store to coordinate.
-          - Compute a fingerprint of current webhook settings.
-          - Get the last-set fingerprint from KV.
-          - If missing or different: this is the initiator, set KV and return True.
-          - If same: another worker already set it, return False.
-        """
-        if not is_nats_enabled():
-            return True
+    async def _ensure_webhook_kv(self):
+        if self._nats_conn is not None and self._nats_conn.is_closed:
+            self._kv = self._nats_conn = None
+        if self._kv is None:
+            self._nats_conn, _, self._kv = await setup_nats_kv(nats_settings.telegram_kv_bucket)
+        if self._kv is None:
+            raise RuntimeError("Shared Telegram webhook coordination is unavailable")
+        return self._kv
 
+    @staticmethod
+    def _webhook_fingerprint(settings: Telegram) -> str:
+        value = f"{settings.enable}:{settings.token}:{settings.webhook_url}:{settings.webhook_secret}"
+        return hashlib.sha256(value.encode()).hexdigest()
+
+    async def _configure_webhook(self, settings: Telegram) -> None:
+        """Serialize registration and record only a successful, verified outcome."""
+        kv = await self._ensure_webhook_kv() if is_nats_enabled() else None
+        async with kv_lease(kv, "webhook_control") if kv is not None else nullcontext():
+            current = await self._read_settings()
+            if self._settings_key_from_model(current) != self._settings_key_from_model(settings):
+                raise RuntimeError("Telegram settings changed during registration")
+            fingerprint = self._webhook_fingerprint(settings)
+            receipt, _ = await kv_get_json(kv, "webhook_state_v2") if kv is not None else (None, 0)
+            address = f"{settings.webhook_url}/api/tghook"
+            verified = False
+            if receipt is not None and receipt.get("fingerprint") == fingerprint:
+                async with asyncio.timeout(10):
+                    info = await self._bot.get_webhook_info()
+                verified = info.url == address
+            if not verified:
+                async with asyncio.timeout(10):
+                    await self._bot.set_webhook(
+                        address,
+                        secret_token=settings.webhook_secret,
+                        allowed_updates=["message", "callback_query", "inline_query"],
+                        drop_pending_updates=False,
+                    )
+            self._last_webhook_token = settings.token
+            if kv is not None:
+                await kv_put_json(kv, "webhook_state_v2", {"fingerprint": fingerprint})
+            self._webhook_verified_until = time.monotonic() + 60
+
+    async def _delete_obsolete_webhook(self, settings: Telegram) -> None:
+        """Delete only a bot no longer selected by the committed panel settings."""
+        if self._polling_task is not None:
+            return
+        old_token = self._last_webhook_token or (
+            self._settings_key[1] if self._settings_key is not None else settings.token
+        )
+        if not old_token:
+            return
+        if settings.enable and settings.method == RunMethod.WEBHOOK and settings.token == old_token:
+            return
+        kv = await self._ensure_webhook_kv() if is_nats_enabled() else None
+        async with kv_lease(kv, "webhook_control") if kv is not None else nullcontext():
+            current = await self._read_settings()
+            if current.enable and current.method == RunMethod.WEBHOOK and current.token == old_token:
+                return
+            fingerprint = hashlib.sha256(f"disabled:{old_token}".encode()).hexdigest()
+            receipt, _ = await kv_get_json(kv, "webhook_state_v2") if kv is not None else (None, 0)
+            if receipt is not None and receipt.get("fingerprint") == fingerprint:
+                self._last_webhook_token = None
+                return
+            bot = self._bot
+            temporary = bot is None or bot.token != old_token
+            if temporary:
+                bot = Bot(token=old_token, session=NativeTLSAiohttpSession(proxy=settings.proxy_url))
+            try:
+                async with asyncio.timeout(10):
+                    await bot.delete_webhook(drop_pending_updates=False)
+                self._last_webhook_token = None
+                if kv is not None:
+                    await kv_put_json(kv, "webhook_state_v2", {"fingerprint": fingerprint})
+            finally:
+                if temporary:
+                    await bot.session.close()
+
+    def _schedule_retry(self) -> None:
+        if self._stop_requested or (self._retry_task is not None and not self._retry_task.done()):
+            return
+        self._retry_task = asyncio.create_task(self._retry_settings(), name="telegram-settings-retry")
+
+    async def _retry_settings(self) -> None:
+        """Retry a failed registration without turning a Telegram outage into an API startup failure."""
         try:
-            # Set up KV connection if not already done
-            if not self._kv:
-                self._nats_conn, _js, self._kv = await setup_nats_kv(nats_settings.telegram_kv_bucket)
-                if not self._kv:
-                    logger.warning("NATS KV unavailable, allowing this worker to set webhook")
-                    return True
-
-            # Compute a fingerprint of the webhook settings
-            settings_bytes = f"{settings.token}:{settings.webhook_url}:{settings.webhook_secret}".encode()
-            fingerprint = hashlib.sha256(settings_bytes).hexdigest()
-
-            # Try to get the last-set fingerprint
-            try:
-                entry = await self._kv.get("webhook_set")
-                last_fingerprint = entry.value.decode() if entry else None
-            except Exception:
-                last_fingerprint = None
-
-            # If the last fingerprint matches, skip
-            if last_fingerprint == fingerprint:
-                logger.info("Webhook already set by another worker, skipping set_webhook")
-                return False
-
-            # Otherwise, claim initiator role and update KV
-            try:
-                await self._kv.put("webhook_set", fingerprint.encode())
-                logger.info("Claimed webhook initiator role, will call set_webhook")
-                return True
-            except Exception as e:
-                logger.warning(f"Failed to update webhook fingerprint in KV: {e}, proceeding anyway")
-                return True
-
-        except Exception as e:
-            logger.warning(f"KV coordination failed: {e}, allowing this worker to set webhook")
-            return True
+            while not self._stop_requested:
+                await asyncio.sleep(5)
+                await self.sync_from_settings()
+                if self._settings_key is not None:
+                    return
+        finally:
+            if self._retry_task is asyncio.current_task():
+                self._retry_task = None
 
     async def sync_from_settings(self, force: bool = False):
-        settings: Telegram = await telegram_settings()
         async with self._lock:
             if self._stop_requested:
                 return
-
-            new_key = self._settings_key_from_model(settings)
-            if not force and new_key == self._settings_key:
-                return
-
-            await self._shutdown_locked()
-
-            if settings and settings.enable:
-                # Determine if this worker should call set_webhook
-                is_initiator = (
-                    await self._try_claim_webhook_initiator(settings) if settings.method == RunMethod.WEBHOOK else False
-                )
-                await self._start_locked(settings, is_initiator=is_initiator)
-
-            self._settings_key = new_key
+            try:
+                settings = await self._read_settings()
+                new_key = self._settings_key_from_model(settings)
+                if not force and new_key == self._settings_key:
+                    if (
+                        settings.enable
+                        and settings.method == RunMethod.WEBHOOK
+                        and time.monotonic() >= self._webhook_verified_until
+                    ):
+                        await self._configure_webhook(settings)
+                    return
+                await self._delete_obsolete_webhook(settings)
+                await self._shutdown_locked()
+                if settings.enable:
+                    await self._start_locked(settings)
+                self._settings_key = new_key
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # A failed set_webhook never leaves a successful fingerprint or
+                # settings marker behind; another worker or this retry can repair it.
+                self._settings_key = None
+                logger.warning("Telegram settings synchronization failed; retrying", exc_info=True)
+                self._schedule_retry()
 
     async def shutdown(self):
+        self._stop_requested = True
+        if self._retry_task is not None:
+            self._retry_task.cancel()
+            try:
+                await self._retry_task
+            except asyncio.CancelledError:
+                pass
+            self._retry_task = None
         async with self._lock:
             self._stop_requested = True
             await self._shutdown_locked()
@@ -170,7 +244,7 @@ class TelegramBotManager:
 
             await asyncio.sleep(retry_period)
 
-    async def _start_locked(self, settings: Telegram, is_initiator: bool = False):
+    async def _start_locked(self, settings: Telegram):
         if settings.method == RunMethod.LONGPOLLING and is_nats_enabled():
             logger.warning(
                 "Long polling is not supported in multi-worker mode, skipping bot start. "
@@ -195,22 +269,7 @@ class TelegramBotManager:
         if settings.method == RunMethod.LONGPOLLING:
             self._polling_task = asyncio.create_task(self._start_long_polling())
         else:
-            try:
-                # register webhook (only the initiator worker calls set_webhook to avoid rate limits)
-                webhook_address = f"{settings.webhook_url}/api/tghook"
-                logger.info(webhook_address)
-                if is_initiator:
-                    await self._bot.set_webhook(
-                        webhook_address,
-                        secret_token=settings.webhook_secret,
-                        allowed_updates=["message", "callback_query", "inline_query"],
-                        drop_pending_updates=True,
-                    )
-                    logger.info("Telegram bot started successfully.")
-                else:
-                    logger.info("Telegram bot dispatcher ready (webhook set by initiator worker).")
-            except Exception as err:
-                logger.error(f"Register webhook - {err}")
+            await self._configure_webhook(settings)
 
     async def _shutdown_locked(self):
         if self._shutdown_in_progress:
@@ -230,13 +289,7 @@ class TelegramBotManager:
 
                     # Cancel the polling task
                     self._polling_task.cancel()
-
-                else:
-                    logger.info("Deleting webhook")
-                    try:
-                        await self._bot.delete_webhook(drop_pending_updates=True)
-                    except Exception as err:
-                        logger.error(f"Delete webhook - {err}")
+                    await asyncio.gather(self._polling_task, return_exceptions=True)
 
                 if self._bot.session:
                     await self._bot.session.close()

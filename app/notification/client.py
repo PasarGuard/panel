@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import aiohttp
 from pydantic import ValidationError
 
-from app import on_startup
+from app import on_shutdown, on_startup
 from app.models.settings import NotificationSettings
 from app.notification.nats_queue import NotificationDelivery
 from app.notification.queue_manager import (
@@ -24,6 +24,8 @@ from app.utils.http_client import create_outbound_http_session
 from app.utils.logger import get_logger
 
 client: aiohttp.ClientSession | None = None
+_client_lock = asyncio.Lock()
+_client_proxy_url: str | None = None
 
 
 async def define_client():
@@ -31,15 +33,33 @@ async def define_client():
     Re-create the global aiohttp.ClientSession.
     Call this function after changing the proxy setting.
     """
-    global client
-    if client and not client.closed:
-        asyncio.create_task(client.close())
-    settings = await notification_settings()
-    proxy_url = settings.proxy_url
-    client = create_outbound_http_session(proxy=proxy_url if proxy_url else None)
+    global client, _client_proxy_url
+    async with _client_lock:
+        settings = await notification_settings()
+        proxy_url = settings.proxy_url or None
+        if client is not None and not getattr(client, "closed", False) and proxy_url == _client_proxy_url:
+            return
+        previous = client
+        client = create_outbound_http_session(proxy=proxy_url)
+        _client_proxy_url = proxy_url
+        if previous is not None and not getattr(previous, "closed", False):
+            await previous.close()
 
 
 on_startup(define_client)
+
+
+@on_shutdown
+async def close_client():
+    """Close the sender after scheduled/queued notification work has stopped."""
+    global client
+    async with _client_lock:
+        if client is not None and not getattr(client, "closed", False):
+            await client.close()
+        client = None
+
+
+on_shutdown(close_client, priority=90)
 
 logger = get_logger("Notification")
 
@@ -54,6 +74,7 @@ class RateLimitedError(Exception):
 
 async def _post_notification(url: str, **kwargs) -> tuple[bool, float]:
     """Attempt once; queue delays keep rate-limited destinations off the worker."""
+    await define_client()
     async with client.post(url, **kwargs) as response:
         if response.status in (200, 204):
             return True, 0

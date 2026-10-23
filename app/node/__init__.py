@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from collections.abc import Awaitable, Callable, Coroutine
 from typing import Any
 
@@ -31,6 +32,7 @@ class NodeManager:
         self._keep_alives: dict[int, int] = {}
         self._user_sync_locks: dict[int, asyncio.Lock] = {}
         self._user_sync_tasks: dict[int, set[asyncio.Task]] = {}
+        self._cleanup_tasks: set[asyncio.Task] = set()
         self._lock = RWLock(fast=True)
         self.logger = get_logger("node-manager")
 
@@ -85,6 +87,18 @@ class NodeManager:
                 await node.stop()
         except Exception:
             pass
+        finally:
+            # Detach only this process. Shared queues and remote cores survive a
+            # sibling worker's shutdown or replacement of its local connection.
+            with contextlib.suppress(Exception):
+                await node.disconnect()
+            if close_channel := getattr(node, "_close_chan", None):
+                close_channel()
+            for name in ("_client", "_json_client"):
+                client = getattr(node, name, None)
+                if close := getattr(client, "close", None):
+                    with contextlib.suppress(Exception):
+                        await close()
 
     async def _cancel_user_syncs(self, node_id: int) -> None:
         current = asyncio.current_task()
@@ -175,7 +189,15 @@ class NodeManager:
             self._user_sync_tasks.pop(id, None)
 
         # Do cleanup without holding the lock to avoid slow delete operations.
-        asyncio.create_task(self._shutdown_node(old_node, remote_stop=remote_stop))
+        task = asyncio.create_task(self._shutdown_node(old_node, remote_stop=remote_stop))
+        self._cleanup_tasks.add(task)
+        task.add_done_callback(self._cleanup_tasks.discard)
+
+    async def close(self) -> None:
+        for node_id, _ in await self._snapshot_node_items():
+            await self.remove_node(node_id, remote_stop=False)
+        if self._cleanup_tasks:
+            await asyncio.gather(*self._cleanup_tasks, return_exceptions=True)
 
     async def get_node(self, id: int) -> PasarGuardNode | None:
         async with self._lock.reader_lock:

@@ -194,8 +194,23 @@ class NatsNotificationQueue(NotificationQueue):
         self._js: JetStreamContext | None = None
         self._consumer: JetStreamContext.PullSubscription | None = None
         self._retention = RetentionPolicy.WORK_QUEUE
+        self._init_lock = asyncio.Lock()
+        self._creates_consumer = True
+        self._initialized = False
 
     async def initialize(self, create_consumer: bool = True):
+        async with self._init_lock:
+            if self._nc is not None and self._nc.is_closed is not True:
+                return
+            self._creates_consumer = create_consumer
+            await self._initialize(create_consumer)
+            self._initialized = True
+
+    async def _ensure_connection(self):
+        if self._initialized and (self._nc is None or self._nc.is_closed is True):
+            await self.initialize(self._creates_consumer)
+
+    async def _initialize(self, create_consumer: bool):
         if not is_nats_enabled():
             raise RuntimeError("NATS is not enabled")
         self._nc = await create_nats_client()
@@ -326,6 +341,7 @@ class NatsNotificationQueue(NotificationQueue):
                 await self._js.delete_msg(self.RETRY_STREAM, checkpoint.seq)
 
     async def _publish(self, data: bytes, message_id: str):
+        await self._ensure_connection()
         if not self._js:
             raise RuntimeError("JetStream context not available")
         for attempt in range(PUBLISH_TIMEOUT_MAX_ATTEMPTS):
@@ -346,6 +362,7 @@ class NatsNotificationQueue(NotificationQueue):
             raise
 
     async def dequeue(self, timeout: float | None = None) -> NotificationDelivery | None:
+        await self._ensure_connection()
         if not self._consumer:
             raise RuntimeError("Consumer not available")
         try:

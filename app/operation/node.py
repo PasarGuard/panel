@@ -211,6 +211,8 @@ class NodeOperation(BaseOperation):
 
         old_status = db_node.status
 
+        event_id = NodeNotification.revision(db_node)
+
         if expected_status is not None and old_status == status and db_node.message == message:
             return True
 
@@ -240,6 +242,7 @@ class NodeOperation(BaseOperation):
                 name=db_node.name,
                 xray_version=xray_version,
                 node_version=node_version,
+                event_id=event_id,
             )
             asyncio.create_task(notification.connect_node(node_notif))
         elif status == NodeStatus.error and old_status != NodeStatus.error:
@@ -250,6 +253,7 @@ class NodeOperation(BaseOperation):
                 id=db_node.id,
                 name=db_node.name,
                 message=truncated_message,
+                event_id=event_id,
             )
             asyncio.create_task(notification.error_node(node_notif))
 
@@ -941,6 +945,7 @@ class NodeOperation(BaseOperation):
             node_notif = NodeNotification(
                 id=result["node_id"],
                 name=node.name,
+                event_id=NodeNotification.revision(node),
                 xray_version=result.get("xray_version"),
                 node_version=result.get("node_version"),
                 message=result.get("message"),
@@ -1004,6 +1009,7 @@ class NodeOperation(BaseOperation):
 
         # Update node manager
         old_status = db_node.status
+        event_id = NodeNotification.revision(db_node)
         try:
             await node_manager.update_node(db_node)
         except NodeAPIError as e:
@@ -1022,6 +1028,7 @@ class NodeOperation(BaseOperation):
                 node_notif = NodeNotification(
                     id=db_node.id,
                     name=db_node.name,
+                    event_id=event_id,
                     message=e.detail,
                 )
                 asyncio.create_task(notification.error_node(node_notif))
@@ -1052,6 +1059,7 @@ class NodeOperation(BaseOperation):
             node_notif = NodeNotification(
                 id=db_node.id,
                 name=db_node.name,
+                event_id=event_id,
                 xray_version=result.get("xray_version"),
                 node_version=result.get("node_version"),
             )
@@ -1060,6 +1068,7 @@ class NodeOperation(BaseOperation):
             node_notif = NodeNotification(
                 id=db_node.id,
                 name=db_node.name,
+                event_id=event_id,
                 message=result.get("message"),
             )
             asyncio.create_task(notification.error_node(node_notif))
