@@ -112,6 +112,7 @@ def probe(tmp_path, monkeypatch):
     # With UVICORN_WORKERS>1 (CI runs with NATS) the 15 s notification dedup would swallow events that earlier
     # tests already emitted for the same admin or user id; the dedup has its own tests.
     monkeypatch.setattr("app.notification.claim_notification_slot", _always_claim)
+    monkeypatch.setattr(events, "_claim", _always_claim)
     make_plugin(
         tmp_path,
         "probe",

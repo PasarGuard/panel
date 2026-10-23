@@ -36,11 +36,12 @@ def _safe_notification_task(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
-            if not await claim_notification_slot(func.__name__, args, kwargs):
-                return None
+            notify = await claim_notification_slot(func.__name__, args, kwargs)
             if plugin_registry.active:
-                # Plugin events ignore the notification toggles; see app/plugins/events.py
+                # Plugin events ignore the notification toggles and have their own dedup; see app/plugins/events.py
                 plugin_events.emit_notification(func.__name__, func, args, kwargs)
+            if not notify:
+                return None
             return await func(*args, **kwargs)
         except asyncio.CancelledError:
             raise

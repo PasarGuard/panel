@@ -1,14 +1,13 @@
 """Deliver panel events to plugin handlers.
 
 Hook point: ``app.notification._safe_notification_task``. Every facade call in ``app.notification`` goes
-through that wrapper, which first claims a dedup slot (``claim_notification_slot``: in-process when
-``UVICORN_WORKERS=1``, shared NATS KV otherwise). Plugin events are emitted right after a successful claim and
-before the telegram/discord/webhook toggles are checked, so:
+through that wrapper. It hands the call to ``emit_notification`` before the telegram/discord/webhook toggles
+are checked, so plugin events fire even when every notification channel is disabled.
 
-* each event reaches plugins once per cluster, in the process that observed it (API worker, node role,
-  scheduler); the same 15 s dedup window that protects notifications applies (two identical events for the
-  same object inside that window in a multi-worker setup are collapsed into one);
-* plugin events fire even when every notification channel is disabled.
+With ``UVICORN_WORKERS>1`` several workers can observe the same event. Plugin events use their own 15 s dedup
+slot (in-process, shared NATS KV when enabled), keyed by the event name and the payload without usage counters
+and timestamps (``VOLATILE_KEYS``). Only identical events are collapsed: a user disabled and enabled again
+inside the window reaches plugins twice, while notifications (keyed by event and object) send one message.
 
 Handlers run as background tasks with a timeout; they never block or fail the original action.
 """
@@ -16,7 +15,9 @@ Handlers run as background tasks with a timeout; they never block or fail the or
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
+import json
 from copy import deepcopy
 from typing import Any
 
@@ -31,6 +32,21 @@ HANDLER_TIMEOUT = 10.0
 ALL_EVENTS = "*"
 # Never handed to plugins: dropped from the payload top level and from the top level of each dumped model.
 SENSITIVE_KEYS = frozenset({"password", "hashed_password", "api_key"})
+# Change between two observations of one event; left out of the dedup key (top level and one level down)
+VOLATILE_KEYS = frozenset(
+    {
+        "used_traffic",
+        "lifetime_used_traffic",
+        "online_at",
+        "edit_at",
+        "updated_at",
+        "sub_updated_at",
+        "last_status_change",
+        "last_used_at",
+        "uplink",
+        "downlink",
+    }
+)
 
 # app.notification facade function -> plugin event name
 EVENT_NAMES: dict[str, str] = {
@@ -122,15 +138,44 @@ def emit(event: str, payload: dict) -> None:
     task.add_done_callback(_tasks.discard)
 
 
+def event_key(event: str, payload: dict) -> str:
+    def stable(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: item for key, item in value.items() if key not in VOLATILE_KEYS}
+        return value
+
+    data = {key: stable(value) for key, value in payload.items() if key not in VOLATILE_KEYS}
+    raw = json.dumps(data, sort_keys=True, default=str)
+    return f"pe.{hashlib.sha256(f'{event}|{raw}'.encode()).hexdigest()[:24]}"
+
+
+async def _claim(key: str, event: str) -> bool:
+    from app.notification.dedup import claim_slot
+
+    return await claim_slot(key, event)
+
+
 def emit_notification(func_name: str, func, args: tuple, kwargs: dict) -> None:
-    """Called by the notification wrapper after the dedup claim. Never raises."""
+    """Called by the notification wrapper; claims a dedup slot for the payload in the background. Never raises."""
     try:
         event = EVENT_NAMES.get(func_name)
         if event is None or not handlers_for(event):
             return
-        emit(event, build_payload(event, func, args, kwargs))
+        payload = build_payload(event, func, args, kwargs)
+        task = asyncio.create_task(_claim_and_dispatch(event, payload))
+        _tasks.add(task)
+        task.add_done_callback(_tasks.discard)
     except Exception:
         logger.exception(f"Could not emit plugin event for {func_name}")
+
+
+async def _claim_and_dispatch(event: str, payload: dict) -> None:
+    try:
+        if not await _claim(event_key(event, payload), event):
+            return
+    except Exception:
+        logger.exception(f"Plugin event dedup failed for {event}")
+    await _dispatch(event, payload, handlers_for(event))
 
 
 async def _run_handler(ctx, handler, event: str, payload: dict) -> None:

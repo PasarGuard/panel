@@ -193,6 +193,43 @@ def test_api_key_event_keeps_key_object_without_raw_key():
     assert "api_key" not in payload
 
 
+async def test_state_change_inside_dedup_window_reaches_plugins(clean_plugins, monkeypatch):
+    from app.notification import admin_login, dedup
+
+    dedup._local_claims.clear()
+    monkeypatch.setattr(dedup.server_settings, "workers", 2)
+    monkeypatch.setattr(dedup, "is_nats_enabled", lambda: False)
+
+    async def _disabled():
+        class _Admin:
+            login = False
+
+        class _Settings:
+            admin = _Admin()
+
+        return _Settings()
+
+    monkeypatch.setattr("app.notification.notification_enable", _disabled)
+    ctx = PluginContext("demo", "1.0.0")
+    received: list[bool] = []
+
+    async def remember(payload):
+        received.append(payload["success"])
+
+    ctx.on("admin.login", remember)
+    registry.active.append(ctx)
+    try:
+        # Failed then successful login of one admin: the notification dedup key is the same for both
+        await admin_login("dedup-admin", "x", "1.2.3.4", False)
+        await admin_login("dedup-admin", "x", "1.2.3.4", True)
+        # Exactly the same event seen by a second worker is still collapsed
+        await admin_login("dedup-admin", "x", "1.2.3.4", True)
+        await events.drain()
+    finally:
+        dedup._local_claims.clear()
+    assert received == [False, True]
+
+
 def test_jobs_registered_only_in_scheduler_role(tmp_path, clean_plugins):
     code = """
     def setup(ctx):

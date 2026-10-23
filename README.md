@@ -385,9 +385,9 @@ enabled plugins and runs `setup()`, so install the same plugins with the same `P
 
 - Routes are served only by processes that run the panel API.
 - Jobs run only in the scheduler role and only on the current job leader, so a job runs once per cluster.
-- Each event reaches plugins once, in the process where it happened (the same deduplication as panel
-  notifications; two identical events for the same object within 15 seconds are merged in a multi-worker
-  setup).
+- Each event reaches plugins once, in the process where it happened. In a multi-worker setup, events with
+  the same name and the same data (usage counters and timestamps aside) within 15 seconds are merged; a
+  change of state, such as a user disabled and enabled again, reaches plugins every time.
 - Saving settings updates the database and tells the other workers over NATS; `on_change` runs in every
   worker.
 
