@@ -53,3 +53,27 @@ test('reports invalid numbers and JSON', () => {
   const { errors } = fromFormValues(fields, values)
   assert.deepEqual(errors, { days: 'number', ratio: 'number', plans: 'json' })
 })
+
+test('keeps null and missing keys when other fields are saved', () => {
+  const fields = schemaFields({
+    type: 'object',
+    properties: {
+      token: { type: ['string', 'null'], default: null },
+      limit: { type: ['integer', 'null'] },
+      note: { type: 'string' },
+      title: { type: 'string' },
+      mode: { type: 'string', enum: ['a', 'b'] },
+      days: { type: 'integer' },
+    },
+  })
+  assert.equal(fields[0].nullable, true)
+  assert.equal(fields[2].nullable, false)
+  const settings = { token: null, limit: null, title: 'old', days: 3 }
+  const values = { ...toFormValues(fields, settings), days: '5', title: '' }
+  const { data, errors } = fromFormValues(fields, values, settings)
+  assert.deepEqual(errors, {})
+  // null stays null, an absent optional string or enum is not sent as '', a cleared text field is ''
+  assert.deepEqual(data, { token: null, limit: null, title: '', days: 5 })
+  assert.equal('note' in data, false)
+  assert.equal('mode' in data, false)
+})

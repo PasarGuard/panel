@@ -24,6 +24,8 @@ export interface PluginField {
   label: string
   description?: string
   required: boolean
+  /** The schema allows null: an empty input is saved as null. */
+  nullable: boolean
   options?: string[]
   minimum?: number
   maximum?: number
@@ -36,6 +38,8 @@ const mainType = (schema: JsonSchema): string | undefined => {
   if (Array.isArray(schema.type)) return schema.type.find(type => type !== 'null')
   return schema.type
 }
+
+const allowsNull = (schema: JsonSchema): boolean => (Array.isArray(schema.type) ? schema.type.includes('null') : schema.type === 'null')
 
 export function fieldKind(schema: JsonSchema): PluginFieldKind {
   if (Array.isArray(schema.enum) && schema.enum.length > 0 && schema.enum.every(value => typeof value === 'string')) return 'enum'
@@ -54,6 +58,7 @@ export function schemaFields(schema: JsonSchema | null | undefined): PluginField
     label: property?.title || name,
     description: property?.description,
     required: required.has(name),
+    nullable: allowsNull(property ?? {}),
     options: Array.isArray(property?.enum) ? property.enum.map(String) : undefined,
     minimum: property?.minimum,
     maximum: property?.maximum,
@@ -83,6 +88,8 @@ export function toFormValues(fields: PluginField[], settings: Record<string, unk
 
 /**
  * Build the PUT body. Keys the form does not know (no schema property) are kept from `current`.
+ * An empty input becomes null when the schema allows null; otherwise the key is dropped, except a text field
+ * that already had a value (clearing it saves ''). So null and missing keys survive a save of other fields.
  * Returns field errors ('json' | 'number') for values that cannot be converted; the server validates the rest.
  */
 export function fromFormValues(fields: PluginField[], values: PluginFormValues, current: Record<string, unknown> = {}): { data: Record<string, unknown>; errors: Record<string, 'json' | 'number'> } {
@@ -98,7 +105,7 @@ export function fromFormValues(fields: PluginField[], values: PluginFormValues, 
       case 'integer': {
         const text = String(raw ?? '').trim()
         if (text === '') {
-          delete data[field.name]
+          emptyValue(data, field)
           break
         }
         const parsed = Number(text)
@@ -115,7 +122,7 @@ export function fromFormValues(fields: PluginField[], values: PluginFormValues, 
       case 'json': {
         const text = String(raw ?? '').trim()
         if (text === '') {
-          delete data[field.name]
+          emptyValue(data, field)
           break
         }
         try {
@@ -125,9 +132,17 @@ export function fromFormValues(fields: PluginField[], values: PluginFormValues, 
         }
         break
       }
-      default:
-        data[field.name] = String(raw ?? '')
+      default: {
+        const text = String(raw ?? '')
+        if (text === '' && (field.nullable || field.kind === 'enum' || current[field.name] === undefined || current[field.name] === null)) emptyValue(data, field)
+        else data[field.name] = text
+      }
     }
   }
   return { data, errors }
+}
+
+function emptyValue(data: Record<string, unknown>, field: PluginField) {
+  if (field.nullable) data[field.name] = null
+  else delete data[field.name]
 }
