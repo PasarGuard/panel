@@ -22,6 +22,7 @@ from app.models.settings import (
 from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
+from app.plugins import registry as plugin_registry, subscription as plugin_subscription
 from app.settings import hwid_settings, subscription_settings
 from app.subscription import sub_update_buffer as _sub_update_buffer  # noqa: F401  # registers per-worker flush loop
 from app.subscription.share import (
@@ -189,6 +190,7 @@ class SubscriptionOperation(BaseOperation):
         inline: bool = False,
         extra_headers: dict[str, str] | None = None,
         extension: str = "",
+        config_format: str | None = None,
     ) -> dict:
         """Create response headers for subscription responses, including user subscription info."""
         # Generate user subscription info
@@ -228,6 +230,8 @@ class SubscriptionOperation(BaseOperation):
         }
         if extra_headers:
             headers.update(extra_headers)
+        if plugin_registry.active:
+            headers = plugin_subscription.apply_headers(user, config_format, headers)
         headers["Cache-Control"] = "no-store"
         return headers
 
@@ -537,6 +541,7 @@ class SubscriptionOperation(BaseOperation):
                 sub_settings,
                 inline=inline_view,
                 extra_headers={},
+                config_format=client_type.value if client_type else None,
             )
             try:
                 response_headers.update(
@@ -631,7 +636,11 @@ class SubscriptionOperation(BaseOperation):
         )
 
         response_headers = self.create_response_headers(
-            user, request_url, sub_settings, extension=client_config.get(client_type, {}).get("extension", "")
+            user,
+            request_url,
+            sub_settings,
+            extension=client_config.get(client_type, {}).get("extension", ""),
+            config_format=client_type.value,
         )
         try:
             response_headers.update(
@@ -746,7 +755,11 @@ class SubscriptionOperation(BaseOperation):
         user = await self.validated_user(db_user)
 
         response_headers = self.create_response_headers(
-            user, request_url, sub_settings, extension=client_config.get(client_type, {}).get("extension", "")
+            user,
+            request_url,
+            sub_settings,
+            extension=client_config.get(client_type, {}).get("extension", ""),
+            config_format=client_type.value,
         )
         try:
             response_headers.update(
@@ -861,6 +874,7 @@ class SubscriptionOperation(BaseOperation):
                 sub_settings,
                 inline=inline_view,
                 extra_headers={},
+                config_format=client_type.value if client_type else None,
             )
             try:
                 response_headers.update(
