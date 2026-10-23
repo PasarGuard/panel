@@ -78,12 +78,15 @@ export default function ClientTemplateActionsMenu({ template, onEdit, canCreate 
       })
       setDeleteDialogOpen(false)
       queryClient.invalidateQueries({ queryKey: ['/api/client_templates'] })
-    } catch {
+    } catch (error: any) {
       toast.error(t('error', { defaultValue: 'Error' }), {
-        description: t('clientTemplates.deleteFailed', {
-          name: template.name,
-          defaultValue: 'Failed to delete template "{{name}}"',
-        }),
+        // The API explains why (e.g. 409: the template is used by subscription rules).
+        description:
+          error?.data?.detail ||
+          t('clientTemplates.deleteFailed', {
+            name: template.name,
+            defaultValue: 'Failed to delete template "{{name}}"',
+          }),
       })
     }
   }

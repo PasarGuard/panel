@@ -1,7 +1,7 @@
 import { Card } from '@/components/ui/card'
 import { ClientTemplateResponse } from '@/service/api'
 import ClientTemplateActionsMenu from './client-template-actions-menu'
-import ClientTemplateMarkers from './client-template-markers'
+import ClientTemplateMarkers, { ServerGroupsBadge } from './client-template-markers'
 import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
 
@@ -39,7 +39,10 @@ const ClientTemplate = ({
               <div className="min-w-0 truncate font-medium">{template.name}</div>
               <ClientTemplateMarkers isDefault={template.is_default} isSystem={template.is_system} />
             </div>
-            <div className="text-muted-foreground min-w-0 truncate text-sm capitalize">{templateTypeLabel}</div>
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <div className="text-muted-foreground max-w-full truncate text-sm capitalize">{templateTypeLabel}</div>
+              <ServerGroupsBadge content={template.content} />
+            </div>
           </div>
           <div onClick={event => event.stopPropagation()}>
             <ClientTemplateActionsMenu template={template} onEdit={onEdit} canCreate={canCreate} canUpdate={canUpdate} canDelete={canDelete} />

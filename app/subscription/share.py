@@ -7,13 +7,19 @@ from datetime import UTC, datetime as dt, timedelta
 from jdatetime import date as jd
 
 from app.core.hosts import host_manager
+from app.db.crud.client_template import TEMPLATE_TYPE_TO_LEGACY_KEY
 from app.db.crud.wireguard import pick_peer_ip_for_inbound
 from app.db.models import UserStatus
+from app.models.settings import RULE_TEMPLATE_TYPES, ConfigFormat
 from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
-from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
+from app.subscription.client_templates import (
+    subscription_client_templates,
+    subscription_templates_of_type,
+    subscription_xray_templates,
+)
 from app.subscription.config_cache import (
     get_or_create_sub_config,
     get_sub_config,
@@ -21,6 +27,7 @@ from app.subscription.config_cache import (
     put_sub_config,
 )
 from app.utils.helpers import has_markup_unsafe_chars, has_oversized_format_spec
+from app.utils.logger import get_logger
 from app.utils.system import readable_size
 
 from . import (
@@ -32,6 +39,8 @@ from . import (
     WireGuardConfiguration,
     XrayConfiguration,
 )
+
+logger = get_logger("subscription")
 
 SERVER_IP = "127.0.0.1"
 SERVER_IPV6 = "[::1]"
@@ -87,15 +96,56 @@ def _build_subscription_config(
     return None
 
 
+async def resolve_client_templates(
+    client_templates: dict[str, str],
+    config_format: str,
+    rule_template_id: int | None = None,
+) -> dict[str, str]:
+    """Pick the template content for a format.
+
+    Order: host (Xray only, applied per host in process_inbounds_and_tags) > rule > default.
+    """
+    if rule_template_id is None:
+        return client_templates
+    try:
+        template_type = RULE_TEMPLATE_TYPES.get(ConfigFormat(config_format))
+    except ValueError:
+        template_type = None
+    if template_type is None:
+        return client_templates
+    content = (await subscription_templates_of_type(template_type)).get(rule_template_id)
+    if content is None:
+        # Settings validation and template deletion make this rare, but a template deleted while the settings are
+        # being saved can still leave a dangling id; fall back to the default.
+        logger.warning(f"Subscription rule template {rule_template_id} ({template_type.value}) not found")
+        return client_templates
+    return {**client_templates, TEMPLATE_TYPE_TO_LEGACY_KEY[template_type]: content}
+
+
+def resolve_profile_title(user: UsersResponseWithInbounds, format_variables: dict, sub_settings) -> str | None:
+    """Admin's profile title, else the subscription one, with format variables filled; None if neither is set."""
+    profile_title = (getattr(user.admin, "profile_title", None) if user.admin else None) or sub_settings.profile_title
+    if not profile_title:
+        return None
+    try:
+        return profile_title.format_map(format_variables)
+    except ValueError, KeyError:
+        # Invalid format string, return original title
+        return profile_title
+
+
 async def generate_subscription(
     user: UsersResponseWithInbounds,
     config_format: str,
     as_base64: bool,
     randomize_order: bool = False,
+    template_id: int | None = None,
 ) -> str | bytes:
-    cache_key = make_sub_config_key(user, config_format, as_base64, randomize_order)
+    cache_key = make_sub_config_key(user, config_format, as_base64, randomize_order, template_id)
     async def render() -> str | bytes:
-        client_templates = await subscription_client_templates()
+        client_templates = await resolve_client_templates(
+            await subscription_client_templates(), config_format, template_id
+        )
         xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
         conf = _build_subscription_config(config_format, client_templates)
         if conf is None:
@@ -104,6 +154,8 @@ async def generate_subscription(
         sub_settings = await subscription_settings()
         custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
         format_variables = setup_format_variables(user, sub_settings.custom_variables)
+        if isinstance(conf, XrayConfiguration):
+            conf.single_remarks = resolve_profile_title(user, format_variables, sub_settings)
         config = await process_inbounds_and_tags(
             user,
             format_variables,
@@ -458,7 +510,10 @@ async def process_inbounds_and_tags(
 ) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
-    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
+    all_hosts = await host_manager.get_hosts()
+    hosts = await filter_hosts(list(all_hosts.values()), user.status)
+    # Template directives select hosts by id; get_hosts() returns fresh copies, so object ids are stable here.
+    host_ids = {id(host): host_id for host_id, host in all_hosts.items()}
     if randomize_order and len(hosts) > 1:
         random.shuffle(hosts)
 
@@ -516,6 +571,15 @@ async def process_inbounds_and_tags(
                 inbound=inbound_copy,
                 settings=settings,
                 template_content=template_content,
+                host_id=host_ids.get(id(host_data)),
+            )
+        elif isinstance(conf, (SingBoxConfiguration, ClashConfiguration)):
+            conf.add(
+                remark=remark,
+                address=formatted_address,
+                inbound=inbound_copy,
+                settings=settings,
+                host_id=host_ids.get(id(host_data)),
             )
         else:
             conf.add(
