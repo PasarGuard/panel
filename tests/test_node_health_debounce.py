@@ -29,6 +29,8 @@ def _make_node():
     node.get_health = AsyncMock(return_value=Health.HEALTHY)
     node.set_health = AsyncMock()
     node.get_versions = AsyncMock(return_value=("0.5.4", "26.3.27"))
+    node.info = AsyncMock(return_value=SimpleNamespace(started=True, node_version="0.5.4", core_version="26.3.27"))
+    node.set_reported_versions = AsyncMock()
     return node
 
 
@@ -60,7 +62,7 @@ def checker(monkeypatch):
 
 
 def _db_node(status=NodeStatus.connected):
-    return SimpleNamespace(id=7, name="debounced", status=status)
+    return SimpleNamespace(id=7, name="debounced", status=status, default_timeout=10)
 
 
 def _written_statuses(update_status):
@@ -104,6 +106,19 @@ async def test_errored_node_needs_consecutive_good_probes_to_recover(checker):
 
 
 @pytest.mark.asyncio
+async def test_recovery_uses_live_versions_after_node_restart(checker):
+    db_node, node = _db_node(NodeStatus.connecting), _make_node()
+    node.info.return_value = SimpleNamespace(started=True, node_version="0.5.5", core_version="26.10.21")
+
+    await checker.run(db_node, node, HEALTHY, HEALTHY)
+
+    assert checker.update_status.await_args.kwargs["node_version"] == "0.5.5"
+    assert checker.update_status.await_args.kwargs["xray_version"] == "26.10.21"
+    node.set_reported_versions.assert_awaited_once_with("0.5.5", "26.10.21")
+    node.get_versions.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_streak_restarts_for_a_replaced_node_object(checker):
     db_node = _db_node()
 
@@ -127,7 +142,7 @@ async def test_streak_restarts_when_the_stored_status_changes(checker):
 @pytest.mark.asyncio
 async def test_followers_never_write_status_or_repair(checker):
     checker.monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: False)
-    connected, errored = _db_node(), SimpleNamespace(id=8, name="errored", status=NodeStatus.error)
+    connected, errored = _db_node(), SimpleNamespace(id=8, name="errored", status=NodeStatus.error, default_timeout=10)
 
     await checker.run(connected, _make_node(), *[DEAD_CORE] * 5)
     await checker.run(errored, _make_node(), *[HEALTHY] * 3)

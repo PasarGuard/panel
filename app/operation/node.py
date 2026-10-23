@@ -65,9 +65,12 @@ from app.models.stats import (
     validate_user_count_metric_scope,
 )
 from app.nats import needs_shared_bridge_memory
+from app.nats.leader import needs_job_leader
 from app.nats.node_recovery import complete_node_reconciliation, node_reconciliation_revision
 from app.nats.node_rpc import node_nats_client
 from app.node import UserSyncPreemptedError, core_users, node_manager
+from app.node.bridge import FullSyncConflictError
+from app.node.heartbeat import heartbeat_interval, keep_alive_too_short, shortest_safe_keep_alive
 from app.node.manager_sync import publish_node_sync
 from app.node.nats_memory import clear_bridge_memory_for_node
 from app.operation import BaseOperation, OperatorType
@@ -359,7 +362,14 @@ class NodeOperation(BaseOperation):
 
     @staticmethod
     async def _start_or_attach_node(
-        pg_node: PasarGuardNode, db_node: Node, core, users: CoreUsers, backend_type, *, force_start: bool = False
+        pg_node: PasarGuardNode,
+        db_node: Node,
+        core,
+        users: CoreUsers,
+        backend_type,
+        *,
+        force_start: bool = False,
+        stop_first: bool = True,
     ):
         """Attach and reconcile an existing core or start it under the full-sync fence."""
         if not force_start:
@@ -403,7 +413,7 @@ class NodeOperation(BaseOperation):
             if core.type == CoreType.xray:
                 start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
 
-            if force_start:
+            if force_start and stop_first:
                 try:
                     await pg_node.stop()
                 except Exception as exc:
@@ -461,7 +471,9 @@ class NodeOperation(BaseOperation):
             pass
 
     @staticmethod
-    async def connect_node(db_node: Node, core, users: CoreUsers, *, force_start: bool = False) -> dict | None:
+    async def connect_node(
+        db_node: Node, core, users: CoreUsers, *, force_start: bool = False, stop_first: bool = True
+    ) -> dict | None:
         """
         Connect to a node and return status result (does NOT update database).
 
@@ -470,6 +482,8 @@ class NodeOperation(BaseOperation):
             core: Pre-fetched core config for this node.
             users: Core users or a deferred snapshot loader, used for Start or initial attachment.
             force_start: If True, push a new Start RPC even when the core is already running.
+            stop_first: With force_start, stop the core before Start. False lets the node apply
+                a changed config to the running core when it can.
 
         Returns:
             dict: {node_id, status, message, xray_version, node_version, old_status}
@@ -504,7 +518,7 @@ class NodeOperation(BaseOperation):
 
         try:
             info = await NodeOperation._start_or_attach_node(
-                pg_node, db_node, core, users, type, force_start=force_start
+                pg_node, db_node, core, users, type, force_start=force_start, stop_first=stop_first
             )
             if info is None:
                 return None
@@ -597,12 +611,27 @@ class NodeOperation(BaseOperation):
         except Exception as exc:
             logger.error(f"Background node connection failed for node {node_id}: {exc}")
 
+    @staticmethod
+    def _warn_short_keep_alive(node_name: str, keep_alive: int) -> None:
+        # Values that work today stay valid; this only explains a stopped core later.
+        if keep_alive_too_short(keep_alive):
+            logger.warning(
+                'Node "%s" keep_alive %ss is short: the panel sends a heartbeat every %ss, and %s stop its '
+                "core. Use at least %ss (120-300s on unstable links), or 0 to never stop it.",
+                node_name,
+                keep_alive,
+                f"{heartbeat_interval(keep_alive):g}",
+                "two lost in a row or a job leader change" if needs_job_leader() else "two lost in a row",
+                shortest_safe_keep_alive(),
+            )
+
     async def create_node(self, db: AsyncSession, new_node: NodeCreate, admin: AdminDetails) -> NodeResponse:
         await self.get_validated_core_config(db, new_node.core_config_id)
         try:
             db_node = await create_node(db, new_node)
         except IntegrityError:
             await self.raise_error(message=f'Node "{new_node.name}" already exists', code=409, db=db)
+        self._warn_short_keep_alive(db_node.name, db_node.keep_alive)
 
         try:
             await self._update_node_impl(db_node)
@@ -623,14 +652,17 @@ class NodeOperation(BaseOperation):
             await self.get_validated_core_config(db, modified_node.core_config_id)
 
         updates = modified_node.model_dump(exclude_none=True)
-        force_start = any(
-            field in updates and updates[field] != getattr(db_node, field) for field in NODE_RESTART_FIELDS
-        )
+        current = {field: getattr(db_node, field) for field in NODE_RESTART_FIELDS}
+        # A node without a core runs the default core; sending it is not a core change.
+        current["core_config_id"] = current["core_config_id"] or 1
+        force_start = any(field in updates and updates[field] != current[field] for field in NODE_RESTART_FIELDS)
 
         try:
             db_node = await modify_node(db, db_node, modified_node)
         except IntegrityError:
             await self.raise_error(message=f'Node "{db_node.name}" already exists', code=409, db=db)
+        if "keep_alive" in updates and updates["keep_alive"] != current["keep_alive"]:
+            self._warn_short_keep_alive(db_node.name, db_node.keep_alive)
 
         if db_node.status in (NodeStatus.disabled, NodeStatus.limited):
             await self.disconnect_single_node(db_node.id)
@@ -701,6 +733,7 @@ class NodeOperation(BaseOperation):
         nodes: list[Node],
         *,
         force_start: bool = False,
+        stop_first: bool = True,
     ) -> None:
         """
         Connect multiple nodes and bulk update their statuses.
@@ -709,8 +742,9 @@ class NodeOperation(BaseOperation):
             db (AsyncSession): Database session.
             nodes (list[Node]): List of nodes to connect.
             force_start: Push a new Start RPC (admin restart / core apply).
+            stop_first: With force_start, stop each core before Start.
         """
-        await self._connect_bulk_impl(db, nodes, force_start=force_start)
+        await self._connect_bulk_impl(db, nodes, force_start=force_start, stop_first=stop_first)
 
     async def connect_single_node(
         self, db: AsyncSession, node_id: int, *, force_start: bool = False, health_check: bool = False
@@ -747,8 +781,10 @@ class NodeOperation(BaseOperation):
         await self.connect_single_node(db, node_id, force_start=True)
         logger.info(f'Node "{node_id}" restarted by admin "{admin.username}"')
 
-    async def restart_all_node(self, db: AsyncSession, admin: AdminDetails, core_id: int | None = None) -> None:
-        await self._restart_all_impl(db, admin, core_id)
+    async def restart_all_node(
+        self, db: AsyncSession, admin: AdminDetails, core_id: int | None = None, *, stop_first: bool = True
+    ) -> None:
+        await self._restart_all_impl(db, admin, core_id, stop_first=stop_first)
         logger.info(f'All nodes restarted by admin "{admin.username}"')
 
     async def get_usage(
@@ -859,15 +895,15 @@ class NodeOperation(BaseOperation):
 
     async def update_node(self, db: AsyncSession, node_id: int) -> dict:
         await self.get_validated_node(db, node_id, load_usage_logs=False)
-        return await self._update_node_api_impl(node_id)
+        return await self._update_node_api_impl(db, node_id)
 
     async def update_core(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
         await self.get_validated_node(db, node_id, load_usage_logs=False)
-        return await self._update_core_impl(node_id, node_core_update)
+        return await self._update_core_impl(db, node_id, node_core_update)
 
     async def update_geofiles(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
         await self.get_validated_node(db, node_id, load_usage_logs=False)
-        return await self._update_geofiles_impl(node_id, node_geofiles_update)
+        return await self._update_geofiles_impl(db, node_id, node_geofiles_update)
 
     async def _update_node_local(self, db_node: Node) -> None:
         await node_manager.update_node(db_node)
@@ -891,7 +927,7 @@ class NodeOperation(BaseOperation):
         await node_nats_client.publish("remove_node", {"node_id": node_id})
 
     async def _connect_nodes_bulk_local(
-        self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False
+        self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False, stop_first: bool = True
     ) -> None:
         if not nodes:
             return
@@ -919,7 +955,11 @@ class NodeOperation(BaseOperation):
 
                 core_id = node.core_config_id or 1
                 return await self.connect_node(
-                    node, cores_by_id.get(core_id), users_by_core.get(core_id, []), force_start=force_start
+                    node,
+                    cores_by_id.get(core_id),
+                    users_by_core.get(core_id, []),
+                    force_start=force_start,
+                    stop_first=stop_first,
                 )
 
         results = await asyncio.gather(*[connect_single(node) for node in nodes])
@@ -962,20 +1002,22 @@ class NodeOperation(BaseOperation):
             elif notif["status"] == NodeStatus.error and notif["old_status"] != NodeStatus.error:
                 asyncio.create_task(notification.error_node(notif["node"]))
 
-    async def _connect_nodes_bulk_sync(self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False) -> None:
-        await self._connect_nodes_bulk_local(db, nodes, force_start=force_start)
+    async def _connect_nodes_bulk_sync(
+        self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False, stop_first: bool = True
+    ) -> None:
+        await self._connect_nodes_bulk_local(db, nodes, force_start=force_start, stop_first=stop_first)
         for node in nodes:
             if node is not None and node.status not in (NodeStatus.disabled, NodeStatus.limited):
                 await publish_node_sync("connect", node.id)
 
     async def _connect_nodes_bulk_remote(
-        self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False
+        self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False, stop_first: bool = True
     ) -> None:
         if not nodes:
             return
         await node_nats_client.publish(
             "connect_nodes_bulk",
-            {"node_ids": [node.id for node in nodes], "force_start": force_start},
+            {"node_ids": [node.id for node in nodes], "force_start": force_start, "stop_first": stop_first},
         )
 
     async def recover_node(self, db: AsyncSession, node_id: int) -> None:
@@ -1079,7 +1121,9 @@ class NodeOperation(BaseOperation):
     async def _disconnect_single_node_remote(self, node_id: int) -> None:
         await node_nats_client.publish("disconnect_node", {"node_id": node_id})
 
-    async def _restart_all_nodes_local(self, db: AsyncSession, admin: AdminDetails, core_id: int | None) -> None:
+    async def _restart_all_nodes_local(
+        self, db: AsyncSession, admin: AdminDetails, core_id: int | None, *, stop_first: bool = True
+    ) -> None:
         nodes, _ = await get_nodes(
             db,
             query=NodeListQuery(
@@ -1088,10 +1132,14 @@ class NodeOperation(BaseOperation):
             ),
             load_usage_logs=False,
         )
-        await self.connect_nodes_bulk(db, nodes, force_start=True)
+        await self.connect_nodes_bulk(db, nodes, force_start=True, stop_first=stop_first)
 
-    async def _restart_all_nodes_remote(self, db: AsyncSession, admin: AdminDetails, core_id: int | None) -> None:
-        await node_nats_client.publish("connect_nodes_bulk", {"core_id": core_id, "force_start": True})
+    async def _restart_all_nodes_remote(
+        self, db: AsyncSession, admin: AdminDetails, core_id: int | None, *, stop_first: bool = True
+    ) -> None:
+        await node_nats_client.publish(
+            "connect_nodes_bulk", {"core_id": core_id, "force_start": True, "stop_first": stop_first}
+        )
 
     async def _get_logs_local(self, node_id: int) -> Callable[[], AsyncIterator[asyncio.Queue]]:
         node = await node_manager.get_node(node_id)
@@ -1302,6 +1350,10 @@ class NodeOperation(BaseOperation):
                 message="User sync was interrupted by a change to the node's connection or its removal, retry",
                 code=409,
             )
+        except FullSyncConflictError as e:
+            # Another snapshot (a Start, a repair) holds the node's fence (409), or deliveries are
+            # still in flight past their lease (503); nothing reached the node.
+            await self.raise_error(message=e.detail, code=e.code)
         except NodeAPIError as e:
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
@@ -1315,7 +1367,53 @@ class NodeOperation(BaseOperation):
         )
         return NodeResponse.model_validate(await self.get_validated_node(db, node_id))
 
-    async def _update_node_api_local(self, node_id: int) -> dict:
+    @staticmethod
+    async def refresh_node_versions(
+        db: AsyncSession,
+        node_id: int,
+        node: PasarGuardNode,
+        timeout: int | None = None,
+        *,
+        persist: bool = True,
+    ) -> bool:
+        """Read live versions and persist them only for the current connected node."""
+        info = await node.info(timeout=timeout)
+        if info is None or not info.started or not info.node_version or not info.core_version:
+            return False
+        if await node_manager.get_node(node_id) is not node:
+            return False
+
+        if not persist:
+            await node.set_reported_versions(info.node_version, info.core_version)
+            return True
+
+        db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
+        if db_node is None or db_node.status != NodeStatus.connected:
+            return False
+        if db_node.node_version != info.node_version or db_node.xray_version != info.core_version:
+            db_node.node_version = info.node_version
+            db_node.xray_version = info.core_version
+            await db.commit()
+        await node.set_reported_versions(info.node_version, info.core_version)
+        return True
+
+    @staticmethod
+    async def _mark_node_reconnecting_after_update(db: AsyncSession, node_id: int, node: PasarGuardNode) -> None:
+        """Leave a restarted node for the health job to attach or start."""
+        db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
+        if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
+            return
+        await update_node_status(
+            db,
+            db_node,
+            NodeStatus.connecting,
+            message="",
+            xray_version="",
+            node_version="",
+        )
+        await node.set_health(Health.NOT_CONNECTED)
+
+    async def _update_node_api_local(self, db: AsyncSession, node_id: int) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -1323,9 +1421,10 @@ class NodeOperation(BaseOperation):
             response = await node.update_node()
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
+        await self._mark_node_reconnecting_after_update(db, node_id, node)
         return response.json()
 
-    async def _update_node_api_remote(self, node_id: int) -> dict:
+    async def _update_node_api_remote(self, db: AsyncSession, node_id: int) -> dict:
         try:
             return await node_nats_client.request(
                 "update_node_api", {"node_id": node_id}, timeout=_MAINTENANCE_RPC_TIMEOUT
@@ -1333,7 +1432,7 @@ class NodeOperation(BaseOperation):
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
 
-    async def _update_core_local(self, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
+    async def _update_core_local(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -1341,16 +1440,17 @@ class NodeOperation(BaseOperation):
             response = await node.update_core(node_core_update.model_dump(mode="json"))
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
+        await self._mark_node_reconnecting_after_update(db, node_id, node)
         return response.json()
 
-    async def _update_core_remote(self, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
+    async def _update_core_remote(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
         return await node_nats_client.request(
             "update_core",
             {"node_id": node_id, "core_update": node_core_update.model_dump(mode="json")},
             timeout=_MAINTENANCE_RPC_TIMEOUT,
         )
 
-    async def _update_geofiles_local(self, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+    async def _update_geofiles_local(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -1358,9 +1458,10 @@ class NodeOperation(BaseOperation):
             response = await node.update_geofiles(node_geofiles_update.model_dump(mode="json"))
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
+        await self._mark_node_reconnecting_after_update(db, node_id, node)
         return response.json()
 
-    async def _update_geofiles_remote(self, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+    async def _update_geofiles_remote(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
         return await node_nats_client.request(
             "update_geofiles",
             {"node_id": node_id, "geofiles_update": node_geofiles_update.model_dump(mode="json")},

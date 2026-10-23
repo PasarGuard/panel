@@ -25,7 +25,9 @@ def setup_node(monkeypatch, *, health=Health.HEALTHY, state=None):
     # Model the health-check owner without inheriting CI's leader/transport state.
     monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: True)
     monkeypatch.setattr(node_checker, "node_reconciliation_revision", AsyncMock(return_value=None))
-    db_node = SimpleNamespace(id=91, name="node", status=NodeStatus.connected, core_config_id=1, keep_alive=60)
+    db_node = SimpleNamespace(
+        id=91, name="node", status=NodeStatus.connected, core_config_id=1, keep_alive=60, default_timeout=10
+    )
     core = SimpleNamespace(type=None, inbounds=["in"], protocols=frozenset(), to_str=lambda: "{}")
     info = SimpleNamespace(started=True, node_version="0.5.4", core_version="26.3.27")
     node = SimpleNamespace(
@@ -33,6 +35,7 @@ def setup_node(monkeypatch, *, health=Health.HEALTHY, state=None):
         get_versions=AsyncMock(return_value=(info.node_version, info.core_version)),
         get_lifecycle_state=AsyncMock(return_value=state),
         info=AsyncMock(return_value=info),
+        set_reported_versions=AsyncMock(),
         connect=AsyncMock(),
         _work_available=asyncio.Event(),
         _ensure_sync_worker_running=AsyncMock(),
@@ -195,6 +198,7 @@ async def test_failed_sync_recovers_local_attachment_with_cooldown(monkeypatch):
 async def test_failed_sync_does_not_mask_dead_backend(monkeypatch):
     db_node, node, _ = setup_node(monkeypatch, health=Health.BROKEN)
     node.requires_hard_reset = MagicMock(return_value=True)
+    monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: True)
     monkeypatch.setattr(node_checker, "GetDB", FakeDB)
     monkeypatch.setattr(node_checker, "get_bridge_memory", lambda: (None, None, None))
     monkeypatch.setattr(NodeOperation, "_update_single_node_status", AsyncMock())

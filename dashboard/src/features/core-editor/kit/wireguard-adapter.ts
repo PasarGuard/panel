@@ -9,7 +9,7 @@ import {
 import type { WireGuardCoreConfig, WireGuardCoreDraft, WireGuardValidationIssue } from '@pasarguard/wireguard-config-kit'
 import { validateCoreConfig } from '@pasarguard/core-kit'
 
-const knownConfigKeys = new Set(['interface_name', 'private_key', 'pre_shared_key', 'listen_port', 'address'])
+const knownConfigKeys = new Set(['interface_name', 'private_key', 'pre_shared_key', 'listen_port', 'address', 'peers'])
 
 function validateWireGuardMtu(config: Record<string, unknown>): WireGuardValidationIssue[] {
   if (!Object.prototype.hasOwnProperty.call(config, 'mtu')) return []
@@ -51,7 +51,10 @@ export function createNewWireGuardDraft(): WireGuardCoreDraft {
 
 export function draftToPersistedConfig(draft: WireGuardCoreDraft): Record<string, unknown> {
   const json = generateWireGuardCoreConfigJsonFromDraft(draft)
-  return JSON.parse(json) as Record<string, unknown>
+  const config = JSON.parse(json) as Record<string, unknown>
+  // Peer data belongs to the backend, including values from legacy configs or raw JSON.
+  delete config.peers
+  return config
 }
 
 function draftGenerationIssue(error: unknown): WireGuardValidationIssue {

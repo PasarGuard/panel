@@ -227,7 +227,8 @@ class GroupOperation(BaseOperation):
         for db_group in groups_to_update:
             db_group.is_disabled = is_disabled
 
-        await db.commit()
+        # Committed below together with the WireGuard allocations, so an exhausted subnet changes nothing.
+        await db.flush()
 
         for db_group in groups_to_update:
             await db.refresh(db_group)

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { useClipboard } from '@/hooks/use-clipboard'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { type UseEditFormValues } from '@/features/users/forms/user-form'
-import { useActiveNextPlanById, useGetCurrentAdmin, useRemoveUserById, useResetUserDataUsageById, useRevokeUserSubscriptionById, UserResponse, UsersResponse } from '@/service/api'
+import { useActiveNextPlanById, useGetCurrentAdmin, useRemoveUserById, useResetUserDataUsageById, useRevokeUserSubscriptionById, UserResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { Cat, Check, Copy, EllipsisVertical, Fingerprint, GlobeLock, Hash, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
 import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
@@ -406,25 +406,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       clearSelectedUserTimeoutRef.current = null
     }
 
-    const cachedData = queryClient.getQueriesData<UsersResponse>({
-      queryKey: ['/api/users'],
-      exact: false,
-    })
-
-    let latestUser = user
-    for (const [, data] of cachedData) {
-      if (data?.users) {
-        const foundUser = data.users.find(u => u.id === user.id)
-        if (foundUser) {
-          latestUser = foundUser
-          break
-        }
-      }
-    }
-
-    // Update form with latest user data
-    userForm.reset(buildUserEditFormValues(latestUser))
-    setSelectedUser(latestUser)
+    // Edit the copy this row shows: it comes from the query on screen, while other cached pages or searches can hold older copies.
+    userForm.reset(buildUserEditFormValues(user))
+    setSelectedUser(user)
     setEditModalOpen(true)
   }
 
