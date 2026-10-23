@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -1122,6 +1122,25 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     <FormControl>
                       <Input placeholder="Remark (e.g. PasarGuard-Host)" isError={!!form.formState.errors.remark} {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="tag_prefix"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('hostsDialog.tagPrefix', { defaultValue: 'Tag prefix' })}</FormLabel>
+                    <FormControl>
+                      <Input placeholder={t('hostsDialog.tagPrefixPlaceholder', { defaultValue: 'e.g. de' })} isError={!!form.formState.errors.tag_prefix} {...field} value={field.value ?? ''} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('hostsDialog.tagPrefixDescription', {
+                        defaultValue: 'Client templates get this host as "<prefix>-<id>", even when it is disabled (default prefix: "out"). Use it to route or balance to the host. Reserved: proxy, dialer, direct, block.',
+                      })}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

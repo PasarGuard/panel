@@ -1,14 +1,19 @@
 import base64
+import json
 import random
 import secrets
 from collections import defaultdict
+from copy import copy
+from dataclasses import dataclass
 from datetime import UTC, datetime as dt, timedelta
+from functools import cached_property
 
 from jdatetime import date as jd
 
 from app.core.hosts import host_manager
 from app.db.crud.wireguard import pick_peer_ip_for_inbound
 from app.db.models import UserStatus
+from app.models.client_template import TemplateSource
 from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
@@ -16,11 +21,14 @@ from app.settings import subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
 from app.subscription.config_cache import (
     get_or_create_sub_config,
-    get_sub_config,
     make_sub_config_key,
-    put_sub_config,
 )
+from app.subscription.host_refs import HostRef
+from app.templates import render_template_string, render_variables
+from app.templates.failures import report_failure, template_ref, variable_ref
+from app.templates.pool import subscription_pool
 from app.utils.helpers import has_markup_unsafe_chars, has_oversized_format_spec
+from app.utils.logger import get_logger
 from app.utils.system import readable_size
 
 from . import (
@@ -33,6 +41,8 @@ from . import (
     XrayConfiguration,
 )
 
+logger = get_logger("subscription")
+
 SERVER_IP = "127.0.0.1"
 SERVER_IPV6 = "[::1]"
 
@@ -40,9 +50,63 @@ SERVER_IPV6 = "[::1]"
 XRAY_ONLY_NETWORKS = frozenset({"xdrive"})
 
 
+USER_AGENT_TEMPLATE_KEYS = ("USER_AGENT_TEMPLATE", "GRPC_USER_AGENT_TEMPLATE")
+# The client templates each format reads
+FORMAT_TEMPLATE_KEYS = {
+    "links": USER_AGENT_TEMPLATE_KEYS,
+    "clash": (*USER_AGENT_TEMPLATE_KEYS, "CLASH_SUBSCRIPTION_TEMPLATE"),
+    "clash_meta": (*USER_AGENT_TEMPLATE_KEYS, "CLASH_SUBSCRIPTION_TEMPLATE"),
+    "sing_box": (*USER_AGENT_TEMPLATE_KEYS, "SINGBOX_SUBSCRIPTION_TEMPLATE"),
+    "xray": (*USER_AGENT_TEMPLATE_KEYS, "XRAY_SUBSCRIPTION_TEMPLATE"),
+    "outline": (),
+    "wireguard": (),
+}
+
+
+def _render_if_jinja(content: str, use_jinja: bool, format_variables: dict) -> str:
+    return render_template_string(content, format_variables) if use_jinja else content
+
+
+class TemplateRenderError(Exception):
+    """A client template failed to render, or rendered to something that is not JSON."""
+
+    def __init__(self, template_id: int | None):
+        super().__init__(f"Client template {template_id} failed to render")
+        self.template_id = template_id
+
+
+def _render_json_template(source: TemplateSource, variables: dict) -> str:
+    """Renders a JSON client template. A failure is logged with the template's id and raised: serving a
+    subscription without what the template should have added would break clients without anyone noticing."""
+    try:
+        text = _render_if_jinja(source.content, source.use_jinja, variables)
+        if source.use_jinja:
+            json.loads(text)
+    except Exception as exc:
+        report_failure(template_ref(source.id), exc)
+        raise TemplateRenderError(source.id) from exc
+    return text
+
+
+def _render_client_templates(client_templates: dict[str, TemplateSource], format_variables: dict) -> dict[str, str]:
+    """Render the Jinja2 in the JSON client templates with the user's variables.
+
+    Clash is left alone: it renders last, once it has the proxies (see ClashConfiguration.render).
+    """
+    rendered: dict[str, str] = {}
+    for key, source in client_templates.items():
+        if key == "CLASH_SUBSCRIPTION_TEMPLATE":
+            rendered[key] = source.content
+            continue
+        rendered[key] = _render_json_template(source, format_variables)
+    return rendered
+
+
 def _build_subscription_config(
     config_format: str,
     client_templates: dict[str, str],
+    format_variables: dict,
+    clash_template_id: int | None = None,
 ) -> (
     StandardLinks
     | XrayConfiguration
@@ -54,8 +118,8 @@ def _build_subscription_config(
     | None
 ):
     common_kwargs = {
-        "user_agent_template_content": client_templates["USER_AGENT_TEMPLATE"],
-        "grpc_user_agent_template_content": client_templates["GRPC_USER_AGENT_TEMPLATE"],
+        "user_agent_template_content": client_templates.get("USER_AGENT_TEMPLATE"),
+        "grpc_user_agent_template_content": client_templates.get("GRPC_USER_AGENT_TEMPLATE"),
     }
 
     if config_format == "links":
@@ -63,11 +127,17 @@ def _build_subscription_config(
     if config_format == "clash":
         return ClashConfiguration(
             clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
+            format_variables=format_variables,
+            template_ref=template_ref(clash_template_id) if clash_template_id is not None else None,
+            template_id=clash_template_id,
             **common_kwargs,
         )
     if config_format == "clash_meta":
         return ClashMetaConfiguration(
             clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
+            format_variables=format_variables,
+            template_ref=template_ref(clash_template_id) if clash_template_id is not None else None,
+            template_id=clash_template_id,
             **common_kwargs,
         )
     if config_format == "sing_box":
@@ -87,6 +157,24 @@ def _build_subscription_config(
     return None
 
 
+def _hosts_use_jinja_override(
+    hosts: list[SubscriptionInboundData], xray_template_overrides: dict[int, TemplateSource] | None
+) -> bool:
+    """Whether a host selects an Xray template of its own that is Jinja. Any host counts, filtered out or not: which
+    ones this user gets is only known while building, and the pool is chosen before."""
+    if not xray_template_overrides:
+        return False
+    for host in hosts:
+        template_id = host.subscription_templates.get("xray") if isinstance(host.subscription_templates, dict) else None
+        if (
+            isinstance(template_id, int)
+            and (override := xray_template_overrides.get(template_id))
+            and override.use_jinja
+        ):
+            return True
+    return False
+
+
 async def generate_subscription(
     user: UsersResponseWithInbounds,
     config_format: str,
@@ -94,37 +182,57 @@ async def generate_subscription(
     randomize_order: bool = False,
 ) -> str | bytes:
     cache_key = make_sub_config_key(user, config_format, as_base64, randomize_order)
-    async def render() -> str | bytes:
-        client_templates = await subscription_client_templates()
-        xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
-        conf = _build_subscription_config(config_format, client_templates)
-        if conf is None:
-            raise ValueError(f'Unsupported format "{config_format}"')
 
+    async def render() -> str | bytes:
         sub_settings = await subscription_settings()
         custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
-        format_variables = setup_format_variables(user, sub_settings.custom_variables)
-        config = await process_inbounds_and_tags(
-            user,
-            format_variables,
-            conf,
-            client_templates,
-            xray_template_overrides=xray_template_overrides,
-            randomize_order=randomize_order,
-            custom_variables=custom_variables,
+        raw_client_templates = await subscription_client_templates()
+        all_hosts = list((await host_manager.get_all_hosts()).values())
+        xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
+        user_agents = tuple(
+            source.content if (source := raw_client_templates.get(key)) else None for key in USER_AGENT_TEMPLATE_KEYS
         )
+        used_templates = {
+            key: raw_client_templates[key] for key in FORMAT_TEMPLATE_KEYS[config_format] if key in raw_client_templates
+        }
+
+        def build() -> str | bytes:
+            format_variables = setup_format_variables(user, sub_settings.custom_variables)
+            preparer = HostPreparer(user, format_variables, custom_variables, all_hosts, user_agents)
+            refs = preparer.host_refs()
+            template_context = {**format_variables, "hosts": refs}
+            client_templates = _render_client_templates(used_templates, template_context)
+            clash = raw_client_templates.get("CLASH_SUBSCRIPTION_TEMPLATE")
+            conf = _build_subscription_config(
+                config_format, client_templates, template_context, clash.id if clash else None
+            )
+            if conf is None:
+                raise ValueError(f'Unsupported format "{config_format}"')
+
+            return process_inbounds_and_tags(
+                user,
+                conf,
+                client_templates,
+                preparer,
+                refs,
+                xray_template_overrides=xray_template_overrides,
+                randomize_order=randomize_order,
+            )
+
+        # Jinja is CPU work: it runs in the render pool's threads so it does not block the event loop. Without any, as
+        # with share links, WireGuard and Outline, a busy pool cannot refuse the request.
+        needs_pool = (
+            any(source.use_jinja for source in used_templates.values())
+            or _hosts_use_jinja_override(all_hosts, xray_template_overrides)
+            or any(_custom_variable_parts(variable)[2] for variable in custom_variables)
+        )
+        config = await subscription_pool.run(build) if needs_pool else build()
         if as_base64 and not isinstance(config, bytes):
             config = base64.b64encode(config.encode()).decode()
         return config
 
-    if config_format != "wireguard":
-        cached = get_sub_config(cache_key)
-        if cached is not None:
-            return cached
-        config = await render()
-        put_sub_config(cache_key, config)
-        return config
-
+    # Building yields to the render pool, so identical requests that arrive meanwhile share one build instead of
+    # each taking a slot of the pool.
     return await get_or_create_sub_config(cache_key, render)
 
 
@@ -136,7 +244,7 @@ def inject_body_placement(conf: str | bytes, lines: list[str], placement: str, a
     if as_base64:
         try:
             decoded = base64.b64decode(conf).decode()
-        except (ValueError, UnicodeDecodeError):
+        except ValueError, UnicodeDecodeError:
             return conf
         merged = f"{block}\n{decoded}" if placement == "body_start" else f"{decoded}\n{block}"
         return base64.b64encode(merged.encode()).decode()
@@ -165,22 +273,28 @@ def format_time_left(seconds_left: int) -> str:
     return " ".join(result)
 
 
-def _custom_variable_parts(custom_variable) -> tuple[str | None, str]:
-    if isinstance(custom_variable, dict):
-        key = custom_variable.get("key")
-        value = custom_variable.get("value", "")
-    else:
-        key = getattr(custom_variable, "key", None)
-        value = getattr(custom_variable, "value", "")
-    return (str(key) if key else None), str(value or "")
+def _custom_variable_parts(custom_variable) -> tuple[str | None, str, bool, str | None]:
+    """key, value, use_jinja and the owner (None for the global variables, `admin:<id>` for an admin's)."""
+    get = (
+        custom_variable.get
+        if isinstance(custom_variable, dict)
+        else lambda name, default: getattr(custom_variable, name, default)
+    )
+    key, value, use_jinja, owner = get("key", None), get("value", ""), get("use_jinja", False), get("owner", None)
+    return (str(key) if key else None), str(value or ""), bool(use_jinja), owner
 
 
 def get_effective_custom_variables(
     user: UsersResponseWithInbounds, custom_variables: list | tuple | None = None
 ) -> list:
+    """The global variables, then the admin's, which win on the same key. The admin's carry their owner."""
     variables = list(custom_variables or [])
-    admin_variables = getattr(getattr(user, "admin", None), "custom_variables", None) or []
-    variables.extend(admin_variables)
+    admin = getattr(user, "admin", None)
+    if admin_variables := getattr(admin, "custom_variables", None):
+        owner = f"admin:{getattr(admin, 'id', None) or admin.username}"
+        for variable in admin_variables:
+            key, value, use_jinja, _ = _custom_variable_parts(variable)
+            variables.append({"key": key, "value": value, "use_jinja": use_jinja, "owner": owner})
     return variables
 
 
@@ -188,19 +302,26 @@ def apply_custom_format_variables(format_variables: dict, custom_variables: list
     if not custom_variables:
         return format_variables
 
-    custom_keys = {key for key, _ in (_custom_variable_parts(variable) for variable in custom_variables) if key}
+    custom_keys = {parts[0] for parts in map(_custom_variable_parts, custom_variables) if parts[0]}
     base_variables = defaultdict(
         lambda: "<missing>",
         {key: value for key, value in format_variables.items() if key not in custom_keys},
     )
 
+    # Jinja copies the variables into a plain dict, which loses the default: name the custom keys, so a reference to
+    # another custom variable reads "<missing>" there as well, not an empty string.
+    jinja_variables = {**dict.fromkeys(custom_keys, "<missing>"), **base_variables}
+
     for variable in custom_variables:
-        key, raw_value = _custom_variable_parts(variable)
+        key, raw_value, use_jinja, owner = _custom_variable_parts(variable)
         if not key:
             continue
         try:
-            format_variables[key] = raw_value.format_map(base_variables)
-        except ValueError, KeyError:
+            format_variables[key] = render_variables(
+                raw_value, jinja_variables if use_jinja else base_variables, use_jinja=use_jinja
+            )
+        except (ValueError, KeyError) as exc:
+            report_failure(variable_ref(key, owner), exc)
             format_variables[key] = raw_value
 
     return format_variables
@@ -302,21 +423,69 @@ def setup_format_variables(user: UsersResponseWithInbounds, custom_variables: li
     return apply_custom_format_variables(format_variables, custom_variables)
 
 
-async def filter_hosts(hosts: list[SubscriptionInboundData], user_status: UserStatus) -> list[SubscriptionInboundData]:
-    return [host for host in hosts if not host.status or user_status in host.status]
+def host_matches(host: SubscriptionInboundData, user_status: UserStatus) -> bool:
+    """Whether the host's restriction to user statuses lets this user have it."""
+    return not host.status or user_status in host.status
 
 
-async def process_host(
+def filter_hosts(hosts: list[SubscriptionInboundData], user_status: UserStatus) -> list[SubscriptionInboundData]:
+    return [host for host in hosts if not host.is_disabled and host_matches(host, user_status)]
+
+
+def _prepare_download_settings(
+    download_data: SubscriptionInboundData,
+    format_variables: dict,
+    inbounds: list[str],
+    proxies: dict,
+    client_templates: dict[str, str] | None,
+    custom_variables: list | tuple | None,
+) -> SubscriptionInboundData | dict | None:
+    """`client_templates` is given for share links, where the download settings become part of the link."""
+    result = process_host(download_data, format_variables, inbounds, proxies, custom_variables)
+
+    if not result:
+        return
+
+    download_copy, _, variables = result
+
+    if isinstance(download_copy.address, str):
+        download_copy.address = _format_dynamic_value(download_copy.address, variables)
+
+    if client_templates is not None:
+        xc = XrayConfiguration(
+            user_agent_template_content=client_templates.get("USER_AGENT_TEMPLATE"),
+            grpc_user_agent_template_content=client_templates.get("GRPC_USER_AGENT_TEMPLATE"),
+        )
+        return xc._download_config(download_copy, link_format=True)
+
+    return download_copy
+
+
+def set_host_variables(
+    format_variables: dict, inbound: SubscriptionInboundData, custom_variables: list | tuple | None
+) -> dict:
+    """The variables of one host: its own PROTOCOL and TRANSPORT, then the custom ones that may build on them.
+
+    Returns a new dict, so hosts never see each other's variables.
+    """
+    variables = copy(format_variables)
+    variables.update({"PROTOCOL": inbound.protocol, "TRANSPORT": inbound.network})
+    return apply_custom_format_variables(variables, custom_variables)
+
+
+def process_host(
     inbound: SubscriptionInboundData,
     format_variables: dict,
     inbounds: list[str],
     proxies: dict,
     custom_variables: list | tuple | None = None,
-) -> None | tuple[SubscriptionInboundData, dict]:
+) -> None | tuple[SubscriptionInboundData, dict, dict]:
     """
     Process host data for subscription generation.
     Now only does random selection and user-specific formatting!
     All merging and data preparation is done in hosts.py.
+
+    Returns the host, the user's settings for its protocol, and the host's own variables.
     """
 
     if inbound.inbound_tag not in inbounds:
@@ -337,10 +506,7 @@ async def process_host(
     if inbound.protocol == "wireguard":
         settings["peer_ips"] = pick_peer_ip_for_inbound(inbound.wireguard_local_address, settings.get("peer_ips") or [])
 
-    # Update format variables
-    format_variables.update({"PROTOCOL": inbound.protocol})
-    format_variables.update({"TRANSPORT": inbound.network})
-    apply_custom_format_variables(format_variables, custom_variables)
+    format_variables = set_host_variables(format_variables, inbound, custom_variables)
 
     salt = secrets.token_hex(8)
 
@@ -402,129 +568,176 @@ async def process_host(
         }
     )
 
-    return inbound_copy, settings
+    return inbound_copy, settings, format_variables
 
 
-async def _prepare_download_settings(
-    download_data: SubscriptionInboundData,
-    format_variables: dict,
-    inbounds: list[str],
-    proxies: dict,
-    client_templates: dict[str, str],
-    custom_variables: list | tuple | None,
-    conf: StandardLinks
-    | XrayConfiguration
-    | SingBoxConfiguration
-    | ClashConfiguration
-    | ClashMetaConfiguration
-    | OutlineConfiguration
-    | WireGuardConfiguration,
-) -> SubscriptionInboundData | dict | None:
-    result = await process_host(download_data, format_variables, inbounds, proxies, custom_variables)
+@dataclass
+class PreparedHost:
+    """A host with the user's choices made (address, SNI, ...), ready for `conf.add`."""
 
-    if not result:
-        return
+    inbound: SubscriptionInboundData
+    settings: dict
+    remark: str
+    address: str
+    variables: dict  # the host's own, for whatever is rendered for it later
 
-    download_copy, _ = result
 
-    if isinstance(download_copy.address, str):
-        download_copy.address = _format_dynamic_value(download_copy.address, format_variables)
+class HostPreparer:
+    """The hosts of one request. Each is prepared once, so the entry in the listing and the outbound a template
+    embeds through `hosts` agree on the random choices (address, SNI, ...)."""
 
-    if isinstance(conf, StandardLinks):
-        xc = XrayConfiguration(
-            xray_template_content=client_templates["XRAY_SUBSCRIPTION_TEMPLATE"],
-            user_agent_template_content=client_templates["USER_AGENT_TEMPLATE"],
-            grpc_user_agent_template_content=client_templates["GRPC_USER_AGENT_TEMPLATE"],
+    def __init__(
+        self,
+        user: UsersResponseWithInbounds,
+        format_variables: dict,
+        custom_variables: list | tuple | None,
+        hosts: list[SubscriptionInboundData],
+        user_agent_templates: tuple[str | None, str | None] = (None, None),
+    ):
+        self.user_status = user.status
+        self.user_inbounds = user.inbounds
+        self.proxy_settings = user.proxy_settings.dict()
+        self.proxy_settings["_user_id"] = user.id
+        self.format_variables = format_variables
+        self.custom_variables = custom_variables
+        self.hosts = hosts
+        self.user_agent_templates = user_agent_templates
+        self._prepared: dict[tuple[int, bool], PreparedHost | None] = {}
+
+    @cached_property
+    def _builder(self) -> XrayConfiguration:
+        return XrayConfiguration(
+            user_agent_template_content=self.user_agent_templates[0],
+            grpc_user_agent_template_content=self.user_agent_templates[1],
         )
-        return xc._download_config(download_copy, link_format=True)
 
-    return download_copy
+    def prepare(
+        self, host: SubscriptionInboundData, client_templates: dict[str, str] | None = None
+    ) -> PreparedHost | None:
+        """`client_templates` is given for share links, which carry the download settings inside the link."""
+        key = (id(host), client_templates is not None)
+        if key not in self._prepared:
+            self._prepared[key] = self._prepare(host, client_templates)
+        return self._prepared[key]
 
-
-async def process_inbounds_and_tags(
-    user: UsersResponseWithInbounds,
-    format_variables: dict,
-    conf: StandardLinks
-    | XrayConfiguration
-    | SingBoxConfiguration
-    | ClashConfiguration
-    | ClashMetaConfiguration
-    | OutlineConfiguration
-    | WireGuardConfiguration,
-    client_templates: dict[str, str],
-    xray_template_overrides: dict[int, str] | None = None,
-    randomize_order: bool = False,
-    custom_variables: list | tuple | None = None,
-) -> str | bytes:
-    proxy_settings = user.proxy_settings.dict()
-    proxy_settings["_user_id"] = user.id
-    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
-    if randomize_order and len(hosts) > 1:
-        random.shuffle(hosts)
-
-    def _resolve_host_xray_template_content(inbound: SubscriptionInboundData) -> str | None:
-        if xray_template_overrides is None:
-            return None
-        if not isinstance(inbound.subscription_templates, dict):
-            return None
-        template_id = inbound.subscription_templates.get("xray")
-        if not isinstance(template_id, int):
-            return None
-        return xray_template_overrides.get(template_id)
-
-    for host_data in hosts:
-        if host_data.network in XRAY_ONLY_NETWORKS and not isinstance(conf, XrayConfiguration):
-            # Links, sing-box, Clash and Outline cannot carry these transports.
-            continue
-        result = await process_host(host_data, format_variables, user.inbounds, proxy_settings, custom_variables)
+    def _prepare(self, host: SubscriptionInboundData, client_templates: dict[str, str] | None) -> PreparedHost | None:
+        result = process_host(
+            host, self.format_variables, self.user_inbounds, self.proxy_settings, self.custom_variables
+        )
         if not result:
-            continue
+            return None
 
-        inbound_copy: SubscriptionInboundData
-        inbound_copy, settings = result
+        inbound_copy, settings, variables = result
 
         # Format remark and address with user variables
-        remark = _format_dynamic_value(inbound_copy.remark, format_variables)
-        formatted_address = _format_dynamic_value(inbound_copy.address, format_variables)
+        remark = _format_dynamic_value(inbound_copy.remark, variables)
+        formatted_address = _format_dynamic_value(inbound_copy.address, variables)
         if has_markup_unsafe_chars(formatted_address):
             # Never valid, and links print the address unencoded; covers hosts saved before
             # address validation existed and values that came in through a format variable.
-            continue
+            return None
 
         download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
         if download_settings:
             if isinstance(download_settings, SubscriptionInboundData):
-                processed_download_settings = await _prepare_download_settings(
+                processed_download_settings = _prepare_download_settings(
                     download_settings,
-                    format_variables,
-                    user.inbounds,
-                    proxy_settings,
+                    variables,
+                    self.user_inbounds,
+                    self.proxy_settings,
                     client_templates,
-                    custom_variables,
-                    conf,
+                    self.custom_variables,
                 )
             else:
                 processed_download_settings = download_settings
             if hasattr(inbound_copy.transport_config, "download_settings"):
                 inbound_copy.transport_config.download_settings = processed_download_settings
 
-        if isinstance(conf, XrayConfiguration):
-            template_content = _resolve_host_xray_template_content(inbound_copy)
-            conf.add(
-                remark=remark,
-                address=formatted_address,
-                inbound=inbound_copy,
-                settings=settings,
-                template_content=template_content,
-            )
-        else:
-            conf.add(
-                remark=remark,
-                address=formatted_address,
-                inbound=inbound_copy,
-                settings=settings,
-            )
+        return PreparedHost(inbound_copy, settings, remark, formatted_address, variables)
 
+    def host_refs(self) -> list[HostRef]:
+        """Every host, disabled ones included, for the `hosts` variable of client templates. A disabled host is not a
+        profile of its own but templates may still embed it. One restricted to other user statuses is
+        marked, so templates that skip unavailable hosts follow the same rules as the subscription."""
+        return [
+            HostRef(host, self.remark, self.outbounds, visible=host_matches(host, self.user_status))
+            for host in self.hosts
+        ]
+
+    def remark(self, host: SubscriptionInboundData) -> str:
+        if prepared := self._prepared.get((id(host), False)):
+            return prepared.remark
+        variables = set_host_variables(self.format_variables, host, self.custom_variables)
+        try:
+            return _format_dynamic_value(host.remark, variables)
+        except ValueError, KeyError, IndexError:
+            return host.remark
+
+    def outbounds(self, host: SubscriptionInboundData, tag: str) -> list[dict] | None:
+        """None for a host the user has no access to."""
+        prepared = self.prepare(host)
+        if not prepared:
+            return None
+        return self._builder.build_outbounds(prepared.address, prepared.inbound, prepared.settings, tag)
+
+
+def process_inbounds_and_tags(
+    user: UsersResponseWithInbounds,
+    conf: StandardLinks
+    | XrayConfiguration
+    | SingBoxConfiguration
+    | ClashConfiguration
+    | ClashMetaConfiguration
+    | OutlineConfiguration
+    | WireGuardConfiguration,
+    client_templates: dict[str, str],
+    preparer: HostPreparer,
+    refs: list[HostRef],
+    xray_template_overrides: dict[int, TemplateSource] | None = None,
+    randomize_order: bool = False,
+) -> str | bytes:
+    hosts = filter_hosts(preparer.hosts, user.status)
+    if randomize_order and len(hosts) > 1:
+        random.shuffle(hosts)
+
+    def _resolve_host_xray_template_content(prepared: PreparedHost) -> str | None:
+        if xray_template_overrides is None:
+            return None
+        if not isinstance(prepared.inbound.subscription_templates, dict):
+            return None
+        template_id = prepared.inbound.subscription_templates.get("xray")
+        if not isinstance(template_id, int):
+            return None
+        override = xray_template_overrides.get(template_id)
+        if override is None:
+            return None
+        return _render_json_template(override, {**prepared.variables, "hosts": refs})
+
+    is_links = isinstance(conf, StandardLinks)
+    for host_data in hosts:
+        if host_data.network in XRAY_ONLY_NETWORKS and not isinstance(conf, XrayConfiguration):
+            # Links, sing-box, Clash and Outline cannot carry these transports.
+            continue
+        prepared = preparer.prepare(host_data, client_templates if is_links else None)
+        if not prepared:
+            continue
+
+        kwargs = {
+            "remark": prepared.remark,
+            "address": prepared.address,
+            "inbound": prepared.inbound,
+            "settings": prepared.settings,
+        }
+        if isinstance(conf, XrayConfiguration):
+            kwargs["template_content"] = _resolve_host_xray_template_content(prepared)
+        conf.add(**kwargs)
+
+    if isinstance(conf, ClashConfiguration):
+        # Like the other formats, a failing template answers with its id instead of the raw Jinja error
+        try:
+            return conf.render()
+        except Exception as exc:
+            raise TemplateRenderError(conf.template_id) from exc
     return conf.render()
 
 

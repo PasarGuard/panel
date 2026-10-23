@@ -23,9 +23,11 @@ from app.db.crud.user import get_user_by_id, get_wireguard_subscription_user
 from app.db.models import Admin as DBAdmin, ClientTemplate, CoreConfig, Group, Node, ProxyHost, User, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
+from app.models.settings import CustomVariable, jinja_variable_errors
 from app.models.user import UserCreate, UserModify
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
 from app.operation.permissions import apply_group_access, get_scope_admin_id
+from app.templates.pool import TemplatesBusy, validation_pool
 from app.utils.helpers import ensure_datetime_timezone
 from app.utils.jwt import get_subscription_payload
 
@@ -93,6 +95,19 @@ class BaseOperation:
             raise HTTPException(status_code=code, detail=str(message))
         else:
             raise ValueError(message)
+
+    async def check_custom_variables(self, variables: list[CustomVariable] | None, db: AsyncSession | None = None):
+        """Renders the Jinja variables as a subscription will. Their text is only parsed by the model, since rendering
+        has no bound on its length and must not run on the event loop; here it runs in the validation pool."""
+        if not variables or not any(variable.use_jinja for variable in variables):
+            return
+        try:
+            errors = await validation_pool.run(jinja_variable_errors, variables)
+        except TemplatesBusy as exc:
+            await self.raise_error(message=f"{exc}, try again shortly", code=503, db=db)
+        if errors:
+            key, error = next(iter(errors.items()))
+            await self.raise_error(message=f"Custom variable {key}: {error}", code=422, db=db)
 
     async def handle_rpc_error(self, exc: RuntimeError):
         """Convert NATS RPC errors to appropriate HTTP responses."""
@@ -165,9 +180,7 @@ class BaseOperation:
                 "load_lifetime_used_traffic": load_lifetime_used_traffic,
             }
             if sub.get("user_id") and wireguard_fast:
-                db_user = await get_wireguard_subscription_user(
-                    db, sub["user_id"], load_admin_role=load_admin_role
-                )
+                db_user = await get_wireguard_subscription_user(db, sub["user_id"], load_admin_role=load_admin_role)
             elif sub.get("user_id"):
                 db_user = await get_user_by_id(db, sub["user_id"], **load_kwargs)
             elif sub.get("username"):

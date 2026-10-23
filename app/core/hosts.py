@@ -209,6 +209,9 @@ async def _prepare_subscription_inbound_data(
             noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
             finalmask=final_mask_settings,
             finalmask_link=finalmask_link,
+            id=host.id,
+            tag_prefix=host.tag_prefix,
+            is_disabled=bool(host.is_disabled),
             priority=host.priority,
             status=list(host.status) if host.status else None,
             subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
@@ -537,6 +540,9 @@ async def _prepare_subscription_inbound_data(
         noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
         finalmask=final_mask_settings,
         finalmask_link=finalmask_link,
+        id=host.id,
+        tag_prefix=host.tag_prefix,
+        is_disabled=bool(host.is_disabled),
         priority=host.priority,
         status=list(host.status) if host.status else None,
         subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
@@ -619,6 +625,11 @@ class HostManager:
                     self._logger.warning(f"Failed to convert host data for host ID {host_id_str}: {host_data}")
                     continue
 
+            if any(host.id is None for host in converted_state.values()):
+                # Saved before hosts carried their id, tag prefix and disabled flag: rebuild from the database
+                self._logger.info("Host state in cache is outdated, reloading hosts from the database")
+                return False
+
             async with self._lock:
                 self._hosts = converted_state
             await self._reset_cache()
@@ -676,13 +687,14 @@ class HostManager:
         await self._add_hosts_local(db, db_hosts)
 
     async def _reset_cache(self):
-        await self.get_hosts.cache.clear()
+        await self.get_all_hosts.cache.clear()
         clear_sub_config_cache()
 
     async def _prepare_host_entry(
         self, db: AsyncSession, host: BaseHost, inbounds_list: list[str]
     ) -> tuple[int, SubscriptionInboundData] | None:
-        if host.is_disabled or (host.inbound_tag not in inbounds_list):
+        # Disabled hosts are kept for client templates (get_all_hosts); get_hosts leaves them out
+        if host.inbound_tag not in inbounds_list:
             return None
 
         # Handle downstream for xhttp. A disabled host can still supply download settings,
@@ -818,11 +830,16 @@ class HostManager:
             return host_data.model_dump() if isinstance(host_data, SubscriptionInboundData) else host_data
 
     @cached(ttl=10)
-    async def get_hosts(self) -> dict[int, SubscriptionInboundData]:
+    async def get_all_hosts(self) -> dict[int, SubscriptionInboundData]:
+        """Every host, disabled ones included: the `hosts` list of client templates."""
         async with self._lock:
             # Return hosts sorted by priority (accessing from subscription_data model)
             sorted_hosts = dict(sorted(self._hosts.items(), key=lambda x: x[1].priority))
             return deepcopy(sorted_hosts)
+
+    async def get_hosts(self) -> dict[int, SubscriptionInboundData]:
+        """The enabled hosts, sorted by priority."""
+        return {host_id: host for host_id, host in (await self.get_all_hosts()).items() if not host.is_disabled}
 
 
 host_manager: HostManager = HostManager()

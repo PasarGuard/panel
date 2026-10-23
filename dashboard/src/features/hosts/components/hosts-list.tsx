@@ -210,6 +210,7 @@ export default function HostsList({
         : undefined,
       final_mask_settings: host.final_mask_settings ?? undefined,
       cipher_suites: host.cipher_suites ?? undefined,
+        tag_prefix: host.tag_prefix ?? undefined,
       fragment_settings: mapHostFragmentSettingsForForm(host.fragment_settings),
       noise_settings: host.noise_settings
         ? {
@@ -401,6 +402,7 @@ export default function HostsList({
         subscription_templates: host.subscription_templates ?? undefined,
         final_mask_settings: host.final_mask_settings ?? undefined,
         cipher_suites: host.cipher_suites ?? undefined,
+        tag_prefix: host.tag_prefix ?? undefined,
       }
 
       await createHost(newHost)
@@ -725,6 +727,7 @@ export default function HostsList({
         http_headers: host.http_headers || {},
         final_mask_settings: host.final_mask_settings ?? undefined,
         cipher_suites: host.cipher_suites ?? undefined,
+        tag_prefix: host.tag_prefix ?? undefined,
       }))
 
       // Make the API call to update priorities

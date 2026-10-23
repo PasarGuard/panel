@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
@@ -9,13 +9,16 @@ from app.models.client_template import (
     ClientTemplateResponse,
     ClientTemplateResponseList,
     ClientTemplatesSimpleResponse,
+    ClientTemplateValidate,
+    ClientTemplateValidation,
     RemoveClientTemplatesResponse,
 )
 from app.operation import OperatorType
 from app.operation.client_template import ClientTemplateOperation
+from app.operation.permissions import PermissionDenied, enforce_permission
 from app.utils import responses
 
-from .authentication import require_permission
+from .authentication import get_current, require_permission
 from .dependencies import get_client_template_list_query, get_client_template_simple_list_query
 
 router = APIRouter(
@@ -27,6 +30,17 @@ router = APIRouter(
 client_template_operator = ClientTemplateOperation(OperatorType.API)
 
 
+async def _require_create_or_update(admin: AdminDetails = Depends(get_current)) -> AdminDetails:
+    """/validate is used by both the create and the edit modal, so either permission is enough for it."""
+    for action in ("create", "update"):
+        try:
+            enforce_permission(admin, "client_templates", action)
+            return admin
+        except PermissionDenied as e:
+            denied = e
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(denied))
+
+
 @router.post("", response_model=ClientTemplateResponse, status_code=status.HTTP_201_CREATED)
 async def create_client_template(
     new_template: ClientTemplateCreate,
@@ -34,6 +48,17 @@ async def create_client_template(
     admin: AdminDetails = Depends(require_permission("client_templates", "create")),
 ):
     return await client_template_operator.create_client_template(db, new_template, admin)
+
+
+@router.post("/validate", response_model=ClientTemplateValidation)
+async def validate_client_template(
+    template: ClientTemplateValidate,
+    _: AdminDetails = Depends(_require_create_or_update),
+):
+    """Render and check template content as saving would, without saving it."""
+    return await client_template_operator.validate_client_template(
+        template.template_type, template.content, template.use_jinja
+    )
 
 
 @router.get("/{template_id}", response_model=ClientTemplateResponse)

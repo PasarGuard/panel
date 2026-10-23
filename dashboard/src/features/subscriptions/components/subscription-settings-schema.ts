@@ -29,6 +29,7 @@ export const customVariableSchema = z.object({
     .regex(/^$|^[A-Z][A-Z0-9_]*$/, 'Use uppercase letters, numbers, and underscores')
     .default(''),
   value: z.string().max(512, 'Variable value must be 512 characters or less').default(''),
+  use_jinja: z.boolean().default(false),
 })
 
 export const customVariablesSchema = z
@@ -56,11 +57,12 @@ export const customVariablesSchema = z
     }
   })
 
-export const normalizeCustomVariablesForPayload = (variables?: { key?: string; value?: string }[] | null) =>
+export const normalizeCustomVariablesForPayload = (variables?: { key?: string; value?: string; use_jinja?: boolean }[] | null) =>
   (variables || [])
     .map(variable => ({
       key: variable.key?.trim() || '',
       value: variable.value?.trim() || '',
+      use_jinja: !!variable.use_jinja,
     }))
     .filter(variable => variable.key)
 
@@ -136,7 +138,8 @@ export type SubscriptionFormData = z.infer<typeof subscriptionSchema>
 export type SubscriptionFormInput = z.input<typeof subscriptionSchema>
 export type SubscriptionSettingsForm = UseFormReturn<SubscriptionFormInput, unknown, SubscriptionFormData>
 // Watched fields are resolver inputs, so defaults may not have been applied yet.
-export const withCustomVariableDefaults = (variables: SubscriptionFormInput['custom_variables']) => (variables ?? []).map(variable => ({ key: variable.key ?? '', value: variable.value ?? '' }))
+export const withCustomVariableDefaults = (variables: SubscriptionFormInput['custom_variables']) =>
+  (variables ?? []).map(variable => ({ key: variable.key ?? '', value: variable.value ?? '', use_jinja: variable.use_jinja ?? false }))
 export type SubscriptionRuleFormData = SubscriptionFormData['rules'][number]
 export type SubscriptionPlatform = SubscriptionApplicationFormData['platform']
 export type SubscriptionLanguage = NonNullable<SubscriptionApplicationFormData['download_links']>[number]['language']

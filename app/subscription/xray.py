@@ -89,26 +89,54 @@ class XrayConfiguration(BaseSubscription):
         template_content: str | None = None,
     ):
         """Add outbound using registry pattern"""
+        outbounds = self._build_outbound_list(address, inbound, settings)
+        if outbounds:
+            self.add_config(remarks=remark, outbounds=outbounds, template_content=template_content)
 
-        # Get protocol handler from registry
+    def _build_outbound_list(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> list[dict] | None:
+        """The main outbound first, then the ones it depends on. Handlers return either one outbound or (main, extras)."""
         handler = self.protocol_handlers.get(inbound.protocol)
-        if not handler:
-            return
-
-        # Build outbound(s)
-        result = handler(address=address, inbound=inbound, settings=settings)
+        result = handler(address=address, inbound=inbound, settings=settings) if handler else None
         if not result:
-            return
-
-        # Handle different return types
+            return None
         if isinstance(result, tuple):
-            # VMess, VLESS, Trojan, Shadowsocks, WireGuard return (main_outbound, extra_outbounds_list)
-            main_outbound, extra_outbounds = result
-            all_outbounds = [main_outbound] + extra_outbounds
-        else:
-            all_outbounds = [result]
+            main, extras = result
+            return [main, *extras]
+        return [result]
 
-        self.add_config(remarks=remark, outbounds=all_outbounds, template_content=template_content)
+    def build_outbounds(
+        self, address: str, inbound: SubscriptionInboundData, settings: dict, tag: str
+    ) -> list[dict] | None:
+        """Outbounds of one host (main first) with unique tags, to embed in a config that holds several hosts.
+
+        Every builder tags the main outbound "proxy" and its dialer "dialer"; here the main one is named `tag` and
+        the dialer `dialer-<tag>`, and the dialerProxy references follow.
+        """
+        outbounds = self._build_outbound_list(address, inbound, settings)
+        if not outbounds:
+            return None
+
+        main, *extras = outbounds
+        main["tag"] = tag
+        # Extras put their name first: a selector on the group prefix ("de-") must not match them
+        renames = {extra["tag"]: f"{extra['tag']}-{tag}" for extra in extras}
+        for extra in extras:
+            extra["tag"] = renames[extra["tag"]]
+        if renames:
+            self._rename_dialers(main, renames)
+        return outbounds
+
+    @classmethod
+    def _rename_dialers(cls, node, renames: dict[str, str]) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == "dialerProxy" and value in renames:
+                    node[key] = renames[value]
+                else:
+                    cls._rename_dialers(value, renames)
+        elif isinstance(node, list):
+            for item in node:
+                cls._rename_dialers(item, renames)
 
     # ========== Transport Handlers (Registry Methods) ==========
 
@@ -117,7 +145,7 @@ class XrayConfiguration(BaseSubscription):
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
         ws_settings = {
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers or {}),
             "heartbeatPeriod": config.heartbeat_period,
             "path": path,
             "host": host,
@@ -133,7 +161,7 @@ class XrayConfiguration(BaseSubscription):
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
         httpupgrade_settings = {
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers or {}),
             "path": path,
             "host": host,
         }
@@ -154,7 +182,7 @@ class XrayConfiguration(BaseSubscription):
         }
 
         extra = {
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers or {}),
             "scMaxEachPostBytes": config.sc_max_each_post_bytes,
             "scMinPostsIntervalMs": config.sc_min_posts_interval_ms,
             "xPaddingBytes": config.x_padding_bytes,
@@ -776,7 +804,7 @@ class XrayConfiguration(BaseSubscription):
                 finalmask = finalmask.model_dump(exclude_none=True, by_alias=True, mode="json")
             try:
                 finalmask = FinalMask.model_validate(finalmask)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 pass
             if isinstance(finalmask, (FinalMask, dict)):
                 stream_settings["finalmask"] = dump_final_mask_for_xray(finalmask)

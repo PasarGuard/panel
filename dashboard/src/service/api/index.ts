@@ -308,6 +308,7 @@ export interface CustomVariable {
   key: string;
   /** @maxLength 512 */
   value?: string;
+  use_jinja?: boolean;
 }
 
 export interface UserNotificationEnable {
@@ -1198,6 +1199,7 @@ export interface BaseHost {
   subscription_templates?: SubscriptionTemplates | null;
   final_mask_settings?: FinalMask | null;
   cipher_suites?: string | null;
+  tag_prefix?: string | null;
 }
 
 export interface BaseNotificationEnable {
@@ -1419,12 +1421,15 @@ export interface ClientTemplateCreate {
   template_type: ClientTemplateType;
   content: string;
   is_default?: boolean;
+  /** Ignored for clash_subscription, which always needs Jinja2 (it renders `conf`, built once the proxies exist). */
+  use_jinja?: boolean;
 }
 
 export interface ClientTemplateModify {
   name?: string | null;
   content?: string | null;
   is_default?: boolean | null;
+  use_jinja?: boolean | null;
 }
 
 export interface ClientTemplateResponse {
@@ -1434,6 +1439,7 @@ export interface ClientTemplateResponse {
   content: string;
   is_default: boolean;
   is_system: boolean;
+  use_jinja: boolean;
 }
 
 export interface ClientTemplateResponseList {
@@ -1446,6 +1452,19 @@ export interface ClientTemplateSimple {
   name: string;
   template_type: ClientTemplateType;
   is_default: boolean;
+}
+
+export interface ClientTemplateValidate {
+  template_type: ClientTemplateType;
+  content: string;
+  use_jinja?: boolean;
+}
+
+export interface ClientTemplateValidation {
+  valid: boolean;
+  error?: string | null;
+  /** Line of `content` the error points at, when it can be told. */
+  line?: number | null;
 }
 
 export interface ClientTemplatesSimpleResponse {
@@ -1573,6 +1592,7 @@ export interface CreateHost {
   subscription_templates?: SubscriptionTemplates | null;
   final_mask_settings?: FinalMask | null;
   cipher_suites?: string | null;
+  tag_prefix?: string | null;
 }
 
 export interface CreateUserFromTemplate {
@@ -10238,6 +10258,77 @@ export const useCreateClientTemplate = <TError = ErrorType<Unauthorized | Forbid
         TContext
       > => {
       return useMutation(getCreateClientTemplateMutationOptions(options), queryClient);
+    }
+
+export const getValidateClientTemplateUrl = () => {
+
+
+
+
+  return `/api/client_template/validate`
+}
+
+/**
+ * @summary Validate Client Template
+ */
+export const validateClientTemplate = async (clientTemplateValidate: ClientTemplateValidate, options?: RequestInit): Promise<ClientTemplateValidation> => {
+
+  return orvalFetcher<ClientTemplateValidation>(getValidateClientTemplateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(clientTemplateValidate)
+  }
+);}
+
+
+
+
+
+export const getValidateClientTemplateMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateClientTemplate>>, TError,{data: BodyType<ClientTemplateValidate>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof validateClientTemplate>>, TError,{data: BodyType<ClientTemplateValidate>}, TContext> => {
+
+const mutationKey = ['validateClientTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof validateClientTemplate>>, {data: BodyType<ClientTemplateValidate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  validateClientTemplate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ValidateClientTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof validateClientTemplate>>>
+    export type ValidateClientTemplateMutationBody = BodyType<ClientTemplateValidate>
+    export type ValidateClientTemplateMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+    /**
+ * @summary Validate Client Template
+ */
+export const useValidateClientTemplate = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateClientTemplate>>, TError,{data: BodyType<ClientTemplateValidate>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof validateClientTemplate>>,
+        TError,
+        {data: BodyType<ClientTemplateValidate>},
+        TContext
+      > => {
+      return useMutation(getValidateClientTemplateMutationOptions(options), queryClient);
     }
 
 export const getGetClientTemplateUrl = (templateId: number,) => {
