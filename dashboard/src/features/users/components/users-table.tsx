@@ -16,7 +16,6 @@ import {
   useGetUsers,
   UserResponse,
   UserStatus,
-  UsersResponse,
 } from '@/service/api'
 
 import { useAdmin } from '@/hooks/use-admin'
@@ -970,23 +969,8 @@ const UsersTable = memo(() => {
       clearSelectedUserTimeoutRef.current = null
     }
 
-    const cachedData = queryClient.getQueriesData<UsersResponse>({
-      queryKey: ['/api/users'],
-      exact: false,
-    })
-
-    let latestUser = user
-    for (const [, data] of cachedData) {
-      if (data?.users) {
-        const foundUser = data.users.find(u => u.id === user.id)
-        if (foundUser) {
-          latestUser = foundUser
-          break
-        }
-      }
-    }
-
-    setSelectedUser(latestUser)
+    // Edit the copy the clicked row shows: it comes from the query on screen, while other cached pages or searches can hold older copies.
+    setSelectedUser(user)
     setEditModalOpen(true)
   }
 
@@ -1240,7 +1224,14 @@ const UsersTable = memo(() => {
           />
         </Suspense>
       )}
-      {canBulkMutateUsers && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
+      {canBulkMutateUsers && (
+        <BulkActionsBar
+          selectedCount={selectedCount}
+          onClear={clearSelection}
+          // While the table shows loading rows the selected users are out of sight, so no bulk action until they are back
+          actions={isPageLoading ? bulkActions.map(action => ({ ...action, disabled: true })) : bulkActions}
+        />
+      )}
       {isEmpty && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">

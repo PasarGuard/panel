@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { type HostAdvanceSearchFormValues, hostAdvanceSearchFormSchema } from '@/features/hosts/forms/host-advance-search-form'
-import { HostFormSchema, hostFormDefaultValues, mapHostFragmentSettingsForForm, type HostFormValues } from '@/features/hosts/forms/host-form'
+import { HostFormSchema, hostFormDefaultValues, mapHostFragmentSettingsForForm, mapMasqueXmuxForForm, type HostFormValues } from '@/features/hosts/forms/host-form'
 import HostAdvanceSearchModal from '@/features/hosts/dialogs/host-advance-search-modal'
 import { type HostListFilters, HostFilters } from '@/features/hosts/components/host-filters'
 import { ListGenerator } from '@/components/common/list-generator'
@@ -169,6 +169,10 @@ export default function HostsList({
     setIsAdvanceSearchOpen(open)
   }
 
+  /**
+   * Populate the form and open the host editor when updates are allowed.
+   * An existing MASQUE settings block with no DNS list is loaded with an empty list.
+   */
   const handleEdit = (host: BaseHost) => {
     if (!canUpdate) return
 
@@ -256,6 +260,12 @@ export default function HostsList({
         : undefined,
       transport_settings: host.transport_settings
         ? {
+            masque_settings: host.transport_settings.masque_settings
+              ? {
+                  remote_dns: host.transport_settings.masque_settings.remote_dns ?? [],
+                  xmux: mapMasqueXmuxForForm(host.transport_settings.masque_settings.xmux),
+                }
+              : undefined,
             xhttp_settings: host.transport_settings.xhttp_settings
               ? {
                   mode: host.transport_settings.xhttp_settings.mode ?? undefined,
@@ -534,6 +544,11 @@ export default function HostsList({
     }),
   )
 
+  /**
+   * Persist an unfiltered drag reorder as zero-based host priorities, retaining MASQUE DNS settings.
+   * Ignore drops when updates are disallowed or the source or target is invalid.
+   * On failure, restore the previous local order and show an error without rejecting the promise.
+   */
   const handleDragEnd = async (event: DragEndEvent) => {
     if (!canUpdate) return
 
@@ -627,6 +642,12 @@ export default function HostsList({
           : undefined,
         transport_settings: host.transport_settings
           ? {
+              masque_settings: host.transport_settings.masque_settings
+                ? {
+                    remote_dns: host.transport_settings.masque_settings.remote_dns ?? [],
+                    xmux: host.transport_settings.masque_settings.xmux ?? undefined,
+                  }
+                : undefined,
               xhttp_settings: host.transport_settings.xhttp_settings
                 ? {
                     mode: host.transport_settings.xhttp_settings.mode ?? undefined,
@@ -720,8 +741,17 @@ export default function HostsList({
       // Revert the optimistic update on error
       setHosts(hosts)
 
-      // Show error message
-      toast.error(t('host.priorityUpdateError', { defaultValue: 'Failed to update priorities' }))
+      // Show error message, with the API's reason (a 422 names the host value it rejected)
+      const detail = (error as any)?.data?.detail
+      const description =
+        typeof detail === 'string'
+          ? detail
+          : detail && typeof detail === 'object'
+            ? Object.entries(detail)
+                .map(([field, message]) => `${field}: ${message}`)
+                .join('\n')
+            : undefined
+      toast.error(t('host.priorityUpdateError', { defaultValue: 'Failed to update priorities' }), { description })
     } finally {
       setIsUpdatingPriorities(false)
     }

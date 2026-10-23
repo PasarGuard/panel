@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -99,3 +101,25 @@ async def delete_role(db: AsyncSession, role: AdminRole) -> None:
         raise ValueError(f"Cannot delete built-in role '{role.name}'")
     await db.delete(role)
     await db.flush()
+
+
+async def remove_ids_from_role_access(db: AsyncSession, field: str, removed_ids: Iterable[int]) -> None:
+    """Drop deleted group or template ids from every role's `access[field]` allowlist (no commit).
+
+    SQLite hands a freed id to the next insert, so a stale entry would grant the next new row. An
+    allowlist left empty stays empty (nothing allowed); it never becomes None (everything allowed).
+    """
+    removed = set(removed_ids)
+    if not removed:
+        return
+    # Lock the role rows (in id order) and reload them: two deletes running at once would otherwise both read
+    # the same allowlist and the later write would put back the id the earlier one removed. Flush first, so the
+    # reload cannot discard a pending change on a role in this session.
+    await db.flush()
+    query = select(AdminRole).order_by(AdminRole.id).with_for_update().execution_options(populate_existing=True)
+    for role in (await db.execute(query)).scalars():
+        allowed = (role.access or {}).get(field)
+        if not allowed or removed.isdisjoint(allowed):
+            continue
+        # JSON columns are not mutation-tracked: assign a new dict.
+        role.access = {**role.access, field: [item_id for item_id in allowed if item_id not in removed]}

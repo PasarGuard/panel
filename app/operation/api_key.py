@@ -80,6 +80,9 @@ def _check_permissions_not_exceed_admin(admin: AdminDetails, requested: RolePerm
                     )
 
 
+_CUSTOM_KEY_INHERIT_DENIED = "An API key with custom permissions cannot create, change or rotate inheriting keys"
+
+
 class APIKeyOperation(BaseOperation):
     async def create_api_key(
         self, db: AsyncSession, *, admin: AdminDetails, model: APIKeyCreate
@@ -98,6 +101,11 @@ class APIKeyOperation(BaseOperation):
             await self.raise_error(message="Target admin not found", code=404)
 
         target_admin = build_admin_details(target_db_admin)
+
+        # An inheriting key carries the admin's whole role, so a key with narrower custom permissions
+        # must not be able to mint one.
+        if model.inherit_permissions and admin.custom_api_key_id is not None:
+            await self.raise_error(message=_CUSTOM_KEY_INHERIT_DENIED, code=403)
 
         if not model.inherit_permissions:
             try:
@@ -176,6 +184,9 @@ class APIKeyOperation(BaseOperation):
         )
         check_custom_permissions = not final_inherit and permissions_changed
 
+        if final_inherit and admin.custom_api_key_id is not None:
+            await self.raise_error(message=_CUSTOM_KEY_INHERIT_DENIED, code=403)
+
         target_admin = None
         if target_admin_id != db_key.admin_id or check_custom_permissions:
             target_db_admin = await get_admin_by_id(
@@ -231,6 +242,16 @@ class APIKeyOperation(BaseOperation):
 
         if not admin.is_owner and db_key.admin_id != admin.id:
             await self.raise_error(message="Permission denied", code=403)
+
+        # Rotating returns the key's new secret, so a custom-permission key may only rotate itself or
+        # keys that stay within its own permissions.
+        if admin.custom_api_key_id is not None and db_key.id != admin.custom_api_key_id:
+            if db_key.inherit_permissions:
+                await self.raise_error(message=_CUSTOM_KEY_INHERIT_DENIED, code=403)
+            try:
+                _check_permissions_not_exceed_admin(admin, RolePermissions.model_validate(db_key.permissions))
+            except ValueError as exc:
+                await self.raise_error(message=str(exc), code=403)
 
         raw_key, db_key = await revoke_api_key_crud(db, db_key)
         await db.commit()

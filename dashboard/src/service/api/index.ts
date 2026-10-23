@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 5.4.1
+ * OpenAPI spec version: 5.5.0
  */
 import {
   useMutation,
@@ -755,12 +755,18 @@ export interface WebSocketSettings {
   heartbeatPeriod?: number | null;
 }
 
+export interface MasqueHostSettings {
+  remote_dns?: string[] | null;
+  xmux?: XMuxSettings | null;
+}
+
 export interface TransportSettings {
   xhttp_settings?: XHttpSettings | null;
   grpc_settings?: GRPCSettings | null;
   kcp_settings?: KCPSettings | null;
   tcp_settings?: TcpSettings | null;
   websocket_settings?: WebSocketSettings | null;
+  masque_settings?: MasqueHostSettings | null;
 }
 
 export type MultiplexProtocol = typeof MultiplexProtocol[keyof typeof MultiplexProtocol];
@@ -1030,18 +1036,37 @@ export interface FinalMaskDomainSettings {
   [key: string]: unknown;
  }
 
+export interface FinalMaskXdnsDomain {
+  names?: string[];
+  lenLimit?: number | null;
+  labelLimit?: number | null;
+  types?: number[] | null;
+  edns0?: number | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskXdnsResolverTlsConfig = { [key: string]: unknown } | null;
+
+export type FinalMaskXdnsResolverQuicConfig = { [key: string]: unknown } | null;
+
+export interface FinalMaskXdnsResolver {
+  addrs?: string[];
+  worker?: number | null;
+  tlsConfig?: FinalMaskXdnsResolverTlsConfig;
+  quicConfig?: FinalMaskXdnsResolverQuicConfig;
+  [key: string]: unknown;
+ }
+
 export interface FinalMaskXdnsSettings {
-  domains?: string[] | null;
-  resolvers?: string[] | null;
-  domain?: string | null;
+  domains?: FinalMaskXdnsDomain[] | null;
+  resolvers?: FinalMaskXdnsResolver[] | null;
+  extraPoll?: number | null;
   [key: string]: unknown;
  }
 
 export interface FinalMaskXicmpSettings {
   dgram?: boolean | null;
   ips?: string[] | null;
-  listenIp?: string | null;
-  id?: number | null;
   [key: string]: unknown;
  }
 
@@ -1879,6 +1904,11 @@ export interface InboundSummary {
   network?: string | null;
 }
 
+export interface MasqueSettings {
+  /** @minLength 1 */
+  password?: string;
+}
+
 export interface ModifyUserByTemplate {
   user_template_id: number;
   note?: string | null;
@@ -2228,6 +2258,7 @@ export interface ProxyTable {
   shadowsocks?: ShadowsocksSettings;
   wireguard?: WireGuardSettings;
   hysteria?: HysteriaSettings;
+  masque?: MasqueSettings;
 }
 
 export interface RealityScanRequest {

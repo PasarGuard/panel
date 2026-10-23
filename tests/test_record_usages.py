@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import logging
 import os
+import random
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import select
-from sqlalchemy.dialects import postgresql
-from sqlalchemy.exc import OperationalError, SQLAlchemyError
+from sqlalchemy import func, select
+from sqlalchemy.dialects import mysql, postgresql
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool, StaticPool
+from sqlalchemy.pool import NullPool
 
 from app.db import base
+from app.db.crud.node import remove_node
 from app.db.models import Admin, AdminRole, AdminStatus, Node, NodeUsage, NodeUserUsage, System, User
 from app.jobs import record_usages
 from app.models.proxy import ProxyTable
@@ -164,6 +166,94 @@ async def test_postgres_history_retains_failed_flush_for_retry(monkeypatch: pyte
     assert not record_usages._pending_user_usage_history
 
 
+def _foreign_key_error() -> IntegrityError:
+    return IntegrityError("INSERT INTO node_user_usages", {}, Exception("violates foreign key constraint"))
+
+
+@pytest.mark.asyncio
+async def test_history_write_drops_a_batch_the_database_rejects(monkeypatch: pytest.MonkeyPatch, caplog):
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    executed = []
+
+    async def fake_safe_execute(stmt, params=None, max_retries=5):
+        executed.append(params)
+        if len(executed) == 1:
+            raise _foreign_key_error()
+
+    monkeypatch.setattr(record_usages, "safe_execute", fake_safe_execute)
+    caplog.set_level(logging.ERROR)
+    rows = [{"uid": index + 1, "value": 1, "node_id": 7, "created_at": bucket} for index in range(2_000)]
+
+    await record_usages._write_node_user_usage_params("mysql", rows)
+
+    # The rejected batch is dropped with a log line and the next batch is still written
+    assert len(executed) == 2
+    assert "Dropped 1000 node user usage history rows" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_drops_rows_the_database_rejects(monkeypatch: pytest.MonkeyPatch, caplog):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    executed = []
+    monotonic_values = iter([100.0, 161.0, 222.0])
+
+    async def fake_safe_execute(stmt, params=None, max_retries=5):
+        executed.append(params)
+        if len(executed) == 1:
+            raise _foreign_key_error()
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "safe_execute", fake_safe_execute)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+    caplog.set_level(logging.ERROR)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+    # This flush is rejected: retrying the same rows could never succeed, so they are dropped
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
+    assert not record_usages._pending_user_usage_history
+    assert "Dropped 1 node user usage history rows" in caplog.text
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 9}]}, {7: 1})
+
+    assert len(executed) == 2
+    assert executed[1]["traffic_values"] == [9]
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_postgres_history_caps_buffered_buckets_after_failed_flushes(monkeypatch: pytest.MonkeyPatch, caplog):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    first_bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    buckets = [first_bucket + timedelta(minutes=10 * index) for index in range(9)]
+    bucket_values = iter(buckets)
+
+    async def failing_safe_execute(stmt, params=None, max_retries=5):
+        raise OperationalError("INSERT INTO node_user_usages", {}, Exception("connection lost"))
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: next(bucket_values))
+    monkeypatch.setattr(record_usages, "safe_execute", failing_safe_execute)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: 100.0)
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+    caplog.set_level(logging.ERROR)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+    for _ in buckets[1:]:
+        # Every bucket rollover tries to flush the older buckets and fails
+        with pytest.raises(OperationalError):
+            await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+
+    # Failed flushes keep at most an hour (6 buckets) of older history next to the current bucket
+    pending_buckets = sorted({key[0] for key in record_usages._pending_user_usage_history})
+    assert pending_buckets == buckets[2:]
+    assert "Dropped 1 buffered node user usage history rows" in caplog.text
+
+
 @pytest.mark.asyncio
 async def test_due_history_flushes_without_a_new_usage_sample(monkeypatch: pytest.MonkeyPatch):
     bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
@@ -257,26 +347,43 @@ def test_postgres_user_traffic_update_uses_one_unnest_statement():
     assert params == {"uids": [1, 2], "traffic_values": [40, 20]}
 
 
-def _get_test_database_url() -> str:
+def test_mysql_user_traffic_update_uses_one_case_statement():
+    usage_params = [
+        {"uid": 1, "value": 10},
+        {"uid": 2, "value": 20},
+        {"uid": 1, "value": 30},
+    ]
+
+    stmt, params = record_usages.build_user_traffic_update("mysql", usage_params)
+    compiled = stmt.compile(dialect=mysql.dialect(), compile_kwargs={"render_postcompile": True})
+    sql = str(compiled)
+
+    assert "UPDATE users" in sql
+    assert "CASE users.id WHEN" in sql
+    assert params is None
+    # Repeated users are summed: a CASE only uses the first matching WHEN
+    assert list(compiled.params.values()) == [1, 40, 2, 20, 1, 2]
+
+
+def _get_test_database_url(tmp_path) -> str:
     test_from = os.getenv("TEST_FROM", "local").lower()
     if test_from == "local":
-        return "sqlite+aiosqlite:///:memory:"
+        # A file database, not :memory: with one shared StaticPool connection: the usage
+        # jobs write from concurrent tasks, and on a shared connection one task's
+        # ROLLBACK or COMMIT ends the other tasks' transactions
+        return f"sqlite+aiosqlite:///{tmp_path / 'record_usages.db'}"
     return database_settings.url
 
 
 @pytest.fixture
-async def session_factory(monkeypatch: pytest.MonkeyPatch):
-    database_url = _get_test_database_url()
+async def session_factory(monkeypatch: pytest.MonkeyPatch, tmp_path):
+    database_url = _get_test_database_url(tmp_path)
     is_sqlite = database_url.startswith("sqlite")
 
-    engine_kwargs = {}
+    engine_kwargs = {"poolclass": NullPool}
     connect_args = {}
     if is_sqlite:
         connect_args["check_same_thread"] = False
-        # Keep the in-memory database alive across connections
-        engine_kwargs["poolclass"] = StaticPool
-    else:
-        engine_kwargs["poolclass"] = NullPool
 
     # MySQL/MariaDB do not allow defaults on JSON columns; strip them temporarily
     proxy_default = None
@@ -324,8 +431,10 @@ async def session_factory(monkeypatch: pytest.MonkeyPatch):
 
     yield session_factory
 
+    # With TEST_FROM set this is the shared CI database, which later test files use too: leave every table, empty
     async with engine.begin() as conn:
         await conn.run_sync(base.Base.metadata.drop_all)
+        await conn.run_sync(base.Base.metadata.create_all)
     await engine.dispose()
     if needs_json_default_fix and proxy_column is not None:
         proxy_column.server_default = proxy_default
@@ -390,20 +499,31 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
             api_key="key2",
             core_config_id=None,
         )
-        session.add_all([node_one, node_two])
+        node_zero = Node(
+            name="node-zero",
+            address="10.0.0.3",
+            port=1003,
+            api_port=1004,
+            server_ca="ca3",
+            api_key="key3",
+            core_config_id=None,
+        )
+        session.add_all([node_one, node_two, node_zero])
         await session.flush()
-        node_one_id, node_two_id = node_one.id, node_two.id
+        node_one_id, node_two_id, node_zero_id = node_one.id, node_two.id, node_zero.id
         await session.commit()
 
     nodes = [
         (node_one_id, DummyNode(node_one_id, usage_coefficient=2)),
         (node_two_id, DummyNode(node_two_id, usage_coefficient=1)),
+        (node_zero_id, DummyNode(node_zero_id, usage_coefficient=0)),
     ]
     monkeypatch.setattr(record_usages.node_manager, "get_healthy_nodes", AsyncMock(return_value=nodes))
 
     stats_map = {
         node_one_id: [{"uid": str(user_one_id), "value": 100}, {"uid": str(user_two_id), "value": 50}],
         node_two_id: [{"uid": str(user_one_id), "value": 75}],
+        node_zero_id: [{"uid": str(user_one_id), "value": 500}],
     }
 
     async def fake_get_users_stats(node: DummyNode, node_id: int | None = None):
@@ -421,13 +541,14 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
         user_rows = users_result.all()
         user_totals = {row.id: (row.used_traffic, row.online_at) for row in user_rows}
 
-        assert user_totals[user_one_id][0] > user_totals[user_two_id][0]
+        assert user_totals[user_one_id][0] == 275
+        assert user_totals[user_two_id][0] == 100
         assert all(total > 0 for total, _ in user_totals.values())
         assert all(online_at is not None for _, online_at in user_totals.values())
 
         admin_total = await session.execute(select(Admin.used_traffic).where(Admin.id == admin_id))
         admin_used = admin_total.scalar_one()
-        assert admin_used == sum(total for total, _ in user_totals.values())
+        assert admin_used == 375
 
         node_usage_rows = await session.execute(
             select(NodeUserUsage.node_id, NodeUserUsage.user_id, NodeUserUsage.used_traffic)
@@ -494,6 +615,137 @@ async def test_record_user_usages_limits_overused_admin(monkeypatch: pytest.Monk
 
 
 @pytest.mark.asyncio
+async def test_usage_cycles_match_a_reference_model(monkeypatch: pytest.MonkeyPatch, session_factory):
+    """Pin what two usage cycles write (totals, online users, history, node usage) across the batch sizes."""
+    rng = random.Random(946)
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    async with session_factory() as session:
+        admins = [Admin(username=f"admin-{index}", hashed_password="secret", role_id=3) for index in range(2)]
+        session.add_all(admins)
+        await session.flush()
+        users = [
+            User(
+                username=f"user-{index}",
+                admin_id=admins[index % 3].id if index % 3 < 2 else None,
+                proxy_settings=ProxyTable().dict(no_obj=True),
+            )
+            for index in range(1_200)
+        ]
+        nodes = [
+            Node(
+                name=f"node-{index}",
+                address=f"10.0.0.{index}",
+                port=1000 + index,
+                api_port=2000 + index,
+                server_ca="ca",
+                api_key=f"key{index}",
+                core_config_id=None,
+            )
+            for index in range(3)
+        ]
+        system = System(uplink=0, downlink=0)
+        session.add_all([*users, *nodes, system])
+        await session.flush()
+        user_admin = {user.id: user.admin_id for user in users}
+        admin_ids = [admin.id for admin in admins]
+        node_ids = [node.id for node in nodes]
+        await session.commit()
+
+    user_ids = sorted(user_admin)
+    missing_user_id = user_ids[-1] + 10_000
+    coefficients = dict(zip(node_ids, (1, 1.5, 0)))
+    users_per_node = dict(zip(node_ids, (1_100, 900, 300)))
+    cycles = [
+        {
+            node_id: [{"uid": uid, "value": rng.randint(1, 10**9)} for uid in rng.sample(user_ids, count)]
+            + [{"uid": missing_user_id, "value": 7}]
+            for node_id, count in users_per_node.items()
+        }
+        for _ in range(2)
+    ]
+    outbound_cycles = [
+        {node_id: [{"up": rng.randint(1, 10**9), "down": rng.randint(1, 10**9)}] for node_id in node_ids}
+        for _ in range(2)
+    ]
+    current = {"cycle": 0}
+
+    async def fake_get_users_stats(node: DummyNode, node_id: int | None = None):
+        return cycles[current["cycle"]][node.node_id]
+
+    async def fake_get_outbounds_stats(node: DummyNode, node_id: int | None = None):
+        return outbound_cycles[current["cycle"]][node.node_id]
+
+    nodes_by_id = [(node_id, DummyNode(node_id, usage_coefficient=coefficients[node_id])) for node_id in node_ids]
+    monkeypatch.setattr(record_usages.node_manager, "get_healthy_nodes", AsyncMock(return_value=nodes_by_id))
+    monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
+    monkeypatch.setattr(record_usages, "get_outbounds_stats", fake_get_outbounds_stats)
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", False)
+    # Flush buffered PostgreSQL history on every cycle
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 0)
+
+    for cycle in range(2):
+        current["cycle"] = cycle
+        await record_usages.record_user_usages()
+        await record_usages.record_node_usages()
+
+    expected_users = defaultdict(int)
+    expected_admins = defaultdict(int)
+    expected_history = defaultdict(int)
+    for stats in cycles:
+        for node_id, params in stats.items():
+            for param in params:
+                if param["uid"] not in user_admin:
+                    continue
+                value = int(param["value"] * coefficients[node_id])
+                expected_users[param["uid"]] += value
+                if user_admin[param["uid"]]:
+                    expected_admins[user_admin[param["uid"]]] += value
+                if value:
+                    expected_history[(param["uid"], node_id)] += value
+    expected_nodes = {
+        node_id: (
+            sum(outbound[node_id][0]["up"] for outbound in outbound_cycles),
+            sum(outbound[node_id][0]["down"] for outbound in outbound_cycles),
+        )
+        for node_id in node_ids
+    }
+
+    async with session_factory() as session:
+        user_rows = (await session.execute(select(User.id, User.used_traffic, User.online_at))).all()
+        assert {row.id: row.used_traffic for row in user_rows} == {uid: expected_users[uid] for uid in user_ids}
+        assert {row.id for row in user_rows if row.online_at is not None} == {
+            uid for uid, value in expected_users.items() if value > 0
+        }
+
+        admin_rows = (await session.execute(select(Admin.id, Admin.used_traffic))).all()
+        assert {row.id: row.used_traffic for row in admin_rows} == {
+            admin_id: expected_admins[admin_id] for admin_id in admin_ids
+        }
+
+        history_rows = (
+            await session.execute(
+                select(
+                    NodeUserUsage.created_at, NodeUserUsage.user_id, NodeUserUsage.node_id, NodeUserUsage.used_traffic
+                )
+            )
+        ).all()
+        assert len(history_rows) == len(expected_history)
+        assert len({row.created_at for row in history_rows}) == 1
+        assert {(row.user_id, row.node_id): row.used_traffic for row in history_rows} == dict(expected_history)
+
+        node_rows = (await session.execute(select(Node.id, Node.uplink, Node.downlink))).all()
+        assert {row.id: (row.uplink, row.downlink) for row in node_rows} == expected_nodes
+        node_usage_rows = (await session.execute(select(NodeUsage.node_id, NodeUsage.uplink, NodeUsage.downlink))).all()
+        assert {row.node_id: (row.uplink, row.downlink) for row in node_usage_rows} == expected_nodes
+        system_row = (await session.execute(select(System.uplink, System.downlink))).one()
+        assert tuple(system_row) == (
+            sum(up for up, _ in expected_nodes.values()),
+            sum(down for _, down in expected_nodes.values()),
+        )
+
+
+@pytest.mark.asyncio
 async def test_record_user_stats_batched_skips_missing_users(session_factory):
     async with session_factory() as session:
         admin = Admin(username="admin", hashed_password="secret", role_id=3)
@@ -534,6 +786,116 @@ async def test_record_user_stats_batched_skips_missing_users(session_factory):
 
 
 @pytest.mark.asyncio
+async def test_node_user_usage_history_skips_deleted_nodes(session_factory):
+    async with session_factory() as session:
+        user = User(username="user", proxy_settings=ProxyTable().dict(no_obj=True))
+        deleted_node = Node(
+            name="node-deleted",
+            address="10.0.0.1",
+            port=1000,
+            api_port=1001,
+            server_ca="ca1",
+            api_key="key1",
+            core_config_id=None,
+        )
+        kept_node = Node(
+            name="node-kept",
+            address="10.0.0.2",
+            port=1002,
+            api_port=1003,
+            server_ca="ca2",
+            api_key="key2",
+            core_config_id=None,
+        )
+        session.add_all([user, deleted_node, kept_node])
+        await session.flush()
+        user_id, deleted_node_id, kept_node_id = user.id, deleted_node.id, kept_node.id
+        await session.commit()
+
+    # An admin deletes a node after its stats were read and before they are written
+    async with session_factory() as session:
+        await remove_node(session, await session.get(Node, deleted_node_id))
+
+    bucket = record_usages._get_time_bucket()
+    await record_usages._write_node_user_usage_params(
+        await record_usages.get_dialect(),
+        [
+            {"uid": user_id, "value": 100, "node_id": deleted_node_id, "created_at": bucket},
+            {"uid": user_id, "value": 50, "node_id": kept_node_id, "created_at": bucket},
+        ],
+    )
+
+    async with session_factory() as session:
+        rows = await session.execute(select(NodeUserUsage.node_id, NodeUserUsage.used_traffic))
+        assert rows.all() == [(kept_node_id, 50)]
+
+
+@pytest.mark.skipif(
+    os.getenv("TEST_FROM", "local").lower() == "local" or not database_settings.url.startswith("postgresql"),
+    reason="only PostgreSQL buffers node user usage history",
+)
+@pytest.mark.asyncio
+async def test_postgres_history_keeps_flushing_after_a_node_is_deleted(
+    monkeypatch: pytest.MonkeyPatch, session_factory
+):
+    async with session_factory() as session:
+        user = User(username="user", proxy_settings=ProxyTable().dict(no_obj=True))
+        node_a = Node(
+            name="node-a",
+            address="10.0.0.1",
+            port=1000,
+            api_port=1001,
+            server_ca="ca1",
+            api_key="key1",
+            core_config_id=None,
+        )
+        node_b = Node(
+            name="node-b",
+            address="10.0.0.2",
+            port=1002,
+            api_port=1003,
+            server_ca="ca2",
+            api_key="key2",
+            core_config_id=None,
+        )
+        session.add_all([user, node_a, node_b])
+        await session.flush()
+        user_id, node_a_id, node_b_id = user.id, node_a.id, node_b.id
+        await session.commit()
+
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: clock["t"])
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+    coefficients = {node_a_id: 1.0, node_b_id: 1.0}
+
+    # The first sample is written at once, the next one is buffered
+    await record_usages.record_user_stats(
+        {node_a_id: [{"uid": user_id, "value": 100}], node_b_id: [{"uid": user_id, "value": 100}]}, coefficients
+    )
+    clock["t"] += 5
+    await record_usages.record_user_stats(
+        {node_a_id: [{"uid": user_id, "value": 50}], node_b_id: [{"uid": user_id, "value": 50}]}, coefficients
+    )
+
+    # Node A is deleted while its sample is still buffered
+    async with session_factory() as session:
+        await remove_node(session, await session.get(Node, node_a_id))
+
+    clock["t"] += 61
+    await record_usages.flush_user_usage_history_if_due()
+    for _ in range(5):
+        clock["t"] += 61
+        await record_usages.record_user_stats({node_b_id: [{"uid": user_id, "value": 10}]}, coefficients)
+
+    async with session_factory() as session:
+        totals = await session.execute(
+            select(NodeUserUsage.node_id, func.sum(NodeUserUsage.used_traffic)).group_by(NodeUserUsage.node_id)
+        )
+        assert dict(totals.all()) == {node_b_id: 200}
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
 async def test_record_user_stats_batched_chunks_mysql_batches(monkeypatch: pytest.MonkeyPatch):
     executed_param_sizes = []
 
@@ -551,7 +913,8 @@ async def test_record_user_stats_batched_chunks_mysql_batches(monkeypatch: pytes
 
     await record_usages.record_user_stats_batched({1: params}, {1: 1})
 
-    assert executed_param_sizes == [4_000, 4_000, 2_004]
+    # One executemany row list per 1000-row batch
+    assert executed_param_sizes == [1_000, 1_000, 501]
 
 
 @pytest.mark.asyncio
@@ -703,6 +1066,26 @@ async def test_record_node_usages_returns_when_totals_zero(monkeypatch: pytest.M
 
         node_usage_rows = await session.execute(select(NodeUsage.id))
         assert node_usage_rows.first() is None
+
+
+@pytest.mark.asyncio
+async def test_record_node_stats_batched_logs_write_errors(monkeypatch: pytest.MonkeyPatch, caplog):
+    written_nodes = []
+
+    async def fake_safe_execute(stmt, params=None, max_retries=5):
+        if params[0]["node_id"] == 2:
+            raise OperationalError("INSERT INTO node_usages", {}, Exception("database is locked"))
+        written_nodes.append(params[0]["node_id"])
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
+    monkeypatch.setattr(record_usages, "safe_execute", fake_safe_execute)
+    caplog.set_level(logging.ERROR)
+
+    await record_usages.record_node_stats_batched({1: [{"up": 10, "down": 4}], 2: [{"up": 1, "down": 1}]})
+
+    assert written_nodes == [1]
+    assert "Failed to record node usage history for node 2" in caplog.text
+    assert "database is locked" in caplog.text
 
 
 class _DeadlockOrig(Exception):

@@ -1,6 +1,6 @@
 import json
 from enum import StrEnum
-from ipaddress import ip_network
+from ipaddress import ip_address, ip_network
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -37,6 +37,9 @@ class ShadowsocksSettings(BaseModel):
 class HysteriaSettings(BaseModel):
     auth: str = Field(default_factory=random_password, min_length=1)
 
+
+class MasqueSettings(BaseModel):
+    password: str = Field(default_factory=random_password, min_length=1)
 
 class WireGuardPeerIPs(BaseModel):
     peer_ips: list[str] = Field(default_factory=list)
@@ -83,7 +86,13 @@ class WireGuardSettings(BaseModel):
         if value in (None, ""):
             return None
         if isinstance(value, str):
-            return value.strip()
+            value = value.strip()
+            # Canonical base64, so the panel and the node compare one key the same way. Stored rows load through
+            # this model too, so a value that is not a key is kept here; input models reject it (check_input_keys).
+            try:
+                return validate_wireguard_key(value, "public_key")
+            except ValueError:
+                return value
         return value
 
     @field_validator("peer_ips", mode="before")
@@ -97,6 +106,14 @@ class WireGuardSettings(BaseModel):
             self.public_key = get_wireguard_public_key(self.private_key)
         return self
 
+    def check_input_keys(self) -> None:
+        """Strict checks for keys sent by a client. A public key alone (no private key) stays allowed."""
+        if not self.public_key:
+            return
+        validate_wireguard_key(self.public_key, "wireguard public_key")
+        if self.private_key and self.public_key != get_wireguard_public_key(self.private_key):
+            raise ValueError("wireguard public_key does not match private_key")
+
 
 class ProxyTable(BaseModel):
     vmess: VMessSettings = Field(default_factory=VMessSettings)
@@ -105,6 +122,7 @@ class ProxyTable(BaseModel):
     shadowsocks: ShadowsocksSettings = Field(default_factory=ShadowsocksSettings)
     wireguard: WireGuardSettings = Field(default_factory=WireGuardSettings)
     hysteria: HysteriaSettings = Field(default_factory=HysteriaSettings)
+    masque: MasqueSettings = Field(default_factory=MasqueSettings)
 
     def dict(self, *, no_obj=True, **kwargs):
         if no_obj:
