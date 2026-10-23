@@ -278,6 +278,22 @@ async def test_nats_settings_refresh_does_not_wait_for_on_change(clean_plugins, 
     assert seen == [("async", 3), ("sync", 3), ("async", 4), ("sync", 4)]
 
 
+async def test_settings_errors_on_one_field_are_all_reported(clean_plugins):
+    from fastapi import HTTPException
+
+    from app.operation import OperatorType
+    from app.operation.plugin import PluginOperation
+    from app.plugins.registry import PluginRecord
+
+    number = {"type": "object", "properties": {"n": {"type": "integer", "enum": [5, 10], "minimum": 6}}}
+    ctx = PluginContext("demo", "1.0.0", number)
+    registry.records["demo"] = PluginRecord(id="demo", status="loaded", context=ctx)
+    with pytest.raises(HTTPException) as error:
+        await PluginOperation(OperatorType.API).modify_plugin_settings(None, "demo", {"n": 3})
+    assert error.value.status_code == 422
+    assert error.value.detail == {"n": "must be one of [5, 10]; must be >= 6"}
+
+
 def test_jobs_registered_only_in_scheduler_role(tmp_path, clean_plugins):
     code = """
     def setup(ctx):

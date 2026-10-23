@@ -49,10 +49,11 @@ class PluginOperation(BaseOperation):
         ctx = await self.get_validated_plugin(plugin_id)
         values, errors = ctx.settings.resolve(data)
         if errors:
-            detail = {}
+            detail: dict[str, str] = {}
             for error in errors:
                 where, _, message = error.partition(": ")
-                detail[where] = message
+                # Several problems with one field are all shown
+                detail[where] = f"{detail[where]}; {message}" if where in detail else message
             raise HTTPException(status_code=422, detail=detail)
 
         await save_plugin_settings(db, plugin_id, values)
