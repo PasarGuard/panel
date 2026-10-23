@@ -76,3 +76,41 @@ def test_jinja_custom_variable_that_does_not_render_is_refused(access_token):
             json={"subscription": original_subscription},
         )
         assert restore_response.status_code == status.HTTP_200_OK
+
+
+def test_saving_general_custom_variables_renders_them_once(access_token, monkeypatch):
+    from app.templates.pool import validation_pool
+
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    original_subscription = settings_response.json()["subscription"]
+    renders = []
+    run = validation_pool.run
+
+    async def spy(func, *args, **kwargs):
+        renders.append(func)
+        return await run(func, *args, **kwargs)
+
+    monkeypatch.setattr(validation_pool, "run", spy)
+    variables = [{"key": "ONCE", "value": "{{ USERNAME }}", "use_jinja": True}]
+    try:
+        response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={
+                "general": {
+                    "default_method": settings_response.json()["general"]["default_method"],
+                    "custom_variables": variables,
+                },
+                "subscription": {**original_subscription, "custom_variables": variables},
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        # Both lists carry them, and the general one replaces the subscription one: one check, not two
+        assert len(renders) == 1
+    finally:
+        restore_response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={"subscription": original_subscription},
+        )
+        assert restore_response.status_code == status.HTTP_200_OK
