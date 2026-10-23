@@ -338,6 +338,55 @@ def test_subscription_variables_in_host_remarks(probe, access_token):
         delete_core(access_token, core["id"])
 
 
+def test_admin_settings_win_over_plugin_headers_and_variables(probe, access_token, monkeypatch):
+    from app.models.settings import Subscription as SubscriptionSettings
+    from app.settings import subscription_settings
+
+    original = asyncio.run(subscription_settings())
+    admin_settings = original.model_copy(
+        update={
+            "custom_variables": [{"key": "PLAN", "value": "admin-plan"}],
+            "response_headers": {"x-plugin-format": "from admin"},
+            "rules": [{"pattern": r"^PluginProbeClient$", "target": "links"}, *original.rules],
+        }
+    )
+    admin_settings = SubscriptionSettings.model_validate(admin_settings.model_dump())
+
+    async def current_settings():
+        return admin_settings
+
+    monkeypatch.setattr("app.operation.subscription.subscription_settings", current_settings)
+    monkeypatch.setattr("app.subscription.share.subscription_settings", current_settings)
+    core = create_core(access_token)
+    inbound = next(tag for tag in get_inbounds(access_token) if "VLESS" in tag.upper())
+    group = create_group(access_token, name=unique_name("plugin_admin_group"), inbound_tags=[inbound])
+    remark = f"{{PLAN}}-{unique_name('r')}"
+    host = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={"remark": remark, "address": ["plugin.example.com"], "port": 443, "inbound_tag": inbound, "priority": 1},
+    )
+    assert host.status_code == status.HTTP_201_CREATED, host.text
+    username = unique_name("plugin_admin_user")
+    user = create_user(access_token, group_ids=[group["id"]], payload={"username": username})
+    try:
+        # /sub/<token> without a format: the client is picked by User-Agent, the plugin sees that format
+        response = client.get(user["subscription_url"], headers={"User-Agent": "PluginProbeClient"})
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.text.splitlines()[0] == f"# banner {username} links"
+        # The admin's response header beats the plugin's; a built-in header the admin did not set is the plugin's
+        assert response.headers["x-plugin-format"] == "from admin"
+        assert response.headers["profile-title"] == "overridden by plugin"
+        # The admin's custom variable beats the plugin variable of the same name
+        expected = remark.replace("{PLAN}", "admin-plan")
+        assert quote(expected, safe="") in response.text or expected in response.text
+    finally:
+        delete_user(access_token, username)
+        client.delete(f"/api/host/{host.json()['id']}", headers=auth_headers(access_token))
+        delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
+
+
 def test_plugin_settings_get_put_validation(probe, access_token, plain_admin, monkeypatch):
     from app.nats.message import MessageTopic
     from app.nats.router import router as nats_router
