@@ -3,6 +3,7 @@
 import asyncio
 import sys
 import time
+import traceback
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
@@ -139,12 +140,22 @@ def test_sub_banner_plan_comes_from_memory_not_the_database(examples, access_tok
             time.sleep(0.05)
         assert module.groups_by_user.get(user["id"]) == [group["name"]]
 
-        def no_db():
-            raise AssertionError("subscription hooks must not open a database session")
+        # Hooks swallow their own errors, so record every session the plugin opens instead of raising.
+        # The background refresh (load_all) may legitimately open one; anything else came from a hook.
+        ctx = registry.get_active("sub-banner")
+        real_db = ctx.db
+        hook_sessions = []
 
-        monkeypatch.setattr(registry.get_active("sub-banner"), "db", no_db)
+        def counting_db():
+            callers = [frame.name for frame in traceback.extract_stack()]
+            if "load_all" not in callers:
+                hook_sessions.append(callers[-2])
+            return real_db()
+
+        monkeypatch.setattr(ctx, "db", counting_db)
         first_line = client.get(f"{user['subscription_url']}/links").text.splitlines()[0]
         assert first_line.endswith(quote("Premium", safe=""))
+        assert hook_sessions == []
     finally:
         delete_user(access_token, username)
         delete_group(access_token, group["id"])
