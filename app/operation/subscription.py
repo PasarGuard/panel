@@ -12,7 +12,7 @@ from app.db.crud.hwid import get_user_hwid_by_value, register_user_hwid
 from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
 from app.models.admin import AdminDetails
-from app.models.client_profile import SAFE_LINK_SCHEMES
+from app.models.client_profile import ENCODED_RESPONSE_HEADERS, SAFE_LINK_SCHEMES
 from app.models.settings import (
     Application,
     ConfigFormat,
@@ -100,7 +100,7 @@ client_config = {
 
 
 class SubscriptionOperation(BaseOperation):
-    _ENCODED_RULE_RESPONSE_HEADERS: ClassVar[set[str]] = {"announce", "profile-title"}
+    _ENCODED_RULE_RESPONSE_HEADERS: ClassVar[frozenset[str]] = ENCODED_RESPONSE_HEADERS
     _ALWAYS_HTTP_HEADERS: ClassVar[set[str]] = {"content-disposition", "cache-control"}
     _BODY_PLACEMENT_FORMATS: ClassVar[set[ConfigFormat]] = {
         ConfigFormat.links,

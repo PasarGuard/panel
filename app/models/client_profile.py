@@ -11,6 +11,8 @@ from .validators import ListValidator
 _HTTP_HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
 # Link schemes the subscription page may put into an href (announce_url)
 SAFE_LINK_SCHEMES = frozenset({"http", "https", "tg"})
+# Response headers whose values are base64-encoded before sending, so any characters are allowed in them
+ENCODED_RESPONSE_HEADERS = frozenset({"announce", "profile-title"})
 
 
 class ClientProfileTemplateType(StrEnum):
@@ -53,17 +55,6 @@ class ClientProfileSettings(BaseModel):
     def validate_optional_text(cls, value: str | None) -> str | None:
         return _blank_to_none(value)
 
-    @field_validator("announce_url")
-    @classmethod
-    def validate_announce_url(cls, value: str | None) -> str | None:
-        # A link that starts with a variable is checked when the subscription page is rendered
-        if value is None or value.lstrip().startswith("{"):
-            return value
-        scheme, separator, _ = value.strip().partition(":")
-        if not separator or scheme.lower() not in SAFE_LINK_SCHEMES:
-            raise ValueError("announce_url must be an http, https or tg link")
-        return value
-
     @field_validator("response_headers")
     @classmethod
     def validate_response_headers(cls, value: dict[str, str]) -> dict[str, str]:
@@ -91,6 +82,30 @@ class ClientProfileSettings(BaseModel):
         return validate_custom_variables(value)
 
 
+def _validate_settings_input(settings: ClientProfileSettings | None) -> ClientProfileSettings | None:
+    """Checks for settings sent by an admin.
+
+    Kept off ClientProfileSettings so that a profile saved before these checks still loads
+    (one bad profile must not break every subscription); the subscription side drops such values.
+    """
+    if settings is None:
+        return settings
+    announce_url = settings.announce_url
+    # A link that starts with a variable is checked when the subscription page is rendered
+    if announce_url is not None and not announce_url.lstrip().startswith("{"):
+        scheme, separator, _ = announce_url.strip().partition(":")
+        if not separator or scheme.lower() not in SAFE_LINK_SCHEMES:
+            raise ValueError("announce_url must be an http, https or tg link")
+    for name, header_value in settings.response_headers.items():
+        if name.lower() in ENCODED_RESPONSE_HEADERS:
+            continue
+        try:
+            header_value.encode("latin-1")
+        except UnicodeEncodeError as exc:
+            raise ValueError(f'Invalid response header "{name}": value contains non latin-1 characters') from exc
+    return settings
+
+
 def _validate_name(value: str | None) -> str | None:
     if value is None:
         return value
@@ -111,6 +126,11 @@ class ClientProfileBase(BaseModel):
     def validate_name(cls, value: str) -> str:
         return _validate_name(value)
 
+    @field_validator("settings")
+    @classmethod
+    def validate_settings(cls, value: ClientProfileSettings) -> ClientProfileSettings:
+        return _validate_settings_input(value)
+
 
 class ClientProfileCreate(ClientProfileBase):
     pass
@@ -128,6 +148,11 @@ class ClientProfileModify(BaseModel):
     @classmethod
     def validate_name(cls, value: str | None) -> str | None:
         return _validate_name(value)
+
+    @field_validator("settings")
+    @classmethod
+    def validate_settings(cls, value: ClientProfileSettings | None) -> ClientProfileSettings | None:
+        return _validate_settings_input(value)
 
 
 class ClientProfile(BaseModel):
