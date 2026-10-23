@@ -1,10 +1,15 @@
 import json
+from types import SimpleNamespace
 
 import pytest
 import yaml
 from pydantic import ValidationError
 
+from app.db.models import UserStatus
+from app.models.client_template import ClientTemplateType
 from app.models.subscription import SubscriptionInboundData, TLSConfig, WebSocketTransportConfig
+from app.operation.subscription import SubscriptionOperation
+from app.subscription import share
 from app.subscription.clash import ClashMetaConfiguration
 from app.subscription.singbox import SingBoxConfiguration
 from app.subscription.template_directives import (
@@ -119,8 +124,11 @@ def _fill(conf, hosts=HOSTS, **add_kwargs):
     return conf
 
 
-def _xray(template: dict, **kwargs) -> list[dict]:
-    return json.loads(_fill(XrayConfiguration(xray_template_content=json.dumps(template), **kwargs)).render())
+def _xray(template: dict, single_remarks: str | None = None) -> list[dict]:
+    conf = XrayConfiguration(xray_template_content=json.dumps(template))
+    # generate_subscription sets the profile title the same way
+    conf.single_remarks = single_remarks
+    return json.loads(_fill(conf).render())
 
 
 def _singbox(template: dict) -> dict:
@@ -167,7 +175,15 @@ def test_selector_variants(selector, expected):
 
 @pytest.mark.parametrize(
     "selector",
-    [{"remark_regex": "("}, {"inbound_tag_regex": "[a-"}, {"tags": ["premium"]}, {"unknown": 1}],
+    [
+        {"remark_regex": "("},
+        {"inbound_tag_regex": "[a-"},
+        {"remark_regex": "a" * 257},
+        {"inbound_tag_regex": "a" * 257},
+        {"tags": ["premium"]},
+        {"tags": []},
+        {"unknown": 1},
+    ],
 )
 def test_selector_rejects_invalid(selector):
     with pytest.raises(ValidationError):
@@ -265,6 +281,53 @@ def test_xray_single_mode_remarks_fallbacks():
 def test_xray_single_mode_with_no_hosts_renders_empty_list():
     template = {**XRAY_TEMPLATE, "pasarguard": {"mode": "single", "inject": [{}]}}
     assert XrayConfiguration(xray_template_content=json.dumps(template)).render() == "[]"
+
+
+@pytest.mark.parametrize(
+    "select", [{"inbound_tags": ["de-in"]}, {"remark_regex": "^FR"}], ids=["inbound_tags", "remark_regex"]
+)
+def test_xray_single_mode_selector_without_matches_falls_back_to_all_servers(select):
+    """No selected server must not leave the template's direct outbound first: Xray would send traffic there."""
+    template = {
+        **XRAY_TEMPLATE,
+        "routing": {"balancers": [{"tag": "de", "selector": ["de-"]}], "rules": []},
+        "pasarguard": {"mode": "single", "inject": [{"select": select, "tag_prefix": "de"}]},
+    }
+    hosts = [host for host in HOSTS if host[2] != "de-in"]
+    (config,) = json.loads(_fill(XrayConfiguration(xray_template_content=json.dumps(template)), hosts).render())
+
+    assert [o["tag"] for o in config["outbounds"]] == ["de-1", "de-2", "direct", "block"]
+    for outbound, (_, _, _, address) in zip(config["outbounds"], hosts):
+        _assert_user_outbound(outbound, address)
+
+
+def test_xray_single_mode_partial_match_gets_no_fallback():
+    template = {
+        **XRAY_TEMPLATE,
+        "pasarguard": {
+            "mode": "single",
+            "inject": [{"select": {"inbound_tags": ["fr-in"]}, "tag_prefix": "fr"}, {"select": {"host_ids": [3]}}],
+        },
+    }
+    (config,) = _xray(template)
+    assert [o["tag"] for o in config["outbounds"]] == ["proxy-1", "direct", "block"]
+    _assert_user_outbound(config["outbounds"][0], "nl1.example.com")
+
+
+def test_xray_single_mode_parses_a_host_template_once(monkeypatch):
+    single = json.dumps({**XRAY_TEMPLATE, "pasarguard": {"mode": "single", "inject": [{}]}})
+    conf = XrayConfiguration(xray_template_content=json.dumps(XRAY_TEMPLATE))
+    loads = []
+    real_loads = json.loads
+    monkeypatch.setattr(
+        json, "loads", lambda text, *args, **kwargs: loads.append(text) or real_loads(text, *args, **kwargs)
+    )
+    _fill(conf, template_content=single)
+    monkeypatch.undo()
+
+    assert loads == [single]
+    (config,) = json.loads(conf.render())
+    assert [o["tag"] for o in config["outbounds"]] == ["proxy-1", "proxy-2", "proxy-3", "proxy-4", "direct", "block"]
 
 
 def test_xray_inject_renames_fragment_dialer_helpers():
@@ -543,3 +606,93 @@ def test_clash_empty_directive_group_without_any_servers_rejects():
     template = "proxies: []\nproxy-groups:\n- name: 'Nothing'\n  type: 'select'\n  pasarguard: {}\nrules: []\n"
     data = yaml.safe_load(ClashMetaConfiguration(clash_template_content=template).render())
     assert data["proxy-groups"] == [{"name": "Nothing", "type": "select", "proxies": ["REJECT"]}]
+
+
+def test_clash_does_not_parse_output_when_only_a_remark_mentions_the_directive(monkeypatch):
+    conf = _fill(
+        ClashMetaConfiguration(clash_template_content=CLASH_TEMPLATE),
+        [(1, "pasarguard-de-1", "de-in", "a.example.com")],
+    )
+
+    def no_parse(*args, **kwargs):
+        raise AssertionError("rendered output was parsed")
+
+    monkeypatch.setattr(yaml, "load", no_parse)
+    assert "pasarguard-de-1" in conf.render()
+
+
+# ---------- share.py wiring ----------
+
+
+async def _render_through_share(monkeypatch, conf, selected_host_id: int):
+    """Run process_inbounds_and_tags with host ids 1..4 from host_manager, as a subscription request does."""
+    # Stored hosts keep address and port as lists; process_host picks one of each
+    hosts = {
+        host_id: _host(remark, inbound_tag, address).model_copy(update={"address": [address], "port": [443]})
+        for host_id, remark, inbound_tag, address in HOSTS
+    }
+
+    async def get_hosts():
+        return hosts
+
+    monkeypatch.setattr(share.host_manager, "get_hosts", get_hosts)
+    user = SimpleNamespace(
+        id=1,
+        status=UserStatus.active,
+        inbounds=[inbound_tag for _, _, inbound_tag, _ in HOSTS],
+        proxy_settings=SimpleNamespace(dict=lambda: {"vless": SETTINGS}),
+    )
+    return await share.process_inbounds_and_tags(user, {}, conf, {})
+
+
+async def test_share_passes_host_ids_to_xray_directives(monkeypatch):
+    template = {**XRAY_TEMPLATE, "pasarguard": {"mode": "single", "inject": [{"select": {"host_ids": [2]}}]}}
+    rendered = await _render_through_share(
+        monkeypatch, XrayConfiguration(xray_template_content=json.dumps(template)), 2
+    )
+    (config,) = json.loads(rendered)
+    assert [o["tag"] for o in config["outbounds"]] == ["proxy-1", "direct", "block"]
+    _assert_user_outbound(config["outbounds"][0], "de2.example.com")
+
+
+async def test_share_passes_host_ids_to_singbox_groups(monkeypatch):
+    template = {
+        **SINGBOX_TEMPLATE,
+        "outbounds": [
+            {"type": "urltest", "tag": "auto", "outbounds": [], "pasarguard": {"select": {"host_ids": [2]}}},
+            {"type": "direct", "tag": "direct"},
+        ],
+    }
+    rendered = await _render_through_share(
+        monkeypatch, SingBoxConfiguration(singbox_template_content=json.dumps(template)), 2
+    )
+    (group,) = [o for o in json.loads(rendered)["outbounds"] if o["tag"] == "auto"]
+    assert group["outbounds"] == ["DE-2"]
+
+
+async def test_share_passes_host_ids_to_clash_groups(monkeypatch):
+    template = CLASH_TEMPLATE.replace(
+        "rules:\n",
+        "- name: 'Second'\n  type: 'select'\n  proxies: []\n  pasarguard: {select: {host_ids: [2]}}\nrules:\n",
+    )
+    rendered = await _render_through_share(monkeypatch, ClashMetaConfiguration(clash_template_content=template), 2)
+    groups = {group["name"]: group for group in yaml.safe_load(rendered)["proxy-groups"]}
+    assert groups["Second"]["proxies"] == ["DE-2"]
+
+
+async def test_rule_template_missing_from_db_falls_back_to_default(monkeypatch):
+    async def templates_of_type(template_type):
+        assert template_type == ClientTemplateType.xray_subscription
+        return {}
+
+    monkeypatch.setattr(share, "subscription_templates_of_type", templates_of_type)
+    defaults = {"XRAY_SUBSCRIPTION_TEMPLATE": "default"}
+    assert await share.resolve_client_templates(defaults, "xray", 7) is defaults
+
+
+def test_profile_title_that_formats_to_empty_stays_empty():
+    user = SimpleNamespace(admin=None)
+    assert (
+        SubscriptionOperation._format_profile_title(user, {"EMPTY": ""}, SimpleNamespace(profile_title="{EMPTY}")) == ""
+    )
+    assert SubscriptionOperation._format_profile_title(user, {}, SimpleNamespace(profile_title="")) == "Subscription"

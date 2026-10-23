@@ -15,6 +15,7 @@ from tests.api.helpers import (
     delete_core,
     delete_group,
     delete_user,
+    get_inbound_details,
     unique_name,
 )
 
@@ -112,7 +113,10 @@ def test_deleting_template_used_by_rule_is_refused(access_token):
 
         response = client.delete(f"/api/client_template/{template['id']}", headers=auth_headers(access_token))
         assert response.status_code == status.HTTP_409_CONFLICT
-        assert "^DeleteGuard" in response.json()["detail"]
+        detail = response.json()["detail"]
+        assert "subscription rules #1." in detail
+        # Patterns belong to the settings, which an admin with only client_templates.delete may not read
+        assert "^DeleteGuard" not in detail
 
         bulk = client.post(
             "/api/client_templates/bulk/delete",
@@ -169,6 +173,8 @@ def test_subscription_uses_rule_template_only_for_matching_client(access_token, 
         assert single.status_code == status.HTTP_200_OK
         (config,) = single.json()
         assert "pasarguard" not in config
+        # The one config is named after the subscription profile title
+        assert config["remarks"] == "Subscription"
         tags = [outbound["tag"] for outbound in config["outbounds"]]
         assert tags[-1] == "single-template-marker"
         assert len([tag for tag in tags if tag.startswith("pool-")]) == len(rule_configs)
@@ -182,6 +188,146 @@ def test_subscription_uses_rule_template_only_for_matching_client(access_token, 
         delete_core(access_token, core["id"])
         delete_client_template(access_token, rule_template["id"])
         delete_client_template(access_token, single_template["id"])
+
+
+def _rule_routing_setup(access_token: str) -> tuple[dict, dict, list[dict], dict]:
+    core = create_core(access_token)
+    group = create_group(access_token, name=unique_name("rule_tpl_group"))
+    hosts = create_hosts_for_inbounds(access_token)
+    user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("rule_tpl_user")})
+    return core, group, hosts, user
+
+
+def _rule_routing_teardown(access_token: str, core: dict, group: dict, hosts: list[dict], user: dict) -> None:
+    delete_user(access_token, user["username"])
+    for host in hosts:
+        client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
+    delete_group(access_token, group["id"])
+    delete_core(access_token, core["id"])
+
+
+def _last_tags_by_remark(response) -> dict[str, str]:
+    assert response.status_code == status.HTTP_200_OK
+    return {config["remarks"]: config["outbounds"][-1]["tag"] for config in response.json()}
+
+
+def test_host_template_wins_over_rule_template(access_token, mock_settings):
+    original = _get_subscription_settings(access_token)
+    original_mock_rules = mock_settings["subscription"]["rules"]
+    host_template = _xray_template(access_token, "host-template-marker")
+    rule_template = _xray_template(access_token, "rule-template-marker")
+    single_template = _xray_template(
+        access_token, "single-template-marker", mode="single", inject=[{"tag_prefix": "pool"}]
+    )
+    core, group, hosts, user = _rule_routing_setup(access_token)
+    rules = [
+        {"pattern": "^RuleTemplateClient$", "target": "xray", "template_id": rule_template["id"]},
+        {"pattern": "^SingleTemplateClient$", "target": "xray", "template_id": single_template["id"]},
+        {"pattern": "^DefaultTemplateClient$", "target": "xray"},
+    ]
+    try:
+        protocols = {inbound["tag"]: inbound["protocol"] for inbound in get_inbound_details(access_token)}
+        own = next(host for host in hosts if protocols[host["inbound_tag"]] != "wireguard")
+        response = client.put(
+            f"/api/host/{own['id']}",
+            headers=auth_headers(access_token),
+            json={
+                **{key: own[key] for key in ("remark", "address", "port", "sni", "inbound_tag", "priority")},
+                "subscription_templates": {"xray": host_template["id"]},
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert _put_rules(access_token, original, rules).status_code == status.HTTP_200_OK
+        mock_settings["subscription"]["rules"] = [*rules, *original_mock_rules]
+
+        with_rule = _last_tags_by_remark(
+            client.get(user["subscription_url"], headers={"User-Agent": "RuleTemplateClient"})
+        )
+        assert with_rule.pop(own["remark"]) == "host-template-marker"
+        assert with_rule
+        assert set(with_rule.values()) == {"rule-template-marker"}
+
+        default = _last_tags_by_remark(
+            client.get(user["subscription_url"], headers={"User-Agent": "DefaultTemplateClient"})
+        )
+        assert default.pop(own["remark"]) == "host-template-marker"
+        assert "rule-template-marker" not in default.values()
+
+        # A host template is not the rule's "single" template: that host keeps its own config next to the single one
+        single = _last_tags_by_remark(
+            client.get(user["subscription_url"], headers={"User-Agent": "SingleTemplateClient"})
+        )
+        assert single == {"Subscription": "single-template-marker", own["remark"]: "host-template-marker"}
+
+        # Editing the rule template reaches the next request (template caches are flushed)
+        edited_content = {**XRAY_CONTENT, "outbounds": [{"tag": "rule-edited-marker", "protocol": "freedom"}]}
+        response = client.put(
+            f"/api/client_template/{rule_template['id']}",
+            headers=auth_headers(access_token),
+            json={"content": json.dumps(edited_content)},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        edited = _last_tags_by_remark(
+            client.get(user["subscription_url"], headers={"User-Agent": "RuleTemplateClient"})
+        )
+        assert edited.pop(own["remark"]) == "host-template-marker"
+        assert set(edited.values()) == {"rule-edited-marker"}
+    finally:
+        mock_settings["subscription"]["rules"] = original_mock_rules
+        _restore(access_token, original)
+        _rule_routing_teardown(access_token, core, group, hosts, user)
+        for template in (host_template, rule_template, single_template):
+            delete_client_template(access_token, template["id"])
+
+
+@pytest.mark.parametrize(
+    ("target", "template_type", "content", "other_user_agent"),
+    [
+        (
+            "sing_box",
+            "singbox_subscription",
+            json.dumps({**SINGBOX_CONTENT, "outbounds": [{"type": "direct", "tag": "rule-template-marker"}]}),
+            "SFA/1.11",
+        ),
+        (
+            "clash_meta",
+            "clash_subscription",
+            (
+                "mode: rule\nproxies: []\nproxy-groups:\n- name: rule-template-marker\n  type: select\n"
+                "  proxies: [DIRECT]\nrules: ['MATCH,DIRECT']\n"
+            ),
+            "mihomo/1.19",
+        ),
+    ],
+    ids=["sing_box", "clash_meta"],
+)
+def test_rule_template_for_singbox_and_clash(
+    access_token, mock_settings, target, template_type, content, other_user_agent
+):
+    original = _get_subscription_settings(access_token)
+    original_mock_rules = mock_settings["subscription"]["rules"]
+    template = create_client_template(
+        access_token, name=unique_name("rule_tpl"), template_type=template_type, content=content
+    )
+    core, group, hosts, user = _rule_routing_setup(access_token)
+    rules = [{"pattern": "^RuleTemplateClient$", "target": target, "template_id": template["id"]}]
+    try:
+        assert _put_rules(access_token, original, rules).status_code == status.HTTP_200_OK
+        mock_settings["subscription"]["rules"] = [*rules, *original_mock_rules]
+
+        with_rule = client.get(user["subscription_url"], headers={"User-Agent": "RuleTemplateClient"})
+        assert with_rule.status_code == status.HTTP_200_OK
+        assert "rule-template-marker" in with_rule.text
+
+        # Same format, but a client the rule does not match: the default template
+        other = client.get(user["subscription_url"], headers={"User-Agent": other_user_agent})
+        assert other.status_code == status.HTTP_200_OK
+        assert "rule-template-marker" not in other.text
+    finally:
+        mock_settings["subscription"]["rules"] = original_mock_rules
+        _restore(access_token, original)
+        _rule_routing_teardown(access_token, core, group, hosts, user)
+        delete_client_template(access_token, template["id"])
 
 
 @pytest.mark.parametrize(
