@@ -933,3 +933,34 @@ class HostListQuery(BaseModel):
     ids: list[int] | None = None
     offset: int = 0
     limit: int = 0
+
+
+class HostOverride(BaseModel):
+    """An admin's remark and visibility choice for one host, applied to that admin's users."""
+
+    remark: str | None = None
+    is_disabled: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class HostCustomizationModify(BaseModel):
+    remark: str | None = Field(default=None, max_length=256)
+    is_disabled: bool = False
+
+    @field_validator("remark", mode="after")
+    @classmethod
+    def validate_remark(cls, v):
+        v = v.strip() if v else None
+        return validate_format_variables(v) if v else None
+
+
+class HostCustomization(BaseModel):
+    """A host as a customizing admin sees it: its name and state, never its connection settings."""
+
+    host_id: int
+    remark: str
+    inbound_tag: str | None = None
+    host_disabled: bool = False
+    custom_remark: str | None = None
+    is_disabled: bool = False

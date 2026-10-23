@@ -9,6 +9,7 @@ from jdatetime import date as jd
 from app.core.hosts import host_manager
 from app.db.crud.wireguard import pick_peer_ip_for_inbound
 from app.db.models import UserStatus
+from app.models.host import HostOverride
 from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
@@ -94,6 +95,7 @@ async def generate_subscription(
     randomize_order: bool = False,
 ) -> str | bytes:
     cache_key = make_sub_config_key(user, config_format, as_base64, randomize_order)
+
     async def render() -> str | bytes:
         client_templates = await subscription_client_templates()
         xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
@@ -136,7 +138,7 @@ def inject_body_placement(conf: str | bytes, lines: list[str], placement: str, a
     if as_base64:
         try:
             decoded = base64.b64decode(conf).decode()
-        except (ValueError, UnicodeDecodeError):
+        except ValueError, UnicodeDecodeError:
             return conf
         merged = f"{block}\n{decoded}" if placement == "body_start" else f"{decoded}\n{block}"
         return base64.b64encode(merged.encode()).decode()
@@ -302,6 +304,13 @@ def setup_format_variables(user: UsersResponseWithInbounds, custom_variables: li
     return apply_custom_format_variables(format_variables, custom_variables)
 
 
+def _apply_host_override(host: SubscriptionInboundData, override: HostOverride | None) -> SubscriptionInboundData:
+    """Show a host under the remark the user's admin chose for it."""
+    if override is None or not override.remark:
+        return host
+    return host.model_copy(update={"remark": override.remark})
+
+
 async def filter_hosts(hosts: list[SubscriptionInboundData], user_status: UserStatus) -> list[SubscriptionInboundData]:
     return [host for host in hosts if not host.status or user_status in host.status]
 
@@ -458,7 +467,15 @@ async def process_inbounds_and_tags(
 ) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
-    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
+    host_overrides = user.host_overrides or {}
+    hosts = await filter_hosts(
+        [
+            _apply_host_override(host, host_overrides.get(host_id))
+            for host_id, host in (await host_manager.get_hosts()).items()
+            if not (host_id in host_overrides and host_overrides[host_id].is_disabled)
+        ],
+        user.status,
+    )
     if randomize_order and len(hosts) > 1:
         random.shuffle(hosts)
 

@@ -93,6 +93,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { resource: 'hosts', action: 'read' },
       { resource: 'hosts', action: 'create' },
       { resource: 'hosts', action: 'update' },
+      { resource: 'hosts', action: 'customize' },
     ],
   },
   {
