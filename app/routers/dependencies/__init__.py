@@ -11,6 +11,7 @@ from .node import (
     get_node_simple_list_query,
     get_node_stats_period_query,
     get_node_usage_query,
+    get_user_ip_ranking_query,
 )
 from .subscription import get_subscription_headers, get_subscription_usage_query
 from .user import (
@@ -54,6 +55,7 @@ __all__ = [
     # subscription
     "get_subscription_headers",
     "get_subscription_usage_query",
+    "get_user_ip_ranking_query",
     "get_user_list_query",
     "get_user_simple_list_query",
     # user_template

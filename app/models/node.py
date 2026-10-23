@@ -1,12 +1,13 @@
 import re
+from datetime import datetime as dt
 from enum import Enum
 from ipaddress import ip_address
 from uuid import UUID
 
 from cryptography.x509 import load_pem_x509_certificate
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
-from app.db.models import DataLimitResetStrategy, NodeConnectionType, NodeStatus
+from app.db.models import DataLimitResetStrategy, NodeConnectionType, NodeStatus, UserStatus
 from app.models.stats import Period
 
 from .validators import ListValidator, OptionalAwareDatetime, ProxyValidator
@@ -340,6 +341,39 @@ class UserIPListAll(BaseModel):
     """User IP lists for all nodes"""
 
     nodes: dict[int, UserIPList | None]  # {node_id: UserIPList | None}
+
+
+class UserIPRankingEntry(BaseModel):
+    user_id: int
+    username: str
+    ips: dict[str, int]
+    distinct_ip_count: int
+    used_traffic: int
+
+
+class UserIPRankingList(BaseModel):
+    users: list[UserIPRankingEntry]
+    updated_at: dt
+    total: int = 0
+    skipped_node_count: int = 0
+
+
+class UserOnlineIPsSnapshot(BaseModel):
+    users: dict[int, dict[str, int]] = Field(default_factory=dict)
+    computed_at: dt
+    skipped_node_count: int = 0
+
+
+class UserIPRankingQuery(BaseModel):
+    offset: int | None = Field(default=None, ge=0)
+    limit: int | None = Field(default=None, ge=1)
+    admin_ids: list[int] | None = Field(default=None, validation_alias=AliasChoices("admin_ids", "admin_id"))
+    group_ids: list[int] | None = Field(default=None, alias="group")
+    status: UserStatus | list[UserStatus] | None = Field(default=None)
+    ip_count_min: int | None = Field(default=None, ge=0)
+    ip_count_max: int | None = Field(default=None, ge=0)
+    node_ids: list[int] | None = Field(default=None)
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class NodeCoreUpdate(BaseModel):

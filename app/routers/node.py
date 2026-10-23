@@ -29,6 +29,8 @@ from app.models.node import (
     UsageTable,
     UserIPList,
     UserIPListAll,
+    UserIPRankingList,
+    UserIPRankingQuery,
 )
 from app.models.ordering import ReorderRequest
 from app.models.stats import (
@@ -54,6 +56,7 @@ from .dependencies import (
     get_node_simple_list_query,
     get_node_stats_period_query,
     get_node_usage_query,
+    get_user_ip_ranking_query,
 )
 
 node_operator = NodeOperation(operator_type=OperatorType.API)
@@ -374,6 +377,26 @@ async def user_online_ip_list_all_nodes(
 ):
     """Retrieve user ips from all nodes."""
     return await node_operator.get_user_ip_list_all_nodes(db=db, user_id=user_id)
+
+
+@router.get("/online_stats/ranked_by_ip_count", response_model=UserIPRankingList)
+async def users_ranked_by_ip_count(
+    query: Annotated[UserIPRankingQuery, Depends(get_user_ip_ranking_query)],
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("nodes", "stats")),
+):
+    """Rank users by the number of IPs connected right now.
+
+    A snapshot of live connections from healthy nodes (limit with node_ids).
+    Only users with at least one connected IP at this moment are listed; users
+    without active connections are omitted. An IP leaves the list when its last
+    connection closes. Order: distinct IP count (highest first), then used_traffic
+    (highest first), then username (A to Z). Each entry carries its current IPs
+    with last-seen timestamps and the stored used_traffic. Nodes that cannot
+    report IPs are counted in skipped_node_count. Needs users.read; with the own scope only the caller's users are listed. Pages and total are recomputed
+    from live data on every request, so the list can change between requests.
+    """
+    return await node_operator.get_users_ip_ranking(db=db, query=query, admin=admin)
 
 
 @router.get("/{node_id}/online_stats/{user_id}", response_model=dict[int, int])
