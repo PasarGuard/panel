@@ -486,6 +486,22 @@ def _build_user_sort_clauses(sort_options: list[UserSortOption]) -> list[ColumnE
     return clauses
 
 
+def _username_contains(search: str) -> ColumnElement[bool]:
+    # autoescape: "_" and "%" in usernames such as u_12345 are literal characters, not LIKE wildcards
+    return User.username.icontains(search, autoescape=True)
+
+
+def _user_search_rank(search: str) -> ColumnElement[int]:
+    """Put the user whose username is the search text first, then usernames starting with it, then other username
+    matches, then users found only by their note (a note often mentions other users' ids)."""
+    return case(
+        (func.lower(User.username) == search.lower(), 0),
+        (User.username.istartswith(search, autoescape=True), 1),
+        (_username_contains(search), 2),
+        else_=3,
+    )
+
+
 def _build_user_count_stmt(stmt: Select) -> Select:
     """Count filtered users without carrying page ordering or wide user rows."""
     return stmt.with_only_columns(func.count(User.id)).order_by(None)
@@ -548,8 +564,9 @@ async def get_users(
         filters.append(User.username.in_(query.username))
     if query.usernames:
         filters.append(User.username.in_(query.usernames))
-    if query.search:
-        filters.append(or_(User.username.ilike(f"%{query.search}%"), User.note.ilike(f"%{query.search}%")))
+    search = (query.search or "").strip()
+    if search:
+        filters.append(or_(_username_contains(search), User.note.icontains(search, autoescape=True)))
 
     if query.status:
         if isinstance(query.status, list):
@@ -604,6 +621,8 @@ async def get_users(
     if filters:
         stmt = stmt.where(and_(*filters))
 
+    if search:
+        stmt = stmt.order_by(_user_search_rank(search))
     if query.sort:
         stmt = stmt.order_by(*_build_user_sort_clauses(query.sort))
 
@@ -649,14 +668,17 @@ async def get_users_simple(
         filters.append(User.id.in_(query.ids))
     if query.usernames:
         filters.append(User.username.in_(query.usernames))
-    if query.search:
-        filters.append(User.username.ilike(f"%{query.search}%"))
+    search = (query.search or "").strip()
+    if search:
+        filters.append(_username_contains(search))
     if admin:
         filters.append(User.admin_id == admin.id)
 
     if filters:
         stmt = stmt.where(and_(*filters))
 
+    if search:
+        stmt = stmt.order_by(_user_search_rank(search))
     if query.sort:
         sort_list = []
         for sort_option in query.sort:
