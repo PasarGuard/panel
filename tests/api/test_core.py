@@ -508,3 +508,74 @@ def test_core_save_with_other_changes_keeps_stop(access_token, monkeypatch):
         config["routing"]["domainStrategy"] = "IPIfNonMatch"
 
     assert _stop_first_after_save(access_token, monkeypatch, change) is True
+
+
+def _put_core(access_token, core, **fields):
+    payload = {
+        "config": xray_config,
+        "name": core["name"],
+        "exclude_inbound_tags": core["exclude_inbound_tags"],
+        "fallbacks_inbound_tags": core["fallbacks_inbound_tags"],
+        **fields,
+    }
+    return client.put(
+        url=f"/api/core/{core['id']}",
+        headers=auth_headers(access_token),
+        json=payload,
+        params={"restart_nodes": True},
+    )
+
+
+def test_core_note_create_modify_clear(access_token, monkeypatch):
+    monkeypatch.setattr(core_router.node_operator, "restart_all_node", AsyncMock())
+    payload = {
+        "config": xray_config,
+        "name": unique_name("core_note"),
+        "exclude_inbound_tags": [],
+        "fallbacks_inbound_tags": [],
+        "note": "  main EU config  ",
+    }
+    response = client.post("/api/core", headers=auth_headers(access_token), json=payload)
+    assert response.status_code == status.HTTP_201_CREATED, response.text
+    core = response.json()
+    try:
+        assert core["note"] == "main EU config"
+
+        response = _put_core(access_token, core, note="edited")
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["note"] == "edited"
+
+        # A save without the note (e.g. from the core editor page) keeps it.
+        response = _put_core(access_token, core)
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["note"] == "edited"
+
+        response = _put_core(access_token, core, note=None)
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["note"] is None
+
+        response = _put_core(access_token, core, note="x" * 501)
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    finally:
+        delete_core(access_token, core["id"])
+
+
+def test_core_note_only_save_does_not_restart_nodes(access_token, monkeypatch):
+    restart = AsyncMock()
+    monkeypatch.setattr(core_router.node_operator, "restart_all_node", restart)
+    core = create_core(access_token)
+    try:
+        response = _put_core(access_token, core, note="only a note")
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["note"] == "only a note"
+        restart.assert_not_awaited()
+
+        # Changing the note together with the config still restarts the nodes.
+        config = copy.deepcopy(xray_config)
+        config["routing"]["domainStrategy"] = "IPIfNonMatch"
+        response = _put_core(access_token, core, config=config, note="config and note")
+        assert response.status_code == status.HTTP_200_OK, response.text
+        restart.assert_awaited_once()
+        assert restart.await_args.kwargs["stop_first"] is True
+    finally:
+        delete_core(access_token, core["id"])

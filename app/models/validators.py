@@ -315,3 +315,26 @@ class StringArrayValidator:
         if len(compiled_string) > max:
             raise ValueError(f"String can't be bigger that {max} charachter")
         return array
+
+
+class NoteValidator:
+    @staticmethod
+    def normalize_note(value: Any) -> Any:
+        """Strip a free-text note; an empty note means "not set"."""
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+
+class CountryCodeValidator:
+    @staticmethod
+    def validate_country_code(value: Any) -> Any:
+        """Validate an ISO 3166-1 alpha-2 country code in any case and return it uppercased."""
+        if not isinstance(value, str):
+            return value
+        value = value.strip()
+        if not value:
+            return None
+        if not re.fullmatch(r"[A-Za-z]{2}", value):
+            raise ValueError("country_code must be an ISO 3166-1 alpha-2 code (e.g. DE)")
+        return value.upper()

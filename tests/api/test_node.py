@@ -856,6 +856,8 @@ def test_create_node_returns_created_node(access_token, node_operator_mock):
         **payload,
         "connection_type": NodeConnectionType(payload["connection_type"]),
         "data_limit_reset_strategy": DataLimitResetStrategy(payload["data_limit_reset_strategy"]),
+        "country_code": None,
+        "note": None,
     }
     assert await_args[1].model_dump() == expected_payload
     UUID(await_args[1].api_key)
@@ -1178,7 +1180,7 @@ async def test_get_nodes_simple_basic(access_token):
         assert "total" in data
 
         for node in data["nodes"]:
-            assert set(node.keys()) == {"id", "name", "status", "core_config_id"}
+            assert set(node.keys()) == {"id", "name", "status", "core_config_id", "country_code"}
 
         response_names = [n["name"] for n in data["nodes"]]
         for name in names:
@@ -1443,3 +1445,80 @@ async def test_remove_node_deletes_associated_usage_tables():
         assert await count_rows(NodeStat) == 0
         remaining_nodes = await session.scalar(select(func.count()).select_from(Node).where(Node.id == node_id))
         assert remaining_nodes == 0
+
+
+@pytest.fixture
+def node_api_without_connect(monkeypatch: pytest.MonkeyPatch):
+    """Run the real node API but keep it from talking to node backends."""
+    monkeypatch.setattr(node_router.node_operator, "_update_node_impl", AsyncMock())
+    monkeypatch.setattr(node_router.node_operator, "_connect_single_node_background", AsyncMock())
+    monkeypatch.setattr(node_router.node_operator, "disconnect_single_node", AsyncMock())
+    monkeypatch.setattr("app.operation.node.notification.create_node", AsyncMock())
+    monkeypatch.setattr("app.operation.node.notification.modify_node", AsyncMock())
+    monkeypatch.setattr("app.operation.node.notification.remove_node", AsyncMock())
+    monkeypatch.setattr(node_router.node_operator, "_remove_node_impl", AsyncMock())
+
+
+def test_node_country_code_and_note_create_modify_clear(access_token, node_api_without_connect):
+    payload = node_create_payload(name=unique_name("node_country"), country_code="de", note="  Frankfurt, Hetzner  ")
+    response = client.post("/api/node", headers=auth_headers(access_token), json=payload)
+    assert response.status_code == status.HTTP_201_CREATED, response.text
+    node = response.json()
+    node_id = node["id"]
+    try:
+        assert node["country_code"] == "DE"
+        assert node["note"] == "Frankfurt, Hetzner"
+
+        # Changing only the note keeps the stored country.
+        response = client.put(f"/api/node/{node_id}", headers=auth_headers(access_token), json={"note": "moved"})
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["country_code"] == "DE"
+        assert response.json()["note"] == "moved"
+
+        # Omitting both leaves both unchanged.
+        response = client.put(f"/api/node/{node_id}", headers=auth_headers(access_token), json={"keep_alive": 30})
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["country_code"] == "DE"
+        assert response.json()["note"] == "moved"
+
+        # The simple list used by pickers carries the country too.
+        response = client.get("/api/nodes/simple", headers=auth_headers(access_token), params={"ids": [node_id]})
+        assert response.status_code == status.HTTP_200_OK
+        assert [(n["id"], n["country_code"]) for n in response.json()["nodes"]] == [(node_id, "DE")]
+
+        # The node list search also matches the note.
+        response = client.get("/api/nodes", headers=auth_headers(access_token), params={"search": "MOVED"})
+        assert response.status_code == status.HTTP_200_OK
+        assert node_id in [n["id"] for n in response.json()["nodes"]]
+
+        # Explicit null clears the country, an empty string clears the note.
+        response = client.put(
+            f"/api/node/{node_id}", headers=auth_headers(access_token), json={"country_code": None, "note": "  "}
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["country_code"] is None
+        assert response.json()["note"] is None
+
+        response = client.get(f"/api/node/{node_id}", headers=auth_headers(access_token))
+        assert response.json()["country_code"] is None
+        assert response.json()["note"] is None
+    finally:
+        client.delete(f"/api/node/{node_id}", headers=auth_headers(access_token))
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"country_code": "DEU"},
+        {"country_code": "1A"},
+        {"country_code": "D"},
+        {"note": "x" * 501},
+    ],
+)
+def test_node_invalid_country_code_or_long_note_rejected(access_token, node_operator_mock, overrides):
+    response = client.post("/api/node", headers=auth_headers(access_token), json=node_create_payload(**overrides))
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    response = client.put("/api/node/3", headers=auth_headers(access_token), json=overrides)
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    node_operator_mock.create_node.assert_not_awaited()
+    node_operator_mock.modify_node.assert_not_awaited()

@@ -96,7 +96,8 @@ async def modify_core_config(
     """Update an existing core configuration."""
     result = await core_operator.modify_core(db, core_id, modified_core, admin)
 
-    if restart_nodes:
+    # A note-only edit changes nothing the nodes run, so they are left alone.
+    if restart_nodes and not result.note_only:
         # Nodes apply routing and outbound edits to the running Xray, so only
         # other edits need the Stop that forces a restart.
         await node_operator.restart_all_node(db=db, core_id=core_id, admin=admin, stop_first=not result.live_on_nodes)
