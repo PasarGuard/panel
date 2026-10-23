@@ -97,7 +97,8 @@ def build_payload(event: str, func, args: tuple, kwargs: dict) -> dict:
     bound = inspect.signature(func).bind(*args, **kwargs)
     payload: dict[str, Any] = {"event": event}
     for name, value in bound.arguments.items():
-        if name in SENSITIVE_KEYS:
+        # A model (APIKeyResponse) is the event object: keep it, _to_json drops its secret fields
+        if name in SENSITIVE_KEYS and not isinstance(value, BaseModel):
             continue
         payload[name] = _to_json(name, value)
     return payload

@@ -172,6 +172,27 @@ async def test_event_handler_payload_and_isolation(clean_plugins, monkeypatch):
         assert "secret-password" not in str(payload)
 
 
+def test_api_key_event_keeps_key_object_without_raw_key():
+    from datetime import UTC, datetime
+
+    from app.models.api_key import APIKeyCreateResponse, APIKeyResponse
+
+    async def create_api_key(api_key, admin_username: str, by: str):
+        return None
+
+    fields = {"id": 7, "admin_id": 1, "name": "ci", "created_at": datetime.now(UTC), "api_key_trimmed": "pg_ab...yz"}
+    payload = events.build_payload("api_key.created", create_api_key, (APIKeyResponse(**fields), "root", "root"), {})
+    assert payload["api_key"]["id"] == 7
+    assert payload["api_key"]["name"] == "ci"
+    created = APIKeyCreateResponse(**fields, api_key="pg_raw_secret_value")
+    payload = events.build_payload("api_key.created", create_api_key, (created, "root", "root"), {})
+    assert payload["api_key"]["id"] == 7
+    assert "pg_raw_secret_value" not in str(payload)
+    # A plain secret argument is still dropped
+    payload = events.build_payload("api_key.created", create_api_key, ("pg_raw_secret_value", "root", "root"), {})
+    assert "api_key" not in payload
+
+
 def test_jobs_registered_only_in_scheduler_role(tmp_path, clean_plugins):
     code = """
     def setup(ctx):
