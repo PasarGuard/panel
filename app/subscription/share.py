@@ -115,7 +115,8 @@ async def resolve_client_templates(
         return client_templates
     content = (await subscription_templates_of_type(template_type)).get(rule_template_id)
     if content is None:
-        # Settings validation and template deletion keep this from happening; fall back to the default.
+        # Settings validation and template deletion make this rare, but a template deleted while the settings are
+        # being saved can still leave a dangling id; fall back to the default.
         logger.warning(f"Subscription rule template {rule_template_id} ({template_type.value}) not found")
         return client_templates
     return {**client_templates, TEMPLATE_TYPE_TO_LEGACY_KEY[template_type]: content}

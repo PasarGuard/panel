@@ -146,7 +146,8 @@ class SubscriptionOperation(BaseOperation):
         user: UsersResponseWithInbounds, format_variables: dict, sub_settings: SubSettings
     ) -> str:
         """Format profile title with dynamic variables, falling back to default if needed."""
-        return resolve_profile_title(user, format_variables, sub_settings) or "Subscription"
+        title = resolve_profile_title(user, format_variables, sub_settings)
+        return "Subscription" if title is None else title
 
     @staticmethod
     def _format_announce(sub_settings: SubSettings, format_variables: dict) -> str:
