@@ -58,6 +58,18 @@ export function formatErrorDetail(detail: unknown): string | undefined {
   return undefined
 }
 
+/** API error detail (a 422 list gives its first message), else the error message; undefined when there is neither. */
+export function getApiErrorDetail(error: unknown): string | undefined {
+  const maybeError = (typeof error === 'object' && error !== null ? error : {}) as {
+    data?: { detail?: unknown }
+    response?: { _data?: { detail?: unknown }; data?: { detail?: unknown } }
+    message?: unknown
+  }
+  const detail = maybeError.response?._data?.detail ?? maybeError.response?.data?.detail ?? maybeError.data?.detail
+  if (Array.isArray(detail) && typeof detail[0]?.msg === 'string') return detail[0].msg
+  return formatErrorDetail(detail) ?? (typeof maybeError.message === 'string' && maybeError.message ? maybeError.message : undefined)
+}
+
 export function getErrorMessage(error: unknown): string {
   if (typeof error === 'string') return error
 

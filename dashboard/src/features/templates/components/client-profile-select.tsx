@@ -12,9 +12,13 @@ interface ClientProfileSelectProps {
   disabled?: boolean
   /** Label of the empty option; defaults to "No profile". */
   noneLabel?: string
+  /** Passed by FormControl, so the label and error message point at the trigger. */
+  id?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: boolean
 }
 
-export function ClientProfileSelect({ value, onChange, enabled = true, disabled, noneLabel }: ClientProfileSelectProps) {
+export function ClientProfileSelect({ value, onChange, enabled = true, disabled, noneLabel, ...triggerProps }: ClientProfileSelectProps) {
   const { t } = useTranslation()
   const { profiles, isLoading } = useClientProfileOptions(enabled)
   const current = value == null ? NONE_VALUE : String(value)
@@ -22,7 +26,7 @@ export function ClientProfileSelect({ value, onChange, enabled = true, disabled,
 
   return (
     <Select value={current} onValueChange={next => onChange(next === NONE_VALUE ? null : Number(next))} disabled={disabled || isLoading}>
-      <SelectTrigger className="w-full">
+      <SelectTrigger {...triggerProps} className="w-full">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

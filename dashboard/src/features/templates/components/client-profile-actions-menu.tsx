@@ -10,7 +10,10 @@ import { toast } from 'sonner'
 import { createClientProfile, useRemoveClientProfile, useUnassignClientProfileUsers, ClientProfileResponse } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { translateHtml } from '@/utils/html-translation'
-import { getApiErrorDetail, invalidateClientProfileQueries } from './use-client-profile-options'
+import { getApiErrorDetail } from '@/utils/error-utils'
+import { useAdmin } from '@/hooks/use-admin'
+import { detachAllAccess } from '@/features/templates/forms/client-profile-form'
+import { invalidateClientProfileQueries } from './use-client-profile-options'
 
 interface ClientProfileActionsMenuProps {
   profile: ClientProfileResponse
@@ -21,15 +24,26 @@ interface ClientProfileActionsMenuProps {
   className?: string
 }
 
-type ConfirmKind = 'delete' | 'detach' | null
+type ConfirmKind = 'delete' | 'detach'
 
-const ConfirmDialog = ({ profile, kind, onClose, onConfirm, isPending }: { profile: ClientProfileResponse; kind: ConfirmKind; onClose: () => void; onConfirm: () => void; isPending: boolean }) => {
+interface ConfirmDialogProps {
+  profile: ClientProfileResponse
+  open: boolean
+  kind: ConfirmKind
+  // users.update with scope own: the count is for the whole panel, so the prompt leaves it out
+  detachOwnUsersOnly: boolean
+  onClose: () => void
+  onConfirm: () => void
+  isPending: boolean
+}
+
+const ConfirmDialog = ({ profile, open, kind, detachOwnUsersOnly, onClose, onConfirm, isPending }: ConfirmDialogProps) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const isDelete = kind === 'delete'
 
   return (
-    <AlertDialog open={kind !== null} onOpenChange={open => !open && onClose()}>
+    <AlertDialog open={open} onOpenChange={next => !next && !isPending && onClose()}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
@@ -44,11 +58,16 @@ const ConfirmDialog = ({ profile, kind, onClose, onConfirm, isPending }: { profi
                       name: profile.name,
                       defaultValue: 'Delete <b>{{name}}</b>? Users on this profile will get the default subscription settings. This cannot be undone.',
                     })
-                  : translateHtml(t, 'clientProfiles.detachAllPrompt', {
-                      name: profile.name,
-                      count: profile.users_count ?? 0,
-                      defaultValue: 'Remove <b>{{name}}</b> from all {{count}} users? They will get the default subscription settings.',
-                    }),
+                  : detachOwnUsersOnly
+                    ? translateHtml(t, 'clientProfiles.detachAllOwnPrompt', {
+                        name: profile.name,
+                        defaultValue: 'Remove <b>{{name}}</b> from all your users? They will get the default subscription settings.',
+                      })
+                    : translateHtml(t, 'clientProfiles.detachAllPrompt', {
+                        name: profile.name,
+                        count: profile.users_count ?? 0,
+                        defaultValue: 'Remove <b>{{name}}</b> from all {{count}} users? They will get the default subscription settings.',
+                      }),
               }}
             />
           </AlertDialogDescription>
@@ -57,7 +76,15 @@ const ConfirmDialog = ({ profile, kind, onClose, onConfirm, isPending }: { profi
           <AlertDialogCancel onClick={onClose} disabled={isPending}>
             {t('cancel')}
           </AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={onConfirm} disabled={isPending}>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={e => {
+              // Keep the dialog open until the request succeeds, so a failure can be retried
+              e.preventDefault()
+              onConfirm()
+            }}
+            disabled={isPending}
+          >
             {isDelete ? t('remove') : t('clientProfiles.detachAll', { defaultValue: 'Remove from all users' })}
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -71,7 +98,16 @@ export default function ClientProfileActionsMenu({ profile, onEdit, canCreate = 
   const dir = useDirDetection()
   const removeClientProfileMutation = useRemoveClientProfile()
   const unassignUsersMutation = useUnassignClientProfileUsers()
-  const [confirm, setConfirm] = useState<ConfirmKind>(null)
+  const { admin } = useAdmin()
+  // Kind stays set while the dialog closes, so its texts don't switch during the close animation
+  const [confirm, setConfirm] = useState<ConfirmKind>('delete')
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const openConfirm = (kind: ConfirmKind) => {
+    setConfirm(kind)
+    setConfirmOpen(true)
+  }
+
+  const { canDetach, ownUsersOnly: detachOwnUsersOnly } = detachAllAccess(admin, canUpdate)
 
   const handleConfirm = async () => {
     if (confirm === 'delete') {
@@ -81,7 +117,7 @@ export default function ClientProfileActionsMenu({ profile, onEdit, canCreate = 
         toast.success(t('success', { defaultValue: 'Success' }), {
           description: t('clientProfiles.deleteSuccess', { name: profile.name, defaultValue: 'Profile "{{name}}" deleted' }),
         })
-        setConfirm(null)
+        setConfirmOpen(false)
         invalidateClientProfileQueries()
         queryClient.invalidateQueries({ queryKey: ['/api/users'] })
       } catch (error: any) {
@@ -93,13 +129,13 @@ export default function ClientProfileActionsMenu({ profile, onEdit, canCreate = 
     }
 
     if (confirm === 'detach') {
-      if (!canUpdate) return
+      if (!canDetach) return
       try {
         const response = await unassignUsersMutation.mutateAsync({ profileId: profile.id, data: { all: true } })
         toast.success(t('success', { defaultValue: 'Success' }), {
           description: t('clientProfiles.detachAllSuccess', { count: response.count, defaultValue: 'Profile removed from {{count}} users' }),
         })
-        setConfirm(null)
+        setConfirmOpen(false)
         invalidateClientProfileQueries()
         queryClient.invalidateQueries({ queryKey: ['/api/users'] })
       } catch (error: any) {
@@ -131,7 +167,7 @@ export default function ClientProfileActionsMenu({ profile, onEdit, canCreate = 
     }
   }
 
-  const canDetach = canUpdate && (profile.users_count ?? 0) > 0
+  const showDetach = canDetach && (profile.users_count ?? 0) > 0
   if (!canUpdate && !canCreate && !canDelete) return null
 
   return (
@@ -167,12 +203,12 @@ export default function ClientProfileActionsMenu({ profile, onEdit, canCreate = 
               <span>{t('duplicate')}</span>
             </DropdownMenuItem>
           )}
-          {canDetach && (
+          {showDetach && (
             <DropdownMenuItem
               dir={dir}
               onSelect={e => {
                 e.stopPropagation()
-                setConfirm('detach')
+                openConfirm('detach')
               }}
             >
               <UserMinus className="h-4 w-4" />
@@ -187,7 +223,7 @@ export default function ClientProfileActionsMenu({ profile, onEdit, canCreate = 
                 className="!text-red-500"
                 onSelect={e => {
                   e.stopPropagation()
-                  setConfirm('delete')
+                  openConfirm('delete')
                 }}
               >
                 <Trash2 className="h-4 w-4 text-red-500" />
@@ -198,7 +234,15 @@ export default function ClientProfileActionsMenu({ profile, onEdit, canCreate = 
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <ConfirmDialog profile={profile} kind={confirm} onClose={() => setConfirm(null)} onConfirm={handleConfirm} isPending={removeClientProfileMutation.isPending || unassignUsersMutation.isPending} />
+      <ConfirmDialog
+        profile={profile}
+        open={confirmOpen}
+        kind={confirm}
+        detachOwnUsersOnly={detachOwnUsersOnly}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleConfirm}
+        isPending={removeClientProfileMutation.isPending || unassignUsersMutation.isPending}
+      />
     </div>
   )
 }

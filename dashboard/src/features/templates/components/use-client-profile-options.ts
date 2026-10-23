@@ -31,10 +31,3 @@ export const invalidateClientProfileQueries = () => {
   queryClient.invalidateQueries({ queryKey: getGetClientProfilesQueryKey() })
   queryClient.invalidateQueries({ queryKey: getGetClientProfilesSimpleQueryKey() })
 }
-
-export const getApiErrorDetail = (error: any): string | undefined => {
-  const detail = error?.response?._data?.detail ?? error?.response?.data?.detail ?? error?.data?.detail
-  if (typeof detail === 'string') return detail
-  if (Array.isArray(detail) && detail[0]?.msg) return String(detail[0].msg)
-  return typeof error?.message === 'string' ? error.message : undefined
-}

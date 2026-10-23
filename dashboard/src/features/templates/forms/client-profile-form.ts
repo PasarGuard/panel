@@ -1,13 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { TFunction } from 'i18next'
 import type { Resolver } from 'react-hook-form'
-import type { ClientProfileCreate, ClientProfileResponse, ClientProfileSettings, ClientProfileTemplateType } from '@/service/api'
+import type { AdminDetails, ClientProfileCreate, ClientProfileResponse, ClientProfileSettings, ClientProfileTemplateType } from '@/service/api'
+import { hasPermission, hasScopeAll } from '@/utils/rbac'
 import { builtInVariableKeys } from '@/features/subscriptions/components/subscription-settings-schema'
 import { z } from 'zod'
 
 // Same token rule as the backend (`_HTTP_HEADER_NAME_PATTERN` in app/models/client_profile.py)
 const HTTP_HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
 const CUSTOM_VARIABLE_KEY_PATTERN = /^[A-Z][A-Z0-9_]*$/
+// Header values must be latin-1, except these two: the backend base64-encodes them (ENCODED_RESPONSE_HEADERS)
+const ENCODED_RESPONSE_HEADERS = new Set(['announce', 'profile-title'])
 
 export const CLIENT_PROFILE_TEMPLATE_TYPES = ['xray_subscription', 'singbox_subscription', 'clash_subscription'] as const satisfies readonly ClientProfileTemplateType[]
 
@@ -57,6 +60,8 @@ export const clientProfileFormSchema = z
       seenHeaders.add(key.toLowerCase())
       if (/[\r\n\0]/.test(row.value)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'clientProfiles.validation.headerValue', path: ['response_headers', index, 'value'] })
+      } else if (!ENCODED_RESPONSE_HEADERS.has(key.toLowerCase()) && /[^\x00-\xff]/.test(row.value)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'clientProfiles.validation.headerLatin1', path: ['response_headers', index, 'value'] })
       }
     })
 
@@ -222,3 +227,12 @@ export const profileIdsToDetach = (selectedUserIds: readonly number[], loadedUse
   }
   return [...ids]
 }
+
+/**
+ * "Remove from all users" edits users, so the backend also needs users.update. With scope own only the admin's
+ * own users are detached, and the profile's users_count (whole panel) must not be shown as the number affected.
+ */
+export const detachAllAccess = (admin: AdminDetails | null | undefined, canUpdateProfiles: boolean) => ({
+  canDetach: canUpdateProfiles && hasPermission(admin, 'users', 'update'),
+  ownUsersOnly: !hasScopeAll(admin, 'users', 'update'),
+})

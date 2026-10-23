@@ -7,7 +7,8 @@ import { LoaderButton } from '@/components/ui/loader-button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { CustomVariablesPopover, normalizeCustomVariableKey } from '@/components/ui/variables-popover'
-import { getApiErrorDetail, invalidateClientProfileQueries } from '@/features/templates/components/use-client-profile-options'
+import { invalidateClientProfileQueries } from '@/features/templates/components/use-client-profile-options'
+import { getApiErrorDetail } from '@/utils/error-utils'
 import { CLIENT_PROFILE_TEMPLATE_TYPES, clientProfileFormToPayload, DEFAULT_TEMPLATE_VALUE, type ClientProfileFormValues } from '@/features/templates/forms/client-profile-form'
 import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -16,7 +17,7 @@ import { cn } from '@/lib/utils'
 import { useCreateClientProfile, useGetClientTemplatesSimple, useModifyClientProfile } from '@/service/api'
 import { hasPermission } from '@/utils/rbac'
 import { Pencil, Plus, SlidersHorizontal, Trash2, X } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useFieldArray, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -48,6 +49,9 @@ const Section = ({ title, description, actions, children }: { title: string; des
   </div>
 )
 
+// Same limits as the form schema, so the browser stops input instead of showing an untranslated error
+const TEXT_FIELD_MAX_LENGTH = { profile_title: 256, support_url: 512, announce: 128, announce_url: 512 } as const
+
 export default function ClientProfileModal({ isDialogOpen, onOpenChange, form, editingProfile, editingProfileId }: ClientProfileModalProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
@@ -57,13 +61,18 @@ export default function ClientProfileModal({ isDialogOpen, onOpenChange, form, e
   const modifyClientProfile = useModifyClientProfile()
   const [removeHeaderDraft, setRemoveHeaderDraft] = useState('')
   const canListTemplates = hasPermission(admin, 'client_templates', 'read_simple')
-  const { data: templatesData } = useGetClientTemplatesSimple({ all: true }, { query: { enabled: isDialogOpen && canListTemplates, staleTime: 5 * 60 * 1000, gcTime: 10 * 60 * 1000 } })
+  // No staleTime: template edits invalidate '/api/client_templates' only, so a cached list would show deleted templates
+  const { data: templatesData } = useGetClientTemplatesSimple({ all: true }, { query: { enabled: isDialogOpen && canListTemplates } })
   const headersArray = useFieldArray({ control: form.control, name: 'response_headers' })
   const variablesArray = useFieldArray({ control: form.control, name: 'custom_variables' })
   const removeHeaders = form.watch('remove_response_headers')
   const customVariables = form.watch('custom_variables')
   const errors = form.formState.errors
   const inheritedPlaceholder = t('clientProfiles.inherited', { defaultValue: 'Inherited from settings' })
+
+  useEffect(() => {
+    if (!isDialogOpen) setRemoveHeaderDraft('')
+  }, [isDialogOpen])
 
   const addRemoveHeader = () => {
     const name = removeHeaderDraft.trim()
@@ -104,7 +113,7 @@ export default function ClientProfileModal({ isDialogOpen, onOpenChange, form, e
   const isPending = createClientProfile.isPending || modifyClientProfile.isPending
   const title = editingProfile ? t('clientProfiles.editProfile', { defaultValue: 'Edit client profile' }) : t('clientProfiles.addProfile', { defaultValue: 'Create client profile' })
 
-  const textField = (name: 'profile_title' | 'support_url' | 'announce' | 'announce_url', label: string, hint?: string) => (
+  const textField = (name: keyof typeof TEXT_FIELD_MAX_LENGTH, label: string, hint?: string) => (
     <FormField
       control={form.control}
       name={name}
@@ -112,7 +121,7 @@ export default function ClientProfileModal({ isDialogOpen, onOpenChange, form, e
         <FormItem>
           <FormLabel>{label}</FormLabel>
           <FormControl>
-            <Input {...field} placeholder={inheritedPlaceholder} />
+            <Input {...field} maxLength={TEXT_FIELD_MAX_LENGTH[name]} placeholder={inheritedPlaceholder} />
           </FormControl>
           {hint ? <FormDescription className="text-xs">{hint}</FormDescription> : null}
           <FormMessage />
@@ -291,7 +300,14 @@ export default function ClientProfileModal({ isDialogOpen, onOpenChange, form, e
                           <Input {...form.register(`response_headers.${index}.value`)} placeholder={t('clientProfiles.headerValue', { defaultValue: 'Value' })} className="font-mono text-xs" />
                           {errors.response_headers?.[index]?.value?.message ? <p className="text-destructive text-xs">{errors.response_headers[index]?.value?.message}</p> : null}
                         </div>
-                        <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-9 w-9 shrink-0" onClick={() => headersArray.remove(index)}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t('remove')}
+                          className="text-destructive hover:bg-destructive/10 h-9 w-9 shrink-0"
+                          onClick={() => headersArray.remove(index)}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -319,7 +335,15 @@ export default function ClientProfileModal({ isDialogOpen, onOpenChange, form, e
                       placeholder={t('clientProfiles.headerName', { defaultValue: 'Header name' })}
                       className="font-mono text-xs"
                     />
-                    <Button type="button" variant="outline" size="sm" className="h-9 shrink-0" onClick={addRemoveHeader} disabled={!removeHeaderDraft.trim()}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      aria-label={t('clientProfiles.addHeader', { defaultValue: 'Add header' })}
+                      className="h-9 shrink-0"
+                      onClick={addRemoveHeader}
+                      disabled={!removeHeaderDraft.trim()}
+                    >
                       <Plus className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -383,7 +407,14 @@ export default function ClientProfileModal({ isDialogOpen, onOpenChange, form, e
                           <Input {...form.register(`custom_variables.${index}.value`)} maxLength={512} placeholder="{USERNAME}.example.com" className="font-mono text-xs" />
                           {errors.custom_variables?.[index]?.value?.message ? <p className="text-destructive text-xs">{errors.custom_variables[index]?.value?.message}</p> : null}
                         </div>
-                        <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-9 w-9 shrink-0" onClick={() => variablesArray.remove(index)}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t('remove')}
+                          className="text-destructive hover:bg-destructive/10 h-9 w-9 shrink-0"
+                          onClick={() => variablesArray.remove(index)}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
