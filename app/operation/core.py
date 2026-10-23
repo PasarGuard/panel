@@ -49,8 +49,6 @@ class CoreModification(NamedTuple):
     core: CoreResponse
     # Nodes can apply the edit to the running Xray without a restart.
     live_on_nodes: bool
-    # Only the note changed: nodes need neither a restart nor an update.
-    note_only: bool = False
 
 
 class CoreOperation(BaseOperation):
@@ -173,12 +171,6 @@ class CoreOperation(BaseOperation):
         was_wg = bool(wg_core_interfaces(db_core))
         # What nodes run now, read before update_core replaces it.
         before = node_facing(await core_manager.get_core(db_core.id))
-        # Panel-only fields, read before modify_core_config overwrites them.
-        before_name, before_fallbacks, before_note = (
-            db_core.name,
-            set(db_core.fallbacks_inbound_tags or ()),
-            db_core.note,
-        )
         try:
             validated_core = core_manager.validate_core(
                 modified_core.config,
@@ -205,15 +197,7 @@ class CoreOperation(BaseOperation):
             await self._reconcile_wireguard(db)
         await self._refresh_hosts_from_db(db)
 
-        after = node_facing(validated_core)
-        note_only = (
-            before is not None
-            and before == after
-            and db_core.note != before_note
-            and db_core.name == before_name
-            and set(db_core.fallbacks_inbound_tags or ()) == before_fallbacks
-        )
-        return CoreModification(core, only_live_parts_changed(before, after), note_only)
+        return CoreModification(core, only_live_parts_changed(before, node_facing(validated_core)))
 
     async def delete_core(self, db: AsyncSession, core_id: int, admin: AdminDetails) -> None:
         if core_id == 1:

@@ -510,7 +510,7 @@ def test_core_save_with_other_changes_keeps_stop(access_token, monkeypatch):
     assert _stop_first_after_save(access_token, monkeypatch, change) is True
 
 
-def _put_core(access_token, core, **fields):
+def _put_core(access_token, core, restart_nodes=True, **fields):
     payload = {
         "config": xray_config,
         "name": core["name"],
@@ -522,7 +522,7 @@ def _put_core(access_token, core, **fields):
         url=f"/api/core/{core['id']}",
         headers=auth_headers(access_token),
         json=payload,
-        params={"restart_nodes": True},
+        params={"restart_nodes": restart_nodes},
     )
 
 
@@ -560,17 +560,25 @@ def test_core_note_create_modify_clear(access_token, monkeypatch):
         delete_core(access_token, core["id"])
 
 
-def test_core_note_only_save_does_not_restart_nodes(access_token, monkeypatch):
+def test_core_note_only_save_follows_restart_nodes(access_token, monkeypatch):
     restart = AsyncMock()
     monkeypatch.setattr(core_router.node_operator, "restart_all_node", restart)
     core = create_core(access_token)
     try:
-        response = _put_core(access_token, core, note="only a note")
+        # The dashboard sends restart_nodes=false when only the note changed.
+        response = _put_core(access_token, core, restart_nodes=False, note="only a note")
         assert response.status_code == status.HTTP_200_OK, response.text
         assert response.json()["note"] == "only a note"
         restart.assert_not_awaited()
 
-        # Changing the note together with the config still restarts the nodes.
+        # An explicit restart_nodes=true is honoured even if only the note changed:
+        # nodes may still run an older config saved without a sync.
+        response = _put_core(access_token, core, note="note again")
+        assert response.status_code == status.HTTP_200_OK, response.text
+        restart.assert_awaited_once()
+        restart.reset_mock()
+
+        # Changing the note together with the config restarts the nodes with a Stop.
         config = copy.deepcopy(xray_config)
         config["routing"]["domainStrategy"] = "IPIfNonMatch"
         response = _put_core(access_token, core, config=config, note="config and note")
