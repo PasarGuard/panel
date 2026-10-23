@@ -5,7 +5,7 @@ import sys
 import textwrap
 from pathlib import Path
 
-from app.plugins import manager, registry
+from app.plugins import manager, registry, settings as plugin_settings
 
 
 def make_plugin(
@@ -52,4 +52,6 @@ def reset_plugins() -> None:
         coro.close()
     manager._pending.clear()
     registry.reset()
+    # asyncio.Lock binds to the loop that first contends it; tests run in several loops
+    plugin_settings._locks.clear()
     forget_plugin_modules()
