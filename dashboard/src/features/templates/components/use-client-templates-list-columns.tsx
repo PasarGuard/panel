@@ -4,7 +4,7 @@ import { ListColumn } from '@/components/common/list-generator'
 import { ClientTemplateResponse } from '@/service/api'
 import ClientTemplateActionsMenu from '@/features/templates/components/client-template-actions-menu'
 import { Badge } from '@/components/ui/badge'
-import ClientTemplateMarkers from '@/features/templates/components/client-template-markers'
+import ClientTemplateMarkers, { ServerGroupsBadge } from '@/features/templates/components/client-template-markers'
 
 const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   clash_subscription: 'Clash',
@@ -41,6 +41,7 @@ export const useClientTemplatesListColumns = ({ onEdit, canCreate = true, canUpd
           >
             <span className="truncate font-medium">{template.name}</span>
             <ClientTemplateMarkers isDefault={template.is_default} isSystem={template.is_system} />
+            <ServerGroupsBadge content={template.content} />
           </div>
         ),
       },

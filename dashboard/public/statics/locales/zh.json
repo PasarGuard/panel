@@ -286,8 +286,12 @@
         "headerValue": "头值",
         "advanced": "高级规则选项",
         "advancedTitle": "规则选项",
-        "advancedDescription": "在此规则匹配时配置可选响应头。",
-        "advancedHeadersHint": "{{count}} 个自定义响应头 — 点击编辑"
+        "advancedDescription": "为此规则选择客户端模板和可选响应头。",
+        "advancedHeadersHint": "{{count}} 个自定义响应头 — 点击编辑",
+        "template": "模板",
+        "templateDescription": "匹配此规则的客户端将使用此模板，而不是该格式的默认模板。",
+        "defaultTemplate": "默认模板",
+        "templateBadge": "模板：{{name}}"
       },
       "formats": {
         "title": "手动订阅格式",
@@ -1185,7 +1189,25 @@
     "noSearchResults": "没有匹配的客户端模板。",
     "default": "默认",
     "system": "系统",
-    "defaultSystem": "默认系统"
+    "defaultSystem": "默认系统",
+    "serverGroups": {
+      "title": "服务器分组",
+      "badge": "服务器分组",
+      "intro": "模板中的 \"pasarguard\" 块告诉面板把用户的哪些服务器放入哪个分组或负载均衡器。该块本身会在下发给客户端前被移除。",
+      "xray": "Xray：顶层的该块会把选中的服务器作为额外的出站 proxy-1、proxy-2…… 添加进来，selector 为 \"proxy-\" 的负载均衡器即可选出最快的。使用 \"mode\": \"single\" 时客户端会得到一个包含所有服务器的配置，如示例所示。",
+      "singbox": "Sing-box：把该块放在 selector 或 urltest 类型的出站里。该分组只会得到选中的服务器；没有该块的分组仍像以前一样得到所有服务器。",
+      "clash": "Clash / Mihomo：把该块放在 proxy-groups 的某个分组里，选中的服务器会被添加到该分组。此类模板中的注释不会保留。",
+      "select": "\"select\" 按 inbound_tags、inbound_tag_regex、remark_regex 或 host_ids 选择服务器；所有给定条件都必须满足，空的 {} 表示用户的全部服务器。",
+      "insertHint": {
+        "xray": "\"插入示例\" 会向模板添加一个 \"pasarguard\" 块，把所有服务器添加为 proxy-1、proxy-2……；当前配置仍可正常使用。",
+        "singbox": "示例会插入到光标处；请把这些分组移到您的 \"outbounds\" 列表中。",
+        "clash": "示例会插入到光标处；请将其与您的 \"proxy-groups\" 列表合并。"
+      },
+      "rulesHint": "如果只想让部分应用使用此模板，请在订阅规则中选择它（设置 → 订阅 → 规则）。",
+      "insertExample": "插入示例",
+      "insertInvalidJson": "请先修正 JSON，再插入示例。",
+      "insertExists": "此模板已包含 \"pasarguard\" 块。"
+    }
   },
   "core.configuration": "配置",
   "core.generalErrorMessage": "配置有误, 请检查",

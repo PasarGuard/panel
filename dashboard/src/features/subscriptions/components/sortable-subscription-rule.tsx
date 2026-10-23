@@ -1,13 +1,14 @@
-import type { SubscriptionSettingsForm } from './subscription-settings-schema'
+import { templateIdAfterTargetChange, type SubscriptionSettingsForm } from './subscription-settings-schema'
 import { configFormatOptions } from '@/features/subscriptions/components/config-format-options'
-import { SubscriptionRuleAdvancedSheet } from '@/features/subscriptions/components/subscription-rule-advanced-sheet'
+import { SubscriptionRuleAdvancedSheet, useRuleTemplates } from '@/features/subscriptions/components/subscription-rule-advanced-sheet'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Bolt, GripVertical, Trash2 } from 'lucide-react'
+import { Bolt, FileCode2, GripVertical, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -83,7 +84,10 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
   const responseHeaders = (form.watch(`rules.${index}.response_headers`) || {}) as Record<string, string>
   const responseHeaderCount = Object.keys(responseHeaders).length
-  const advancedSheetItemCount = responseHeaderCount
+  const templateId = form.watch(`rules.${index}.template_id`) ?? null
+  const { templates } = useRuleTemplates()
+  const templateName = templateId !== null ? (templates.find(template => template.id === templateId)?.name ?? `#${templateId}`) : null
+  const advancedSheetItemCount = responseHeaderCount + (templateId !== null ? 1 : 0)
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -147,7 +151,18 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
                   render={({ field }) => (
                     <FormItem className="min-w-0 flex-1 space-y-0 sm:w-[13.5rem] sm:shrink-0 sm:space-y-1">
                       <FormLabel className="sr-only">{t('settings.subscriptions.rules.target')}</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={value => {
+                          const nextTarget = value as typeof field.value
+                          const currentTemplateId = form.getValues(`rules.${index}.template_id`) ?? null
+                          const nextTemplateId = templateIdAfterTargetChange(currentTemplateId, field.value, nextTarget)
+                          if (nextTemplateId !== currentTemplateId) {
+                            form.setValue(`rules.${index}.template_id`, nextTemplateId, { shouldDirty: true })
+                          }
+                          field.onChange(nextTarget)
+                        }}
+                        value={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger dir="ltr" className="border-muted bg-background/60 focus:bg-background h-8 w-full min-w-0 px-2.5 text-[11px] sm:h-8 sm:px-3 sm:text-xs">
                             <SelectValue />
@@ -170,6 +185,19 @@ export function SortableSubscriptionRule({ index, onRemove, form, id }: Sortable
                 />
                 <RuleActionButtons {...actionProps} className="flex shrink-0 items-center gap-1 sm:hidden" />
               </div>
+              {templateName !== null && (
+                <div className="flex min-w-0 sm:col-span-2">
+                  <Badge
+                    variant="secondary"
+                    className="max-w-full min-w-0 cursor-pointer gap-1 px-1.5 py-0 text-[10px] font-normal sm:text-[11px]"
+                    title={t('settings.subscriptions.rules.templateBadge', { name: templateName })}
+                    onClick={() => setIsAdvancedOpen(true)}
+                  >
+                    <FileCode2 className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{templateName}</span>
+                  </Badge>
+                </div>
+              )}
             </div>
           </div>
 

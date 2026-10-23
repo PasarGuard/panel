@@ -1,6 +1,8 @@
 import { CodeEditorPanel } from '@/components/common/code-editor-panel'
+import ClientTemplateServerGroupsHelp from '@/features/templates/components/client-template-server-groups-help'
 import type { ClientTemplateFormValues } from '@/features/templates/forms/client-template-form'
 import { DEFAULT_TEMPLATE_CONTENT } from '@/features/templates/forms/client-template-form'
+import { mergeXrayServerGroupDirective, SERVER_GROUP_EXAMPLES } from '@/features/templates/forms/template-directives'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -13,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { ClientTemplateType, useCreateClientTemplate, useModifyClientTemplate } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { Pencil, FileCode2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -27,6 +29,23 @@ const TEMPLATE_TYPE_LABELS: Record<string, string> = {
 }
 
 const isYamlType = (templateType: string) => templateType === ClientTemplateType.clash_subscription
+
+// Inserts text at the cursor of the Monaco (desktop) or Ace (mobile) editor; false if there is no editor to insert into.
+const insertAtCursor = (editor: any, text: string) => {
+  if (editor?.executeEdits && editor.getSelection) {
+    const selection = editor.getSelection()
+    if (!selection) return false
+    editor.executeEdits('server-groups-example', [{ range: selection, text, forceMoveMarkers: true }])
+    editor.focus?.()
+    return true
+  }
+  if (typeof editor?.insert === 'function') {
+    editor.insert(text)
+    editor.focus?.()
+    return true
+  }
+  return false
+}
 
 interface ValidationResult {
   isValid: boolean
@@ -48,6 +67,10 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
   const modifyClientTemplate = useModifyClientTemplate()
   const [isCodeEditorFullscreen, setIsCodeEditorFullscreen] = useState(false)
   const [validation, setValidation] = useState<ValidationResult>({ isValid: true })
+  const editorRef = useRef<any>(null)
+  const handleEditorMount = useCallback((editor: any) => {
+    editorRef.current = editor
+  }, [])
 
   const templateType = form.watch('template_type')
   const isYaml = isYamlType(templateType)
@@ -117,6 +140,34 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
       setValidation({ isValid: true })
     }
   }, [isDialogOpen])
+
+  const handleInsertServerGroupsExample = () => {
+    const content = form.getValues('content') || ''
+
+    if (templateType === ClientTemplateType.xray_subscription) {
+      const result = mergeXrayServerGroupDirective(content)
+      if (result.status === 'invalid') {
+        toast.error(t('clientTemplates.serverGroups.insertInvalidJson'))
+        return
+      }
+      if (result.status === 'exists') {
+        toast.info(t('clientTemplates.serverGroups.insertExists'))
+        return
+      }
+      form.setValue('content', result.content, { shouldDirty: true })
+      validateContent(result.content)
+      return
+    }
+
+    const example = SERVER_GROUP_EXAMPLES[templateType as keyof typeof SERVER_GROUP_EXAMPLES]
+    if (!example) return
+    if (!insertAtCursor(editorRef.current, example)) {
+      const separator = !content || content.endsWith('\n') ? '' : '\n'
+      const nextContent = `${content}${separator}${example}\n`
+      form.setValue('content', nextContent, { shouldDirty: true })
+      validateContent(nextContent)
+    }
+  }
 
   const handleSubmit = form.handleSubmit(async values => {
     if (!validateContent(values.content, true)) {
@@ -199,6 +250,7 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                                 validateContent(value)
                               }}
                               onValidate={handleEditorValidation}
+                              onMount={handleEditorMount}
                               enableFullscreen
                               dialogOpen={isDialogOpen}
                               onFullscreenChange={setIsCodeEditorFullscreen}
@@ -267,6 +319,8 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                       </FormItem>
                     )}
                   />
+
+                  <ClientTemplateServerGroupsHelp templateType={templateType} onInsertExample={handleInsertServerGroupsExample} />
                 </div>
               </div>
             </div>

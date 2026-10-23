@@ -317,8 +317,12 @@
         "noRules": "No rules configured. Add rules to customize subscription behavior for different clients.",
         "advanced": "Advanced rule options",
         "advancedTitle": "Rule options",
-        "advancedDescription": "Configure optional response headers when this rule matches.",
-        "advancedHeadersHint": "{{count}} custom response header(s) — click to edit"
+        "advancedDescription": "Choose a client template and optional response headers for this rule.",
+        "advancedHeadersHint": "{{count}} custom response header(s) — click to edit",
+        "template": "Template",
+        "templateDescription": "Clients matched by this rule get this template instead of the default one for the format.",
+        "defaultTemplate": "Default template",
+        "templateBadge": "Template: {{name}}"
       },
       "formats": {
         "title": "Manual Subscription Formats",
@@ -1191,7 +1195,25 @@
     "noSearchResults": "No client templates match your search.",
     "default": "Default",
     "system": "System",
-    "defaultSystem": "Default System"
+    "defaultSystem": "Default System",
+    "serverGroups": {
+      "title": "Server groups",
+      "badge": "Server groups",
+      "intro": "A \"pasarguard\" block in the template tells the panel which of the user's servers to put into which group or balancer. The block itself is removed before the client gets the config.",
+      "xray": "Xray: the block at the top level adds the selected servers as extra outbounds proxy-1, proxy-2, … A balancer with selector \"proxy-\" can then pick the fastest. With \"mode\": \"single\" the client gets one config with all servers, as in the example.",
+      "singbox": "Sing-box: put the block inside a selector or urltest outbound. That group gets only the selected servers; groups without the block get all servers as before.",
+      "clash": "Clash / Mihomo: put the block inside a proxy group. The selected servers are added to that group. Comments in such a template are not kept.",
+      "select": "\"select\" picks servers by inbound_tags, inbound_tag_regex, remark_regex or host_ids; all given conditions must match, an empty {} means all of the user's servers.",
+      "insertHint": {
+        "xray": "Insert adds a \"pasarguard\" block to your template that adds all servers as proxy-1, proxy-2, …; your current config keeps working.",
+        "singbox": "Insert puts the example at the cursor; move the groups into your \"outbounds\" list.",
+        "clash": "Insert puts the example at the cursor; merge it with your \"proxy-groups\" list."
+      },
+      "rulesHint": "To give this template only to some apps, choose it in a subscription rule (Settings → Subscriptions → Rules).",
+      "insertExample": "Insert example",
+      "insertInvalidJson": "Fix the JSON first, then insert the example.",
+      "insertExists": "This template already has a \"pasarguard\" block."
+    }
   },
   "core.configuration": "Configuration",
   "core.generalErrorMessage": "Something went wrong, please check the configuration",

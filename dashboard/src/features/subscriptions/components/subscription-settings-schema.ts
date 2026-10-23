@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { UseFormReturn } from 'react-hook-form'
+import type { ClientTemplateType } from '@/service/api'
 
 export const builtInVariableKeys = [
   'SERVER_IP',
@@ -115,6 +116,7 @@ export const subscriptionSchema = z.object({
       pattern: z.string().min(1, 'Pattern is required'),
       target: z.enum(['links', 'links_base64', 'xray', 'wireguard', 'sing_box', 'clash', 'clash_meta', 'outline', 'block']),
       response_headers: z.record(z.string()).optional(),
+      template_id: z.number().int().positive().nullable().optional(),
     }),
   ),
   applications: z.array(subscriptionApplicationSchema).optional(),
@@ -140,6 +142,25 @@ export const withCustomVariableDefaults = (variables: SubscriptionFormInput['cus
 export type SubscriptionRuleFormData = SubscriptionFormData['rules'][number]
 export type SubscriptionPlatform = SubscriptionApplicationFormData['platform']
 export type SubscriptionLanguage = NonNullable<SubscriptionApplicationFormData['download_links']>[number]['language']
+
+// Client template type a rule's template must have, per rule target (mirrors RULE_TEMPLATE_TYPES in app/models/settings.py)
+const ruleTemplateTypes: Partial<Record<SubscriptionRuleFormData['target'], ClientTemplateType>> = {
+  xray: 'xray_subscription',
+  sing_box: 'singbox_subscription',
+  clash: 'clash_subscription',
+  clash_meta: 'clash_subscription',
+}
+
+export const getRuleTemplateType = (target: SubscriptionRuleFormData['target']): ClientTemplateType | null => ruleTemplateTypes[target] ?? null
+
+// The template a rule keeps after its target changes: kept only while the template type stays the same (e.g. clash <-> clash_meta).
+export const templateIdAfterTargetChange = (templateId: number | null | undefined, previousTarget: SubscriptionRuleFormData['target'], nextTarget: SubscriptionRuleFormData['target']) => {
+  const nextType = getRuleTemplateType(nextTarget)
+  return nextType !== null && nextType === getRuleTemplateType(previousTarget) ? (templateId ?? null) : null
+}
+
+// template_id sent to the API: null for targets that cannot have a template.
+export const normalizeRuleTemplateId = (target: SubscriptionRuleFormData['target'], templateId: number | null | undefined) => (getRuleTemplateType(target) ? (templateId ?? null) : null)
 
 export const defaultSubscriptionRules: SubscriptionRuleFormData[] = [
   {

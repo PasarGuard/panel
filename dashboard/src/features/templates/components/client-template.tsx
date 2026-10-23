@@ -1,7 +1,7 @@
 import { Card } from '@/components/ui/card'
 import { ClientTemplateResponse } from '@/service/api'
 import ClientTemplateActionsMenu from './client-template-actions-menu'
-import ClientTemplateMarkers from './client-template-markers'
+import ClientTemplateMarkers, { ServerGroupsBadge } from './client-template-markers'
 import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
 
@@ -38,6 +38,7 @@ const ClientTemplate = ({
             <div className="flex min-w-0 items-center gap-2">
               <div className="min-w-0 truncate font-medium">{template.name}</div>
               <ClientTemplateMarkers isDefault={template.is_default} isSystem={template.is_system} />
+              <ServerGroupsBadge content={template.content} />
             </div>
             <div className="text-muted-foreground min-w-0 truncate text-sm capitalize">{templateTypeLabel}</div>
           </div>
