@@ -340,3 +340,39 @@ def test_subscription_info_hides_client_profile_id(env):
     assert response.status_code == status.HTTP_200_OK
     assert "client_profile_id" not in response.json()
     assert "client_profile" not in response.json()
+
+
+BROWSER_HEADERS = {"Accept": "text/html", "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/147.0"}
+
+
+@pytest.mark.parametrize(
+    "announce_url", ["javascript:alert(1)", " JavaScript:alert(1)", "data:text/html,x", "/relative"]
+)
+def test_profile_announce_url_rejects_unsafe_links(env, announce_url):
+    response = client.post(
+        "/api/client_profile",
+        headers=env.headers,
+        json={"name": unique_name("sub_profile"), "settings": {"announce": "x", "announce_url": announce_url}},
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
+
+
+def test_subscription_page_drops_unsafe_announce_link_from_variable(env):
+    env.add_host()
+    unsafe = env.user(
+        env.profile(
+            settings={
+                "announce": "x",
+                "announce_url": "{LINK}",
+                "custom_variables": [{"key": "LINK", "value": "javascript:alert(1)"}],
+            }
+        )
+    )
+    safe = env.user(env.profile(settings={"announce": "x", "announce_url": "tg://resolve?domain=acme"}))
+
+    response = client.get(unsafe["subscription_url"], headers=BROWSER_HEADERS)
+    assert response.status_code == status.HTTP_200_OK
+    assert "javascript:alert(1)" not in response.text
+    response = client.get(safe["subscription_url"], headers=BROWSER_HEADERS)
+    assert response.status_code == status.HTTP_200_OK
+    assert 'href="tg://resolve?domain=acme"' in response.text
