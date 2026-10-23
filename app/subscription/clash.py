@@ -15,7 +15,13 @@ from app.templates import render_template_string
 from app.templates.filters import to_yaml
 
 from . import BaseSubscription
-from .template_directives import DIRECTIVE_KEY, HostCandidate, merge_group_members, parse_group_directive
+from .template_directives import (
+    DIRECTIVE_KEY,
+    HostCandidate,
+    merge_group_members,
+    parse_group_directive,
+    yaml_safe_load,
+)
 
 # Group keys that give a proxy group members besides its "proxies" list.
 CLASH_GROUP_MEMBER_SOURCES = ("use", "include-all", "include-all-proxies", "include-all-providers")
@@ -73,10 +79,11 @@ class ClashConfiguration(BaseSubscription):
 
     def _apply_group_directives(self, rendered: str) -> str:
         """Fill proxy groups that carry a pasarguard directive; output without one is returned untouched."""
-        if DIRECTIVE_KEY not in rendered:
+        # The directive is written in the template; a remark or SNI containing the word must not trigger a parse.
+        if DIRECTIVE_KEY not in (self.clash_template_content or "") or DIRECTIVE_KEY not in rendered:
             return rendered
         try:
-            data = yaml.safe_load(rendered)
+            data = yaml_safe_load(rendered)
         except yaml.YAMLError:
             return rendered
         groups = data.get("proxy-groups") if isinstance(data, dict) else None

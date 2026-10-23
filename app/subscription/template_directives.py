@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
+import yaml
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from app.utils.logger import get_logger
@@ -20,6 +21,12 @@ logger = get_logger("template-directives")
 
 DIRECTIVE_KEY = "pasarguard"
 SINGBOX_GROUP_TYPES = ("selector", "urltest")
+# libyaml parses several times faster than the pure Python loader; the result is the same.
+_YAML_SAFE_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+
+def yaml_safe_load(text: str) -> Any:
+    return yaml.load(text, Loader=_YAML_SAFE_LOADER)
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,8 +44,9 @@ class HostSelector(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     inbound_tags: list[str] | None = None
-    inbound_tag_regex: str | None = None
-    remark_regex: str | None = None
+    # Regexes run on every host at render time; keep them short.
+    inbound_tag_regex: str | None = Field(default=None, max_length=256)
+    remark_regex: str | None = Field(default=None, max_length=256)
     host_ids: list[int] | None = None
     # Reserved for host tags (upstream PR #667); rejected until hosts have tags.
     tags: list[str] | None = None
@@ -56,7 +64,7 @@ class HostSelector(BaseModel):
     @field_validator("tags")
     @classmethod
     def validate_tags(cls, value: list[str] | None) -> list[str] | None:
-        if value:
+        if value is not None:
             raise ValueError("selecting hosts by tags is not supported yet")
         return value
 
