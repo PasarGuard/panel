@@ -60,6 +60,12 @@ def parse_happ_routing_profile(content: str) -> dict[str, Any]:
     ):
         raise ValueError("'DnsHosts' must be an object of host name to IP address strings")
 
+    # json.loads accepts NaN/Infinity (and turns 1e999 into inf), which are not valid JSON for Happ
+    try:
+        json.dumps(profile, allow_nan=False)
+    except ValueError as exc:
+        raise ValueError("Happ routing profile must not contain NaN or Infinity numbers") from exc
+
     return profile
 
 
