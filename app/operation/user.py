@@ -1769,9 +1769,10 @@ class UserOperation(BaseOperation):
         """
         if "client_profile_id" not in payload.model_fields_set:
             return
-        changed_from = next((pid for pid in current_profile_ids if pid != payload.client_profile_id), None)
-        if changed_from is None and payload.client_profile_id in current_profile_ids:
+        if all(pid == payload.client_profile_id for pid in current_profile_ids):
             return
+        # A user without a profile (None) is a change too, so do not use None as the "nothing differs" marker
+        changed_from = next(pid for pid in current_profile_ids if pid != payload.client_profile_id)
         await self.validate_client_profile_id(db, payload.client_profile_id, admin, current_profile_id=changed_from)
 
     def _build_user_create_from_template(
