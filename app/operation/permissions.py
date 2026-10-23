@@ -166,12 +166,13 @@ def get_effective_limits(admin: AdminDetails) -> RoleLimits:
 
 def can_assign_client_profile(admin: AdminDetails) -> bool:
     """Choosing a client profile for a user or user template needs client_profiles.read or read_simple."""
-    if admin.is_owner:
+    for action in ("read", "read_simple"):
+        try:
+            enforce_permission(admin, "client_profiles", action)
+        except PermissionDenied:
+            continue
         return True
-    return any(
-        _permission_level(_get_resource_action(admin, "client_profiles", action)) != PermissionScope.NONE
-        for action in ("read", "read_simple")
-    )
+    return False
 
 
 def get_allowed_group_ids(admin: AdminDetails) -> list[int] | None:
