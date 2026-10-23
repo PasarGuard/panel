@@ -1,6 +1,7 @@
 from datetime import UTC, datetime as dt
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import PluginSettings
@@ -18,9 +19,14 @@ async def save_plugin_settings(db: AsyncSession, plugin_id: str, data: dict) -> 
     if db_settings is None:
         db_settings = PluginSettings(plugin_id=plugin_id, data=data)
         db.add(db_settings)
-    else:
-        db_settings.data = data
-        db_settings.updated_at = dt.now(UTC)
+        try:
+            await db.commit()
+            return db_settings
+        except IntegrityError:
+            # Another worker inserted the first row at the same moment: update that row instead
+            await db.rollback()
+            db_settings = await db.get(PluginSettings, plugin_id)
+    db_settings.data = data
+    db_settings.updated_at = dt.now(UTC)
     await db.commit()
-    await db.refresh(db_settings)
     return db_settings

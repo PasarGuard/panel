@@ -385,6 +385,34 @@ def test_plugin_settings_get_put_validation(probe, access_token, plain_admin, mo
     assert probe["changes"][-1] == {"days": 3, "label": "x"}
 
 
+def test_first_settings_save_racing_another_worker_updates_the_row(probe):
+    from app.db.crud.plugin import save_plugin_settings
+
+    async def race():
+        async with TestSession() as session:
+            await save_plugin_settings(session, "race-plugin", {"days": 1})
+        async with TestSession() as session:
+            real_get = session.get
+            calls = 0
+
+            async def get(*args, **kwargs):
+                nonlocal calls
+                calls += 1
+                # The other worker's row is not there yet when this worker looks
+                return None if calls == 1 else await real_get(*args, **kwargs)
+
+            session.get = get
+            await save_plugin_settings(session, "race-plugin", {"days": 2})
+        async with TestSession() as session:
+            row = await session.get(PluginSettings, "race-plugin")
+            data = row.data
+            await session.delete(row)
+            await session.commit()
+            return data
+
+    assert asyncio.run(race()) == {"days": 2}
+
+
 def test_plugin_ui_files_need_owner_and_block_traversal(probe, access_token, plain_admin):
     index = "/api/plugins/probe/ui/"
     assert client.get(index).status_code == status.HTTP_401_UNAUTHORIZED
