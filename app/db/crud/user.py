@@ -625,6 +625,9 @@ async def get_users(
         stmt = stmt.order_by(_user_search_rank(search))
     if query.sort:
         stmt = stmt.order_by(*_build_user_sort_clauses(query.sort))
+    elif search:
+        # Stable order inside one rank, so offset pages don't repeat or skip users
+        stmt = stmt.order_by(User.id)
 
     total = None
     if return_with_count:
@@ -688,6 +691,8 @@ async def get_users_simple(
             else:
                 sort_list.append(clause)
         stmt = stmt.order_by(*sort_list)
+    elif search:
+        stmt = stmt.order_by(User.id)
 
     # Get count BEFORE pagination (always)
     count_stmt = select(func.count()).select_from(stmt.subquery())

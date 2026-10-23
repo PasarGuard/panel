@@ -46,10 +46,11 @@ def test_exact_username_comes_first_even_when_other_notes_mention_it(access_toke
 
 def test_search_ranks_exact_then_prefix_then_contains_then_note(access_token):
     base = uuid4().hex[:8]
-    exact = create_user(access_token, username=base)["username"]
-    note_only = create_user(access_token, username=f"n{uuid4().hex[:8]}", payload={"note": f"see {base}"})["username"]
-    contains = create_user(access_token, username=f"x{base}")["username"]
+    # Created in reverse rank order, so the -created_at sort alone would give the opposite of the expected order
     prefix = create_user(access_token, username=f"{base}x")["username"]
+    contains = create_user(access_token, username=f"x{base}")["username"]
+    note_only = create_user(access_token, username=f"n{uuid4().hex[:8]}", payload={"note": f"see {base}"})["username"]
+    exact = create_user(access_token, username=base)["username"]
     try:
         data = _search(access_token, base)
         assert [user["username"] for user in data["users"]] == [exact, prefix, contains, note_only]
