@@ -260,3 +260,19 @@ async def test_share_links_do_not_depend_on_the_xray_template(monkeypatch):
     set_hosts(monkeypatch, [make_host(1, "NL")])
 
     assert "vless://" in await generate_subscription(make_user(), "links", False)
+
+
+@pytest.mark.asyncio
+async def test_formats_without_templates_are_not_refused_by_a_busy_pool(monkeypatch):
+    from app.templates.pool import TemplatesBusy, subscription_pool
+
+    async def busy(*args, **kwargs):
+        raise TemplatesBusy("too many templates are being rendered")
+
+    monkeypatch.setattr(subscription_pool, "run", busy)
+    set_templates(monkeypatch)
+    set_hosts(monkeypatch, [make_host(1, "NL")])
+
+    await generate_subscription(make_user(), "outline", False)
+    with pytest.raises(TemplatesBusy):
+        await generate_subscription(make_user(), "xray", False)
