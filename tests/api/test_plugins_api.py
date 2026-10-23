@@ -265,6 +265,41 @@ def test_subscription_transform_headers_and_cache(probe, access_token):
         delete_user(access_token, username)
 
 
+BAD_HEADERS = """
+def setup(ctx):
+    @ctx.subscription.headers
+    def headers(user, config_format, headers):
+        return {
+            "x-title": "Тариф Gold",
+            "x-crlf": "a\\r\\nset-cookie: injected=1",
+            "x-bell": "a\\x07b",
+            "bad name": "1",
+            "X-OK": "yes",
+            "Cache-Control": "max-age=60",
+        }
+"""
+
+
+def test_invalid_plugin_headers_are_skipped_not_400(probe, access_token, tmp_path):
+    make_plugin(tmp_path, "bad-headers", BAD_HEADERS)
+    manager.load_all(tmp_path, ["bad-headers"], runs_panel=True, runs_scheduler=False)
+    assert registry.records["bad-headers"].status == "loaded"
+    username = unique_name("plugin_hdr_user")
+    user = create_user(access_token, payload={"username": username})
+    try:
+        response = client.get(f"{user['subscription_url']}/links")
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.headers["x-ok"] == "yes"
+        assert response.headers["x-plugin-format"] == "links"
+        assert response.headers["profile-title"] == "overridden by plugin"
+        for name in ("x-title", "x-crlf", "x-bell", "bad name", "set-cookie"):
+            assert name not in response.headers, name
+        # Case-insensitive names: the plugin cannot add a second Cache-Control
+        assert response.headers.get_list("cache-control") == ["no-store"]
+    finally:
+        delete_user(access_token, username)
+
+
 def test_subscription_variables_in_host_remarks(probe, access_token):
     core = create_core(access_token)
     inbound = next(tag for tag in get_inbounds(access_token) if "VLESS" in tag.upper())

@@ -232,7 +232,8 @@ class SubscriptionOperation(BaseOperation):
             headers.update(extra_headers)
         if plugin_registry.active:
             headers = plugin_subscription.apply_headers(user, config_format, headers)
-        headers["Cache-Control"] = "no-store"
+        # Lowercase like the other keys, so a plugin "cache-control" header cannot add a second one
+        headers["cache-control"] = "no-store"
         return headers
 
     @classmethod

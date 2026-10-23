@@ -12,11 +12,11 @@ import re
 from typing import Any
 
 from app.plugins import registry
-from app.utils.logger import get_logger
-
-logger = get_logger("plugins")
+from app.utils.headers import check_response_header
 
 VARIABLE_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+# Control characters other than tab: h11 refuses them in header values
+HEADER_CONTROL_RE = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
 
 
 def user_payload(user: Any) -> dict:
@@ -78,7 +78,16 @@ async def apply_uncached_transforms(
     return await apply_transforms(user, config_format, content, cached=False)
 
 
+def _plugin_header(name: Any, value: Any) -> tuple[str, str]:
+    header_name, header_value = str(name).lower(), str(value)
+    check_response_header(header_name, header_value)
+    if HEADER_CONTROL_RE.search(header_value):
+        raise ValueError(f'Invalid response header "{header_name}": value contains control characters')
+    return header_name, header_value
+
+
 def apply_headers(user: Any, config_format: str | None, headers: dict) -> dict:
+    """Merge hook headers; names are lowercased, a pair that is not a valid HTTP header is logged and skipped."""
     user_dict = None
     for ctx in registry.active:
         for fn in ctx.subscription.header_hooks:
@@ -89,8 +98,19 @@ def apply_headers(user: Any, config_format: str | None, headers: dict) -> dict:
             except Exception:
                 ctx.logger.exception(f"Subscription headers hook {getattr(fn, '__name__', fn)!r} failed")
                 continue
-            if isinstance(result, dict):
-                headers.update({str(key): str(value) for key, value in result.items() if value is not None})
+            if not isinstance(result, dict):
+                continue
+            for key, value in result.items():
+                if value is None:
+                    continue
+                try:
+                    name, text = _plugin_header(key, value)
+                except ValueError as exc:
+                    ctx.logger.warning(
+                        f"Subscription headers hook {getattr(fn, '__name__', fn)!r}: header skipped: {exc}"
+                    )
+                    continue
+                headers[name] = text
     return headers
 
 
