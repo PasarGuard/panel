@@ -230,6 +230,20 @@ class FeatureSettings(EnvSettings):
     stop_nodes_on_shutdown: bool = Field(default=True, validation_alias="STOP_NODES_ON_SHUTDOWN")
 
 
+class PluginSettings(EnvSettings):
+    plugins_dir: str = Field(default="/var/lib/pasarguard/plugins", validation_alias="PLUGINS_DIR")
+    enabled_raw: str = Field(default="", validation_alias="PLUGINS")
+
+    @property
+    def enabled(self) -> list[str]:
+        seen: list[str] = []
+        for plugin_id in self.enabled_raw.split(","):
+            plugin_id = plugin_id.strip()
+            if plugin_id and plugin_id not in seen:
+                seen.append(plugin_id)
+        return seen
+
+
 database_settings = DatabaseSettings()
 server_settings = ServerSettings()
 dashboard_settings = DashboardSettings()
@@ -245,6 +259,7 @@ auth_settings = AuthSettings()
 usage_settings = UsageSettings()
 job_settings = JobSettings()
 feature_settings = FeatureSettings()
+plugin_settings = PluginSettings()
 
 if not database_settings.is_postgresql:
     usage_settings.enable_recording_nodes_stats = False
