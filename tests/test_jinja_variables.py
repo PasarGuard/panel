@@ -17,9 +17,11 @@ from app.db.models import UserStatus
 from app.models.admin import AdminDetails, AdminRoleData
 from app.models.admin_role import CRUDPermissions, RolePermissions
 from app.models.client_template import ClientTemplateType, TemplateSource
-from app.models.settings import CustomVariable
+from app.models.settings import CustomVariable, custom_variable_render_error
 from app.models.subscription import SubscriptionInboundData, TLSConfig, XHTTPTransportConfig
+from app.operation import OperatorType
 from app.operation.client_template import InvalidTemplateContent, check_template_content
+from app.operation.settings import SettingsOperation
 from app.operation.subscription import SubscriptionOperation
 from app.subscription import config_cache
 from app.subscription.share import (
@@ -33,6 +35,7 @@ from app.subscription.share import (
 )
 from app.subscription.xray import XrayConfiguration
 from app.templates import render_variables
+from app.templates.pool import TemplatesBusy, validation_pool
 from app.templates.variables import REQUEST_VARIABLES, SAMPLE_FORMAT_VARIABLES, UNLIMITED_FORMAT_VARIABLES
 
 URL = "https://sub.example/sub/abc123.signature"
@@ -92,10 +95,8 @@ def test_custom_variable_validation():
     # Without the flag a double brace is str.format_map's escape for a literal brace, so there is nothing to reject.
     assert CustomVariable(key="A", value="{{amount}}").value == "{{amount}}"
 
-    # "∞" stands in for DAYS_LEFT and friends when a user has no limit or expiry.
-    with pytest.raises(ValidationError, match="not supported"):
-        CustomVariable(key="A", value="{{ 'soon' if DAYS_LEFT < 5 else '' }}", use_jinja=True)
-    CustomVariable(key="A", value="{{ 'soon' if DAYS_LEFT is number and DAYS_LEFT < 5 else '' }}", use_jinja=True)
+    # Only parsed by the model; rendering is checked by `check_custom_variables`, off the event loop.
+    CustomVariable(key="A", value="{{ 'soon' if DAYS_LEFT < 5 else '' }}", use_jinja=True)
     # Stored plain values are validated on every load, so these lenient ones must keep loading.
     for value in ("{DAYS_LEFT:s}", "{DAYS_LEFT:.2}", "{USAGE_PERCENTAGE:s}"):
         assert CustomVariable(key="A", value=value).value == value
@@ -103,12 +104,56 @@ def test_custom_variable_validation():
         CustomVariable(key="A", value="{DAYS_LEFT")
 
 
-def test_custom_variable_may_not_render_a_line_break():
-    # Headers refuse them, and block tags leave them behind inside the text
-    with pytest.raises(ValidationError, match="line break"):
-        CustomVariable(key="A", value="{% if USERNAME %}x{% endif %}\n{% if USERNAME %}y{% endif %}", use_jinja=True)
-    assert CustomVariable(key="A", value="{% if USERNAME %}x{% endif %}\n", use_jinja=True)
+def test_custom_variable_render_errors():
+    # "∞" stands in for DAYS_LEFT and friends when a user has no limit or expiry.
+    assert "not supported" in custom_variable_render_error("{{ 'soon' if DAYS_LEFT < 5 else '' }}")
+    assert custom_variable_render_error("{{ 'soon' if DAYS_LEFT is number and DAYS_LEFT < 5 else '' }}") is None
+    # Headers refuse line breaks, and block tags leave them behind inside the text
+    assert "line break" in custom_variable_render_error(
+        "{% if USERNAME %}x{% endif %}\n{% if USERNAME %}y{% endif %}"
+    )
+    assert custom_variable_render_error("{% if USERNAME %}x{% endif %}\n") is None
     assert CustomVariable(key="HOSTS", value="x").key == "HOSTS"
+
+
+@pytest.mark.asyncio
+async def test_saving_a_variable_renders_it_in_the_validation_pool(monkeypatch):
+    operation = SettingsOperation(operator_type=OperatorType.API)
+    ran_in_pool = []
+    run = validation_pool.run
+
+    async def spy(func, *args, **kwargs):
+        ran_in_pool.append(func)
+        return await run(func, *args, **kwargs)
+
+    monkeypatch.setattr(validation_pool, "run", spy)
+    fine = CustomVariable(key="A", value="{{ USERNAME | upper }}", use_jinja=True)
+    broken = CustomVariable(key="B", value="{{ 'soon' if DAYS_LEFT < 5 else '' }}", use_jinja=True)
+
+    await operation.check_custom_variables([fine, CustomVariable(key="C", value="{USERNAME}")])
+    with pytest.raises(HTTPException) as caught:
+        await operation.check_custom_variables([fine, broken])
+    assert caught.value.status_code == 422
+    assert "Custom variable B" in caught.value.detail
+    assert len(ran_in_pool) == 2
+
+    # Nothing to render without Jinja, so the pool is not involved
+    await operation.check_custom_variables([CustomVariable(key="C", value="{USERNAME}")])
+    await operation.check_custom_variables(None)
+    assert len(ran_in_pool) == 2
+
+
+@pytest.mark.asyncio
+async def test_saving_a_variable_answers_503_when_the_pool_is_busy(monkeypatch):
+    async def busy(*args, **kwargs):
+        raise TemplatesBusy("too many templates are being rendered")
+
+    monkeypatch.setattr(validation_pool, "run", busy)
+    with pytest.raises(HTTPException) as caught:
+        await SettingsOperation(operator_type=OperatorType.API).check_custom_variables(
+            [CustomVariable(key="A", value="{{ USERNAME }}", use_jinja=True)]
+        )
+    assert caught.value.status_code == 503
 
 
 def test_header_reaches_jinja_only_through_a_custom_variable():
