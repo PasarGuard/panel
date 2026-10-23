@@ -6,7 +6,7 @@ from PasarGuardNodeBridge import Health
 
 from app.db.models import NodeStatus
 from app.jobs import node_checker
-from app.models.node import NodeCoreUpdate
+from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate
 from app.operation import OperatorType, node as node_operation
 from app.operation.node import NodeOperation
 
@@ -50,6 +50,27 @@ async def test_node_update_leaves_reconnection_to_health_job(monkeypatch):
 
     operation = NodeOperation(OperatorType.SYSTEM)
     assert await operation._update_node_api_local(db, 7) == {"detail": "node updated successfully"}
+    update_status.assert_awaited_once_with(
+        db, db_node, NodeStatus.connecting, message="", xray_version="", node_version=""
+    )
+    node.set_health.assert_awaited_once_with(Health.NOT_CONNECTED)
+
+
+@pytest.mark.asyncio
+async def test_geofiles_update_leaves_reconnection_to_health_job(monkeypatch):
+    db_node = SimpleNamespace(id=7, status=NodeStatus.connected, node_version="0.5.5", xray_version="26.10.21")
+    db = object()
+    node = SimpleNamespace(
+        update_geofiles=AsyncMock(return_value=SimpleNamespace(json=lambda: {"detail": "geofiles updated"})),
+        set_health=AsyncMock(),
+    )
+    monkeypatch.setattr(node_operation.node_manager, "get_node", AsyncMock(return_value=node))
+    monkeypatch.setattr(node_operation, "get_node_by_id", AsyncMock(return_value=db_node))
+    update_status = AsyncMock()
+    monkeypatch.setattr(node_operation, "update_node_status", update_status)
+
+    operation = NodeOperation(OperatorType.SYSTEM)
+    assert await operation._update_geofiles_local(db, 7, NodeGeoFilesUpdate()) == {"detail": "geofiles updated"}
     update_status.assert_awaited_once_with(
         db, db_node, NodeStatus.connecting, message="", xray_version="", node_version=""
     )

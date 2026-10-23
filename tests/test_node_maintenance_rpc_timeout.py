@@ -18,7 +18,7 @@ async def test_maintenance_rpcs_wait_longer_than_node_serviced(monkeypatch):
 
     await operation._update_node_api_remote(None, 1)
     await operation._update_core_remote(None, 1, NodeCoreUpdate(core_version="v1.2.3"))
-    await operation._update_geofiles_remote(1, NodeGeoFilesUpdate())
+    await operation._update_geofiles_remote(None, 1, NodeGeoFilesUpdate())
 
     assert set(seen_timeouts) == {"update_node_api", "update_core", "update_geofiles"}
     for action, timeout in seen_timeouts.items():

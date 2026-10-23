@@ -865,7 +865,7 @@ class NodeOperation(BaseOperation):
 
     async def update_geofiles(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
         await self.get_validated_node(db, node_id, load_usage_logs=False)
-        return await self._update_geofiles_impl(node_id, node_geofiles_update)
+        return await self._update_geofiles_impl(db, node_id, node_geofiles_update)
 
     async def _update_node_local(self, db_node: Node) -> None:
         await node_manager.update_node(db_node)
@@ -1412,7 +1412,7 @@ class NodeOperation(BaseOperation):
             timeout=_MAINTENANCE_RPC_TIMEOUT,
         )
 
-    async def _update_geofiles_local(self, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+    async def _update_geofiles_local(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -1420,9 +1420,10 @@ class NodeOperation(BaseOperation):
             response = await node.update_geofiles(node_geofiles_update.model_dump(mode="json"))
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
+        await self._mark_node_reconnecting_after_update(db, node_id, node)
         return response.json()
 
-    async def _update_geofiles_remote(self, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+    async def _update_geofiles_remote(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
         return await node_nats_client.request(
             "update_geofiles",
             {"node_id": node_id, "geofiles_update": node_geofiles_update.model_dump(mode="json")},
