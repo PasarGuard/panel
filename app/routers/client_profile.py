@@ -116,6 +116,7 @@ async def get_client_profiles(
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(require_permission("client_profiles", "read")),
 ):
+    """List client profiles; `users_count` counts all users on a profile, not only the caller's own users."""
     return await client_profile_operator.get_client_profiles(db, query=query)
 
 

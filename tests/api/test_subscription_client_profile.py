@@ -1,11 +1,13 @@
 """Subscriptions of users attached to a client profile."""
 
+import asyncio
 import base64
 import json
 
 import pytest
 from fastapi import status
 
+from app.settings import refresh_caches
 from tests.api import client
 from tests.api.helpers import (
     auth_headers,
@@ -271,6 +273,64 @@ def test_profile_change_applies_to_next_subscription(env):
     response = client.get(f"{user['subscription_url']}/xray")
     assert "second-xray-marker" not in _xray_tags(response)
     assert response.headers["profile-update-interval"] == "12"
+
+
+def test_client_template_content_change_applies_to_next_subscription(env):
+    env.add_host()
+    template = env.template(_xray_template, "before-edit-marker")
+    user = env.user(env.profile(templates={"xray_subscription": template["id"]}))
+    assert "before-edit-marker" in _xray_tags(client.get(f"{user['subscription_url']}/xray"))
+
+    content = json.dumps(
+        {
+            "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
+            "outbounds": [{"tag": "after-edit-marker", "protocol": "freedom", "settings": {}}],
+        }
+    )
+    response = client.put(f"/api/client_template/{template['id']}", headers=env.headers, json={"content": content})
+    assert response.status_code == status.HTTP_200_OK, response.text
+
+    # The profile only stores the template id: editing the template is picked up by its users
+    tags = _xray_tags(client.get(f"{user['subscription_url']}/xray"))
+    assert "after-edit-marker" in tags
+    assert "before-edit-marker" not in tags
+
+
+def test_rule_response_headers_beat_profile_removed_headers(env, mock_settings):
+    rule = {
+        "pattern": r"^ProfileRuleHeaderClient$",
+        "target": "links",
+        "response_headers": {"x-rule": "rule-{USERNAME}", "support-url": "https://rule.example.com"},
+    }
+    rules = mock_settings["subscription"]["rules"]
+    rules.insert(0, rule)
+    # Subscription settings are cached; drop what earlier tests loaded
+    asyncio.run(refresh_caches())
+    try:
+        env.add_host()
+        profile = env.profile(
+            settings={
+                "support_url": "https://profile.example.com",
+                "response_headers": {"X-Rule": "profile"},
+                "remove_response_headers": ["X-Rule", "Support-URL"],
+            }
+        )
+        user = env.user(profile)
+
+        # Rule headers are applied last, after the profile's add/remove
+        response = client.get(user["subscription_url"], headers={"User-Agent": "ProfileRuleHeaderClient"})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers["x-rule"] == f"rule-{user['username']}"
+        assert response.headers["support-url"] == "https://rule.example.com"
+
+        # A client that matches no header rule still gets the profile's removals
+        response = client.get(user["subscription_url"], headers={"User-Agent": "v2rayNG/1.8"})
+        assert response.status_code == status.HTTP_200_OK
+        assert "x-rule" not in response.headers
+        assert "support-url" not in response.headers
+    finally:
+        rules.remove(rule)
+        asyncio.run(refresh_caches())
 
 
 def test_subscription_info_hides_client_profile_id(env):

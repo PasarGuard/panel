@@ -499,3 +499,230 @@ def test_next_plan_template_applies_its_client_profile(access_token):
         delete_user_template(access_token, template["id"])
         delete_group(access_token, group["id"])
         delete_client_profile(access_token, profile["id"])
+
+
+def _create_role(access_token: str, client_profiles: dict | None = None) -> dict:
+    permissions = {"users": {"create": True, "read": {"scope": 1}, "update": {"scope": 1}, "delete": {"scope": 1}}}
+    if client_profiles is not None:
+        permissions["client_profiles"] = client_profiles
+    response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={"name": unique_name("cp_role"), "permissions": permissions},
+    )
+    assert response.status_code == status.HTTP_201_CREATED, response.text
+    return response.json()
+
+
+def _create_own_users(token: str, group_id: int, count: int) -> list[dict]:
+    users = []
+    for _ in range(count):
+        response = client.post(
+            "/api/user",
+            headers=auth_headers(token),
+            json={"username": unique_name("cp_own"), "proxy_settings": {}, "group_ids": [group_id]},
+        )
+        assert response.status_code == status.HTTP_201_CREATED, response.text
+        users.append(response.json())
+    return users
+
+
+def test_template_apply_checks_profile_change_against_users_current_profile(access_token):
+    headers = auth_headers(access_token)
+    profile = create_client_profile(access_token)
+    other_profile = create_client_profile(access_token)
+    group = create_group(access_token)
+    # The template has no profile of its own, so the override is compared with each user's profile
+    template = create_user_template(access_token, group_ids=[group["id"]])
+    plain_role = _create_role(access_token)
+    profile_role = _create_role(access_token, {"read_simple": True})
+    plain_admin = create_admin(access_token, role_id=plain_role["id"])
+    profile_admin = create_admin(access_token, role_id=profile_role["id"])
+    usernames = []
+
+    def profile_of(user: dict):
+        return client.get(f"/api/user/{user['username']}", headers=headers).json()["client_profile_id"]
+
+    try:
+        users_by_admin = {}
+        for admin in (plain_admin, profile_admin):
+            token = _login(admin["username"], admin["password"])
+            users = _create_own_users(token, group["id"], 2)
+            usernames.extend(user["username"] for user in users)
+            users_by_admin[admin["username"]] = (token, users)
+            response = client.post(
+                f"/api/client_profile/{profile['id']}/users",
+                headers=headers,
+                json={"user_ids": [user["id"] for user in users]},
+            )
+            assert response.json() == {"count": 2}
+
+        token, (single, bulk) = users_by_admin[plain_admin["username"]]
+        for explicit in (None, other_profile["id"]):
+            response = client.put(
+                f"/api/user/from_template/{single['username']}",
+                headers=auth_headers(token),
+                json={"user_template_id": template["id"], "client_profile_id": explicit},
+            )
+            assert response.status_code == status.HTTP_403_FORBIDDEN, response.text
+            response = client.post(
+                "/api/users/bulk/apply_template",
+                headers=auth_headers(token),
+                json={"ids": [bulk["id"]], "user_template_id": template["id"], "client_profile_id": explicit},
+            )
+            assert response.status_code == status.HTTP_403_FORBIDDEN, response.text
+        assert profile_of(single) == profile_of(bulk) == profile["id"]
+
+        # Echoing the user's current profile, or leaving it out, is not a change
+        response = client.put(
+            f"/api/user/from_template/{single['username']}",
+            headers=auth_headers(token),
+            json={"user_template_id": template["id"], "client_profile_id": profile["id"]},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["client_profile_id"] == profile["id"]
+        response = client.post(
+            "/api/users/bulk/apply_template",
+            headers=auth_headers(token),
+            json={"ids": [bulk["id"]], "user_template_id": template["id"]},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert profile_of(bulk) == profile["id"]
+
+        token, (single, bulk) = users_by_admin[profile_admin["username"]]
+        response = client.put(
+            f"/api/user/from_template/{single['username']}",
+            headers=auth_headers(token),
+            json={"user_template_id": template["id"], "client_profile_id": None},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["client_profile_id"] is None
+        response = client.post(
+            "/api/users/bulk/apply_template",
+            headers=auth_headers(token),
+            json={"ids": [bulk["id"]], "user_template_id": template["id"], "client_profile_id": other_profile["id"]},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert profile_of(bulk) == other_profile["id"]
+    finally:
+        for username in usernames:
+            delete_user(access_token, username)
+        delete_admin(access_token, plain_admin["username"])
+        delete_admin(access_token, profile_admin["username"])
+        client.delete(f"/api/admin-role/{plain_role['id']}", headers=headers)
+        client.delete(f"/api/admin-role/{profile_role['id']}", headers=headers)
+        delete_user_template(access_token, template["id"])
+        delete_group(access_token, group["id"])
+        delete_client_profile(access_token, profile["id"])
+        delete_client_profile(access_token, other_profile["id"])
+
+
+def test_bulk_assign_with_own_scope_touches_only_own_users(access_token):
+    headers = auth_headers(access_token)
+    profile = create_client_profile(access_token)
+    group = create_group(access_token)
+    role = _create_role(access_token, {"read": True, "update": True})
+    reseller = create_admin(access_token, role_id=role["id"])
+    owner_user = create_user(access_token, group_ids=[group["id"]])
+    usernames = [owner_user["username"]]
+
+    def users_count():
+        return client.get(f"/api/client_profile/{profile['id']}", headers=headers).json()["users_count"]
+
+    try:
+        token = _login(reseller["username"], reseller["password"])
+        own_users = _create_own_users(token, group["id"], 2)
+        usernames.extend(user["username"] for user in own_users)
+        own_ids = [user["id"] for user in own_users]
+
+        # Another admin's user is out of scope: the whole request is refused
+        response = client.post(
+            f"/api/client_profile/{profile['id']}/users",
+            headers=auth_headers(token),
+            json={"user_ids": [*own_ids, owner_user["id"]]},
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert users_count() == 0
+
+        response = client.post(
+            f"/api/client_profile/{profile['id']}/users", headers=auth_headers(token), json={"user_ids": own_ids}
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json() == {"count": 2}
+        client.post(
+            f"/api/client_profile/{profile['id']}/users", headers=headers, json={"user_ids": [owner_user["id"]]}
+        )
+        assert users_count() == 3
+
+        # all: true only detaches the reseller's own users
+        response = client.request(
+            "DELETE", f"/api/client_profile/{profile['id']}/users", headers=auth_headers(token), json={"all": True}
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json() == {"count": 2}
+        assert users_count() == 1
+        owner_user_now = client.get(f"/api/user/{owner_user['username']}", headers=headers).json()
+        assert owner_user_now["client_profile_id"] == profile["id"]
+    finally:
+        for username in usernames:
+            delete_user(access_token, username)
+        delete_admin(access_token, reseller["username"])
+        client.delete(f"/api/admin-role/{role['id']}", headers=headers)
+        delete_group(access_token, group["id"])
+        delete_client_profile(access_token, profile["id"])
+
+
+def test_bulk_template_operations_carry_explicit_client_profile(access_token):
+    headers = auth_headers(access_token)
+    profile = create_client_profile(access_token)
+    template_profile = create_client_profile(access_token)
+    group = create_group(access_token)
+    template = create_user_template(access_token, group_ids=[group["id"]])
+    client.put(
+        f"/api/user_template/{template['id']}", headers=headers, json={"client_profile_id": template_profile["id"]}
+    )
+    usernames = []
+
+    def profile_of(username: str):
+        return client.get(f"/api/user/{username}", headers=headers).json()["client_profile_id"]
+
+    try:
+        # "omit" = no client_profile_id in the request: the template's profile applies
+        for explicit, expected in ((None, None), (profile["id"], profile["id"]), ("omit", template_profile["id"])):
+            base_username = unique_name("cp_bulk")
+            payload = {
+                "user_template_id": template["id"],
+                "strategy": "sequence",
+                "username": base_username,
+                "count": 2,
+            }
+            if explicit != "omit":
+                payload["client_profile_id"] = explicit
+            response = client.post("/api/users/bulk/from_template", headers=headers, json=payload)
+            assert response.status_code == status.HTTP_201_CREATED, response.text
+            created = [f"{base_username}{number}" for number in (1, 2)]
+            usernames.extend(created)
+            assert [profile_of(username) for username in created] == [expected, expected]
+
+        ids = [client.get(f"/api/user/{username}", headers=headers).json()["id"] for username in usernames[:2]]
+        for explicit, expected in ((profile["id"], profile["id"]), (None, None), ("omit", template_profile["id"])):
+            payload = {"ids": ids, "user_template_id": template["id"]}
+            if explicit != "omit":
+                payload["client_profile_id"] = explicit
+            response = client.post("/api/users/bulk/apply_template", headers=headers, json=payload)
+            assert response.status_code == status.HTTP_200_OK, response.text
+            assert [profile_of(username) for username in usernames[:2]] == [expected, expected]
+
+        response = client.post(
+            "/api/users/bulk/apply_template",
+            headers=headers,
+            json={"ids": ids, "user_template_id": template["id"], "client_profile_id": 999999999},
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+    finally:
+        for username in usernames:
+            delete_user(access_token, username)
+        delete_user_template(access_token, template["id"])
+        delete_group(access_token, group["id"])
+        delete_client_profile(access_token, profile["id"])
+        delete_client_profile(access_token, template_profile["id"])

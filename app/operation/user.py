@@ -1756,12 +1756,23 @@ class UserOperation(BaseOperation):
             user_args["client_profile_id"] = payload.client_profile_id
 
     async def _validate_template_client_profile_override(
-        self, db: AsyncSession, payload: ModifyUserByTemplate, user_template: UserTemplate, admin: AdminDetails
+        self,
+        db: AsyncSession,
+        payload: ModifyUserByTemplate,
+        admin: AdminDetails,
+        current_profile_ids: list[int | None],
     ) -> None:
-        if "client_profile_id" in payload.model_fields_set:
-            await self.validate_client_profile_id(
-                db, payload.client_profile_id, admin, current_profile_id=user_template.client_profile_id
-            )
+        """Check an explicit client_profile_id against the profile each affected user has now.
+
+        New users pass the template's profile (what they would get without the override); existing users pass
+        their stored profile, so a template whose own profile is empty cannot be used to change or clear it.
+        """
+        if "client_profile_id" not in payload.model_fields_set:
+            return
+        changed_from = next((pid for pid in current_profile_ids if pid != payload.client_profile_id), None)
+        if changed_from is None and payload.client_profile_id in current_profile_ids:
+            return
+        await self.validate_client_profile_id(db, payload.client_profile_id, admin, current_profile_id=changed_from)
 
     def _build_user_create_from_template(
         self,
@@ -1793,7 +1804,9 @@ class UserOperation(BaseOperation):
         if user_template.is_disabled:
             await self.raise_error("this template is disabled", 403)
 
-        await self._validate_template_client_profile_override(db, new_template_user, user_template, admin)
+        await self._validate_template_client_profile_override(
+            db, new_template_user, admin, [user_template.client_profile_id]
+        )
         new_user = self._build_user_create_from_template(user_template, new_template_user)
 
         # Template defines data_limit/expire/etc — only check max_users
@@ -1817,7 +1830,7 @@ class UserOperation(BaseOperation):
         if user_template.is_disabled:
             await self.raise_error("this template is disabled", 403)
 
-        await self._validate_template_client_profile_override(db, modified_template, user_template, admin)
+        await self._validate_template_client_profile_override(db, modified_template, admin, [db_user.client_profile_id])
         user_args = self.load_base_user_args(user_template)
         self._apply_template_client_profile_override(user_args, modified_template)
         user_args["proxy_settings"] = db_user.proxy_settings
@@ -1889,7 +1902,9 @@ class UserOperation(BaseOperation):
             username_suffix=user_template.username_suffix,
         )
 
-        await self._validate_template_client_profile_override(db, template_payload, user_template, admin)
+        await self._validate_template_client_profile_override(
+            db, template_payload, admin, [user_template.client_profile_id]
+        )
         profile_override = (
             {"client_profile_id": template_payload.client_profile_id}
             if "client_profile_id" in template_payload.model_fields_set
@@ -1955,7 +1970,9 @@ class UserOperation(BaseOperation):
         if user_template.is_disabled:
             await self.raise_error("this template is disabled", 403)
 
-        await self._validate_template_client_profile_override(db, body, user_template, admin)
+        await self._validate_template_client_profile_override(
+            db, body, admin, [db_user.client_profile_id for db_user in db_users]
+        )
         prepared_updates = []
         for db_user in db_users:
             original_status = db_user.status
