@@ -12,6 +12,8 @@ from app.models.client_profile import (
     ClientProfileSimpleSortOption,
 )
 
+from .user import _explicit_ids
+
 
 def _build_client_profile_simple_sort_clause(sort_option: ClientProfileSimpleSortOption):
     field_map = {
@@ -175,7 +177,7 @@ async def remove_client_profiles(db: AsyncSession, profile_ids: list[int]) -> No
 
 
 async def get_existing_user_ids(db: AsyncSession, user_ids: list[int], admin_id: int | None = None) -> set[int]:
-    stmt = select(User.id).where(User.id.in_(user_ids))
+    stmt = select(User.id).where(_explicit_ids(User.id, user_ids))
     if admin_id is not None:
         stmt = stmt.where(User.admin_id == admin_id)
     return set((await db.execute(stmt)).scalars().all())
@@ -192,7 +194,7 @@ async def set_users_client_profile(
     """One UPDATE for the selection: by ids, and/or every user currently on current_profile_id."""
     stmt = update(User)
     if user_ids is not None:
-        stmt = stmt.where(User.id.in_(user_ids))
+        stmt = stmt.where(_explicit_ids(User.id, user_ids))
     if current_profile_id is not None:
         stmt = stmt.where(User.client_profile_id == current_profile_id)
     if admin_id is not None:
