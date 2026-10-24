@@ -10,6 +10,7 @@ export const RELEVANCE_USERS_SORT = 'relevance'
 // While a search is typed and the admin has not picked a sort, ask for the best matches first
 export const toUsersQueryParams = <T extends { sort?: string | null; search?: string | null }>(filters: T): T =>
   filters.search?.trim() && (!filters.sort || filters.sort === DEFAULT_USERS_SORT) ? { ...filters, sort: RELEVANCE_USERS_SORT } : filters
+
 const ONLINE_USERS_WINDOW_MS = 2 * 60 * 1000
 
 const toNumber = (value: unknown): number | undefined => {

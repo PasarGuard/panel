@@ -169,3 +169,17 @@ def test_relevance_sort_without_search_is_newest_first(access_token):
     finally:
         delete_user(access_token, first)
         delete_user(access_token, second)
+
+
+def test_relevance_with_another_sort_orders_inside_each_group(access_token):
+    base = uuid4().hex[:8]
+    # The newer prefix match sorts lower by -username, so newest-first inside the group would fail
+    prefix_b = create_user(access_token, username=f"{base}b")["username"]
+    prefix_a = create_user(access_token, username=f"{base}a")["username"]
+    contains = create_user(access_token, username=f"x{base}")["username"]
+    try:
+        data = _search(access_token, base, sort="relevance,-username")
+        assert [user["username"] for user in data["users"]] == [prefix_b, prefix_a, contains]
+    finally:
+        for username in (prefix_b, prefix_a, contains):
+            delete_user(access_token, username)
