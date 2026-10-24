@@ -882,15 +882,6 @@ class CreateHost(BaseHost):
         if v:
             return sorted(v, key=lambda x: priority[x])
 
-    @field_validator("address", mode="after")
-    def validate_address(cls, v):
-        v = StringArrayValidator.len_check(v, 256)
-        if v and any(has_markup_unsafe_chars(address) for address in v):
-            raise ValueError("Address cannot contain quotes, angle brackets, backticks, backslashes or whitespace")
-        for address in v or ():
-            validate_format_variables(address, allow_quoting=False)
-        return v
-
     @field_validator("sni", "host", mode="after")
     def validate_sets(cls, v: set):
         v = StringArrayValidator.len_check(v, 1000)
