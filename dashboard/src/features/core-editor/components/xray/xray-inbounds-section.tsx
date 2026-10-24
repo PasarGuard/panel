@@ -1283,7 +1283,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       if (watchedProtocol === 'shadowsocks') network = watchedShadowsocksNetwork
 
       // Fixed-transport protocols (hysteria, masque) do not repeat the transport name.
-      if (network && network !== watchedProtocol) tag += `${tagSeparator}${network}`
+      const protocolWithoutNetworkTag = ['wireguard', 'tun', 'tunnel'].includes(watchedProtocol.toLowerCase())
+      if (network && network !== watchedProtocol && !protocolWithoutNetworkTag) tag += `${tagSeparator}${network}`
       if (watchedSecurity && watchedSecurity !== 'none') tag += `${tagSeparator}${watchedSecurity}`
       if (watchedPort) tag += `${tagSeparator}${watchedPort}`
 
