@@ -41,6 +41,8 @@
     "hostCount_many": "{{count}} хостов",
     "hostCount_other": "{{count}} хостов",
     "visibleCount_one": "{{count}} виден",
+    "visibleCount_few": "{{count}} видимых",
+    "visibleCount_many": "{{count}} видимых",
     "visibleCount_other": "{{count}} видимых",
     "unsaved": "Есть несохранённые изменения.",
     "upToDate": "Изменения появятся после обновления подписок пользователями.",

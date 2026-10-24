@@ -122,7 +122,7 @@ export default function MyHostsPage() {
 
   let content
   if (policyPending) content = <Skeleton className="h-40 w-full" />
-  else if (policyError)
+  else if (policyError && !policy)
     content = (
       <div role="alert" className="space-y-3 rounded-lg border p-8">
         <p>{t('myHosts.loadFailed')}</p>
@@ -145,7 +145,7 @@ export default function MyHostsPage() {
         ))}
       </div>
     )
-  else if (isError)
+  else if (isError && !data)
     content = (
       <div role="alert" className="space-y-3 rounded-lg border p-8">
         <p>{t('myHosts.loadFailed')}</p>
