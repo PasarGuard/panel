@@ -18,6 +18,7 @@ from app.db.crud.bulk import (
     count_bulk_datalimit_targets,
     count_bulk_expire_targets,
     count_bulk_proxy_targets,
+    expire_anchor_base,
     get_bulk_user_limit_targets,
     reset_all_users_data_usage,
     update_users_datalimit,
@@ -70,6 +71,7 @@ from app.models.stats import (
 from app.models.user import (
     BulkOperationDryRunResponse,
     BulkUser,
+    BulkUserExpire,
     BulkUsersActionResponse,
     BulkUsersApplyTemplate,
     BulkUsersCreateResponse,
@@ -2011,12 +2013,14 @@ class UserOperation(BaseOperation):
 
         targets = await get_bulk_user_limit_targets(db, bulk_model, field, lock=not bulk_model.dry_run)
         now = datetime.now(UTC)
+        anchor_base = expire_anchor_base(bulk_model, now) if field == "expire" else None
         for _, value in targets:
-            final_value = (
-                fix_datetime_timezone(value) + td(seconds=bulk_model.amount)
-                if field == "expire"
-                else value + bulk_model.amount
-            )
+            if anchor_base is not None:
+                final_value = anchor_base + td(seconds=bulk_model.amount)
+            elif field == "expire":
+                final_value = fix_datetime_timezone(value) + td(seconds=bulk_model.amount)
+            else:
+                final_value = value + bulk_model.amount
             await self._enforce_user_limits(
                 db,
                 admin,
@@ -2027,13 +2031,26 @@ class UserOperation(BaseOperation):
                 require_finite_hwid_limit=False,
                 reference_time=now,
             )
+        constraints = {"target_ids": [user_id for user_id, _ in targets]}
         if field == "expire":
+            # The write must use the same "now" the limits were checked against
+            constraints["current_time"] = now
             minimum = now + td(seconds=minimum) if minimum is not None else None
             maximum = now + td(seconds=maximum) if maximum is not None else None
-        return {"target_ids": [user_id for user_id, _ in targets], "minimum": minimum, "maximum": maximum}
+        return {**constraints, "minimum": minimum, "maximum": maximum}
 
-    async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUser, admin: AdminDetails):
+    async def _validate_expire_anchor_range(self, db: AsyncSession, bulk_model: BulkUserExpire) -> None:
+        anchor_base = expire_anchor_base(bulk_model, datetime.now(UTC))
+        if anchor_base is None:
+            return
+        try:
+            anchor_base + td(seconds=bulk_model.amount)
+        except OverflowError:
+            await self.raise_error(message="anchor plus amount is outside the supported date range", code=400, db=db)
+
+    async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUserExpire, admin: AdminDetails):
         """Adjust finite expirations atomically within the actor's role and override limits."""
+        await self._validate_expire_anchor_range(db, bulk_model)
         constraints = await self._prepare_bulk_limit_update(db, bulk_model, admin, "expire")
         if bulk_model.dry_run:
             n = len(constraints["target_ids"]) if constraints else await count_bulk_expire_targets(db, bulk_model)
