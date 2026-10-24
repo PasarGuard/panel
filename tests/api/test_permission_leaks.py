@@ -482,6 +482,25 @@ def test_user_list_shows_device_counts_only_with_hwids_read(access_token, scoped
             client.delete(f"/api/user/by-id/{user['id']}", headers=auth_headers(access_token))
 
 
+def test_relevance_sort_works_without_hwids_read(access_token, scoped_actor):
+    # Without hwids.read every sort option's field is checked for the device count, relevance included
+    context = scoped_actor({"users": {"read": SCOPE_ALL}})
+    tag = unique_name("rel_scope")
+    contains, prefix = [create_user(access_token, username=name) for name in (f"x{tag}", f"{tag}x")]
+    try:
+        response = client.get(
+            "/api/users",
+            headers=auth_headers(context["token"]),
+            params={"search": tag, "sort": "relevance"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert [user["username"] for user in response.json()["users"]] == [prefix["username"], contains["username"]]
+    finally:
+        for user in (contains, prefix):
+            client.delete(f"/api/user/by-id/{user['id']}", headers=auth_headers(access_token))
+
+
 # --- Group / template access lists ---
 
 

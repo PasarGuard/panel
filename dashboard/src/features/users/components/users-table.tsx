@@ -1045,7 +1045,7 @@ const UsersTable = memo(() => {
     try {
       try {
         await queryClient.fetchQuery(
-          getGetUsersQueryOptions(nextFilters, {
+          getGetUsersQueryOptions(toUsersQueryParams(nextFilters), {
             query: {
               staleTime: 0,
               gcTime: 0,
