@@ -44,16 +44,16 @@ def test_exact_username_comes_first_even_when_other_notes_mention_it(access_toke
             delete_user(access_token, username)
 
 
-def test_search_ranks_exact_then_prefix_then_contains_then_note(access_token):
+def test_search_pins_exact_and_keeps_chosen_sort_for_the_rest(access_token):
     base = uuid4().hex[:8]
-    # Created in reverse rank order, so the -created_at sort alone would give the opposite of the expected order
+    # The exact match is the oldest, so -created_at alone would put it last
+    exact = create_user(access_token, username=base)["username"]
     prefix = create_user(access_token, username=f"{base}x")["username"]
     contains = create_user(access_token, username=f"x{base}")["username"]
     note_only = create_user(access_token, username=f"n{uuid4().hex[:8]}", payload={"note": f"see {base}"})["username"]
-    exact = create_user(access_token, username=base)["username"]
     try:
         data = _search(access_token, base)
-        assert [user["username"] for user in data["users"]] == [exact, prefix, contains, note_only]
+        assert [user["username"] for user in data["users"]] == [exact, note_only, contains, prefix]
     finally:
         for username in (exact, note_only, contains, prefix):
             delete_user(access_token, username)
@@ -98,7 +98,8 @@ def test_simple_list_puts_exact_username_first(access_token):
         )
         assert response.status_code == status.HTTP_200_OK
         usernames = [user["username"] for user in response.json()["users"]]
-        assert usernames == [tg_id, f"{tg_id}0", f"9{tg_id}"]
+        # Only the exact username is pinned, the rest follow -username
+        assert usernames == [tg_id, f"9{tg_id}", f"{tg_id}0"]
     finally:
         for username in created:
             delete_user(access_token, username)

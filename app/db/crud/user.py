@@ -492,15 +492,12 @@ def _username_contains(search: str) -> ColumnElement[bool]:
 
 
 def _user_search_rank(search: str) -> ColumnElement[int]:
-    """Put the user whose username is the search text first (same case before other case: usernames are case-sensitive),
-    then usernames starting with it, then other username matches, then users found only by their note (a note often
-    mentions other users' ids)."""
+    """Pin the user whose username is the search text on top (same case before other case: usernames are
+    case-sensitive). Every other match keeps the order of the chosen sort."""
     return case(
         (User.username == search, 0),
         (func.lower(User.username) == search.lower(), 1),
-        (User.username.istartswith(search, autoescape=True), 2),
-        (_username_contains(search), 3),
-        else_=4,
+        else_=2,
     )
 
 
