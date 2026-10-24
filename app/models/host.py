@@ -205,6 +205,18 @@ def _numeric_string_to_int(value: Any) -> Any:
     return value
 
 
+def _parse_int_range(value: str, *, maximum: int) -> tuple[int, int]:
+    parts = value.split("-")
+    if len(parts) > 2 or not all(part.isdecimal() for part in parts):
+        raise ValueError(f"'{value}' is not an integer or a range like 5-10")
+    low, high = int(parts[0]), int(parts[-1])
+    if low > high:
+        raise ValueError(f"'{value}' has a lower bound above the upper bound")
+    if high > maximum:
+        raise ValueError(f"'{value}' is above the maximum of {maximum}")
+    return low, high
+
+
 class FinalMaskHeaderCustomItemBase(FinalMaskBaseModel):
     type: str | None = Field(default=None, pattern=r"^$|^(?:array|str|base64|hex)$")
     packet: str | list[int] | None = Field(default=None)
@@ -215,6 +227,14 @@ class FinalMaskHeaderCustomItemBase(FinalMaskBaseModel):
     @classmethod
     def normalize_rand(cls, value):
         return _numeric_string_to_int(value)
+
+    @field_validator("rand_range")
+    @classmethod
+    def check_rand_range(cls, value: str | None):
+        """Xray converts both bounds of randRange to a byte."""
+        if value is not None:
+            _parse_int_range(value, maximum=255)
+        return value
 
 
 class FinalMaskUdpHeaderCustomItem(FinalMaskHeaderCustomItemBase):
@@ -234,6 +254,14 @@ class FinalMaskTcpHeaderCustomItem(FinalMaskHeaderCustomItemBase):
     @classmethod
     def normalize_delay(cls, value):
         return _numeric_string_to_int(value)
+
+    @field_validator("delay")
+    @classmethod
+    def check_delay(cls, value: int | str | None):
+        """A string delay is a range such as "5-10"; Xray cannot parse anything else."""
+        if isinstance(value, str):
+            _parse_int_range(value, maximum=2_147_483_647)
+        return value
 
 
 class FinalMaskTcpHeaderCustomSettings(FinalMaskBaseModel):
