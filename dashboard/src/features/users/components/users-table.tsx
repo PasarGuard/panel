@@ -43,7 +43,7 @@ import type { AdvanceSearchFormValue } from '@/features/users/forms/advance-sear
 import { BulkActionItem, BulkActionsBar } from '@/features/users/components/bulk-actions-bar'
 import { BulkActionAlertDialog } from '@/features/users/components/bulk-action-alert-dialog'
 import { Card, CardContent } from '@/components/ui/card'
-import { removeUsersFromUsersCache } from '@/utils/usersCache'
+import { removeUsersFromUsersCache, toUsersQueryParams } from '@/utils/usersCache'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
 
 // Helper function to get URL search params from hash
@@ -486,12 +486,13 @@ const UsersTable = memo(() => {
     advanceSearchForm,
   ])
 
+  const usersQueryParams = useMemo(() => toUsersQueryParams(filters), [filters])
   const {
     data: usersData,
     refetch,
     isLoading,
     isFetching,
-  } = useGetUsers(filters, {
+  } = useGetUsers(usersQueryParams, {
     query: {
       staleTime: 0,
       gcTime: 0,
