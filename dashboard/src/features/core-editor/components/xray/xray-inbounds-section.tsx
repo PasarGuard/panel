@@ -553,7 +553,7 @@ function applyWireguardEditorCreationDefaults(ib: Inbound): Inbound {
     ...ib,
     secretKey: '',
     publicKey: undefined,
-    address: undefined,
+    address: ['10.0.0.0/8'],
     peers: [],
     noKernelTun: undefined,
   } as Inbound

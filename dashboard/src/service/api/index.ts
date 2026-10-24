@@ -10992,7 +10992,7 @@ export const removeHost = async (hostId: number, options?: RequestInit): Promise
 
 
 
-export const getRemoveHostMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const getRemoveHostMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeHost>>, TError,{hostId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof removeHost>>, TError,{hostId: number}, TContext> => {
 
@@ -11021,12 +11021,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type RemoveHostMutationResult = NonNullable<Awaited<ReturnType<typeof removeHost>>>
 
-    export type RemoveHostMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+    export type RemoveHostMutationError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
 
     /**
  * @summary Remove Host
  */
-export const useRemoveHost = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const useRemoveHost = <TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeHost>>, TError,{hostId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof removeHost>>,
@@ -11327,7 +11327,7 @@ export const bulkDeleteHosts = async (bulkHostSelection: BulkHostSelection, opti
 
 
 
-export const getBulkDeleteHostsMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const getBulkDeleteHostsMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteHosts>>, TError,{data: BodyType<BulkHostSelection>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteHosts>>, TError,{data: BodyType<BulkHostSelection>}, TContext> => {
 
@@ -11356,12 +11356,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type BulkDeleteHostsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteHosts>>>
     export type BulkDeleteHostsMutationBody = BodyType<BulkHostSelection>
-    export type BulkDeleteHostsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+    export type BulkDeleteHostsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
 
     /**
  * @summary Bulk Delete Hosts
  */
-export const useBulkDeleteHosts = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const useBulkDeleteHosts = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteHosts>>, TError,{data: BodyType<BulkHostSelection>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof bulkDeleteHosts>>,
