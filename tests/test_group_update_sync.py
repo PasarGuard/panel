@@ -1,0 +1,162 @@
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import pytest
+
+from app.models.group import GroupModify, GroupResponse
+from app.operation import OperatorType, group as group_operation
+
+
+@pytest.mark.asyncio
+async def test_group_update_commits_policy_before_scheduling_sync(monkeypatch: pytest.MonkeyPatch):
+    operation = group_operation.GroupOperation(OperatorType.SYSTEM)
+    db = SimpleNamespace(commit=AsyncMock())
+    group = SimpleNamespace(id=1, inbound_tags=["old"], is_disabled=False)
+    response = GroupResponse(id=1, name="group", inbound_tags=["new"], is_disabled=False, total_users=1)
+    monkeypatch.setattr(operation, "_get_group_with_access", AsyncMock(return_value=group))
+    monkeypatch.setattr(operation, "check_inbound_tags", AsyncMock())
+    monkeypatch.setattr(group_operation, "modify_group", AsyncMock(return_value=group))
+    monkeypatch.setattr(group_operation, "get_wg_cores", AsyncMock(return_value=[]))
+    load_users = AsyncMock(side_effect=AssertionError("Ordinary group updates must not load all members"))
+    monkeypatch.setattr(group_operation, "get_users", load_users)
+    monkeypatch.setattr(operation, "_build_group_response", AsyncMock(return_value=response))
+    monkeypatch.setattr(group_operation.notification, "modify_group", AsyncMock())
+    scheduled = []
+
+    def schedule(group_id, **kwargs):
+        db.commit.assert_awaited_once()
+        scheduled.append((group_id, kwargs))
+
+    monkeypatch.setattr(operation, "_schedule_group_user_sync", schedule)
+    await operation.modify_group(db, 1, GroupModify(name="group", inbound_tags=["new"]), SimpleNamespace(username="admin"))
+    assert scheduled == [(1, {"expected_inbound_tags": frozenset({"new"}), "expected_is_disabled": False})]
+    load_users.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_group_sync_skips_member_revoked_before_dispatch(monkeypatch: pytest.MonkeyPatch):
+    """A batch must re-check membership after allocation reconciliation."""
+    batches = iter(([1], []))
+    dispatched: list[list[int]] = []
+
+    class FakeDB:
+        async def commit(self):
+            pass
+
+        async def rollback(self):
+            pass
+
+    class FakeGetDB:
+        async def __aenter__(self):
+            return FakeDB()
+
+        async def __aexit__(self, exc_type, exc_value, traceback):
+            return False
+
+    fake_group = SimpleNamespace(inbound_tags=["inbound"], is_disabled=False)
+    fake_user = SimpleNamespace(id=1, admin_id=None)
+
+    async def fake_group_for_sync_update(db, group_id):
+        return fake_group
+
+    async def fake_user_ids_batch(db, group_id, *, after_user_id, limit):
+        return next(batches)
+
+    async def fake_users_for_node_sync(db, user_ids):
+        return [fake_user]
+
+    async def fake_accessible_tags(db, user_ids):
+        return {1: {"inbound"}}
+
+    async def fake_allocations(db, users, *, tags_by_user):
+        return []
+
+    async def fake_sync_users(users, **kwargs):
+        dispatched.append([user.id for user in users])
+
+    async def fake_current_group_users(db, group_id, user_ids):
+        return set()
+
+    monkeypatch.setattr(group_operation, "GetDB", FakeGetDB)
+    monkeypatch.setattr(group_operation, "get_group_for_sync_update", fake_group_for_sync_update)
+    monkeypatch.setattr(group_operation, "get_group_user_ids_batch", fake_user_ids_batch)
+    monkeypatch.setattr(group_operation, "get_users_for_node_sync", fake_users_for_node_sync)
+    monkeypatch.setattr(group_operation, "get_users_accessible_tags", fake_accessible_tags)
+    monkeypatch.setattr(group_operation, "sync_users_allocations", fake_allocations)
+    monkeypatch.setattr(group_operation, "get_group_user_ids", fake_current_group_users)
+    monkeypatch.setattr(group_operation, "sync_users", fake_sync_users)
+
+    operation = group_operation.GroupOperation(OperatorType.SYSTEM)
+    await operation._sync_group_users(
+        1,
+        expected_inbound_tags=frozenset({"inbound"}),
+        expected_is_disabled=False,
+    )
+
+    assert dispatched == []
+
+
+@pytest.mark.asyncio
+async def test_group_sync_releases_database_write_lock_before_dispatch(monkeypatch: pytest.MonkeyPatch):
+    """Node I/O must not run while the SQLite-compatible group write lock is held."""
+    batches = iter(([1], []))
+    write_transaction_active = False
+
+    class FakeDB:
+        async def commit(self):
+            nonlocal write_transaction_active
+            write_transaction_active = False
+
+        async def rollback(self):
+            nonlocal write_transaction_active
+            write_transaction_active = False
+
+    class FakeGetDB:
+        async def __aenter__(self):
+            return FakeDB()
+
+        async def __aexit__(self, exc_type, exc_value, traceback):
+            return False
+
+    fake_group = SimpleNamespace(inbound_tags=["inbound"], is_disabled=False)
+    fake_user = SimpleNamespace(id=1, admin_id=None)
+
+    async def fake_group_for_sync_update(db, group_id):
+        nonlocal write_transaction_active
+        write_transaction_active = True
+        return fake_group
+
+    async def fake_user_ids_batch(db, group_id, *, after_user_id, limit):
+        return next(batches)
+
+    async def fake_users_for_node_sync(db, user_ids):
+        return [fake_user]
+
+    async def fake_accessible_tags(db, user_ids):
+        return {1: {"inbound"}}
+
+    async def fake_allocations(db, users, *, tags_by_user):
+        return []
+
+    async def fake_current_group_users(db, group_id, user_ids):
+        return {1}
+
+    async def fake_sync_users(users, **kwargs):
+        assert not write_transaction_active
+        assert kwargs["refresh_inbound_tags"] is True
+
+    monkeypatch.setattr(group_operation, "GetDB", FakeGetDB)
+    monkeypatch.setattr(group_operation, "get_group_for_sync_update", fake_group_for_sync_update)
+    monkeypatch.setattr(group_operation, "get_group_user_ids_batch", fake_user_ids_batch)
+    monkeypatch.setattr(group_operation, "get_users_for_node_sync", fake_users_for_node_sync)
+    monkeypatch.setattr(group_operation, "get_users_accessible_tags", fake_accessible_tags)
+    monkeypatch.setattr(group_operation, "sync_users_allocations", fake_allocations)
+    monkeypatch.setattr(group_operation, "get_group_user_ids", fake_current_group_users)
+    monkeypatch.setattr(group_operation, "sync_users", fake_sync_users)
+
+    operation = group_operation.GroupOperation(OperatorType.SYSTEM)
+    await operation._sync_group_users(
+        1,
+        expected_inbound_tags=frozenset({"inbound"}),
+        expected_is_disabled=False,
+    )

@@ -165,9 +165,7 @@ class BaseOperation:
                 "load_lifetime_used_traffic": load_lifetime_used_traffic,
             }
             if sub.get("user_id") and wireguard_fast:
-                db_user = await get_wireguard_subscription_user(
-                    db, sub["user_id"], load_admin_role=load_admin_role
-                )
+                db_user = await get_wireguard_subscription_user(db, sub["user_id"], load_admin_role=load_admin_role)
             elif sub.get("user_id"):
                 db_user = await get_user_by_id(db, sub["user_id"], **load_kwargs)
             elif sub.get("username"):
@@ -261,8 +259,20 @@ class BaseOperation:
             await self.raise_error(message="Admin not found", code=404)
         return db_admin
 
-    async def get_validated_group(self, db: AsyncSession, group_id: int) -> Group:
-        db_group = await get_group_by_id(db, group_id)
+    async def get_validated_group(
+        self,
+        db: AsyncSession,
+        group_id: int,
+        *,
+        load_users: bool = False,
+        load_inbounds: bool = True,
+    ) -> Group:
+        db_group = await get_group_by_id(
+            db,
+            group_id,
+            load_users=load_users,
+            load_inbounds=load_inbounds,
+        )
         if not db_group:
             await self.raise_error("Group not found", 404)
         return db_group
