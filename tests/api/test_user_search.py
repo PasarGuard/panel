@@ -127,3 +127,45 @@ def test_underscore_in_note_is_literal(access_token):
         assert _search(access_token, f"x_{base}")["total"] == 0
     finally:
         delete_user(access_token, noted)
+
+
+def test_relevance_sort_ranks_exact_then_prefix_then_contains_then_note(access_token):
+    base = uuid4().hex[:8]
+    # Created in reverse rank order, so newest-first alone would give the opposite of the expected order
+    prefix = create_user(access_token, username=f"{base}x")["username"]
+    contains = create_user(access_token, username=f"x{base}")["username"]
+    note_only = create_user(access_token, username=f"n{uuid4().hex[:8]}", payload={"note": f"see {base}"})["username"]
+    exact = create_user(access_token, username=base)["username"]
+    try:
+        data = _search(access_token, base, sort="relevance")
+        assert [user["username"] for user in data["users"]] == [exact, prefix, contains, note_only]
+        assert data["total"] == 4
+    finally:
+        for username in (exact, note_only, contains, prefix):
+            delete_user(access_token, username)
+
+
+def test_relevance_sort_is_newest_first_inside_a_group(access_token):
+    base = uuid4().hex[:8]
+    older = create_user(access_token, username=f"{base}a")["username"]
+    newer = create_user(access_token, username=f"{base}b")["username"]
+    try:
+        data = _search(access_token, base, sort="relevance")
+        assert [user["username"] for user in data["users"]] == [newer, older]
+    finally:
+        delete_user(access_token, older)
+        delete_user(access_token, newer)
+
+
+def test_relevance_sort_without_search_is_newest_first(access_token):
+    first = create_user(access_token, username=f"r{uuid4().hex[:8]}")["username"]
+    second = create_user(access_token, username=f"r{uuid4().hex[:8]}")["username"]
+    try:
+        response = client.get(
+            "/api/users", headers=auth_headers(access_token), params={"sort": "relevance", "limit": 2}
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert [user["username"] for user in response.json()["users"]] == [second, first]
+    finally:
+        delete_user(access_token, first)
+        delete_user(access_token, second)
