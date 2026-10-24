@@ -32,7 +32,11 @@ def expire_anchor_base(bulk_model: BulkUser, current_time: dt) -> dt | None:
     """Absolute instant that replaces each user's expire date, or None when the expire date itself is the base."""
     if not isinstance(bulk_model, BulkUserExpire) or bulk_model.anchor == "expire":
         return None
-    return current_time if bulk_model.anchor == "now" else bulk_model.anchor
+    if bulk_model.anchor == "now":
+        return current_time
+    # Stored datetimes carry no offset, so the absolute anchor is converted to UTC first
+    anchor = bulk_model.anchor
+    return anchor.replace(tzinfo=UTC) if anchor.tzinfo is None else anchor.astimezone(UTC)
 
 
 def _bulk_user_target_filter(

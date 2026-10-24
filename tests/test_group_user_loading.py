@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -407,6 +407,18 @@ async def test_bulk_expire_writes_from_the_time_base_it_was_given(db_session):
 
     expires = (await db_session.execute(select(User.expire).where(User.id.in_(members)))).scalars().all()
     assert {expire.replace(tzinfo=UTC) for expire in expires} == {datetime(2030, 1, 1, 1, tzinfo=UTC)}
+
+
+@pytest.mark.asyncio
+async def test_bulk_expire_converts_an_offset_anchor_to_utc(db_session):
+    members, _ = await _prepare_explicit_users(db_session)
+    anchor = datetime(2030, 1, 1, tzinfo=timezone(timedelta(hours=3, minutes=30)))
+
+    await update_users_expire(db_session, BulkUserExpire(amount=3600, anchor=anchor, users=members))
+
+    expires = (await db_session.execute(select(User.expire).where(User.id.in_(members)))).scalars().all()
+    # 2030-01-01 00:00 at +03:30 is 2029-12-31 20:30 UTC, plus the amount of one hour
+    assert {expire.replace(tzinfo=UTC) for expire in expires} == {datetime(2029, 12, 31, 21, 30, tzinfo=UTC)}
 
 
 @pytest.mark.asyncio
