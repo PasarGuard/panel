@@ -69,6 +69,8 @@ export const firstAllowedRoute = (admin: AdminDetails | null | undefined) => {
 
 export const canAccessRoute = (admin: AdminDetails | null | undefined, pathname: string) => {
   if (!admin) return false
+  if (pathname === '/my-hosts') return !!admin.id
+  if (pathname === '/settings/my-hosts') return isOwner(admin)
   if (pathname === '/') return hasPermission(admin, 'system', 'read')
   if (pathname.startsWith('/theme') || pathname.startsWith('/settings/theme')) return true
   if (pathname.startsWith('/users')) return hasPermission(admin, 'users', 'read')

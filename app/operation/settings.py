@@ -31,6 +31,10 @@ class SettingsOperation(BaseOperation):
         db_settings = await get_settings(db)
         old_settings = SettingsSchema.model_validate(db_settings)
 
+        # General forms written before My Hosts must preserve the owner's policy.
+        if modify.general and modify.general.my_hosts is None and old_settings.general:
+            modify.general.my_hosts = old_settings.general.my_hosts
+
         if modify.general and modify.general.custom_variables is not None:
             subscription = modify.subscription or Subscription.model_validate(db_settings.subscription)
             modify.subscription = subscription.model_copy(update={"custom_variables": modify.general.custom_variables})
