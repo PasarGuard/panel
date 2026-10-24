@@ -4,7 +4,17 @@ from ipaddress import ip_address, ip_network
 from string import Formatter
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_serializer,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from app.db.models import ProxyHostALPN, ProxyHostFingerprint, ProxyHostSecurity, UserStatus
 from app.utils.helpers import MAX_FORMAT_SPEC_NUMBER, has_markup_unsafe_chars, has_oversized_format_spec
@@ -186,15 +196,84 @@ class FinalMaskNoiseMaskItem(FinalMaskNoiseItem):
         return self
 
 
+def _numeric_string_to_int(value: Any) -> Any:
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.isdecimal():
+            return int(text)
+    return value
+
+
+def _parse_int_range(value: str, *, maximum: int) -> tuple[int, int]:
+    parts = value.split("-")
+    if len(parts) > 2 or not all(part.isdecimal() for part in parts):
+        raise ValueError(f"'{value}' is not an integer or a range like 5-10")
+    low, high = int(parts[0]), int(parts[-1])
+    if low > high:
+        raise ValueError(f"'{value}' has a lower bound above the upper bound")
+    if high > maximum:
+        raise ValueError(f"'{value}' is above the maximum of {maximum}")
+    return low, high
+
+
+class FinalMaskHeaderCustomItemBase(FinalMaskBaseModel):
+    type: str | None = Field(default=None, pattern=r"^$|^(?:array|str|base64|hex)$")
+    packet: str | list[int] | None = Field(default=None)
+    rand: int | None = Field(default=None, ge=0, le=2_147_483_647)
+    rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
+
+    @field_validator("rand", mode="before")
+    @classmethod
+    def normalize_rand(cls, value):
+        return _numeric_string_to_int(value)
+
+    @field_validator("rand_range")
+    @classmethod
+    def check_rand_range(cls, value: str | None):
+        """Xray converts both bounds of randRange to a byte."""
+        if value is not None:
+            _parse_int_range(value, maximum=255)
+        return value
+
+
+class FinalMaskUdpHeaderCustomItem(FinalMaskHeaderCustomItemBase):
+    @model_validator(mode="before")
+    @classmethod
+    def drop_delay(cls, value):
+        """Xray's UDP header-custom item has no delay field."""
+        if isinstance(value, dict) and "delay" in value:
+            return {key: item for key, item in value.items() if key != "delay"}
+        return value
+
+
+class FinalMaskTcpHeaderCustomItem(FinalMaskHeaderCustomItemBase):
+    delay: int | str | None = Field(default=None)
+
+    @field_validator("delay", mode="before")
+    @classmethod
+    def normalize_delay(cls, value):
+        return _numeric_string_to_int(value)
+
+    @field_validator("delay")
+    @classmethod
+    def check_delay(cls, value: int | str | None):
+        """A string delay is a range such as "5-10"; Xray cannot parse anything else."""
+        if isinstance(value, str):
+            _parse_int_range(value, maximum=2_147_483_647)
+        return value
+
+
 class FinalMaskTcpHeaderCustomSettings(FinalMaskBaseModel):
-    clients: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
-    servers: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
-    errors: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
+    clients: list[list[FinalMaskTcpHeaderCustomItem]] | None = Field(default=None)
+    servers: list[list[FinalMaskTcpHeaderCustomItem]] | None = Field(default=None)
+    errors: list[list[FinalMaskTcpHeaderCustomItem]] | None = Field(default=None)
 
 
 class FinalMaskUdpHeaderCustomSettings(FinalMaskBaseModel):
-    client: list[FinalMaskNoiseItem] | None = Field(default=None)
-    server: list[FinalMaskNoiseItem] | None = Field(default=None)
+    client: list[FinalMaskUdpHeaderCustomItem] | None = Field(default=None)
+    server: list[FinalMaskUdpHeaderCustomItem] | None = Field(default=None)
 
 
 class FinalMaskPasswordSettings(FinalMaskBaseModel):
@@ -529,10 +608,12 @@ class FinalMask(FinalMaskBaseModel):
 
 def dump_final_mask_for_xray(final_mask: FinalMask | dict[str, Any]) -> dict[str, Any]:
     """Serialize FinalMask with fragment keys understood by stable and newer Xray cores."""
-    if isinstance(final_mask, FinalMask):
-        result = final_mask.model_dump(exclude_none=True, by_alias=True, mode="json")
-    else:
+    try:
+        validated = final_mask if isinstance(final_mask, FinalMask) else FinalMask.model_validate(final_mask)
+    except ValidationError:
         result = deepcopy(final_mask)
+    else:
+        result = validated.model_dump(exclude_none=True, by_alias=True, mode="json")
 
     tcp_layers = result.get("tcp")
     if not isinstance(tcp_layers, list):
@@ -862,6 +943,12 @@ class BaseHost(BaseModel):
         if value is not None and value.xray is None:
             return None
         return value
+
+    @field_serializer("final_mask_settings")
+    def serialize_final_mask_settings(self, value: FinalMask | None) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        return value.model_dump(by_alias=True, exclude_none=True, mode="json")
 
 
 class CreateHost(BaseHost):
