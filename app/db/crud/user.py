@@ -492,13 +492,15 @@ def _username_contains(search: str) -> ColumnElement[bool]:
 
 
 def _user_search_rank(search: str) -> ColumnElement[int]:
-    """Put the user whose username is the search text first, then usernames starting with it, then other username
-    matches, then users found only by their note (a note often mentions other users' ids)."""
+    """Put the user whose username is the search text first (same case before other case: usernames are case-sensitive),
+    then usernames starting with it, then other username matches, then users found only by their note (a note often
+    mentions other users' ids)."""
     return case(
-        (func.lower(User.username) == search.lower(), 0),
-        (User.username.istartswith(search, autoescape=True), 1),
-        (_username_contains(search), 2),
-        else_=3,
+        (User.username == search, 0),
+        (func.lower(User.username) == search.lower(), 1),
+        (User.username.istartswith(search, autoescape=True), 2),
+        (_username_contains(search), 3),
+        else_=4,
     )
 
 
@@ -695,7 +697,7 @@ async def get_users_simple(
         stmt = stmt.order_by(User.id)
 
     # Get count BEFORE pagination (always)
-    count_stmt = select(func.count()).select_from(stmt.subquery())
+    count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
     total = (await db.execute(count_stmt)).scalar()
 
     # Apply pagination or safety limit

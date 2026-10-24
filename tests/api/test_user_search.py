@@ -102,3 +102,27 @@ def test_simple_list_puts_exact_username_first(access_token):
     finally:
         for username in created:
             delete_user(access_token, username)
+
+
+def test_exact_username_ignores_case_and_same_case_wins(access_token):
+    base = uuid4().hex[:8]
+    # Older first, so -created_at alone would put the other-case username ahead
+    upper = create_user(access_token, username=f"ABC{base}")["username"]
+    lower = create_user(access_token, username=f"abc{base}")["username"]
+    longer = create_user(access_token, username=f"abc{base}0")["username"]
+    try:
+        # A newer prefix match must not beat the exact username typed in another case
+        assert _search(access_token, f"aBc{base}")["users"][0]["username"] in (lower, upper)
+        assert [user["username"] for user in _search(access_token, upper)["users"]] == [upper, lower, longer]
+    finally:
+        for username in (lower, upper, longer):
+            delete_user(access_token, username)
+
+
+def test_underscore_in_note_is_literal(access_token):
+    base = uuid4().hex[:8]
+    noted = create_user(access_token, username=f"n{base}", payload={"note": f"payer xa{base}"})["username"]
+    try:
+        assert _search(access_token, f"x_{base}")["total"] == 0
+    finally:
+        delete_user(access_token, noted)
