@@ -1078,7 +1078,7 @@ async def test_record_node_stats_batched_logs_write_errors(monkeypatch: pytest.M
         written_nodes.append(params[0]["node_id"])
 
     monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
-    monkeypatch.setattr(record_usages, "safe_execute", fake_safe_execute)
+    monkeypatch.setattr(record_usages, "engine", _FakeEngine(fake_safe_execute))
     caplog.set_level(logging.ERROR)
 
     await record_usages.record_node_stats_batched({1: [{"up": 10, "down": 4}], 2: [{"up": 1, "down": 1}]})
