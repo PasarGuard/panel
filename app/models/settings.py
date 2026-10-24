@@ -212,6 +212,19 @@ class SubRule(BaseModel):
     pattern: str
     target: ConfigFormat
     response_headers: dict[str, Any] = Field(default_factory=dict)
+    # Happ routing profile (client template of type happ_routing) delivered with the subscription
+    happ_routing_template_id: int | None = Field(default=None)
+
+    @model_validator(mode="after")
+    def validate_happ_routing_header(self):
+        if self.happ_routing_template_id is not None and any(
+            str(name).strip().lower() == "routing" for name in self.response_headers
+        ):
+            raise ValueError(
+                f'Subscription rule "{self.pattern}" has both a Happ routing template and a manual "routing" header. '
+                "Remove one of them."
+            )
+        return self
 
 
 class SubFormatEnable(BaseModel):

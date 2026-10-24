@@ -138,6 +138,7 @@ export default function SubscriptionSettings() {
             pattern: rule.pattern,
             target: rule.target,
             response_headers: Object.fromEntries(Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+            happ_routing_template_id: rule.happ_routing_template_id ?? null,
           })) || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
@@ -164,6 +165,7 @@ export default function SubscriptionSettings() {
             .map(([key, value]) => [key.trim(), value.trim()] as const)
             .filter(([key, value]) => key && value),
         ),
+        happ_routing_template_id: rule.happ_routing_template_id ?? null,
       }))
 
       const processedResponseHeaders = Object.fromEntries(
@@ -298,6 +300,7 @@ export default function SubscriptionSettings() {
             pattern: rule.pattern,
             target: rule.target,
             response_headers: Object.fromEntries(Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+            happ_routing_template_id: rule.happ_routing_template_id ?? null,
           })) || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {

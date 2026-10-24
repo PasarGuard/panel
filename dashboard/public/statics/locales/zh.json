@@ -286,8 +286,14 @@
         "headerValue": "头值",
         "advanced": "高级规则选项",
         "advancedTitle": "规则选项",
-        "advancedDescription": "在此规则匹配时配置可选响应头。",
-        "advancedHeadersHint": "{{count}} 个自定义响应头 — 点击编辑"
+        "advancedDescription": "在此规则匹配时配置 Happ 路由配置和可选响应头。",
+        "advancedHeadersHint": "{{count}} 个自定义响应头 — 点击编辑",
+        "happRouting": "Happ 路由",
+        "happRoutingDescription": "随订阅发送 Happ 路由配置。Happ 会自动添加并启用它。",
+        "happRoutingNone": "无",
+        "happRoutingRuleHeaderConflict": "此规则有手动的 “routing” 响应头。请删除它以使用 Happ 路由模板，否则无法保存设置。",
+        "happRoutingGlobalHeaderConflict": "通用响应头中有手动的 “routing” 响应头。请删除它以使用 Happ 路由模板，否则无法保存设置。",
+        "happRoutingLoadFailed": "无法加载 Happ 路由模板。已选择的模板会保留。"
       },
       "formats": {
         "title": "手动订阅格式",
@@ -1185,7 +1191,14 @@
     "noSearchResults": "没有匹配的客户端模板。",
     "default": "默认",
     "system": "系统",
-    "defaultSystem": "默认系统"
+    "defaultSystem": "默认系统",
+    "happRouting": {
+      "help": "Happ 应用的路由配置：哪些网站和 IP 直连、走 VPN 或被屏蔽，以及使用哪个 DNS。在订阅规则（例如 ^Happ/）中选择它，Happ 用户会随订阅自动获得该配置。",
+      "nameHelp": "Happ 按 \"Name\" 更新配置：保持相同的 Name 即可为用户更新，新的 Name 会添加第二个配置。",
+      "listsHelp": "列表支持域名、IP/CIDR 以及 geosite:/geoip: 条目。可以在此构建配置：",
+      "linkSize": "链接大小：{{size}} KB",
+      "largeWarning": "链接超过 4 KB。代理可能会截断过大的响应头。对于 links 和 base64 links 格式，请开启在订阅正文中传递；其他格式始终通过响应头发送链接。"
+    }
   },
   "core.configuration": "配置",
   "core.generalErrorMessage": "配置有误, 请检查",
