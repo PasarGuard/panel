@@ -378,6 +378,7 @@ async def update_users_expire(
     target_ids: Sequence[int] | None = None,
     minimum: dt | None = None,
     maximum: dt | None = None,
+    current_time: dt | None = None,
 ) -> tuple[list[User], int] | tuple[list, int]:
     """
     Bulk update user expiration dates and return list of User objects where status changed.
@@ -385,7 +386,7 @@ async def update_users_expire(
     final_filter = _bulk_user_target_filter(bulk_model, "expire", target_ids)
 
     count_effctive_users = (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
-    current_time = dt.now(UTC)
+    current_time = current_time or dt.now(UTC)
     anchor_base = expire_anchor_base(bulk_model, current_time)
     if anchor_base is None:
         new_expire = get_datetime_add_expression(db, User.expire, bulk_model.amount)

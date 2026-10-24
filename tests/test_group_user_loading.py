@@ -36,7 +36,7 @@ from app.db.models import (
 )
 from app.models.group import BulkGroup, BulkGroupSelection, GroupListQuery, GroupResponse
 from app.models.proxy import ShadowsocksMethods
-from app.models.user import BulkUser, BulkUsersProxy, UserListQuery
+from app.models.user import BulkUser, BulkUserExpire, BulkUsersProxy, UserListQuery
 from app.operation import OperatorType
 from app.operation.admin import AdminOperation
 from app.operation.group import GroupOperation
@@ -396,6 +396,17 @@ async def test_bulk_user_ops_with_40k_explicit_ids_and_preloaded_inbounds(db_ses
     statements.clear()
     assert all("in-a" in tags for tags in [await user.inbounds() for user in users])
     assert statements == []  # the node sync reads inbounds from the preloaded groups
+
+
+@pytest.mark.asyncio
+async def test_bulk_expire_writes_from_the_time_base_it_was_given(db_session):
+    members, _ = await _prepare_explicit_users(db_session)
+    base = datetime(2030, 1, 1, tzinfo=UTC)
+
+    await update_users_expire(db_session, BulkUserExpire(amount=3600, anchor="now", users=members), current_time=base)
+
+    expires = (await db_session.execute(select(User.expire).where(User.id.in_(members)))).scalars().all()
+    assert {expire.replace(tzinfo=UTC) for expire in expires} == {datetime(2030, 1, 1, 1, tzinfo=UTC)}
 
 
 @pytest.mark.asyncio

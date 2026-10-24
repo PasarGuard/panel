@@ -2018,10 +2018,13 @@ class UserOperation(BaseOperation):
                 require_finite_hwid_limit=False,
                 reference_time=now,
             )
+        constraints = {"target_ids": [user_id for user_id, _ in targets]}
         if field == "expire":
+            # The write must use the same "now" the limits were checked against
+            constraints["current_time"] = now
             minimum = now + td(seconds=minimum) if minimum is not None else None
             maximum = now + td(seconds=maximum) if maximum is not None else None
-        return {"target_ids": [user_id for user_id, _ in targets], "minimum": minimum, "maximum": maximum}
+        return {**constraints, "minimum": minimum, "maximum": maximum}
 
     async def _validate_expire_anchor_range(self, db: AsyncSession, bulk_model: BulkUserExpire) -> None:
         anchor_base = expire_anchor_base(bulk_model, datetime.now(UTC))
