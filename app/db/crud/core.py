@@ -122,7 +122,8 @@ async def get_core_configs(db: AsyncSession, query: CoreListQuery) -> tuple[list
     if query.limit:
         stmt = stmt.limit(query.limit)
 
-    all_core_configs = (await db.execute(stmt)).scalars().all()
+    # Lifecycle reads may reuse a session that already loaded an older config.
+    all_core_configs = (await db.execute(stmt.execution_options(populate_existing=True))).scalars().all()
     return all_core_configs, len(all_core_configs)
 
 
