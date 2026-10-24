@@ -5554,7 +5554,20 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
         }}
       />
 
-      <RealityScanDialog open={isRealityScanOpen} onOpenChange={setIsRealityScanOpen} initialTarget={realityScanTarget} />
+      <RealityScanDialog
+        open={isRealityScanOpen}
+        onOpenChange={setIsRealityScanOpen}
+        initialTarget={realityScanTarget}
+        onSelect={result => {
+          if (!result.feasible || !result.sni || inboundSecurityType !== 'reality') return
+          const target = `${result.host.includes(':') ? `[${result.host}]` : result.host}:${result.port}`
+          const serverNames = [result.sni]
+          const definition = caps.securityFieldDefinitions.reality?.serverNames
+          form.setValue(securityFieldName('target'), target, { shouldDirty: true })
+          form.setValue(securityFieldName('serverNames'), definition ? outboundSettingToString(serverNames, definition) : result.sni, { shouldDirty: true })
+          patchSecurity({ target, serverNames })
+        }}
+      />
 
       <AlertDialog open={blockAddWhileDraftOpen} onOpenChange={setBlockAddWhileDraftOpen}>
         <AlertDialogContent dir={dir}>
