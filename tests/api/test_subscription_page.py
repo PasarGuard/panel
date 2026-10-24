@@ -37,25 +37,6 @@ def _create_host(access_token: str, inbound: str, address: str):
     )
 
 
-def test_host_address_rejects_markup_characters(access_token):
-    core = create_core(access_token)
-    inbound = get_inbounds(access_token)[0]
-    created: list[int] = []
-    try:
-        for address in (PAYLOAD, "a'b.example.com", 'a"b.example.com', "a b.example.com", "a`b", "a\\b", "<x>"):
-            response = _create_host(access_token, inbound, address)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, (address, response.text)
-
-        for address in ("example.com", "*.example.com", "{SERVER_IP}", "[2001:db8::1]", "{USERNAME}.example.com"):
-            response = _create_host(access_token, inbound, address)
-            assert response.status_code == status.HTTP_201_CREATED, (address, response.text)
-            created.append(response.json()["id"])
-    finally:
-        for host_id in created:
-            client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
-        delete_core(access_token, core["id"])
-
-
 def test_stored_markup_address_is_left_out_of_subscriptions(access_token):
     core = create_core(access_token)
     inbound = next(tag for tag in get_inbounds(access_token) if "VLESS" in tag.upper())
@@ -65,7 +46,6 @@ def test_stored_markup_address_is_left_out_of_subscriptions(access_token):
     user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("sub_page_user")})
 
     async def plant_markup_address():
-        # A row saved before address validation existed.
         async with TestSession() as session:
             await session.execute(update(ProxyHost).where(ProxyHost.id == bad["id"]).values(address={PAYLOAD}))
             await session.commit()

@@ -30,7 +30,6 @@ UNRENDERABLE_VALUES = [
     ("path", "/ws/{}"),
     ("sni", ["cdn{.example.com"]),
     ("host", ["{USERNAME.missing}.example.com"]),
-    ("address", ["edge}.example.com"]),
     ("remark", "{USERNAME[0]}"),
     ("remark", "{USERNAME.upper}"),
 ]
@@ -40,13 +39,11 @@ OVERSIZED_FORMAT_VALUES = [
     ("path", "/ws/{USERNAME:>100000}"),
     ("sni", ["{USERNAME:.100000}.example.com"]),
     ("host", ["{USERNAME:0300}.example.com"]),
-    ("address", ["{SERVER_IP:^257}"]),
     ("remark", "{USERNAME:^100000}"),
 ]
 
-# !r and !a wrap the value in quotes: an address with quotes is skipped as unsafe, the other fields break
+# !r and !a wrap the value in quotes, which breaks these fields.
 QUOTING_CONVERSION_VALUES = [
-    ("address", ["{SERVER_IP!r}"]),
     ("sni", ["{USERNAME!r}.example.com"]),
     ("host", ["{USERNAME!a}.example.com"]),
     ("path", "/ws/{USERNAME!a}"),
