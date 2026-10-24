@@ -48,7 +48,7 @@ def leader_key() -> str:
 
 def needs_job_leader() -> bool:
     """Leader election is only needed when multiple uvicorn workers share one role."""
-    return is_nats_enabled() and server_settings.workers > 1
+    return is_nats_enabled() and not runtime_settings.role.requires_nats and server_settings.workers > 1
 
 
 def set_on_leadership_lost(callback: Callable[[], Awaitable[None] | None] | None) -> None:

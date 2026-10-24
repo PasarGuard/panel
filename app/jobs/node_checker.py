@@ -12,6 +12,7 @@ from app.db.models import Node, NodeStatus
 from app.models.node import NodeListQuery, NodeNotification
 from app.nats import is_multi_worker, needs_shared_bridge_memory
 from app.nats.leader import is_job_leader, needs_job_leader, set_on_leadership_lost
+from app.nats.node_recovery import node_reconciliation_revision, shutdown_node_recovery
 from app.node import node_manager
 from app.node.heartbeat import node_heartbeat
 from app.node.nats_memory import ensure_bridge_memory, get_bridge_memory, shutdown_bridge_memory
@@ -314,7 +315,18 @@ async def _check_node(db_node: Node, node: PasarGuardNode, attempt: _ProbeAttemp
             _health_streaks.pop(db_node.id, None)
 
         # Skip nodes that are already healthy and connected
+        if (
+            health is Health.HEALTHY
+            and _owns_health_checks()
+            and await node_reconciliation_revision(db_node.id) is not None
+        ):
+            node._panel_users_reconciled = False
+            await _repair_node(db_node.id)
+            return health
         if health == Health.HEALTHY and db_node.status == NodeStatus.connected:
+            if not getattr(node, "_panel_users_reconciled", True):
+                await _repair_node(db_node.id)
+                return health
             now = time.monotonic()
             next_refresh = _version_refresh_deadlines.setdefault(db_node.id, now + _VERSION_REFRESH_INTERVAL)
             if now >= next_refresh:
@@ -371,6 +383,8 @@ async def _check_node(db_node: Node, node: PasarGuardNode, attempt: _ProbeAttemp
         ):
             attached = await NodeOperation._attach_if_running(node, db_node.name)
             if attached is not None:
+                if not getattr(node, "_panel_users_reconciled", True):
+                    await _repair_node(db_node.id)
                 return health
 
             _, coordinator, _ = get_bridge_memory()
@@ -553,9 +567,11 @@ async def _interval_loop(coro, seconds: float, name: str):
 
 @on_startup
 async def initialize_nodes():
+    """Load configured attachments before durable commands run and register maintenance."""
     if not runtime_settings.role.runs_node:
         return
 
+    node_manager.initialized.clear()
     await ensure_bridge_memory()
 
     startup_log = logger.debug if server_settings.workers > 1 else logger.info
@@ -570,6 +586,7 @@ async def initialize_nodes():
             await node_operator.connect_nodes_bulk(db, db_nodes)
             startup_log("All nodes' cores have been started.")
 
+    node_manager.initialized.set()
     set_on_leadership_lost(_reset_health_streaks)
 
     if needs_job_leader():
@@ -608,6 +625,7 @@ async def initialize_nodes():
 
     on_shutdown(_stop_node_loops)
     on_shutdown(shutdown_bridge_memory)
+    on_shutdown(shutdown_node_recovery)
 
 
 async def _stop_node_loops():
