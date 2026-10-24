@@ -208,6 +208,7 @@ class UserSortField(str, Enum):
     created_at = "created_at"
     edit_at = "edit_at"
     online_at = "online_at"
+    relevance = "relevance"
 
 
 class UserSimpleSortField(str, Enum):
@@ -237,6 +238,9 @@ class UserSortOption(str, Enum):
     desc_created_at = "-created_at"
     desc_edit_at = "-edit_at"
     desc_online_at = "-online_at"
+    # With a search: exact username, then usernames starting with it, then other username matches, then note-only
+    # matches, newest first inside each group. Without a search it is the same as -created_at
+    relevance = "relevance"
 
     @property
     def field(self) -> UserSortField:

@@ -491,14 +491,21 @@ def _username_contains(search: str) -> ColumnElement[bool]:
     return User.username.icontains(search, autoescape=True)
 
 
-def _user_search_rank(search: str) -> ColumnElement[int]:
+def _user_search_rank(search: str, by_relevance: bool = False) -> ColumnElement[int]:
     """Pin the user whose username is the search text on top (same case before other case: usernames are
-    case-sensitive). Every other match keeps the order of the chosen sort."""
-    return case(
+    case-sensitive). Every other match keeps the order of the chosen sort, unless the sort is relevance: then
+    usernames starting with the text come next, then other username matches, then users found only by their note
+    (a note often mentions other users' ids)."""
+    whens = [
         (User.username == search, 0),
         (func.lower(User.username) == search.lower(), 1),
-        else_=2,
-    )
+    ]
+    if by_relevance:
+        whens += [
+            (User.username.istartswith(search, autoescape=True), 2),
+            (_username_contains(search), 3),
+        ]
+    return case(*whens, else_=len(whens))
 
 
 def _build_user_count_stmt(stmt: Select) -> Select:
@@ -620,10 +627,15 @@ async def get_users(
     if filters:
         stmt = stmt.where(and_(*filters))
 
+    sort = [option for option in query.sort if option is not UserSortOption.relevance]
+    by_relevance = len(sort) < len(query.sort)
+    if by_relevance and not sort:
+        sort = [UserSortOption.desc_created_at]
+
     if search:
-        stmt = stmt.order_by(_user_search_rank(search))
-    if query.sort:
-        stmt = stmt.order_by(*_build_user_sort_clauses(query.sort))
+        stmt = stmt.order_by(_user_search_rank(search, by_relevance))
+    if sort:
+        stmt = stmt.order_by(*_build_user_sort_clauses(sort))
     elif search:
         # Stable order inside one rank, so offset pages don't repeat or skip users
         stmt = stmt.order_by(User.id)
