@@ -24,7 +24,7 @@ from PasarGuardNodeBridge import Health, NodeAPIError, NodeType, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import User
 from PasarGuardNodeBridge.grpclib import Node as GrpcNode
 from PasarGuardNodeBridge.rest import Node as RestNode
-from PasarGuardNodeBridge.storage import ClaimedUser
+from PasarGuardNodeBridge.storage import ClaimedUser, LifecycleLease, LifecycleStatus
 
 _queued_sync: ContextVar[bool] = ContextVar("queued_node_user_sync", default=False)
 
@@ -129,6 +129,23 @@ class _QueuedBatchSync:
         async with self._version_lock:
             self._node_version = node_version
             self._core_version = core_version
+
+    async def _release_lifecycle_lease(
+        self,
+        lease: LifecycleLease,
+        observed: LifecycleStatus | None = None,
+        desired: LifecycleStatus | None = None,
+        node_version: str = "",
+        core_version: str = "",
+    ) -> None:
+        # Bridge 0.9.4 awaits the cancelled heartbeat directly. If it has not
+        # started, its CancelledError masks the RPC error and aborts startup.
+        # Gather consumes the child's cancellation while preserving caller cancellation.
+        heartbeat = self._lifecycle_heartbeat_tasks.pop(lease.token, None)
+        if heartbeat is not None:
+            heartbeat.cancel()
+            await asyncio.gather(heartbeat, return_exceptions=True)
+        await super()._release_lifecycle_lease(lease, observed, desired, node_version, core_version)
 
     # ------------------------------------------------------------------ transport
     def _delivery_budget(self) -> float:
