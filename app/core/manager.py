@@ -80,7 +80,7 @@ class CoreManager:
             # Deserialize state using JSON
             try:
                 cached_state = json.loads(entry.value.decode("utf-8"))
-            except (json.JSONDecodeError, UnicodeDecodeError):
+            except json.JSONDecodeError, UnicodeDecodeError:
                 self._logger.warning("Failed to decode CoreManager state as JSON, ignoring...")
                 return False
 
@@ -93,10 +93,11 @@ class CoreManager:
                     self._logger.warning(f"Failed to reconstruct core {core_id} from JSON: {exc}")
                     continue
 
+            inbounds_by_tag = self._build_inbound_index(cores)
             async with self._lock:
                 self._cores = cores
-                self._inbounds = cached_state.get("inbounds", [])
-                self._inbounds_by_tag = cached_state.get("inbounds_by_tag", {})
+                self._inbounds = list(inbounds_by_tag)
+                self._inbounds_by_tag = inbounds_by_tag
 
             await self.get_inbounds.cache.clear()
             await self.get_inbounds_by_tag.cache.clear()
@@ -233,12 +234,19 @@ class CoreManager:
         await self.update_inbounds()
         await self._persist_state()
 
+    @staticmethod
+    def _build_inbound_index(cores: dict[int, AbstractCore]) -> dict:
+        # Hosts select inbounds by tag across all cores. Keep the last-core-wins
+        # rule in ID order so display order and NATS message order cannot change
+        # shared tags' encryption or other subscription settings after a restart.
+        inbounds_by_tag = {}
+        for core_id in sorted(cores):
+            inbounds_by_tag.update(cores[core_id].inbounds_by_tag)
+        return inbounds_by_tag
+
     async def update_inbounds(self):
         async with self._lock:
-            new_inbounds = {}
-            for core in self._cores.values():
-                new_inbounds.update(core.inbounds_by_tag)
-
+            new_inbounds = self._build_inbound_index(self._cores)
             self._inbounds_by_tag = new_inbounds
             self._inbounds = list(self._inbounds_by_tag.keys())
 
