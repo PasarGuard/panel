@@ -149,6 +149,8 @@ class NodeWorkerService(BaseRpcService):
             if "node_ids" in data:
                 if not isinstance(data["node_ids"], list) or any(not valid_id(value) for value in data["node_ids"]):
                     raise ValueError("node_ids must be a list of positive integers")
+            elif "core_id" not in data:
+                raise ValueError("node_ids or core_id is required")
             elif data.get("core_id") is not None and not valid_id(data["core_id"]):
                 raise ValueError("core_id must be a positive integer")
         elif not valid_id(data.get("node_id")):

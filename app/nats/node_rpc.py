@@ -39,6 +39,7 @@ class NodeNatsClient(NatsRpcClient):
                 async with asyncio.timeout(timeout):
                     return await self.request(action, payload, timeout=timeout, subject=node_control_subject())
             except (nats.errors.Error, OSError) as exc:
+                # The built-in TimeoutError raised by asyncio.timeout is an OSError.
                 # A timed-out request may already have reached the node. Do not
                 # automatically repeat a force restart or a full user flush.
                 error = RuntimeError(
