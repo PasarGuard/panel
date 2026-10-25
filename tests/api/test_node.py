@@ -695,6 +695,7 @@ def node_operator_mock(monkeypatch: pytest.MonkeyPatch):
         "restart_all_node",
         "create_node",
         "get_validated_node",
+        "get_node_response",
         "modify_node",
         "bulk_set_nodes_status",
         "bulk_reset_nodes_usage",
@@ -863,11 +864,11 @@ def test_create_node_returns_created_node(access_token, node_operator_mock):
 
 def test_get_single_node(access_token, node_operator_mock):
     node_response = sample_node_response(id=22, name="fetched-node")
-    node_operator_mock.get_validated_node.return_value = node_response
+    node_operator_mock.get_node_response.return_value = node_response
     response = client.get("/api/node/22", headers=auth_headers(access_token))
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == node_response.model_dump()
-    awaited_kwargs = node_operator_mock.get_validated_node.await_args.kwargs
+    awaited_kwargs = node_operator_mock.get_node_response.await_args.kwargs
     assert awaited_kwargs["node_id"] == 22
 
 

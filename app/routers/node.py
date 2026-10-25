@@ -170,11 +170,11 @@ async def get_user_count_metric(
 async def get_nodes(
     query: Annotated[NodeListQuery, Depends(get_node_list_query)],
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_permission("nodes", "read")),
+    admin: AdminDetails = Depends(require_permission("nodes", "read")),
 ):
     """Retrieve a list of all nodes. Accessible only to authorized admins."""
 
-    return await node_operator.get_db_nodes(db=db, query=query)
+    return await node_operator.get_db_nodes(db=db, query=query, admin=admin)
 
 
 @router.get(
@@ -232,10 +232,12 @@ async def create_node(
 
 @router.get("/{node_id}", response_model=NodeResponse)
 async def get_node(
-    node_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(require_permission("nodes", "read"))
+    node_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("nodes", "read")),
 ):
     """Retrieve details of a specific node by its ID."""
-    return await node_operator.get_validated_node(db=db, node_id=node_id)
+    return await node_operator.get_node_response(db=db, node_id=node_id, admin=admin)
 
 
 @router.post("/{node_id}/update")
@@ -370,10 +372,24 @@ async def realtime_nodes_stats(_: AdminDetails = Depends(require_permission("nod
 
 @router.get("/online_stats/{user_id}/ip", response_model=UserIPListAll)
 async def user_online_ip_list_all_nodes(
-    user_id: int, db: AsyncSession = Depends(get_db), _: AdminDetails = Depends(require_permission("nodes", "stats"))
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("nodes", "stats")),
+    # nodes.stats carries no user scope, so users.read is required too: a missing action would
+    # otherwise resolve to an unrestricted scope in the ownership check below.
+    _: AdminDetails = Depends(require_permission("users", "read")),
 ):
     """Retrieve user ips from all nodes."""
-    return await node_operator.get_user_ip_list_all_nodes(db=db, user_id=user_id)
+    db_user = await node_operator.get_validated_user_by_id(
+        db,
+        user_id,
+        admin,
+        load_usage_logs=False,
+        load_next_plan=False,
+        load_lifetime_used_traffic=False,
+        load_groups=False,
+    )
+    return await node_operator.get_user_ip_list_all_nodes(db=db, user_id=db_user.id)
 
 
 @router.get("/{node_id}/online_stats/{user_id}", response_model=dict[int, int])
@@ -381,10 +397,22 @@ async def user_online_stats(
     node_id: int,
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_permission("nodes", "stats")),
+    admin: AdminDetails = Depends(require_permission("nodes", "stats")),
+    # nodes.stats carries no user scope, so users.read is required too: a missing action would
+    # otherwise resolve to an unrestricted scope in the ownership check below.
+    _: AdminDetails = Depends(require_permission("users", "read")),
 ):
     """Retrieve user online stats by node."""
-    return await node_operator.get_user_online_stats_by_node(db=db, node_id=node_id, user_id=user_id)
+    db_user = await node_operator.get_validated_user_by_id(
+        db,
+        user_id,
+        admin,
+        load_usage_logs=False,
+        load_next_plan=False,
+        load_lifetime_used_traffic=False,
+        load_groups=False,
+    )
+    return await node_operator.get_user_online_stats_by_node(db=db, node_id=node_id, user_id=db_user.id)
 
 
 @router.get("/{node_id}/online_stats/{user_id}/ip", response_model=UserIPList)
@@ -392,10 +420,22 @@ async def user_online_ip_list(
     node_id: int,
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    _: AdminDetails = Depends(require_permission("nodes", "stats")),
+    admin: AdminDetails = Depends(require_permission("nodes", "stats")),
+    # nodes.stats carries no user scope, so users.read is required too: a missing action would
+    # otherwise resolve to an unrestricted scope in the ownership check below.
+    _: AdminDetails = Depends(require_permission("users", "read")),
 ):
     """Retrieve user ips by node."""
-    return await node_operator.get_user_ip_list_by_node(db=db, node_id=node_id, user_id=user_id)
+    db_user = await node_operator.get_validated_user_by_id(
+        db,
+        user_id,
+        admin,
+        load_usage_logs=False,
+        load_next_plan=False,
+        load_lifetime_used_traffic=False,
+        load_groups=False,
+    )
+    return await node_operator.get_user_ip_list_by_node(db=db, node_id=node_id, user_id=db_user.id)
 
 
 @router.delete(
