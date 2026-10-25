@@ -1,7 +1,7 @@
 {
   "name": "pasarguard-dashboard",
   "private": true,
-  "version": "5.5.0",
+  "version": "5.5.1",
   "engines": {
     "node": ">=22.18.0"
   },

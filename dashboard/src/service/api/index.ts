@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 5.5.0
+ * OpenAPI spec version: 5.5.1
  */
 import {
   useMutation,
@@ -623,6 +623,8 @@ export interface Application {
 
 export type BaseHostHttpHeaders = {[key: string]: string} | null;
 
+export type BaseHostFinalMaskSettings = { [key: string]: unknown } | null;
+
 export type ProxyHostSecurity = typeof ProxyHostSecurity[keyof typeof ProxyHostSecurity];
 
 
@@ -926,247 +928,6 @@ export interface SubscriptionTemplates {
   xray?: number | null;
 }
 
-export type FinalMaskTcpType = typeof FinalMaskTcpType[keyof typeof FinalMaskTcpType];
-
-
-export const FinalMaskTcpType = {
-  'header-custom': 'header-custom',
-  fragment: 'fragment',
-  sudoku: 'sudoku',
-  xmc: 'xmc',
-} as const;
-
-/**
- * Packet camouflage item used by FinalMask. Unlike Freedom noise, this has no apply_to.
- */
-export interface FinalMaskNoiseItem {
-  type?: string | null;
-  packet?: string | number[] | null;
-  delay?: string | number | null;
-  rand?: number | string | null;
-  randRange?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskTcpHeaderCustomSettings {
-  clients?: FinalMaskNoiseItem[][] | null;
-  servers?: FinalMaskNoiseItem[][] | null;
-  errors?: FinalMaskNoiseItem[][] | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskFragmentSettings {
-  packets?: string | null;
-  lengths?: (string | number)[] | null;
-  delays?: (string | number)[] | null;
-  maxSplit?: string | number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskSudokuSettings {
-  password?: string | null;
-  ascii?: string | null;
-  customTable?: string | null;
-  customTables?: string[] | null;
-  paddingMin?: number | null;
-  paddingMax?: number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXmcProfile {
-  username: string;
-  uuid: string;
-  texturesValue: string;
-  texturesSignature: string;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXmcSettings {
-  hostname?: string | null;
-  password?: string | null;
-  profiles?: FinalMaskXmcProfile[] | null;
-  usernames?: string[] | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskTcpLayerSettings = FinalMaskTcpHeaderCustomSettings | FinalMaskFragmentSettings | FinalMaskSudokuSettings | FinalMaskXmcSettings | { [key: string]: unknown };
-
-export interface FinalMaskTcpLayer {
-  type: FinalMaskTcpType;
-  settings?: FinalMaskTcpLayerSettings;
-  [key: string]: unknown;
- }
-
-export type FinalMaskUdpType = typeof FinalMaskUdpType[keyof typeof FinalMaskUdpType];
-
-
-export const FinalMaskUdpType = {
-  'header-custom': 'header-custom',
-  'mkcp-legacy': 'mkcp-legacy',
-  noise: 'noise',
-  salamander: 'salamander',
-  sudoku: 'sudoku',
-  xdns: 'xdns',
-  xicmp: 'xicmp',
-  realm: 'realm',
-  udphop: 'udphop',
-  'header-dns': 'header-dns',
-  'header-dtls': 'header-dtls',
-  'header-srtp': 'header-srtp',
-  'header-utp': 'header-utp',
-  'header-wechat': 'header-wechat',
-  'header-wireguard': 'header-wireguard',
-  'mkcp-original': 'mkcp-original',
-  'mkcp-aes128gcm': 'mkcp-aes128gcm',
-} as const;
-
-export interface FinalMaskUdpHeaderCustomSettings {
-  client?: FinalMaskNoiseItem[] | null;
-  server?: FinalMaskNoiseItem[] | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskPasswordSettings {
-  password?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskDomainSettings {
-  domain?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXdnsDomain {
-  names?: string[];
-  lenLimit?: number | null;
-  labelLimit?: number | null;
-  types?: number[] | null;
-  edns0?: number | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskXdnsResolverTlsConfig = { [key: string]: unknown } | null;
-
-export type FinalMaskXdnsResolverQuicConfig = { [key: string]: unknown } | null;
-
-export interface FinalMaskXdnsResolver {
-  addrs?: string[];
-  worker?: number | null;
-  tlsConfig?: FinalMaskXdnsResolverTlsConfig;
-  quicConfig?: FinalMaskXdnsResolverQuicConfig;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXdnsSettings {
-  domains?: FinalMaskXdnsDomain[] | null;
-  resolvers?: FinalMaskXdnsResolver[] | null;
-  extraPoll?: number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXicmpSettings {
-  dgram?: boolean | null;
-  ips?: string[] | null;
-  [key: string]: unknown;
- }
-
-/**
- * Packet item of the UDP noise mask. Unlike header-custom items, it also accepts exp, a packet template.
- */
-export interface FinalMaskNoiseMaskItem {
-  type?: string | null;
-  packet?: string | number[] | null;
-  delay?: string | number | null;
-  rand?: number | string | null;
-  randRange?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskNoiseSettings {
-  reset?: string | number | null;
-  noise?: FinalMaskNoiseMaskItem[] | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskSalamanderSettings {
-  password?: string | null;
-  packetSize?: unknown | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskRealmSettingsTlsConfig = { [key: string]: unknown } | null;
-
-export interface FinalMaskRealmSettings {
-  url?: string | null;
-  stunServers?: string[] | null;
-  tlsConfig?: FinalMaskRealmSettingsTlsConfig;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskUdpHopSettings {
-  /** @pattern ^(?i:intervalLocal|intervalRemote|perConnRemote)(,(?i:intervalLocal|intervalRemote|perConnRemote))*$ */
-  mode: string;
-  interval?: string | null;
-  remoteIPs?: string[] | null;
-  remotePorts?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskMkcpLegacySettings {
-  header?: string | null;
-  value?: string | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskUdpLayerSettings = FinalMaskUdpHeaderCustomSettings | FinalMaskPasswordSettings | FinalMaskSudokuSettings | FinalMaskDomainSettings | FinalMaskXdnsSettings | FinalMaskXicmpSettings | FinalMaskNoiseSettings | FinalMaskSalamanderSettings | FinalMaskRealmSettings | FinalMaskUdpHopSettings | FinalMaskMkcpLegacySettings | { [key: string]: unknown };
-
-export interface FinalMaskUdpLayer {
-  type: FinalMaskUdpType;
-  settings?: FinalMaskUdpLayerSettings;
-  [key: string]: unknown;
- }
-
-export type FinalMaskQuicCongestion = typeof FinalMaskQuicCongestion[keyof typeof FinalMaskQuicCongestion];
-
-
-export const FinalMaskQuicCongestion = {
-  reno: 'reno',
-  bbr: 'bbr',
-  brutal: 'brutal',
-  'force-brutal': 'force-brutal',
-} as const;
-
-export interface FinalMaskUdpHop {
-  ports?: string | null;
-  interval?: string | number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskQuicParams {
-  congestion?: FinalMaskQuicCongestion | null;
-  debug?: boolean | null;
-  bbrProfile?: string | null;
-  brutalUp?: string | number | null;
-  brutalDown?: string | number | null;
-  udpHop?: FinalMaskUdpHop | null;
-  initStreamReceiveWindow?: number | null;
-  maxStreamReceiveWindow?: number | null;
-  initConnectionReceiveWindow?: number | null;
-  maxConnectionReceiveWindow?: number | null;
-  maxIdleTimeout?: number | null;
-  keepAlivePeriod?: number | null;
-  disablePathMTUDiscovery?: boolean | null;
-  maxIncomingStreams?: number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMask {
-  tcp?: FinalMaskTcpLayer[] | null;
-  udp?: FinalMaskUdpLayer[] | null;
-  quicParams?: FinalMaskQuicParams | null;
-  [key: string]: unknown;
- }
-
 export interface BaseHost {
   id?: number | null;
   remark: string;
@@ -1196,7 +957,7 @@ export interface BaseHost {
   verify_peer_cert_by_name?: string[] | null;
   wireguard_overrides?: WireGuardHostOverrides | null;
   subscription_templates?: SubscriptionTemplates | null;
-  final_mask_settings?: FinalMask | null;
+  final_mask_settings?: BaseHostFinalMaskSettings;
   cipher_suites?: string | null;
 }
 
@@ -1541,6 +1302,252 @@ export interface MuxSettingsInput {
   clash?: ClashMuxSettings | null;
   xray?: XrayMuxSettingsInput | null;
 }
+
+export type FinalMaskTcpType = typeof FinalMaskTcpType[keyof typeof FinalMaskTcpType];
+
+
+export const FinalMaskTcpType = {
+  'header-custom': 'header-custom',
+  fragment: 'fragment',
+  sudoku: 'sudoku',
+  xmc: 'xmc',
+} as const;
+
+export interface FinalMaskTcpHeaderCustomItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  rand?: number | null;
+  randRange?: string | null;
+  delay?: number | string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskTcpHeaderCustomSettings {
+  clients?: FinalMaskTcpHeaderCustomItem[][] | null;
+  servers?: FinalMaskTcpHeaderCustomItem[][] | null;
+  errors?: FinalMaskTcpHeaderCustomItem[][] | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskFragmentSettings {
+  packets?: string | null;
+  lengths?: (string | number)[] | null;
+  delays?: (string | number)[] | null;
+  maxSplit?: string | number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskSudokuSettings {
+  password?: string | null;
+  ascii?: string | null;
+  customTable?: string | null;
+  customTables?: string[] | null;
+  paddingMin?: number | null;
+  paddingMax?: number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXmcProfile {
+  username: string;
+  uuid: string;
+  texturesValue: string;
+  texturesSignature: string;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXmcSettings {
+  hostname?: string | null;
+  password?: string | null;
+  profiles?: FinalMaskXmcProfile[] | null;
+  usernames?: string[] | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskTcpLayerSettings = FinalMaskTcpHeaderCustomSettings | FinalMaskFragmentSettings | FinalMaskSudokuSettings | FinalMaskXmcSettings | { [key: string]: unknown };
+
+export interface FinalMaskTcpLayer {
+  type: FinalMaskTcpType;
+  settings?: FinalMaskTcpLayerSettings;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskUdpType = typeof FinalMaskUdpType[keyof typeof FinalMaskUdpType];
+
+
+export const FinalMaskUdpType = {
+  'header-custom': 'header-custom',
+  'mkcp-legacy': 'mkcp-legacy',
+  noise: 'noise',
+  salamander: 'salamander',
+  sudoku: 'sudoku',
+  xdns: 'xdns',
+  xicmp: 'xicmp',
+  realm: 'realm',
+  udphop: 'udphop',
+  'header-dns': 'header-dns',
+  'header-dtls': 'header-dtls',
+  'header-srtp': 'header-srtp',
+  'header-utp': 'header-utp',
+  'header-wechat': 'header-wechat',
+  'header-wireguard': 'header-wireguard',
+  'mkcp-original': 'mkcp-original',
+  'mkcp-aes128gcm': 'mkcp-aes128gcm',
+} as const;
+
+export interface FinalMaskUdpHeaderCustomItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  rand?: number | null;
+  randRange?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskUdpHeaderCustomSettings {
+  client?: FinalMaskUdpHeaderCustomItem[] | null;
+  server?: FinalMaskUdpHeaderCustomItem[] | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskPasswordSettings {
+  password?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskDomainSettings {
+  domain?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXdnsDomain {
+  names?: string[];
+  lenLimit?: number | null;
+  labelLimit?: number | null;
+  types?: number[] | null;
+  edns0?: number | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskXdnsResolverTlsConfig = { [key: string]: unknown } | null;
+
+export type FinalMaskXdnsResolverQuicConfig = { [key: string]: unknown } | null;
+
+export interface FinalMaskXdnsResolver {
+  addrs?: string[];
+  worker?: number | null;
+  tlsConfig?: FinalMaskXdnsResolverTlsConfig;
+  quicConfig?: FinalMaskXdnsResolverQuicConfig;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXdnsSettings {
+  domains?: FinalMaskXdnsDomain[] | null;
+  resolvers?: FinalMaskXdnsResolver[] | null;
+  extraPoll?: number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXicmpSettings {
+  dgram?: boolean | null;
+  ips?: string[] | null;
+  [key: string]: unknown;
+ }
+
+/**
+ * Packet item of the UDP noise mask. Unlike header-custom items, it also accepts exp, a packet template.
+ */
+export interface FinalMaskNoiseMaskItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  delay?: string | number | null;
+  rand?: number | string | null;
+  randRange?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskNoiseSettings {
+  reset?: string | number | null;
+  noise?: FinalMaskNoiseMaskItem[] | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskSalamanderSettings {
+  password?: string | null;
+  packetSize?: unknown | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskRealmSettingsTlsConfig = { [key: string]: unknown } | null;
+
+export interface FinalMaskRealmSettings {
+  url?: string | null;
+  stunServers?: string[] | null;
+  tlsConfig?: FinalMaskRealmSettingsTlsConfig;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskUdpHopSettings {
+  /** @pattern ^(?i:intervalLocal|intervalRemote|perConnRemote)(,(?i:intervalLocal|intervalRemote|perConnRemote))*$ */
+  mode: string;
+  interval?: string | null;
+  remoteIPs?: string[] | null;
+  remotePorts?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskMkcpLegacySettings {
+  header?: string | null;
+  value?: string | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskUdpLayerSettings = FinalMaskUdpHeaderCustomSettings | FinalMaskPasswordSettings | FinalMaskSudokuSettings | FinalMaskDomainSettings | FinalMaskXdnsSettings | FinalMaskXicmpSettings | FinalMaskNoiseSettings | FinalMaskSalamanderSettings | FinalMaskRealmSettings | FinalMaskUdpHopSettings | FinalMaskMkcpLegacySettings | { [key: string]: unknown };
+
+export interface FinalMaskUdpLayer {
+  type: FinalMaskUdpType;
+  settings?: FinalMaskUdpLayerSettings;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskQuicCongestion = typeof FinalMaskQuicCongestion[keyof typeof FinalMaskQuicCongestion];
+
+
+export const FinalMaskQuicCongestion = {
+  reno: 'reno',
+  bbr: 'bbr',
+  brutal: 'brutal',
+  'force-brutal': 'force-brutal',
+} as const;
+
+export interface FinalMaskUdpHop {
+  ports?: string | null;
+  interval?: string | number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskQuicParams {
+  congestion?: FinalMaskQuicCongestion | null;
+  debug?: boolean | null;
+  bbrProfile?: string | null;
+  brutalUp?: string | number | null;
+  brutalDown?: string | number | null;
+  udpHop?: FinalMaskUdpHop | null;
+  initStreamReceiveWindow?: number | null;
+  maxStreamReceiveWindow?: number | null;
+  initConnectionReceiveWindow?: number | null;
+  maxConnectionReceiveWindow?: number | null;
+  maxIdleTimeout?: number | null;
+  keepAlivePeriod?: number | null;
+  disablePathMTUDiscovery?: boolean | null;
+  maxIncomingStreams?: number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMask {
+  tcp?: FinalMaskTcpLayer[] | null;
+  udp?: FinalMaskUdpLayer[] | null;
+  quicParams?: FinalMaskQuicParams | null;
+  [key: string]: unknown;
+ }
 
 export interface CreateHost {
   id?: number | null;
