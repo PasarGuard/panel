@@ -262,8 +262,7 @@ class NodeOperation(BaseOperation):
         if not core_ids:
             return {}, {}
 
-        resolved_cores = await core_manager.get_cores(core_ids | {1})
-        default_core = resolved_cores.get(1)
+        resolved_cores = await core_manager.get_cores(core_ids, db=db)
         cores_by_id: dict[int, object | None] = {}
         users_by_core: dict[int, CoreUsers] = {}
         loaded_users: dict[int, list] = {}
@@ -271,6 +270,8 @@ class NodeOperation(BaseOperation):
 
         def user_loader(core_id, core):
             async def load():
+                if core is None:
+                    raise NodeAPIError(409, f"Core config {core_id} is missing or invalid")
                 # Bulk connects share one session. Serialize first reads and reuse
                 # the same snapshot for nodes that actually need a Start RPC.
                 async with load_lock:
@@ -283,12 +284,8 @@ class NodeOperation(BaseOperation):
             return load
 
         for core_id in core_ids:
-            core = resolved_cores.get(core_id) or default_core
+            core = resolved_cores.get(core_id)
             cores_by_id[core_id] = core
-            if core is None:
-                users_by_core[core_id] = []
-                continue
-
             load = user_loader(core_id, core)
             users_by_core[core_id] = load if lazy else await load()
 
@@ -467,7 +464,15 @@ class NodeOperation(BaseOperation):
         if pg_node is None:
             return None
         if core is None:
-            return None
+            core_id = db_node.core_config_id or 1
+            return {
+                "node_id": db_node.id,
+                "status": NodeStatus.error,
+                "message": f"Core config {core_id} is missing or invalid",
+                "xray_version": "",
+                "node_version": "",
+                "old_status": db_node.status,
+            }
 
         old_status = db_node.status
         if not force_start:

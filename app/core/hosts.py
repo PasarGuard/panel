@@ -551,7 +551,8 @@ class HostManager:
     # v3: the inbound finalmask no longer carries server-only "filter" layers ("state_v2" is taken by PR #1020).
     # v4: a disabled, deleted or unserved xHTTP download host is no longer embedded in its parent.
     # v5: a disabled xHTTP download host can still supply settings to its parent.
-    STATE_CACHE_KEY = "state_v5"
+    # v6: preserve inbound TLS defaults, including ALPN, in prepared subscriptions.
+    STATE_CACHE_KEY = "state_v6"
     KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):
