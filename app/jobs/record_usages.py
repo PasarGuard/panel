@@ -1,23 +1,25 @@
 import asyncio
+import math
 import random
 import time
 from collections import defaultdict
 from datetime import UTC, datetime as dt, timedelta as td
-from operator import attrgetter
+from weakref import WeakKeyDictionary
 
 from PasarGuardNodeBridge import NodeAPIError, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import StatType
-from sqlalchemy import BigInteger, DateTime, and_, bindparam, case, func, insert, or_, select, union_all, update
-from sqlalchemy.dialects.mysql import insert as mysql_insert
-from sqlalchemy.dialects.postgresql import ARRAY, insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import DatabaseError, DataError, IntegrityError, OperationalError
-from sqlalchemy.sql.expression import Insert
 
 from app import on_shutdown, scheduler
 from app.db import GetDB
 from app.db.base import engine
-from app.db.models import Admin, Node, NodeUsage, NodeUserUsage, System, User
+from app.jobs._usage_queries import (
+    build_node_usage_upsert,
+    build_node_user_usage_upsert,
+    build_online_at_updates,
+    build_user_traffic_update,
+)
+from app.jobs._usage_storage import Receipt, StaleUsageCollection, UsageStore
 from app.node import node_manager
 from app.operation.admin_sync import enforce_admin_limits_now
 from app.utils.logger import get_logger
@@ -25,20 +27,16 @@ from config import job_settings, runtime_settings, usage_settings
 
 logger = get_logger("record-usages")
 
-# Hard-limit concurrency: Prevent DB lock storms
-# Start with 2-4, adjust based on DB performance
-JOB_SEM = asyncio.Semaphore(3)  # Max 3 concurrent DB write operations
+# SQLite has one writer; server databases allow a small bounded write pool.
+_write_gates = WeakKeyDictionary()
 API_SEM = asyncio.Semaphore(10)  # Max 10 concurrent node stats RPCs
+# Unreachable cores must not occupy the healthy nodes' collection slots.
+RECOVERY_API_SEM = asyncio.Semaphore(2)
 USAGE_COEFFICIENT_TTL_S = 60.0
 NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT = {
     "mysql": 1_000,
     "sqlite": 400,
 }
-USER_TRAFFIC_UPDATE_BATCH_SIZE_BY_DIALECT = {
-    "mysql": 500,
-    "sqlite": 400,
-}
-USER_ADMIN_LOOKUP_BATCH_SIZE = 1_000
 _pending_user_usage_history: defaultdict[tuple[dt, int, int], int] = defaultdict(int)
 _user_usage_history_lock = asyncio.Lock()
 _user_usage_history_last_flush: float | None = None
@@ -78,315 +76,6 @@ async def get_dialect() -> str:
 _dialect_cache: list[str] = []
 
 
-def build_node_user_usage_upsert(dialect: str, upsert_params: list[dict]):
-    """
-    Build UPSERT statement for NodeUserUsage based on database dialect.
-
-    Args:
-        dialect: Database dialect name ('postgresql', 'mysql', or 'sqlite')
-        upsert_params: List of parameter dicts with keys: uid, node_id, created_at, value
-
-    Returns:
-        list: One SQL statement and its bound parameters.
-    """
-    if dialect == "postgresql":
-        source = (
-            func.unnest(
-                bindparam("uids", type_=ARRAY(BigInteger())),
-                bindparam("node_ids", type_=ARRAY(BigInteger())),
-                bindparam("created_ats", type_=ARRAY(DateTime(timezone=True))),
-                bindparam("traffic_values", type_=ARRAY(BigInteger())),
-            )
-            .table_valued("uid", "node_id", "created_at", "value")
-            .render_derived(name="source")
-        )
-
-        select_stmt = (
-            select(
-                source.c.created_at,
-                source.c.uid,
-                source.c.node_id,
-                func.sum(source.c.value).label("used_traffic"),
-            )
-            .select_from(source.join(User, User.id == source.c.uid).join(Node, Node.id == source.c.node_id))
-            .group_by(source.c.created_at, source.c.uid, source.c.node_id)
-        )
-
-        stmt = pg_insert(NodeUserUsage).from_select(
-            ["created_at", "user_id", "node_id", "used_traffic"],
-            select_stmt,
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["created_at", "user_id", "node_id"],
-            set_={"used_traffic": NodeUserUsage.used_traffic + stmt.excluded.used_traffic},
-        )
-        return [
-            (
-                stmt,
-                {
-                    "uids": [param["uid"] for param in upsert_params],
-                    "node_ids": [param["node_id"] for param in upsert_params],
-                    "created_ats": [param["created_at"] for param in upsert_params],
-                    "traffic_values": [param["value"] for param in upsert_params],
-                },
-            )
-        ]
-
-    if dialect == "mysql":
-        # One statement that asyncmy sends as a multi-row VALUES list; building a UNION of
-        # one SELECT per row cost more CPU than the write itself. IGNORE turns the foreign key
-        # error of a user or node deleted since the stats were read into a warning and skips
-        # that row, as the users and nodes join does on the other dialects.
-        stmt = (
-            mysql_insert(NodeUserUsage)
-            .values(
-                created_at=bindparam("created_at"),
-                user_id=bindparam("uid"),
-                node_id=bindparam("node_id"),
-                used_traffic=bindparam("value"),
-            )
-            .prefix_with("IGNORE")
-        )
-        stmt = stmt.on_duplicate_key_update(used_traffic=NodeUserUsage.used_traffic + stmt.inserted.used_traffic)
-        return [(stmt, upsert_params)]
-
-    select_parts = []
-    stmt_params = {}
-    for index, param in enumerate(upsert_params):
-        uid_key = f"uid_{index}"
-        node_id_key = f"node_id_{index}"
-        created_at_key = f"created_at_{index}"
-        value_key = f"value_{index}"
-        select_parts.append(
-            select(
-                bindparam(uid_key).label("uid"),
-                bindparam(node_id_key).label("node_id"),
-                bindparam(created_at_key).label("created_at"),
-                bindparam(value_key).label("value"),
-            )
-        )
-        stmt_params[uid_key] = param["uid"]
-        stmt_params[node_id_key] = param["node_id"]
-        stmt_params[created_at_key] = param["created_at"]
-        stmt_params[value_key] = param["value"]
-
-    source = union_all(*select_parts).subquery("source")
-    select_stmt = (
-        select(
-            source.c.created_at,
-            source.c.uid,
-            source.c.node_id,
-            func.sum(source.c.value).label("used_traffic"),
-        )
-        .select_from(source.join(User, User.id == source.c.uid).join(Node, Node.id == source.c.node_id))
-        .group_by(source.c.created_at, source.c.uid, source.c.node_id)
-    )
-
-    stmt = sqlite_insert(NodeUserUsage).from_select(
-        ["created_at", "user_id", "node_id", "used_traffic"],
-        select_stmt,
-    )
-    stmt = stmt.on_conflict_do_update(
-        index_elements=["created_at", "user_id", "node_id"],
-        set_={"used_traffic": NodeUserUsage.used_traffic + stmt.excluded.used_traffic},
-    )
-    return [(stmt, stmt_params)]
-
-
-def build_user_traffic_update(dialect: str, usage_params: list[dict]):
-    """Build a set-based user traffic update on PostgreSQL and MySQL, an executemany one on SQLite."""
-    if dialect in ("postgresql", "mysql"):
-        aggregated_usage = defaultdict(int)
-        for param in usage_params:
-            aggregated_usage[param["uid"]] += param["value"]
-
-        aggregated_usage = dict(sorted(aggregated_usage.items()))
-
-    if dialect == "mysql":
-        # asyncmy runs an executemany UPDATE as one round trip per row, so add the
-        # deltas of the whole batch in one statement with a CASE on the primary key
-        stmt = (
-            update(User)
-            .where(User.id.in_(list(aggregated_usage)))
-            .values(used_traffic=User.used_traffic + case(aggregated_usage, value=User.id))
-            .execution_options(synchronize_session=False)
-        )
-        return stmt, None
-
-    if dialect == "postgresql":
-        source = (
-            func.unnest(
-                bindparam("uids", type_=ARRAY(BigInteger())),
-                bindparam("traffic_values", type_=ARRAY(BigInteger())),
-            )
-            .table_valued("uid", "value")
-            .render_derived(name="usage_source")
-        )
-        stmt = (
-            update(User)
-            .where(User.id == source.c.uid)
-            .values(used_traffic=User.used_traffic + source.c.value)
-            .execution_options(synchronize_session=False)
-        )
-        return (
-            stmt,
-            {
-                "uids": list(aggregated_usage),
-                "traffic_values": list(aggregated_usage.values()),
-            },
-        )
-
-    stmt = (
-        update(User)
-        .where(User.id == bindparam("uid"))
-        .values(used_traffic=User.used_traffic + bindparam("value"))
-        .execution_options(synchronize_session=False)
-    )
-    return stmt, usage_params
-
-
-def build_online_at_updates(dialect: str, user_ids: list[int], now: dt):
-    """Build throttled online timestamp updates without per-user statements."""
-    if not user_ids:
-        return []
-
-    cutoff = now - ONLINE_AT_WRITE_INTERVAL
-    stale_online_at = or_(User.online_at.is_(None), User.online_at <= cutoff)
-
-    if dialect == "postgresql":
-        source = (
-            func.unnest(bindparam("online_user_ids", type_=ARRAY(BigInteger())))
-            .table_valued("uid")
-            .render_derived(name="online_users")
-        )
-        stmt = (
-            update(User)
-            .where(User.id == source.c.uid, stale_online_at)
-            .values(online_at=now)
-            .execution_options(synchronize_session=False)
-        )
-        return [(stmt, {"online_user_ids": user_ids})]
-
-    batch_size = NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT.get(dialect, len(user_ids))
-    return [
-        (
-            update(User)
-            .where(User.id.in_(batch), stale_online_at)
-            .values(online_at=now)
-            .execution_options(synchronize_session=False),
-            None,
-        )
-        for batch in _chunked(user_ids, batch_size)
-    ]
-
-
-async def update_users_traffic(usage_params: list[dict]) -> None:
-    if not usage_params:
-        return
-
-    dialect = await get_dialect()
-    ordered_params = sorted(usage_params, key=lambda item: int(item["uid"]))
-    async with JOB_SEM:
-        if dialect == "postgresql":
-            await safe_execute(*build_user_traffic_update(dialect, ordered_params))
-            return
-
-        batch_size = USER_TRAFFIC_UPDATE_BATCH_SIZE_BY_DIALECT.get(dialect, len(ordered_params))
-        for batch in _chunked(ordered_params, batch_size):
-            await safe_execute(*build_user_traffic_update(dialect, batch))
-
-
-async def touch_users_online_at(user_ids: list[int], now: dt | None = None) -> None:
-    if not user_ids:
-        return
-
-    now = now or dt.now(UTC)
-    dialect = await get_dialect()
-    user_ids = sorted(set(user_ids))
-    async with JOB_SEM:
-        for stmt, params in build_online_at_updates(dialect, user_ids, now):
-            await safe_execute(stmt, params)
-
-
-def build_node_usage_upsert(dialect: str, upsert_param: dict):
-    """
-    Build UPSERT statement for NodeUsage based on database dialect.
-
-    Args:
-        dialect: Database dialect name ('postgresql', 'mysql', or 'sqlite')
-        upsert_param: Parameter dict with keys: node_id, created_at, up, down
-
-    Returns:
-        tuple: (statements_list, params_list) - For SQLite returns 2 statements, others return 1
-    """
-    if dialect == "postgresql":
-        stmt = pg_insert(NodeUsage).values(
-            node_id=bindparam("node_id"),
-            created_at=bindparam("created_at"),
-            uplink=bindparam("up"),
-            downlink=bindparam("down"),
-        )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["created_at", "node_id"],
-            set_={
-                "uplink": NodeUsage.uplink + bindparam("up"),
-                "downlink": NodeUsage.downlink + bindparam("down"),
-            },
-        )
-        return [(stmt, [upsert_param])]
-
-    elif dialect == "mysql":
-        stmt = mysql_insert(NodeUsage).values(
-            node_id=bindparam("node_id"),
-            created_at=bindparam("created_at"),
-            uplink=bindparam("up"),
-            downlink=bindparam("down"),
-        )
-        stmt = stmt.on_duplicate_key_update(
-            uplink=NodeUsage.uplink + stmt.inserted.uplink,
-            downlink=NodeUsage.downlink + stmt.inserted.downlink,
-        )
-        return [(stmt, [upsert_param])]
-
-    else:  # SQLite
-        # Insert with OR IGNORE
-        insert_stmt = (
-            insert(NodeUsage)
-            .values(
-                node_id=bindparam("node_id"),
-                created_at=bindparam("created_at"),
-                uplink=0,
-                downlink=0,
-            )
-            .prefix_with("OR IGNORE")
-        )
-
-        # Update with renamed bindparams to avoid conflicts
-        update_stmt = (
-            update(NodeUsage)
-            .values(
-                uplink=NodeUsage.uplink + bindparam("up"),
-                downlink=NodeUsage.downlink + bindparam("down"),
-            )
-            .where(
-                and_(
-                    NodeUsage.node_id == bindparam("b_node_id"),
-                    NodeUsage.created_at == bindparam("b_created_at"),
-                )
-            )
-        )
-
-        # Remap params for update statement
-        update_param = {
-            "up": upsert_param["up"],
-            "down": upsert_param["down"],
-            "b_node_id": upsert_param["node_id"],
-            "b_created_at": upsert_param["created_at"],
-        }
-
-        return [(insert_stmt, [upsert_param]), (update_stmt, [update_param])]
-
-
 def _mysql_errno(err) -> int | None:
     orig = getattr(err, "orig", err)
     args = getattr(orig, "args", None)
@@ -400,76 +89,71 @@ def _is_retriable_db_error(err) -> bool:
     if errno in (1213, 1205):
         return True
     orig = getattr(err, "orig", err)
-    if getattr(orig, "code", None) == "40P01":
+    if (getattr(orig, "sqlstate", None) or getattr(orig, "code", None)) in ("40P01", "40001"):
         return True
     message = str(err).lower()
     return "deadlock" in message or "lock wait timeout" in message or "database is locked" in message
 
 
-async def safe_execute(stmt, params=None, max_retries: int = DEADLOCK_MAX_RETRIES):
-    """
-    Safely execute database operations with deadlock and connection handling.
-    Creates a fresh DB session for each retry attempt to release locks.
-
-    Args:
-        stmt: SQLAlchemy statement to execute
-        params (list[dict], optional): Parameters for the statement
-        max_retries (int, optional): Maximum number of attempts including the first
-    """
-    statement = stmt
-
-    # Get dialect once before retry loop to avoid repeated DB calls
+async def _transaction(operation, max_retries: int = DEADLOCK_MAX_RETRIES):
+    """Retry the entire unit of work, never individual accounting statements."""
     dialect = await get_dialect()
-    if (
-        dialect == "mysql"
-        and isinstance(stmt, Insert)
-        and (not hasattr(stmt, "_post_values_clause") or stmt._post_values_clause is None)
-    ):
-        # MySQL-specific IGNORE prefix - but skip if using ON DUPLICATE KEY UPDATE
-        statement = stmt.prefix_with("IGNORE")
-
     connectable = engine
     if dialect == "mysql" and hasattr(engine, "execution_options"):
-        # READ COMMITTED avoids gap/next-key locks that amplify MySQL deadlocks
-        # during concurrent usage updates and upserts.
         connectable = engine.execution_options(isolation_level="READ COMMITTED")
-
+    gate = _write_gates.setdefault(engine, asyncio.Semaphore(1 if dialect == "sqlite" else 3))
     for attempt in range(max_retries):
         try:
-            # engine.begin() ensures commit/rollback + connection return on exit
-            async with connectable.begin() as conn:
-                if params is None:
-                    await conn.execute(statement)
-                else:
-                    await conn.execute(statement, params)
-                return
+            async with gate, connectable.begin() as conn:
+                return await operation(conn)
+        except (OperationalError, DatabaseError) as exc:
+            if not _is_retriable_db_error(exc) or attempt == max_retries - 1:
+                raise
+            delay = min(0.1 * 2**attempt, 2.0)
+            logger.warning("Retrying usage transaction (%s/%s)", attempt + 1, max_retries)
+            await asyncio.sleep(delay + random.uniform(0, delay / 2))
 
-        except (OperationalError, DatabaseError) as err:
-            # Session auto-closed by context manager, locks released
-            mysql_errno = _mysql_errno(err)
-            is_sqlite_locked = "database is locked" in str(err).lower()
 
-            if attempt < max_retries - 1 and _is_retriable_db_error(err):
-                if is_sqlite_locked and attempt > 0:
-                    # When SQLite is overloaded, extra retries become a self-DDOS
-                    logger.warning("SQLite lock persisted after retry; dropping operation to prevent retry storm")
-                    raise
+async def safe_execute(stmt, params=None, max_retries: int = DEADLOCK_MAX_RETRIES):
+    async def execute(conn):
+        if params is None:
+            await conn.execute(stmt)
+        else:
+            await conn.execute(stmt, params)
 
-                # Exponential backoff with jitter. Lock-wait timeouts get a longer base delay.
-                base_delay = 0.2 * (2**attempt) if mysql_errno == 1205 else 0.1 * (2**attempt)
-                jitter = random.uniform(0, base_delay * 0.5)
-                logger.warning(
-                    "Retrying usage write after %s (attempt %s/%s)",
-                    f"MySQL {mysql_errno}" if mysql_errno else err.__class__.__name__,
-                    attempt + 1,
-                    max_retries,
-                )
-                await asyncio.sleep(base_delay + jitter)
-                continue
+    await _transaction(execute, max_retries)
 
-            if attempt >= max_retries - 1 and _is_retriable_db_error(err):
-                logger.error("Usage write failed after %s attempts: %s", max_retries, err)
-            raise
+
+async def update_users_traffic(usage_params: list[dict]) -> None:
+    """Apply prepared user deltas with whole-transaction retries and bounded batches."""
+    if not usage_params:
+        return
+    dialect = await get_dialect()
+    ordered = sorted(usage_params, key=lambda item: int(item["uid"]))
+    batch_size = {"mysql": 1_000, "sqlite": 400}.get(dialect, len(ordered))
+
+    async def execute(conn):
+        for batch in _chunked(ordered, batch_size):
+            stmt, params = build_user_traffic_update(dialect, batch)
+            await conn.execute(stmt, params)
+
+    await _transaction(execute)
+
+
+async def touch_users_online_at(user_ids: list[int], now: dt | None = None) -> None:
+    if not user_ids:
+        return
+    dialect = await get_dialect()
+    queries = build_online_at_updates(dialect, sorted(set(user_ids)), now or dt.now(UTC))
+
+    async def execute(conn):
+        for stmt, params in queries:
+            if params is None:
+                await conn.execute(stmt)
+            else:
+                await conn.execute(stmt, params)
+
+    await _transaction(execute)
 
 
 def _get_time_bucket(now: dt | None = None) -> dt:
@@ -536,20 +220,19 @@ async def _write_node_user_usage_params(dialect: str, upsert_params: list[dict])
         )
 
     # Execute batched UPSERTs with concurrency control
-    async with JOB_SEM:
-        for batch in batches:
-            queries = build_node_user_usage_upsert(dialect, batch)
-            try:
-                for stmt, stmt_params in queries:
-                    await safe_execute(stmt, stmt_params)
-            except (DataError, IntegrityError) as err:
-                # The same rows would be rejected again on every retry and block all later history writes
-                logger.error(
-                    "Dropped %s node user usage history rows (%s bytes) rejected by the database: %s",
-                    len(batch),
-                    sum(param["value"] for param in batch),
-                    getattr(err, "orig", err),
-                )
+    for batch in batches:
+        queries = build_node_user_usage_upsert(dialect, batch)
+        try:
+            for stmt, stmt_params in queries:
+                await safe_execute(stmt, stmt_params)
+        except (DataError, IntegrityError) as err:
+            # The same rows would be rejected again on every retry and block all later history writes
+            logger.error(
+                "Dropped %s node user usage history rows (%s bytes) rejected by the database: %s",
+                len(batch),
+                sum(param["value"] for param in batch),
+                getattr(err, "orig", err),
+            )
 
 
 async def record_user_stats_batched(all_node_params: dict, usage_coefficients: dict):
@@ -717,10 +400,13 @@ async def record_node_stats_batched(all_node_params: dict):
         }
 
         # Execute with concurrency control
-        async with JOB_SEM:
-            queries = build_node_usage_upsert(dialect, upsert_param)
+        queries = build_node_usage_upsert(dialect, upsert_param)
+
+        async def execute(conn):
             for stmt, stmt_params in queries:
-                await safe_execute(stmt, stmt_params)
+                await conn.execute(stmt, stmt_params)
+
+        await _transaction(execute)
 
     # Execute all node stats with limited concurrency
     tasks = [_record_single_node(node_id, params) for node_id, params in all_node_params.items()]
@@ -732,20 +418,20 @@ async def record_node_stats_batched(all_node_params: dict):
 
 
 def _process_users_stats_response(stats_response):
-    """
-    Process stats response (CPU-bound operation) - runs in thread pool.
-    Pure function designed for thread-safe execution.
-    Returns tuple: (validated_params, invalid_uids) for logging outside thread.
-    """
+    """Fold positive user counters and report invalid IDs without discarding valid rows."""
     params = defaultdict(int)
-    for stat in filter(attrgetter("value"), stats_response.stats):
-        params[stat.name] += stat.value
+    for stat in stats_response.stats:
+        if stat.value > 0:
+            params[stat.name] += stat.value
 
     validated_params = []
     invalid_uids = []
     for uid, value in params.items():
         try:
-            validated_params.append({"uid": int(uid), "value": value})
+            user_id = int(uid)
+            if not 0 < user_id <= 2**63 - 1:
+                raise ValueError("UID outside database range")
+            validated_params.append({"uid": user_id, "value": value})
         except ValueError, TypeError:
             invalid_uids.append(uid)
 
@@ -760,12 +446,13 @@ def _usage_job_hint(interval_env: str, interval: int) -> str:
 
 
 async def _await_usage_job(job_name: str, impl, interval: int, interval_env: str) -> None:
-    # No global wait_for kill: get_stats uses reset=True, so cancelling mid-run drops traffic.
+    # Let independent stream tasks finish their durable transaction on cancellation.
     start = time.monotonic()
     try:
         await impl()
     except asyncio.CancelledError:
         logger.warning("%s was cancelled", job_name)
+        raise
     elapsed = time.monotonic() - start
     if interval > 0 and elapsed > interval:
         logger.warning(
@@ -786,67 +473,89 @@ async def _node_usage_coefficient(node: PasarGuardNode, node_id: int) -> float:
         extra = await node.get_extra()
         raw_coeff = extra.get("usage_coefficient") if extra else None
         coeff = float(raw_coeff) if raw_coeff is not None else 1.0
+        if not math.isfinite(coeff) or coeff < 0:
+            raise ValueError("Invalid usage coefficient")
     except Exception as exc:
         logger.warning("Failed to get extra data for node %s: %s", node_id, exc)
-        coeff = cached[0] if cached is not None else 1.0
+        if cached is None:
+            raise
+        coeff = cached[0]
     _usage_coefficient_cache[node_id] = (coeff, now + USAGE_COEFFICIENT_TTL_S)
     return coeff
 
 
 async def _collect_node_user_usage(node: PasarGuardNode, node_id: int) -> tuple[int, float, list]:
-    """Fetch coefficient and user stats under one RPC slot so extra+stats overlap."""
-    async with API_SEM:
-        coeff_result, stats_result = await asyncio.gather(
-            _node_usage_coefficient(node, node_id),
-            get_users_stats(node, node_id),
-            return_exceptions=True,
-        )
-    if isinstance(coeff_result, Exception):
-        logger.warning("Failed to get extra data for node %s: %s", node_id, coeff_result)
-        coeff = 1.0
-    else:
-        coeff = coeff_result
-    if isinstance(stats_result, Exception):
-        logger.warning("Failed to get stats for node %s: %s", node_id, stats_result)
-        stats: list = []
-    else:
-        stats = stats_result
+    # Resolve accounting metadata before collecting a node-owned receipt.
+    coeff = await _node_usage_coefficient(node, node_id)
+    stats = [] if _stopping else await get_users_stats(node, node_id)
     return node_id, coeff, stats
 
 
-async def _bounded_node_rpc(coro):
-    async with API_SEM:
-        return await coro
+class CollectedUsage(list):
+    """Folded stats retaining transport identity without changing the list API."""
+
+    def __init__(self, stats, sample):
+        super().__init__(stats)
+        self.receipt_id = sample.receipt_id
+        self.collected_at = dt.fromtimestamp(sample.collected_at / 1000, UTC)
+
+
+async def _collect_receipt(node, stat_type, timeout):
+    collect = getattr(node, "collect_usage", None)
+    acknowledge = getattr(node, "acknowledge_usage", None)
+    if not callable(collect) or not callable(acknowledge):
+        raise TypeError("Upgrade Node Bridge and node: durable usage receipt protocol is required")
+    sample = await collect(stat_type=stat_type, timeout=timeout)
+    if sample is None or (sample.stats and not sample.receipt_id):
+        raise ValueError("Node returned usage without a durable receipt")
+    return sample
+
+
+def validate_usage_bridge():
+    """Reject an incompatible installed Bridge before node startup begins."""
+    from PasarGuardNodeBridge import GrpcNode, RestNode
+
+    for client in (GrpcNode, RestNode):
+        for method in ("collect_usage", "acknowledge_usage"):
+            implementation = getattr(client, method, None)
+            if not callable(implementation) or implementation is getattr(PasarGuardNode, method, None):
+                raise RuntimeError(
+                    "Upgrade pasarguard-node-bridge before starting this panel: "
+                    f"{client.__module__}.{client.__name__} has no durable usage {method} implementation"
+                )
 
 
 async def get_users_stats(node: PasarGuardNode, node_id: int | None = None):
     """Fetch and fold user stats from one node. Dict folding stays on the event loop."""
     node_label = node_id if node_id is not None else getattr(node, "node_id", "unknown")
     try:
-        # Caller holds API_SEM so extra+stats can share one slot without deadlock.
-        stats_response = await node.get_stats(stat_type=StatType.UsersStat, reset=True, timeout=30)
+        stats_response = await _collect_receipt(node, StatType.UsersStat, 30)
         validated_params, invalid_uids = _process_users_stats_response(stats_response)
 
         if invalid_uids:
             for uid in invalid_uids:
                 logger.warning("Skipping invalid UID: %s", uid)
 
-        return validated_params
+        return CollectedUsage(validated_params, stats_response)
     except NodeAPIError as e:
         logger.error("Failed to get users stats from node %s, error: %s", node_label, e.detail)
-        return []
+        raise
     except Exception as e:
         logger.error("Failed to get users stats from node %s, unknown error: %s", node_label, e)
-        return []
+        raise
 
 
 def _process_outbounds_stats_response(stats_response):
-    """Fold outbound uplink/downlink stats into per-row params."""
-    params = [
-        {"up": stat.value, "down": 0} if stat.type == "uplink" else {"up": 0, "down": stat.value}
-        for stat in filter(attrgetter("value"), stats_response.stats)
-    ]
-    return params
+    """Ignore malformed directions and negative counters, never subtract traffic."""
+    up = down = 0
+    for stat in stats_response.stats:
+        if stat.value <= 0:
+            continue
+        if stat.type == "uplink":
+            up += stat.value
+        elif stat.type == "downlink":
+            down += stat.value
+    return [{"up": up, "down": down}] if up or down else []
 
 
 async def get_outbounds_stats(node: PasarGuardNode, node_id: int | None = None):
@@ -854,184 +563,195 @@ async def get_outbounds_stats(node: PasarGuardNode, node_id: int | None = None):
     node_label = node_id if node_id is not None else getattr(node, "node_id", "unknown")
     try:
         # Caller holds API_SEM so node RPCs stay bounded.
-        stats_response = await node.get_stats(stat_type=StatType.Outbounds, reset=True, timeout=10)
-        return _process_outbounds_stats_response(stats_response)
+        stats_response = await _collect_receipt(node, StatType.Outbounds, 30)
+        return CollectedUsage(_process_outbounds_stats_response(stats_response), stats_response)
     except NodeAPIError as e:
         logger.error("Failed to get outbounds stats from node %s, error: %s", node_label, e.detail)
-        return []
+        raise
     except Exception as e:
         logger.error("Failed to get outbounds stats from node %s, unknown error: %s", node_label, e)
-        return []
-
-
-async def calculate_admin_usage(users_usage: list) -> tuple[dict, set[int]]:
-    if not users_usage:
-        return {}, set()
-
-    # Get unique user IDs from users_usage
-    uids = {int(user_usage["uid"]) for user_usage in users_usage}
-
-    async with GetDB() as db:
-        # Query only relevant users' admin IDs
-        user_admin_pairs = []
-        for uid_batch in _chunked(list(uids), USER_ADMIN_LOOKUP_BATCH_SIZE):
-            stmt = select(User.id, User.admin_id).where(User.id.in_(uid_batch))
-            result = await db.execute(stmt)
-            user_admin_pairs.extend(result.fetchall())
-
-    user_admin_map = {uid: admin_id for uid, admin_id in user_admin_pairs}
-
-    admin_usage = defaultdict(int)
-    for user_usage in users_usage:
-        admin_id = user_admin_map.get(int(user_usage["uid"]))
-        if admin_id:
-            admin_usage[admin_id] += user_usage["value"]
-
-    return admin_usage, set(user_admin_map.keys())
-
-
-async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> list:
-    """Aggregate user usage across nodes with coefficients applied."""
-    if not api_params:
-        return []
-
-    users_usage: dict[int, int] = defaultdict(int)
-    for node_id, params in api_params.items():
-        if not params:
-            continue
-        coeff = usage_coefficient.get(node_id, 1)
-        for param in params:
-            users_usage[int(param["uid"])] += int(param["value"] * coeff)
-
-    return [{"uid": uid, "value": value} for uid, value in users_usage.items()]
-
-
-async def _record_user_usages_impl():
-    """
-    Internal implementation of record_user_usages.
-    Separated to allow timeout wrapper.
-    """
-    job_start_time = time.time()
-    try:
-        flushed_rows = await flush_user_usage_history_if_due()
-        if flushed_rows:
-            logger.debug("Flushed %s due node user usage history rows", flushed_rows)
-    except Exception:
-        logger.exception("Failed to flush due node user usage history; pending rows will be retried")
-
-    nodes: tuple[int, PasarGuardNode] = await node_manager.get_healthy_nodes()
-
-    if not nodes:
-        logger.debug("No healthy nodes found, skipping user usage recording")
-        return
-
-    logger.debug(f"Starting user usage recording for {len(nodes)} nodes")
-
-    try:
-        collected = await asyncio.gather(
-            *[_collect_node_user_usage(node, node_id) for node_id, node in nodes],
-            return_exceptions=True,
-        )
-        usage_coefficient = {}
-        api_params = {}
-        for i, result in enumerate(collected):
-            node_id = nodes[i][0]
-            if isinstance(result, Exception):
-                logger.warning("Failed to collect usage for node %s: %s", node_id, result)
-                usage_coefficient[node_id] = 1.0
-                api_params[node_id] = []
-                continue
-            _, coeff, stats = result
-            usage_coefficient[node_id] = coeff
-            api_params[node_id] = stats
-
-        users_usage = await calculate_users_usage(api_params, usage_coefficient)
-        if not users_usage:
-            logger.debug("No user usage to record")
-            return
-
-        admin_usage, valid_user_ids = await calculate_admin_usage(users_usage)
-        if not valid_user_ids:
-            logger.warning("Skipping user usage recording; no matching users found for received stats")
-            return
-
-        # Filter valid users - only include users with actual non-zero traffic
-        valid_users_usage = [
-            usage for usage in users_usage if int(usage["uid"]) in valid_user_ids and usage["value"] > 0
-        ]
-
-        # Update User table with concurrency control
-        if valid_users_usage:
-            await update_users_traffic(valid_users_usage)
-            try:
-                await touch_users_online_at([int(usage["uid"]) for usage in valid_users_usage])
-            except Exception:
-                # Traffic totals are authoritative. A delayed online timestamp is
-                # preferable to aborting the rest of the usage accounting cycle.
-                logger.exception("Failed to update throttled user online timestamps")
-            logger.debug(f"Updated {len(valid_users_usage)} users")
-
-        # Update Admin table with concurrency control
-        if admin_usage:
-            admin_data = [{"admin_id": aid, "value": val} for aid, val in sorted(admin_usage.items())]
-            admin_stmt = (
-                update(Admin)
-                .where(Admin.id == bindparam("admin_id"))
-                .values(used_traffic=Admin.used_traffic + bindparam("value"))
-                .execution_options(synchronize_session=False)
-            )
-            async with JOB_SEM:
-                await safe_execute(admin_stmt, admin_data)
-            logger.debug(f"Updated {len(admin_data)} admins")
-            try:
-                await enforce_admin_limits_now(logger=logger)
-            except Exception:
-                logger.exception("Failed to enforce admin limits after usage recording")
-        if usage_settings.disable_recording_node_usage:
-            return
-
-        # Batch all node user usage writes into single operation
-        # Filter params to only valid users
-        filtered_node_params = {}
-        for node_id, params in api_params.items():
-            filtered_params = [param for param in params if int(param["uid"]) in valid_user_ids]
-            if filtered_params:
-                filtered_node_params[node_id] = filtered_params
-
-        if filtered_node_params:
-            await record_user_stats(filtered_node_params, usage_coefficient)
-            total_records = sum(len(params) for params in filtered_node_params.values())
-            logger.debug(f"Processed {total_records} node user usage deltas across {len(filtered_node_params)} nodes")
-
-        job_duration = time.time() - job_start_time
-        logger.debug(
-            f"User usage recording completed in {job_duration:.2f}s: "
-            f"{len(valid_users_usage)} users, {len(admin_usage)} admins, "
-            f"{len(filtered_node_params)} nodes"
-        )
-
-    except Exception:
-        job_duration = time.time() - job_start_time
-        logger.exception(f"User usage recording failed after {job_duration:.2f}s")
         raise
 
 
-async def record_user_usages():
-    """Record user usages. Overlapping ticks are skipped; there is no global kill.
+# One in-flight sample per node/stream. The node retains its durable receipt
+# until ACK; failed staging is also retried locally before another collection.
+_tasks: dict[tuple[str, int], asyncio.Task] = {}
+_unstaged: dict[tuple[str, int], Receipt] = {}
+_stopping = False
+_enforcement_task: asyncio.Task | None = None
+_enforcement_dirty = False
+_cleanup_task: asyncio.Task | None = None
 
-    ``get_stats(..., reset=True)`` zeros node counters, so a 120s cancel after
-    that drop can lose traffic. If this job is skipped, lengthen
-    JOB_RECORD_USER_USAGES_INTERVAL or cut node RPC latency — extra Uvicorn
-    workers will not help.
-    """
+
+def _request_enforcement():
+    global _enforcement_task, _enforcement_dirty
+    _enforcement_dirty = True
+    if _enforcement_task is None or _enforcement_task.done():
+        _enforcement_task = asyncio.create_task(_enforce_limits(), name="usage-admin-limits")
+    return _enforcement_task
+
+
+async def _enforce_limits():
+    global _enforcement_dirty
+    while _enforcement_dirty:
+        _enforcement_dirty = False
+        try:
+            await enforce_admin_limits_now(logger=logger)
+        except Exception:
+            logger.exception("Failed to enforce admin limits; next usage tick will retry")
+            return
+
+
+async def _stage_unstaged(store: UsageStore, key: tuple[str, int]):
+    """Keep the receipt until commit; recollect if cleanup fenced this attempt."""
+    receipt = _unstaged[key]
+    staged = True
+    try:
+        await store.stage(receipt)
+    except StaleUsageCollection:
+        # An ACKed old response is already accounted. An unACKed receipt is
+        # still on the node and will be recollected with the current fence.
+        logger.info("Recollecting fenced usage receipt %s for %s/%s", receipt.receipt_id, *key)
+        staged = False
+    if _unstaged.get(key) is receipt:
+        del _unstaged[key]
+    return staged
+
+
+async def _process_stream(kind: str, node_id: int, node, *, recovering: bool = False):
+    key = (kind, node_id)
+    start = time.monotonic()
+    accounting_attempted = False
+    store = UsageStore(_transaction, await get_dialect())
+    try:
+        # Local recovery needs no RPC slot, even while every remote call stalls.
+        if key in _unstaged:
+            await _stage_unstaged(store, key)
+        accounting_attempted = await store.apply(kind, node_id)
+        if node is None or _stopping:
+            return
+        async with RECOVERY_API_SEM if recovering else API_SEM:
+            collection_epoch = await store.prepare(kind, node_id)
+            if _stopping:
+                return
+            coefficient = 1.0
+            stat_type = StatType.UsersStat if kind == "users" else StatType.Outbounds
+            if kind == "users":
+                _, coefficient, stats = await _collect_node_user_usage(node, node_id)
+            else:
+                stats = await get_outbounds_stats(node, node_id)
+            remote_id = getattr(stats, "receipt_id", None)
+            if not stats and not remote_id:
+                return
+            receipt = Receipt.create(
+                kind,
+                node_id,
+                collection_epoch,
+                stats,
+                not usage_settings.disable_recording_node_usage,
+                coefficient,
+                receipt_id=remote_id,
+                collected_at=getattr(stats, "collected_at", None),
+            )
+            _unstaged[key] = receipt
+            # A newly fenced reply must never be ACKed: it may still be the
+            # node's only copy of unaccounted traffic. Retry on the next tick.
+            if not await _stage_unstaged(store, key):
+                return
+            accounting_attempted = True
+            await store.apply(kind, node_id)
+            # Even if accounting has a larger backlog, staging committed first.
+            # An ACK timeout is safe: the node replays this ID, and the ledger
+            # ignores both pending duplicates and already-applied receipts.
+            if remote_id:
+                await node.acknowledge_usage(stat_type=stat_type, receipt_id=receipt.receipt_id, timeout=10)
+                await store.acknowledge(receipt)
+    except Exception:
+        logger.exception("Usage stream %s/%s failed; pending samples will be retried before new reads", kind, node_id)
+    finally:
+        if kind == "users" and accounting_attempted:
+            _request_enforcement()
+        elapsed = time.monotonic() - start
+        interval = (
+            job_settings.record_user_usages_interval if kind == "users" else job_settings.record_node_usages_interval
+        )
+        if interval > 0 and elapsed > interval:
+            logger.warning("Usage stream %s/%s took %.1fs (interval %ss)", kind, node_id, elapsed, interval)
+
+
+async def _dispatch(kind: str, *, wait: bool):
+    if _stopping:
+        return
+    if kind == "users":
+        # Prepared-data callers retain their buffered history contract. Node
+        # receipts continue to commit history atomically in UsageStore.
+        try:
+            await flush_user_usage_history_if_due()
+        except Exception:
+            logger.exception("Failed to flush due user history; buffered rows will be retried")
+    try:
+        nodes = dict(await node_manager.get_healthy_nodes())
+    except Exception:
+        logger.exception("Node discovery failed; recovering persisted usage without polling nodes")
+        nodes = {}
+    broken = {}
+    try:
+        # A failed core health check does not invalidate receipts already on disk.
+        # Do not contact INVALID or deliberately disconnected nodes.
+        broken = dict(await node_manager.get_broken_nodes())
+    except Exception:
+        logger.exception("Broken-node discovery failed; healthy collection remains available")
+    store = UsageStore(_transaction, await get_dialect())
+    pending = await store.pending_nodes(kind)
+    if _stopping:
+        return
+    node_ids = set(nodes) | set(broken) | set(pending) | {nid for stream, nid in _unstaged if stream == kind}
+    active = []
+    for node_id in sorted(node_ids):
+        key = (kind, node_id)
+        task = _tasks.get(key)
+        if task is None or task.done():
+            task = asyncio.create_task(
+                _process_stream(
+                    kind, node_id, nodes.get(node_id) or broken.get(node_id), recovering=node_id not in nodes
+                ),
+                name=f"usage-{kind}-{node_id}",
+            )
+            _tasks[key] = task
+            task.add_done_callback(lambda completed, key=key: _stream_done(key, completed))
+        active.append(task)
+    if wait and active:
+        # Let stream tasks finish staging even if their scheduler caller exits.
+        await asyncio.shield(asyncio.gather(*active))
+    if kind == "users":
+        enforcement = _request_enforcement()
+        if wait:
+            await asyncio.shield(enforcement)
+
+
+def _stream_done(key, task):
+    if _tasks.get(key) is task:
+        del _tasks[key]
+    if not task.cancelled() and task.exception() is not None:
+        logger.error("Usage task %s failed: %s", key, task.exception())
+
+
+async def _record_user_usages_impl():
+    await _dispatch("users", wait=True)
+
+
+async def _record_node_usages_impl():
+    await _dispatch("outbounds", wait=True)
+
+
+async def record_user_usages():
     global _user_usage_running
     if _user_usage_running:
         logger.warning(
-            "record_user_usages skipped; previous run still in progress. %s",
+            "record_user_usages skipped. %s",
             _usage_job_hint("JOB_RECORD_USER_USAGES_INTERVAL", job_settings.record_user_usages_interval),
         )
         return
-
     _user_usage_running = True
     try:
         await _await_usage_job(
@@ -1044,105 +764,14 @@ async def record_user_usages():
         _user_usage_running = False
 
 
-async def _record_node_usages_impl():
-    """
-    Internal implementation of record_node_usages.
-    Separated to allow timeout wrapper.
-    """
-    job_start_time = time.time()
-    nodes = await node_manager.get_healthy_nodes()
-
-    if not nodes:
-        logger.debug("No healthy nodes found, skipping node usage recording")
-        return
-
-    logger.debug(f"Starting node usage recording for {len(nodes)} nodes")
-
-    try:
-        # Get healthy nodes and gather stats directly
-        stats_results = await asyncio.gather(
-            *[_bounded_node_rpc(get_outbounds_stats(node, node_id)) for node_id, node in nodes],
-            return_exceptions=True,
-        )
-        api_params = {}
-        for i, result in enumerate(stats_results):
-            node_id = nodes[i][0]
-            if isinstance(result, Exception):
-                logger.warning(f"Failed to get outbounds stats for node {node_id}: {result}")
-                api_params[node_id] = []
-            else:
-                api_params[node_id] = result
-
-        # Calculate per-node totals
-        node_totals = {
-            node_id: {
-                "up": sum(param["up"] for param in params),
-                "down": sum(param["down"] for param in params),
-            }
-            for node_id, params in api_params.items()
-        }
-
-        # Calculate system totals from node totals
-        total_up = sum(node_data["up"] for node_data in node_totals.values())
-        total_down = sum(node_data["down"] for node_data in node_totals.values())
-
-        if not (total_up or total_down):
-            logger.debug("No node usage to record")
-            return
-
-        # Update each node's uplink/downlink with concurrency control
-        node_update_params = [
-            {"node_id": node_id, "up": node_data["up"], "down": node_data["down"]}
-            for node_id, node_data in sorted(node_totals.items())
-            if node_data["up"] or node_data["down"]
-        ]
-
-        if node_update_params:
-            node_update_stmt = (
-                update(Node)
-                .where(Node.id == bindparam("node_id"))
-                .values(uplink=Node.uplink + bindparam("up"), downlink=Node.downlink + bindparam("down"))
-                .execution_options(synchronize_session=False)
-            )
-            async with JOB_SEM:
-                await safe_execute(node_update_stmt, node_update_params)
-            logger.debug(f"Updated {len(node_update_params)} nodes")
-
-        # Update system totals with concurrency control
-        system_update_stmt = update(System).values(
-            uplink=System.uplink + total_up, downlink=System.downlink + total_down
-        )
-        async with JOB_SEM:
-            await safe_execute(system_update_stmt)
-
-        if usage_settings.disable_recording_node_usage:
-            return
-
-        # Batch all node usage writes
-        await record_node_stats_batched(api_params)
-
-        job_duration = time.time() - job_start_time
-        logger.debug(
-            f"Node usage recording completed in {job_duration:.2f}s: "
-            f"{len(node_update_params)} nodes, total: {total_up + total_down} bytes"
-        )
-
-    except Exception:
-        job_duration = time.time() - job_start_time
-        logger.exception(f"Node usage recording failed after {job_duration:.2f}s")
-        raise
-
-
 async def record_node_usages():
-    """Record node usages. Same skip rules as ``record_user_usages``."""
     global _node_usage_running
     if _node_usage_running:
         logger.warning(
-            "record_node_usages skipped; previous run still in progress. %s",
+            "record_node_usages skipped. %s",
             _usage_job_hint("JOB_RECORD_NODE_USAGES_INTERVAL", job_settings.record_node_usages_interval),
         )
         return
-
     _node_usage_running = True
     try:
         await _await_usage_job(
@@ -1155,25 +784,73 @@ async def record_node_usages():
         _node_usage_running = False
 
 
+async def _schedule_users():
+    await _dispatch("users", wait=False)
+
+
+async def _schedule_outbounds():
+    await _dispatch("outbounds", wait=False)
+
+
+async def _cleanup_usage_receipts():
+    try:
+        store = UsageStore(_transaction, await get_dialect())
+        await store.cleanup(
+            usage_settings.usage_receipt_retention_days, usage_settings.usage_receipt_cleanup_batch_size
+        )
+    except Exception:
+        logger.exception("Usage receipt cleanup failed; next scheduled run will retry")
+
+
+async def _schedule_receipt_cleanup():
+    global _cleanup_task
+    if not _stopping and (_cleanup_task is None or _cleanup_task.done()):
+        _cleanup_task = asyncio.create_task(_cleanup_usage_receipts(), name="usage-receipt-cleanup")
+
+
+def resume_usage_recording():
+    global _stopping
+    _stopping = False
+
+
+async def drain_usage_recording():
+    global _stopping
+    _stopping = True
+    if _cleanup_task is not None:
+        await asyncio.shield(_cleanup_task)
+    if _tasks:
+        await asyncio.shield(asyncio.gather(*list(_tasks.values()), return_exceptions=True))
+    if _enforcement_task is not None:
+        await asyncio.shield(_enforcement_task)
+    store = UsageStore(_transaction, await get_dialect())
+    for key, receipt in list(_unstaged.items()):
+        try:
+            await _stage_unstaged(store, key)
+        except Exception:
+            logger.exception("Unable to persist usage receipt %s during shutdown", receipt.receipt_id)
+
+
 if runtime_settings.role.runs_node:
     scheduler.add_job(
-        record_user_usages,
+        _schedule_receipt_cleanup,
         "interval",
-        seconds=job_settings.record_user_usages_interval,
-        start_date=dt.now(UTC) + td(seconds=30),
+        seconds=job_settings.cleanup_usage_receipts_interval,
         coalesce=True,
         max_instances=1,
-        id="record_user_usages",
+        id="cleanup_usage_receipts",
         replace_existing=True,
     )
-
-    scheduler.add_job(
-        record_node_usages,
-        "interval",
-        seconds=job_settings.record_node_usages_interval,
-        start_date=dt.now(UTC) + td(seconds=15),
-        coalesce=True,
-        max_instances=1,
-        id="record_node_usages",
-        replace_existing=True,
-    )
+    for kind, job, interval, delay in (
+        ("user", _schedule_users, job_settings.record_user_usages_interval, 30),
+        ("node", _schedule_outbounds, job_settings.record_node_usages_interval, 15),
+    ):
+        scheduler.add_job(
+            job,
+            "interval",
+            seconds=interval,
+            start_date=dt.now(UTC) + td(seconds=delay),
+            coalesce=True,
+            max_instances=1,
+            id=f"record_{kind}_usages",
+            replace_existing=True,
+        )
