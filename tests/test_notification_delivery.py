@@ -258,6 +258,9 @@ def use_webhooks(monkeypatch, receiver: Receiver, *names: str, recurrent: int = 
         recurrent=recurrent,
     )
     monkeypatch.setattr(webhook_job, "webhook_settings", AsyncMock(return_value=settings))
+    # The receiver listens on loopback; the public-destination check has its own tests in
+    # test_webhook_destinations.py, so bypass it here to exercise delivery.
+    monkeypatch.setattr(webhook_job, "is_public_http_url", lambda url: True)
     return settings
 
 

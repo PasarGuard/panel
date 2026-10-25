@@ -10,6 +10,8 @@ from app.nats.router import router
 from app.notification.client import define_client
 from app.settings import refresh_caches
 from app.telegram import startup_telegram_bot
+from app.utils.net import is_http_url, is_public_http_url
+from config import server_settings
 
 from . import BaseOperation
 
@@ -30,6 +32,22 @@ class SettingsOperation(BaseOperation):
     async def modify_settings(self, db: AsyncSession, modify: SettingsSchema) -> SettingsSchema:
         db_settings = await get_settings(db)
         old_settings = SettingsSchema.model_validate(db_settings)
+
+        if modify.webhook is not None and server_settings.webhook_allow_private_destinations:
+            for webhook in modify.webhook.webhooks:
+                if not is_http_url(webhook.url):
+                    await self.raise_error(message=f"Webhook URL must be an http(s) URL: {webhook.url}", code=400)
+        elif modify.webhook is not None:
+            for webhook in modify.webhook.webhooks:
+                if not await asyncio.to_thread(is_public_http_url, webhook.url):
+                    await self.raise_error(
+                        message=(
+                            f"Webhook URL must be a public http(s) destination: {webhook.url}. "
+                            "To allow private or local addresses, set WEBHOOK_ALLOW_PRIVATE_DESTINATIONS=true "
+                            "in the panel environment and restart it."
+                        ),
+                        code=400,
+                    )
 
         if modify.general and modify.general.custom_variables is not None:
             subscription = modify.subscription or Subscription.model_validate(db_settings.subscription)

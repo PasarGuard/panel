@@ -19,7 +19,8 @@ from app.notification.queue_manager import (
 from app.settings import webhook_settings
 from app.utils.http_client import create_outbound_http_session
 from app.utils.logger import get_logger
-from config import job_settings, runtime_settings
+from app.utils.net import is_public_http_url, url_host_for_log
+from config import job_settings, runtime_settings, server_settings
 
 logger = get_logger("send-notification")
 
@@ -30,6 +31,16 @@ WEBHOOK_CONCURRENCY = 8
 
 
 async def _send_webhook(client: aiohttp.ClientSession, webhook: WebhookInfo, payloads: list[dict]) -> bool:
+    # Resolving the host is blocking DNS work: keep it off the event loop.
+    if not server_settings.webhook_allow_private_destinations and not await asyncio.to_thread(
+        is_public_http_url, webhook.url
+    ):
+        logger.warning(
+            "Skipping webhook to non-public host %r; set WEBHOOK_ALLOW_PRIVATE_DESTINATIONS=true to allow "
+            "private destinations",
+            url_host_for_log(webhook.url),
+        )
+        return False
     headers = {"x-webhook-secret": webhook.secret} if webhook.secret else None
     try:
         async with client.post(webhook.url, json=payloads, headers=headers) as response:
