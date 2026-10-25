@@ -437,6 +437,7 @@ class NodeManager:
             return node
 
     async def _update_users(self, users: list[ProtoUser]):
+        """Synchronize a user batch to every currently registered node."""
         nodes = await self._snapshot_node_items()
         if not nodes:
             return
