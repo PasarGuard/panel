@@ -191,11 +191,15 @@ MAX_FORMAT_SPEC_NUMBER = 256
 def has_oversized_format_spec(value: str) -> bool:
     """Returns True if a format field in value has a width or precision above MAX_FORMAT_SPEC_NUMBER, or a nested
     field (``{USERNAME:>{PAD}}``) whose size is only known when it renders."""
+    specs = []
     try:
-        specs = [spec for _, field, spec, _ in Formatter().parse(value) if field is not None and spec]
+        for _, field, spec, _ in Formatter().parse(value):
+            if field is not None and spec:
+                specs.append(spec)
     except ValueError:
-        # Unbalanced braces: str.format_map rejects the value before it formats anything
-        return False
+        # Unbalanced braces: str.format_map formats every field before the stray brace and only then
+        # rejects the value, so the fields read so far are still checked
+        pass
     for spec in specs:
         if "{" in spec:
             return True
