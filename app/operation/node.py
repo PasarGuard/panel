@@ -87,6 +87,14 @@ type CoreUsers = list | Callable[[], Awaitable[list]]
 logger = get_logger("node-operation")
 
 
+async def _publish_node_control(operator: BaseOperation, action: str, payload: dict) -> dict | None:
+    """Expose unconfirmed or failed remote control operations to their caller."""
+    try:
+        return await node_nats_client.publish(action, payload)
+    except RuntimeError as exc:
+        await operator.handle_rpc_error(exc)
+
+
 # Maintenance RPCs (split roles) wait for the node worker, which waits for node-serviced's pg-node command
 # (5 minute deadline; the bridge itself allows 330 s). The default node RPC timeout (30 s) is far too short.
 _MAINTENANCE_RPC_TIMEOUT = 340.0
@@ -875,7 +883,7 @@ class NodeOperation(BaseOperation):
         await publish_node_sync("upsert", db_node.id)
 
     async def _update_node_remote(self, db_node: Node) -> None:
-        await node_nats_client.publish("update_node", {"node_id": db_node.id})
+        await _publish_node_control(self, "update_node", {"node_id": db_node.id})
 
     async def _remove_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
@@ -886,7 +894,7 @@ class NodeOperation(BaseOperation):
         await publish_node_sync("remove", node_id)
 
     async def _remove_node_remote(self, node_id: int) -> None:
-        await node_nats_client.publish("remove_node", {"node_id": node_id})
+        await _publish_node_control(self, "remove_node", {"node_id": node_id})
 
     async def _connect_nodes_bulk_local(
         self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False, stop_first: bool = True
@@ -977,7 +985,8 @@ class NodeOperation(BaseOperation):
     ) -> None:
         if not nodes:
             return
-        await node_nats_client.publish(
+        await _publish_node_control(
+            self,
             "connect_nodes_bulk",
             {"node_ids": [node.id for node in nodes], "force_start": force_start, "stop_first": stop_first},
         )
@@ -1071,7 +1080,7 @@ class NodeOperation(BaseOperation):
             await publish_node_sync("connect", node_id)
 
     async def _connect_single_node_remote(self, db: AsyncSession, node_id: int, *, force_start: bool = False) -> None:
-        await node_nats_client.publish("connect_node", {"node_id": node_id, "force_start": force_start})
+        await _publish_node_control(self, "connect_node", {"node_id": node_id, "force_start": force_start})
 
     async def _disconnect_single_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
@@ -1081,7 +1090,7 @@ class NodeOperation(BaseOperation):
         await publish_node_sync("disconnect", node_id)
 
     async def _disconnect_single_node_remote(self, node_id: int) -> None:
-        await node_nats_client.publish("disconnect_node", {"node_id": node_id})
+        await _publish_node_control(self, "disconnect_node", {"node_id": node_id})
 
     async def _restart_all_nodes_local(
         self, db: AsyncSession, admin: AdminDetails, core_id: int | None, *, stop_first: bool = True
@@ -1099,8 +1108,8 @@ class NodeOperation(BaseOperation):
     async def _restart_all_nodes_remote(
         self, db: AsyncSession, admin: AdminDetails, core_id: int | None, *, stop_first: bool = True
     ) -> None:
-        await node_nats_client.publish(
-            "connect_nodes_bulk", {"core_id": core_id, "force_start": True, "stop_first": stop_first}
+        await _publish_node_control(
+            self, "connect_nodes_bulk", {"core_id": core_id, "force_start": True, "stop_first": stop_first}
         )
 
     async def _get_logs_local(self, node_id: int) -> Callable[[], AsyncIterator[asyncio.Queue]]:
@@ -1323,10 +1332,15 @@ class NodeOperation(BaseOperation):
         return NodeResponse.model_validate(db_node)
 
     async def _sync_node_users_remote(self, db: AsyncSession, node_id: int, flush_users: bool) -> NodeResponse:
-        await node_nats_client.publish(
+        result = await _publish_node_control(
+            self,
             "sync_node_users",
             {"node_id": node_id, "flush_users": flush_users},
         )
+        if result is not None:
+            # Use the worker's completed result rather than a stale API-side
+            # identity map or MySQL repeatable-read snapshot opened before sync.
+            return NodeResponse.model_validate(result)
         return NodeResponse.model_validate(await self.get_validated_node(db, node_id))
 
     @staticmethod
@@ -1412,7 +1426,9 @@ class NodeOperation(BaseOperation):
             timeout=_MAINTENANCE_RPC_TIMEOUT,
         )
 
-    async def _update_geofiles_local(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+    async def _update_geofiles_local(
+        self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate
+    ) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -1423,7 +1439,9 @@ class NodeOperation(BaseOperation):
         await self._mark_node_reconnecting_after_update(db, node_id, node)
         return response.json()
 
-    async def _update_geofiles_remote(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+    async def _update_geofiles_remote(
+        self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate
+    ) -> dict:
         return await node_nats_client.request(
             "update_geofiles",
             {"node_id": node_id, "geofiles_update": node_geofiles_update.model_dump(mode="json")},
