@@ -6,6 +6,7 @@ import nats
 from aiocache import cached
 from nats.js.client import JetStreamContext
 from nats.js.kv import KeyValue
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import on_shutdown, on_startup
@@ -730,6 +731,7 @@ class HostManager:
         await self._add_hosts_impl(db, hosts)
 
     async def _add_prepared_hosts_local(self, prepared_hosts: list[tuple[int, SubscriptionInboundData | dict]]):
+        """Store prepared hosts locally and invalidate subscription caches."""
         async with self._lock:
             for host_id, host_data in prepared_hosts:
                 self._hosts.pop(host_id, None)
@@ -740,43 +742,51 @@ class HostManager:
                     self._hosts[host_id] = host_data
             await self._reset_cache()
 
-    async def _add_hosts_local(self, db: AsyncSession, hosts: list[BaseHost]):
-        serialized_hosts = [BaseHost.model_validate(host) for host in hosts]
+    async def _prepare_hosts(
+        self, db: AsyncSession, hosts: list[BaseHost]
+    ) -> tuple[list[tuple[int, SubscriptionInboundData]], list[int]]:
+        """Prepare valid hosts and collect skipped IDs without aborting the batch."""
         inbounds_list = await core_manager.get_inbounds()
         await upsert_inbounds(db, inbounds_list)
         await db.commit()
 
         prepared_hosts = []
         hosts_to_remove = []
-        for host in serialized_hosts:
-            result = await self._prepare_host_entry(db, host, inbounds_list)
+        for host in hosts:
+            host_id = host.get("id") if isinstance(host, dict) else host.id
+            try:
+                serialized_host = BaseHost.model_validate(host)
+                result = await self._prepare_host_entry(db, serialized_host, inbounds_list)
+            except ValidationError as exc:
+                errors = "; ".join(
+                    f"{'.'.join(map(str, error['loc']))} ({error['type']})"
+                    for error in exc.errors(include_url=False, include_context=False, include_input=False)
+                )
+                self._logger.error(f"Skipping host {host_id} with invalid subscription settings: {errors}")
+                result = None
             if result:
                 prepared_hosts.append(result)
-            else:
-                hosts_to_remove.append(host.id)
+            elif host_id is not None:
+                hosts_to_remove.append(host_id)
+
+        return prepared_hosts, hosts_to_remove
+
+    async def _add_hosts_local(self, db: AsyncSession, hosts: list[BaseHost]):
+        """Apply host updates locally and invalidate caches after removing skipped hosts."""
+        prepared_hosts, hosts_to_remove = await self._prepare_hosts(db, hosts)
 
         await self._add_prepared_hosts_local(prepared_hosts)
 
         async with self._lock:
             for host_id in hosts_to_remove:
                 self._hosts.pop(host_id, None)
+            await self._reset_cache()
 
         await self._persist_state()
 
     async def _add_hosts_nats(self, db: AsyncSession, hosts: list[BaseHost]):
-        serialized_hosts = [BaseHost.model_validate(host) for host in hosts]
-        inbounds_list = await core_manager.get_inbounds()
-        await upsert_inbounds(db, inbounds_list)
-        await db.commit()
-
-        prepared_hosts = []
-        hosts_to_remove = []
-        for host in serialized_hosts:
-            result = await self._prepare_host_entry(db, host, inbounds_list)
-            if result:
-                prepared_hosts.append(result)
-            else:
-                hosts_to_remove.append(host.id)
+        """Publish host additions and removals to workers and update local state."""
+        prepared_hosts, hosts_to_remove = await self._prepare_hosts(db, hosts)
 
         # Publish messages - all workers will process via listener
         for host_id, host_data in prepared_hosts:
