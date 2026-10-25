@@ -5,6 +5,7 @@ from typing import Any, ClassVar
 
 from fastapi import Response
 from fastapi.responses import HTMLResponse
+from sqlalchemy.ext.asyncio import async_object_session
 
 from app.db import AsyncSession
 from app.db.crud.hwid import get_user_hwid_by_value, register_user_hwid
@@ -38,6 +39,7 @@ from app.utils.performance import phase
 from config import template_settings
 
 from . import BaseOperation
+from .host import get_effective_host_overrides
 from .user import UserOperation
 
 client_config = {
@@ -120,6 +122,9 @@ class SubscriptionOperation(BaseOperation):
             user = UsersResponseWithInbounds.model_validate(db_user.__dict__)
         with phase("subscription.inbounds"):
             user.inbounds = await db_user.inbounds()
+        if db_user.admin_id is not None and (session := async_object_session(db_user)) is not None:
+            with phase("subscription.host_overrides"):
+                user.host_overrides = await get_effective_host_overrides(session, db_user.admin_id)
         user.expire = db_user.expire
         user.lifetime_used_traffic = db_user.lifetime_used_traffic
 

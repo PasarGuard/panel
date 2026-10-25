@@ -151,10 +151,13 @@ export type HostsPermissionsRead = boolean | {[key: string]: PermissionScope | n
 
 export type HostsPermissionsUpdate = boolean | {[key: string]: PermissionScope | number} | null;
 
+export type HostsPermissionsCustomize = boolean | {[key: string]: PermissionScope | number} | null;
+
 export interface HostsPermissions {
   create?: HostsPermissionsCreate;
   read?: HostsPermissionsRead;
   update?: HostsPermissionsUpdate;
+  customize?: HostsPermissionsCustomize;
 }
 
 export type SettingsPermissionsRead = boolean | {[key: string]: PermissionScope | number} | null;
@@ -1719,6 +1722,23 @@ export const HeaderPlacement = {
   body_start: 'body_start',
   body_end: 'body_end',
 } as const;
+
+/**
+ * A host as a customizing admin sees it: its name and state, never its connection settings.
+ */
+export interface HostCustomization {
+  host_id: number;
+  remark: string;
+  inbound_tag?: string | null;
+  host_disabled?: boolean;
+  custom_remark?: string | null;
+  is_disabled?: boolean;
+}
+
+export interface HostCustomizationModify {
+  remark?: string | null;
+  is_disabled?: boolean;
+}
 
 export interface HostNotificationEnable {
   create?: boolean;
@@ -10793,6 +10813,185 @@ export const useBulkDeleteClientTemplates = <TError = ErrorType<HTTPException | 
         TContext
       > => {
       return useMutation(getBulkDeleteClientTemplatesMutationOptions(options), queryClient);
+    }
+
+export const getGetHostCustomizationsUrl = () => {
+
+
+
+
+  return `/api/hosts/customizations`
+}
+
+/**
+ * Get the hosts the current admin can rename or hide, with the admin's own remark and state for each.
+ *
+ * Customizations only apply to the current admin's users and never change the host itself.
+ * @summary Get Host Customizations
+ */
+export const getHostCustomizations = async ( options?: RequestInit): Promise<HostCustomization[]> => {
+
+  return orvalFetcher<HostCustomization[]>(getGetHostCustomizationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHostCustomizationsQueryKey = () => {
+    return [
+    `/api/hosts/customizations`
+    ] as const;
+    }
+
+
+export const getGetHostCustomizationsQueryOptions = <TData = Awaited<ReturnType<typeof getHostCustomizations>>, TError = ErrorType<Unauthorized | Forbidden>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostCustomizations>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHostCustomizationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHostCustomizations>>> = ({ signal }) => getHostCustomizations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHostCustomizations>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetHostCustomizationsQueryResult = NonNullable<Awaited<ReturnType<typeof getHostCustomizations>>>
+export type GetHostCustomizationsQueryError = ErrorType<Unauthorized | Forbidden>
+
+
+export function useGetHostCustomizations<TData = Awaited<ReturnType<typeof getHostCustomizations>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostCustomizations>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHostCustomizations>>,
+          TError,
+          Awaited<ReturnType<typeof getHostCustomizations>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHostCustomizations<TData = Awaited<ReturnType<typeof getHostCustomizations>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostCustomizations>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getHostCustomizations>>,
+          TError,
+          Awaited<ReturnType<typeof getHostCustomizations>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetHostCustomizations<TData = Awaited<ReturnType<typeof getHostCustomizations>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostCustomizations>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Host Customizations
+ */
+
+export function useGetHostCustomizations<TData = Awaited<ReturnType<typeof getHostCustomizations>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getHostCustomizations>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetHostCustomizationsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getModifyHostCustomizationUrl = (hostId: number,) => {
+
+
+
+
+  return `/api/host/${hostId}/customization`
+}
+
+/**
+ * Set the current admin's own remark for a host, or hide it from the admin's users.
+ *
+ * Send an empty **remark** to use the host's remark, and **is_disabled** false to show the host again.
+ * @summary Modify Host Customization
+ */
+export const modifyHostCustomization = async (hostId: number,
+    hostCustomizationModify: HostCustomizationModify, options?: RequestInit): Promise<HostCustomization> => {
+
+  return orvalFetcher<HostCustomization>(getModifyHostCustomizationUrl(hostId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(hostCustomizationModify)
+  }
+);}
+
+
+
+
+
+export const getModifyHostCustomizationMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof modifyHostCustomization>>, TError,{hostId: number;data: BodyType<HostCustomizationModify>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof modifyHostCustomization>>, TError,{hostId: number;data: BodyType<HostCustomizationModify>}, TContext> => {
+
+const mutationKey = ['modifyHostCustomization'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof modifyHostCustomization>>, {hostId: number;data: BodyType<HostCustomizationModify>}> = (props) => {
+          const {hostId,data} = props ?? {};
+
+          return  modifyHostCustomization(hostId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ModifyHostCustomizationMutationResult = NonNullable<Awaited<ReturnType<typeof modifyHostCustomization>>>
+    export type ModifyHostCustomizationMutationBody = BodyType<HostCustomizationModify>
+    export type ModifyHostCustomizationMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+    /**
+ * @summary Modify Host Customization
+ */
+export const useModifyHostCustomization = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof modifyHostCustomization>>, TError,{hostId: number;data: BodyType<HostCustomizationModify>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof modifyHostCustomization>>,
+        TError,
+        {hostId: number;data: BodyType<HostCustomizationModify>},
+        TContext
+      > => {
+      return useMutation(getModifyHostCustomizationMutationOptions(options), queryClient);
     }
 
 export const getGetHostUrl = (hostId: number,) => {
