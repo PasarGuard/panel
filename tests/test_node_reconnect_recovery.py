@@ -22,6 +22,9 @@ class FakeDB:
 
 
 def setup_node(monkeypatch, *, health=Health.HEALTHY, state=None):
+    # Model the health-check owner without inheriting CI's leader/transport state.
+    monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: True)
+    monkeypatch.setattr(node_checker, "node_reconciliation_revision", AsyncMock(return_value=None))
     db_node = SimpleNamespace(
         id=91, name="node", status=NodeStatus.connected, core_config_id=1, keep_alive=60, default_timeout=10
     )
