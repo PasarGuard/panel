@@ -156,9 +156,9 @@ async def _prepare_subscription_inbound_data(
     masque_remote_dns = []
     if protocol == "masque":
         host_dns = ts.masque_settings.remote_dns if ts and ts.masque_settings else None
-        masque_remote_dns = [
-            dns.strip() for dns in _string_list(host_dns or inbound_config.get("remote_dns")) if dns.strip()
-        ]
+        masque_remote_dns = [dns.strip() for dns in _string_list(host_dns) if dns.strip()]
+        if not masque_remote_dns:
+            masque_remote_dns = [dns.strip() for dns in _string_list(inbound_config.get("remote_dns")) if dns.strip()]
 
     # The host FinalMask model only accepts client mask types; the inbound finalmask is the server's config
     final_mask_settings = (
