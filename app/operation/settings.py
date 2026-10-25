@@ -1,10 +1,12 @@
 import asyncio
 
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud.settings import get_settings, modify_settings
 from app.db.models import Settings
-from app.models.settings import General, SettingsSchema, Subscription
+from app.models.settings import SETTINGS_INPUT_CONTEXT, General, SettingsSchema, Subscription
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.notification.client import define_client
@@ -27,7 +29,18 @@ class SettingsOperation(BaseOperation):
     async def get_settings(self, db: AsyncSession) -> Settings:
         return await get_settings(db)
 
+    @staticmethod
+    def validate_input(modify: SettingsSchema) -> None:
+        """Run the checks that only apply to new input (stored settings are loaded without them)."""
+        try:
+            SettingsSchema.model_validate(modify.model_dump(exclude_none=True), context=SETTINGS_INPUT_CONTEXT)
+        except ValidationError as exc:
+            raise RequestValidationError(
+                [{**error, "loc": ("body", *error["loc"])} for error in exc.errors(include_url=False)]
+            ) from None
+
     async def modify_settings(self, db: AsyncSession, modify: SettingsSchema) -> SettingsSchema:
+        self.validate_input(modify)
         db_settings = await get_settings(db)
         old_settings = SettingsSchema.model_validate(db_settings)
 

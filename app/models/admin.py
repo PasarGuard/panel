@@ -6,13 +6,13 @@ from enum import Enum
 from typing import Literal
 
 import bcrypt
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError, computed_field, field_validator
 
 from app.db.models import AdminStatus
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleHWIDSettings, RoleLimits, RolePermissions
-from app.models.settings import CustomVariable, validate_custom_variables
+from app.models.settings import SETTINGS_INPUT_CONTEXT, CustomVariable, validate_custom_variables
 from app.models.stats import Period
-from app.utils.helpers import has_markup_unsafe_chars
+from app.utils.helpers import has_markup_unsafe_chars, has_oversized_format_spec
 
 from .notification_enable import UserNotificationEnable
 from .validators import (
@@ -190,12 +190,25 @@ class AdminModify(BaseModel):
     def validate_admin_custom_variables(cls, value: list[CustomVariable] | None) -> list[CustomVariable] | None:
         if value is None:
             return value
+        # CustomVariable is strict only with the settings input context; AdminModify is input only.
+        for variable in value:
+            try:
+                CustomVariable.model_validate(variable.model_dump(), context=SETTINGS_INPUT_CONTEXT)
+            except ValidationError as exc:
+                raise ValueError(exc.errors()[0]["msg"].removeprefix("Value error, ")) from None
         return validate_custom_variables(value)
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, value: str | None):
         return PasswordValidator.validate_password(value)
+
+    @field_validator("profile_title")
+    @classmethod
+    def validate_profile_title(cls, value: str | None):
+        if value and has_oversized_format_spec(value):
+            raise ValueError("Format width or precision is too large")
+        return value
 
     @field_validator("sub_domain")
     @classmethod
