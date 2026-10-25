@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 
 from cryptography import x509
+from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.x509.oid import NameOID
 
@@ -93,7 +94,7 @@ def _details(cert: x509.Certificate, now: datetime) -> CertificateDetails:
         try:
             cert.verify_directly_issued_by(cert)
             self_signed = True
-        except ValueError, TypeError:
+        except ValueError, TypeError, InvalidSignature, UnsupportedAlgorithm:
             pass
     return CertificateDetails(
         subject=cert.subject.rfc4514_string(),
@@ -147,7 +148,7 @@ def inspect_certificate(request: CertificateInspectRequest) -> CertificateInspec
                 for child, issuer in pairwise(chain):
                     child.verify_directly_issued_by(issuer)
                 result.chain_linked = True
-            except ValueError, TypeError:
+            except ValueError, TypeError, InvalidSignature, UnsupportedAlgorithm:
                 result.chain_linked = False
         if request.server_name.strip():
             # SANs are authoritative for hostname matching; CN is shown only

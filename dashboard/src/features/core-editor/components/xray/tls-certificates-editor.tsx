@@ -194,7 +194,6 @@ export function TlsCertificatesEditor({ value, onChange, serverName = '' }: Prop
   const [items, setItems] = useState(() => certificateItems(value))
   const lastValue = useRef(JSON.stringify(value))
   const itemsRef = useRef(items)
-  itemsRef.current = items
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set(items.length === 1 ? [items[0].id] : []))
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deleteIds, setDeleteIds] = useState<string[]>([])
@@ -261,7 +260,9 @@ export function TlsCertificatesEditor({ value, onChange, serverName = '' }: Prop
     [items, serverName],
   )
   const inspectionRef = useRef(inspections)
-  inspectionRef.current = inspections
+  useEffect(() => {
+    inspectionRef.current = inspections
+  }, [inspections])
 
   function recheck(id?: string) {
     const next = Object.fromEntries(Object.entries(inspections).map(([key, state]) => [key, !id || key === id ? { ...state, signature: '' } : state]))
