@@ -18,7 +18,11 @@ BIG_HTML = "<html>" + "<p>subscription page</p>" * 500 + "</html>"
 
 def _app(monkeypatch, enabled: bool = True, minimum_size: int = 1000, file_path=None) -> TestClient:
     settings = SimpleNamespace(
-        gzip_enabled=enabled, gzip_minimum_size=minimum_size, proxy_headers=False, forwarded_allow_ips="127.0.0.1"
+        gzip_enabled=enabled,
+        gzip_minimum_size=minimum_size,
+        proxy_headers=False,
+        forwarded_allow_ips="127.0.0.1",
+        max_request_body_size=0,
     )
     monkeypatch.setattr(middlewares, "server_settings", settings)
     app = FastAPI()

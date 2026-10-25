@@ -62,6 +62,7 @@ class ServerSettings(EnvSettings):
     host: str = Field(default="0.0.0.0", validation_alias="UVICORN_HOST")
     port: int = Field(default=8000, validation_alias="UVICORN_PORT")
     uds: str | None = Field(default=None, validation_alias="UVICORN_UDS")
+    max_request_body_size: int = Field(default=16 * 1024 * 1024, ge=0, validation_alias="MAX_REQUEST_BODY_SIZE")
     ssl_certfile: str | None = Field(default=None, validation_alias="UVICORN_SSL_CERTFILE")
     ssl_keyfile: str | None = Field(default=None, validation_alias="UVICORN_SSL_KEYFILE")
     ssl_ca_type: str = Field(default="public", validation_alias="UVICORN_SSL_CA_TYPE")
