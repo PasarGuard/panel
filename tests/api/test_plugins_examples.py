@@ -42,7 +42,8 @@ def examples(monkeypatch):
     # The subscription cache is keyed by user id, and SQLite reuses ids of deleted users
     clear_sub_config_cache()
     monkeypatch.setattr("app.db.GetDB", GetTestDB)  # ctx.db() of the plugins
-    # CI runs with 2 workers and NATS: the cross-worker event claim can wait for a NATS timeout
+    # CI runs with 2 workers and NATS: both cross-worker claims run before the event and can wait for a NATS timeout
+    monkeypatch.setattr("app.notification.claim_notification_slot", _always_claim)
     monkeypatch.setattr(events, "_claim", _always_claim)
     routes_before = len(app.router.routes)
     manager.load_all(EXAMPLES_DIR, ["expiring-report", "sub-banner"], runs_panel=True, runs_scheduler=True)
