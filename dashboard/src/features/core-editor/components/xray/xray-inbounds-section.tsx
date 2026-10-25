@@ -10,7 +10,6 @@ import { PasswordInput } from '@/components/ui/password-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { CoreEditorDataTable } from '@/features/core-editor/components/shared/core-editor-data-table'
 import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/core-editor-form-dialog'
@@ -22,6 +21,7 @@ import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/feature
 import { InboundFallbacksEditor } from '@/features/core-editor/components/xray/inbound-fallbacks-editor'
 import { MasqueSettingsFields } from '@/features/core-editor/components/xray/masque-settings-fields'
 import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
+import { TlsCertificatesEditor } from '@/features/core-editor/components/xray/tls-certificates-editor'
 import { FieldMessages } from '@/features/core-editor/components/xray/stream-form-inputs'
 import { guardStreamFormsCommit } from '@/features/core-editor/components/xray/stream-form-validity'
 import { WireguardInboundFields } from '@/features/core-editor/components/xray/wireguard-inbound-fields'
@@ -357,17 +357,6 @@ function vlessInboundFlowIncompatible(input: { securityType: string | undefined;
   return !vlessInboundFlowAllowed(input)
 }
 
-interface TlsCertificateUiItem {
-  mode: 'path' | 'content'
-  certificateFile: string
-  keyFile: string
-  certificate: string
-  key: string
-  ocspStapling: string
-  /** PasarGuard / Xray: cert material stays on the node; control plane skips loading for SNI. */
-  serveOnNode: boolean
-}
-
 const DEFAULT_ECH_SERVER_KEY = 'ACB5YddkGL+db6EvQ8s7E9Z5mb/hwVtBNeRRUHVv88yNHwBT/g0ATwAAIAAgSmNiGX1uHfFDZp8dardrjx4/XiNC3V1lQWLwQBARhGwAJAABAAEAAQACAAEAAwACAAEAAgACAAIAAwADAAEAAwACAAMAAwAAAAA='
 const DEFAULT_ECH_CONFIG = 'AFP+DQBPAAAgACBKY2IZfW4d8UNmnx1qt2uPHj9eI0LdXWVBYvBAEBGEbAAkAAEAAQABAAIAAQADAAIAAQACAAIAAgADAAMAAQADAAIAAwADAAAAAA=='
 
@@ -387,30 +376,6 @@ function mutateBase64Seed(seed: string): string {
   } catch {
     return seed
   }
-}
-
-function tlsCertificatesForUi(value: unknown): TlsCertificateUiItem[] {
-  if (!Array.isArray(value)) return []
-  return value
-    .map(item => (item && typeof item === 'object' ? (item as Record<string, unknown>) : null))
-    .filter((item): item is Record<string, unknown> => item !== null)
-    .map(item => {
-      const certificateFile = typeof item.certificateFile === 'string' ? item.certificateFile : ''
-      const keyFile = typeof item.keyFile === 'string' ? item.keyFile : ''
-      const certificate = Array.isArray(item.certificate) ? item.certificate.map(v => String(v)).join('\n') : typeof item.certificate === 'string' ? item.certificate : ''
-      const key = Array.isArray(item.key) ? item.key.map(v => String(v)).join('\n') : typeof item.key === 'string' ? item.key : ''
-      const hasCertificateField = Object.prototype.hasOwnProperty.call(item, 'certificate')
-      const hasKeyField = Object.prototype.hasOwnProperty.call(item, 'key')
-      return {
-        mode: hasCertificateField || hasKeyField || certificate || key ? ('content' as const) : ('path' as const),
-        certificateFile,
-        keyFile,
-        certificate,
-        key,
-        ocspStapling: item.ocspStapling === undefined || item.ocspStapling === null ? '' : String(item.ocspStapling),
-        serveOnNode: item.serveOnNode === true,
-      }
-    })
 }
 
 function isTcpHttpObfuscationEnabled(raw: unknown): boolean {
@@ -1387,10 +1352,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
         encryption: watchedVlessEncryption,
       }),
     [securityForVlessInboundFlow, transportForVlessInboundFlow, watchedVlessEncryption],
-  )
-  const tlsCertificates = useMemo(
-    () => (inboundSecurityType === 'tls' ? tlsCertificatesForUi((inboundSecurity as Record<string, unknown> | null)?.certificates) : []),
-    [inboundSecurityType, inboundSecurity],
   )
   const securityFieldOrder = useMemo(() => {
     if (!inboundSecurityType) return []
@@ -2422,51 +2383,6 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       else merged.verifyPeerCertByName = names
     }
     patchInbound({ security: merged } as Partial<Inbound>)
-  }
-
-  const setTlsCertificates = (next: TlsCertificateUiItem[]) => {
-    if (!inboundSecurity || inboundSecurityType !== 'tls') return
-    const merged = { ...(inboundSecurity as Record<string, unknown>) }
-    const normalized = next.map(item => {
-      const certFile = item.certificateFile.trim()
-      const keyFile = item.keyFile.trim()
-      const certContent = item.certificate.trim()
-      const keyContent = item.key.trim()
-      const ocspRaw = item.ocspStapling.trim()
-      const ocspNum = ocspRaw === '' ? undefined : Number(ocspRaw)
-      const base = {
-        ...(ocspNum !== undefined && Number.isFinite(ocspNum) ? { ocspStapling: ocspNum } : {}),
-        serveOnNode: item.serveOnNode,
-      }
-      if (item.mode === 'content') {
-        const certificateLines = certContent
-          .split(/\r?\n/)
-          .map(line => line.trim())
-          .filter(Boolean)
-        const keyLines = keyContent
-          .split(/\r?\n/)
-          .map(line => line.trim())
-          .filter(Boolean)
-        return {
-          ...base,
-          certificate: certificateLines,
-          key: keyLines,
-        }
-      }
-      return {
-        ...base,
-        certificateFile: certFile,
-        keyFile,
-      }
-    })
-
-    if (next.length === 0) {
-      delete merged.certificates
-    } else {
-      merged.certificates = normalized
-    }
-
-    patchInbound({ security: merged as Security } as Partial<Inbound>)
   }
 
   const applyTlsEchPatch = (patch: { echServerKeys?: string; echConfigList?: string; echForceQuery?: string }) => {
@@ -4100,201 +4016,17 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       </h4>
                       <div className="grid gap-3 sm:grid-cols-2">
                         {inboundSecurityType === 'tls' && (
-                          <div className="space-y-2 sm:col-span-2">
-                            <div className="flex items-center justify-between">
-                              <FormLabel className="text-xs font-medium">{t('coreEditor.inbound.tlsCertificates.sectionLabel', { defaultValue: 'Certificates' })}</FormLabel>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="size-7"
-                                onClick={() =>
-                                  setTlsCertificates([
-                                    ...tlsCertificates,
-                                    {
-                                      mode: 'path',
-                                      certificateFile: '',
-                                      keyFile: '',
-                                      certificate: '',
-                                      key: '',
-                                      ocspStapling: '',
-                                      serveOnNode: false,
-                                    },
-                                  ])
-                                }
-                              >
-                                <Plus className="size-4" />
-                              </Button>
-                            </div>
-                            {tlsCertificates.length === 0 ? (
-                              <div className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-xs">
-                                {t('coreEditor.inbound.tlsCertificates.emptyHint', {
-                                  defaultValue: 'No certificates yet. Click + to add one.',
-                                })}
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                {tlsCertificates.map((cert, index) => (
-                                  <div key={`tls-cert-${index}`} className="space-y-2 rounded-md border p-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-muted-foreground text-xs font-medium">
-                                        {t('coreEditor.inbound.tlsCertificates.certIndex', {
-                                          index: index + 1,
-                                          defaultValue: `Certificate #${index + 1}`,
-                                        })}
-                                      </span>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="size-9 shrink-0 border-red-500/20 transition-colors hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
-                                        onClick={() => {
-                                          const next = tlsCertificates.filter((_, i) => i !== index)
-                                          setTlsCertificates(next)
-                                        }}
-                                      >
-                                        <Trash2 className="text-red-500" />
-                                      </Button>
-                                    </div>
-                                    <Tabs
-                                      value={cert.mode}
-                                      onValueChange={v => {
-                                        const mode = v === 'content' ? 'content' : 'path'
-                                        if (mode === cert.mode) return
-                                        const next = [...tlsCertificates]
-                                        next[index] = { ...next[index], mode }
-                                        setTlsCertificates(next)
-                                      }}
-                                    >
-                                      <TabsList className="grid w-full grid-cols-2">
-                                        <TabsTrigger value="path">{t('coreEditor.inbound.tlsCertificates.filePathTab', { defaultValue: 'File path' })}</TabsTrigger>
-                                        <TabsTrigger value="content">{t('coreEditor.inbound.tlsCertificates.fileContentTab', { defaultValue: 'File content' })}</TabsTrigger>
-                                      </TabsList>
-                                    </Tabs>
-                                    <div className="flex items-start gap-2 rounded-md border border-dashed px-2 py-2">
-                                      <Checkbox
-                                        id={`inbound-tls-cert-serve-on-node-${index}`}
-                                        checked={cert.serveOnNode}
-                                        onCheckedChange={checked => {
-                                          const next = [...tlsCertificates]
-                                          next[index] = { ...next[index], serveOnNode: checked === true }
-                                          setTlsCertificates(next)
-                                        }}
-                                      />
-                                      <div className="grid gap-0.5 leading-tight">
-                                        <label htmlFor={`inbound-tls-cert-serve-on-node-${index}`} className="cursor-pointer text-xs font-medium">
-                                          {t('coreEditor.inbound.tlsCertificateServeOnNode', { defaultValue: 'Serve on node' })}
-                                        </label>
-                                        <p className="text-muted-foreground text-[11px]">
-                                          {t('coreEditor.inbound.tlsCertificateServeOnNodeHint', {
-                                            defaultValue: 'Certificate files are only used on the node; the server will not read them for SNI.',
-                                          })}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                      {cert.mode === 'path' ? (
-                                        <>
-                                          <div className="space-y-1">
-                                            <FormLabel className="text-muted-foreground text-[11px] font-medium">
-                                              {t('coreEditor.inbound.tlsCertificates.certificateFile', { defaultValue: 'Certificate file' })}
-                                            </FormLabel>
-                                            <Input
-                                              dir="ltr"
-                                              className="text-xs"
-                                              placeholder="/path/fullchain.pem"
-                                              defaultValue={cert.certificateFile}
-                                              onBlur={e => {
-                                                if (e.target.value === cert.certificateFile) return
-                                                const next = [...tlsCertificates]
-                                                next[index] = { ...next[index], certificateFile: e.target.value }
-                                                setTlsCertificates(next)
-                                              }}
-                                            />
-                                          </div>
-                                          <div className="space-y-1">
-                                            <FormLabel className="text-muted-foreground text-[11px] font-medium">
-                                              {t('coreEditor.inbound.tlsCertificates.keyFile', { defaultValue: 'Key file' })}
-                                            </FormLabel>
-                                            <Input
-                                              dir="ltr"
-                                              className="text-xs"
-                                              placeholder="/path/key.pem"
-                                              defaultValue={cert.keyFile}
-                                              onBlur={e => {
-                                                if (e.target.value === cert.keyFile) return
-                                                const next = [...tlsCertificates]
-                                                next[index] = { ...next[index], keyFile: e.target.value }
-                                                setTlsCertificates(next)
-                                              }}
-                                            />
-                                          </div>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <div className="space-y-1">
-                                            <FormLabel className="text-muted-foreground text-[11px] font-medium">
-                                              {t('coreEditor.inbound.tlsCertificates.certificateContent', { defaultValue: 'Certificate content' })}
-                                            </FormLabel>
-                                            <Textarea
-                                              dir="ltr"
-                                              rows={5}
-                                              className="text-xs"
-                                              placeholder="-----BEGIN CERTIFICATE-----"
-                                              defaultValue={cert.certificate}
-                                              onBlur={e => {
-                                                if (e.target.value === cert.certificate) return
-                                                const next = [...tlsCertificates]
-                                                next[index] = { ...next[index], certificate: e.target.value }
-                                                setTlsCertificates(next)
-                                              }}
-                                            />
-                                          </div>
-                                          <div className="space-y-1">
-                                            <FormLabel className="text-muted-foreground text-[11px] font-medium">
-                                              {t('coreEditor.inbound.tlsCertificates.keyContent', { defaultValue: 'Key content' })}
-                                            </FormLabel>
-                                            <Textarea
-                                              dir="ltr"
-                                              rows={5}
-                                              className="text-xs"
-                                              placeholder="-----BEGIN PRIVATE KEY-----"
-                                              defaultValue={cert.key}
-                                              onBlur={e => {
-                                                if (e.target.value === cert.key) return
-                                                const next = [...tlsCertificates]
-                                                next[index] = { ...next[index], key: e.target.value }
-                                                setTlsCertificates(next)
-                                              }}
-                                            />
-                                          </div>
-                                        </>
-                                      )}
-                                      <div className="space-y-1 sm:col-span-2">
-                                        <FormLabel className="text-muted-foreground text-[11px] font-medium">
-                                          {t('coreEditor.inbound.tlsCertificates.ocspStapling', { defaultValue: 'OCSP stapling' })}
-                                        </FormLabel>
-                                        <Input
-                                          dir="ltr"
-                                          className="h-9 w-full text-xs"
-                                          type="number"
-                                          inputMode="numeric"
-                                          placeholder="3600"
-                                          defaultValue={cert.ocspStapling}
-                                          onBlur={e => {
-                                            if (e.target.value === cert.ocspStapling) return
-                                            const next = [...tlsCertificates]
-                                            next[index] = { ...next[index], ocspStapling: e.target.value }
-                                            setTlsCertificates(next)
-                                          }}
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+                          <TlsCertificatesEditor
+                            key={`${dialogMode}:${selected}`}
+                            value={(inboundSecurity as Record<string, unknown> | null)?.certificates}
+                            serverName={typeof inboundSecurity?.serverName === 'string' ? inboundSecurity.serverName : ''}
+                            onChange={certificates => {
+                              const security = { ...inboundSecurity } as Record<string, unknown>
+                              if (certificates.length) security.certificates = certificates
+                              else delete security.certificates
+                              patchInbound({ security: security as Security } as Partial<Inbound>)
+                            }}
+                          />
                         )}
 
                         {displaySecurityFieldOrderMain.map(jsonKey => {
