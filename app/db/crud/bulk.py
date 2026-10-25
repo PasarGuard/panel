@@ -200,7 +200,7 @@ async def activate_all_disabled_users(db: AsyncSession, admin: Admin | None = No
     await db.refresh(admin)
 
 
-def _create_group_filter(bulk_model: BulkGroup):
+def _create_group_filter(bulk_model: BulkGroup, scope_admin_id: int | None = None):
     """Create a comprehensive SQLAlchemy filter condition from a BulkGroup model."""
     other_conditions = []
     if bulk_model.admins:
@@ -219,19 +219,26 @@ def _create_group_filter(bulk_model: BulkGroup):
         filter_conditions.append(and_(*other_conditions))
 
     if len(filter_conditions) > 1:
-        return or_(*filter_conditions)
+        target_filter = or_(*filter_conditions)
     elif filter_conditions:
-        return filter_conditions[0]
+        target_filter = filter_conditions[0]
     else:
-        return True
+        target_filter = True
+
+    # Group membership is a write to the users, so the caller's user scope must still apply.
+    if scope_admin_id is not None:
+        target_filter = and_(target_filter, User.admin_id == scope_admin_id)
+    return target_filter
 
 
-async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[list, int] | tuple[list[User], int]:
+async def add_groups_to_users(
+    db: AsyncSession, bulk_model: BulkGroup, scope_admin_id: int | None = None
+) -> tuple[list, int] | tuple[list[User], int]:
     """
     Bulk add groups to users and return list of affected User objects.
     """
-    final_filter = _create_group_filter(bulk_model)
-    count_effctive_users = await count_bulk_group_scope(db, bulk_model)
+    final_filter = _create_group_filter(bulk_model, scope_admin_id)
+    count_effctive_users = await count_bulk_group_scope(db, bulk_model, scope_admin_id=scope_admin_id)
 
     # Users in scope that miss at least one of the requested groups (snapshot taken before any insert).
     memberships = (
@@ -277,13 +284,13 @@ async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[
 
 
 async def remove_groups_from_users(
-    db: AsyncSession, bulk_model: BulkGroup
+    db: AsyncSession, bulk_model: BulkGroup, scope_admin_id: int | None = None
 ) -> tuple[list, int] | tuple[list[User], int]:
     """
     Bulk remove groups from users and return list of affected User objects.
     """
-    final_filter = _create_group_filter(bulk_model)
-    count_effctive_users = await count_bulk_group_scope(db, bulk_model)
+    final_filter = _create_group_filter(bulk_model, scope_admin_id)
+    count_effctive_users = await count_bulk_group_scope(db, bulk_model, scope_admin_id=scope_admin_id)
 
     # Identify affected users (those in scope who actually have the groups to be removed)
     has_group = (
@@ -331,8 +338,8 @@ async def count_bulk_proxy_targets(db: AsyncSession, bulk_model: BulkUsersProxy)
     return (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
 
 
-async def count_bulk_group_scope(db: AsyncSession, bulk_model: BulkGroup) -> int:
-    final_filter = _create_group_filter(bulk_model)
+async def count_bulk_group_scope(db: AsyncSession, bulk_model: BulkGroup, scope_admin_id: int | None = None) -> int:
+    final_filter = _create_group_filter(bulk_model, scope_admin_id)
     return (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
 
 
