@@ -11,7 +11,7 @@ from urllib.parse import quote
 import pytest
 from fastapi import status
 
-from app.plugins import manager, registry
+from app.plugins import events, manager, registry
 from app.scheduler import scheduler
 from app.subscription.config_cache import clear_sub_config_cache
 from tests.api import GetTestDB, app, client
@@ -32,12 +32,18 @@ from tests.plugin_helpers import reset_plugins
 EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "examples" / "plugins"
 
 
+async def _always_claim(*_args, **_kwargs) -> bool:
+    return True
+
+
 @pytest.fixture
 def examples(monkeypatch):
     reset_plugins()
     # The subscription cache is keyed by user id, and SQLite reuses ids of deleted users
     clear_sub_config_cache()
     monkeypatch.setattr("app.db.GetDB", GetTestDB)  # ctx.db() of the plugins
+    # CI runs with 2 workers and NATS: the cross-worker event claim can wait for a NATS timeout
+    monkeypatch.setattr(events, "_claim", _always_claim)
     routes_before = len(app.router.routes)
     manager.load_all(EXAMPLES_DIR, ["expiring-report", "sub-banner"], runs_panel=True, runs_scheduler=True)
     for ctx in registry.active:

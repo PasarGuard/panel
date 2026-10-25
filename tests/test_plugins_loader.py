@@ -25,6 +25,10 @@ def clean_plugins():
     reset_plugins()
 
 
+async def _always_claim(*_args, **_kwargs) -> bool:
+    return True
+
+
 GOOD_PLUGIN = """
 from . import helper
 
@@ -135,6 +139,8 @@ async def test_async_setup_runs_at_startup(tmp_path, clean_plugins):
 
 async def test_event_handler_payload_and_isolation(clean_plugins, monkeypatch):
     monkeypatch.setattr(events, "HANDLER_TIMEOUT", 0.2)
+    # CI runs with 2 workers and NATS: the cross-worker claim is not under test here and can wait for a NATS timeout
+    monkeypatch.setattr(events, "_claim", _always_claim)
     ctx = PluginContext("demo", "1.0.0")
     received: list[dict] = []
 
