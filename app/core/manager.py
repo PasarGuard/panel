@@ -22,6 +22,7 @@ from app.nats.kv_cas import is_kv_miss
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.utils.logger import get_logger
+from config import server_settings
 
 
 class CoreManager:
@@ -187,11 +188,45 @@ class CoreManager:
         exclude_inbounds: set[str] | None = None,
         fallbacks_inbounds: set[str] | None = None,
         type: CoreType | None = None,
+        *,
+        strict_tls_paths: bool = True,
     ):
+        """Build a core from a config. Strict by default: a config sent through the API may not read TLS files
+        outside TLS_FILES_ALLOWED_DIRS. Use _load_stored_core for configs already saved in the database."""
         exclude_inbounds = exclude_inbounds or set()
         fallbacks_inbounds = fallbacks_inbounds or set()
         core_class = self._get_core_class(type)
+        if core_class is XRayConfig:
+            return core_class(
+                config, exclude_inbounds.copy(), fallbacks_inbounds.copy(), strict_tls_paths=strict_tls_paths
+            )
         return core_class(config, exclude_inbounds.copy(), fallbacks_inbounds.copy())
+
+    def _load_stored_core(self, db_core_config) -> AbstractCore:
+        """Build a core from a config already saved in the database (startup, NATS update from another worker).
+
+        TLS files outside TLS_FILES_ALLOWED_DIRS are read with a warning instead of dropping the core: such a
+        config was accepted before the directory check existed, and dropping it would cut every user of its
+        inbounds off after an upgrade.
+        """
+        core_config = self.validate_core(
+            db_core_config.config,
+            db_core_config.exclude_inbound_tags,
+            db_core_config.fallbacks_inbound_tags,
+            db_core_config.type,
+            strict_tls_paths=False,
+        )
+        for path in getattr(core_config, "tls_files_outside_allowed_dirs", ()):
+            self._logger.warning(
+                "Core id=%s name=%r reads TLS file %s outside TLS_FILES_ALLOWED_DIRS (%s). Loaded anyway; move the "
+                "file into an allowed directory or add its directory to TLS_FILES_ALLOWED_DIRS, otherwise saving "
+                "this core through the API will be refused.",
+                getattr(db_core_config, "id", None),
+                getattr(db_core_config, "name", None),
+                path,
+                server_settings.tls_files_allowed_dirs,
+            )
+        return core_config
 
     async def initialize(self, db):
         # Register handler with global router
@@ -209,12 +244,7 @@ class CoreManager:
         cores: dict[int, AbstractCore] = {}
         for config in core_configs:
             try:
-                core_config = self.validate_core(
-                    config.config,
-                    config.exclude_inbound_tags,
-                    config.fallbacks_inbound_tags,
-                    config.type,
-                )
+                core_config = self._load_stored_core(config)
             except Exception as exc:
                 # Broken DB cores must not take down the process (restart loop).
                 self._logger.error(
@@ -248,12 +278,7 @@ class CoreManager:
     async def _update_core_local(self, db_core_config: CoreConfig, core_config: AbstractCore | None = None):
         if core_config is None:
             try:
-                core_config = self.validate_core(
-                    db_core_config.config,
-                    db_core_config.exclude_inbound_tags,
-                    db_core_config.fallbacks_inbound_tags,
-                    db_core_config.type,
-                )
+                core_config = self._load_stored_core(db_core_config)
             except Exception as exc:
                 self._logger.error(
                     "Skipping broken core id=%s type=%s: %s",
