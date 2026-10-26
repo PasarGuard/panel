@@ -6,12 +6,14 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { FormField, FormItem, FormLabel, FormControl } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Plus, Trash2, Copy, SlidersHorizontal } from 'lucide-react'
+import { Plus, Trash2, Copy, SlidersHorizontal, Info } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { CodeEditorPanel } from '@/components/common/code-editor-panel'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 
 export interface XrayStreamFinalmaskFieldsProps {
@@ -1501,6 +1503,53 @@ interface XrayNoiseSettingsListProps {
   allowExp?: boolean
 }
 
+function NoiseExpPacketInfo() {
+  const { t } = useTranslation()
+  const dir = useDirDetection()
+  const isMobile = useIsMobile()
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-4 w-4 p-0 hover:bg-transparent"
+          aria-label={t('hostsDialog.finalmask.noiseExpSyntaxTitle', { defaultValue: 'Expression packet syntax' })}
+        >
+          <Info className="text-muted-foreground h-4 w-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={isMobile ? 'bottom' : 'top'} align={dir === 'rtl' ? 'end' : 'start'} sideOffset={5}>
+        <div className="space-y-1.5">
+          <h4 className="mb-2 text-[11px] font-medium">{t('hostsDialog.finalmask.noiseExpSyntaxTitle', { defaultValue: 'Expression packet syntax' })}</h4>
+          <div className="text-muted-foreground max-h-[60vh] space-y-1 overflow-y-auto pr-1 text-[11px] leading-relaxed">
+            <p>{t('hostsDialog.finalmask.noiseExpSyntaxIntro', { defaultValue: 'Join these parts in order to build one packet. The expression is evaluated again for every send.' })}</p>
+            <ul className="list-inside list-disc space-y-1">
+              {([
+                ['<b hex>', 'noiseExpBytes'],
+                ['<r N> / <r A-B>', 'noiseExpRandom'],
+                ['<rc N> / <rc A-B>', 'noiseExpLetters'],
+                ['<rd N> / <rd A-B>', 'noiseExpDigits'],
+                ['<t>', 'noiseExpTime'],
+                ['<c>', 'noiseExpCounter'],
+                ['<n>', 'noiseExpNonce'],
+              ] as const).map(([syntax, key]) => (
+                <li key={key}><code dir="ltr">{syntax}</code> — {t(`hostsDialog.finalmask.${key}`)}</li>
+              ))}
+            </ul>
+            <p>
+              {t('hostsDialog.finalmask.noiseExpExample', { defaultValue: 'Example:' })}{' '}
+              <code dir="ltr">{'<b 0d0a0d0a><t><r 24>'}</code>
+            </p>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSettingsListProps) {
   const { t } = useTranslation()
   const { fields, append, remove, insert } = useFieldArray({
@@ -1599,7 +1648,10 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                 name={`${name}.${index}.packet`}
                 render={({ field: inputField }) => (
                   <FormItem className="min-w-0 sm:col-span-2">
-                    <FormLabel className="text-xs">{t('hostsDialog.noise.packet')}</FormLabel>
+                    <div className="flex items-center gap-1">
+                      <FormLabel className="text-xs">{t('hostsDialog.noise.packet')}</FormLabel>
+                      {isExpType && <NoiseExpPacketInfo />}
+                    </div>
                     <FormControl>
                       {isArrayType ? (
                         <StringArrayPopoverInput

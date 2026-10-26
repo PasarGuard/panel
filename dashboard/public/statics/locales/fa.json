@@ -1425,7 +1425,17 @@
       "noiseRandPlaceholder": "مثلاً 1-8192",
       "noiseRandRange": "بازه تصادفی",
       "noiseRandRangePlaceholder": "مثلاً 0-255",
-      "noiseExpPlaceholder": "مثلاً <b 0d0a><t><r 24-48>"
+      "noiseExpPlaceholder": "مثلاً <b 0d0a><t><r 24-48>",
+      "noiseExpSyntaxTitle": "ساختار عبارت بسته",
+      "noiseExpSyntaxIntro": "این بخش‌ها به‌ترتیب به هم وصل می‌شوند تا یک بسته بسازند. عبارت برای هر ارسال دوباره ارزیابی می‌شود.",
+      "noiseExpBytes": "بایت‌های ثابت شانزده‌شانزدهی (پیشوند 0x اختیاری است)",
+      "noiseExpRandom": "N بایت تصادفی یا تعداد تصادفی بین A و B",
+      "noiseExpLetters": "حروف تصادفی (a-zA-Z)",
+      "noiseExpDigits": "رقم‌های تصادفی (0-9)",
+      "noiseExpTime": "زمان کنونی یونیکس بر حسب ثانیه، ۴ بایت با ترتیب big endian",
+      "noiseExpCounter": "شمارندهٔ ۴ بایتی که با هر ارسال افزایش می‌یابد",
+      "noiseExpNonce": "۸ بایت تصادفی",
+      "noiseExpExample": "نمونه:"
     },
     "muxSettings": "تنظیمات Mux",
     "enableMux": "فعال‌سازی Mux",

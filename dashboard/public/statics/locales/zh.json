@@ -1565,7 +1565,17 @@
       "noiseRandPlaceholder": "例如 1-8192",
       "noiseRandRange": "随机范围",
       "noiseRandRangePlaceholder": "例如 0-255",
-      "noiseExpPlaceholder": "例如 <b 0d0a><t><r 24-48>"
+      "noiseExpPlaceholder": "例如 <b 0d0a><t><r 24-48>",
+      "noiseExpSyntaxTitle": "数据包表达式语法",
+      "noiseExpSyntaxIntro": "按顺序连接这些部分以构建一个数据包。每次发送时都会重新计算表达式。",
+      "noiseExpBytes": "固定的十六进制字节（可选 0x 前缀）",
+      "noiseExpRandom": "N 个随机字节，或 A 到 B 个随机字节",
+      "noiseExpLetters": "随机字母 (a-zA-Z)",
+      "noiseExpDigits": "随机数字 (0-9)",
+      "noiseExpTime": "当前 Unix 时间（秒），4 字节，大端序",
+      "noiseExpCounter": "4 字节计数器，每次发送递增",
+      "noiseExpNonce": "8 个随机字节",
+      "noiseExpExample": "示例："
     },
     "muxSettings": "Mux 设置",
     "enableMux": "启用 Mux",

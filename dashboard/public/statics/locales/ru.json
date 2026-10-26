@@ -1831,7 +1831,17 @@
       "noiseRandPlaceholder": "например 1-8192",
       "noiseRandRange": "Случайный диапазон",
       "noiseRandRangePlaceholder": "например 0-255",
-      "noiseExpPlaceholder": "например <b 0d0a><t><r 24-48>"
+      "noiseExpPlaceholder": "например <b 0d0a><t><r 24-48>",
+      "noiseExpSyntaxTitle": "Синтаксис выражения пакета",
+      "noiseExpSyntaxIntro": "Соедините эти части по порядку для создания одного пакета. Выражение вычисляется заново при каждой отправке.",
+      "noiseExpBytes": "заданные байты в hex (префикс 0x необязателен)",
+      "noiseExpRandom": "N случайных байт или случайное количество от A до B",
+      "noiseExpLetters": "случайные буквы (a-zA-Z)",
+      "noiseExpDigits": "случайные цифры (0-9)",
+      "noiseExpTime": "текущее время Unix в секундах, 4 байта, порядок big endian",
+      "noiseExpCounter": "4-байтовый счётчик, увеличивается при каждой отправке",
+      "noiseExpNonce": "8 случайных байт",
+      "noiseExpExample": "Пример:"
     },
     "muxSettings": "Настройки Mux",
     "enableMux": "Включить Mux",

@@ -1599,7 +1599,17 @@
       "noiseRandPlaceholder": "e.g. 1-8192",
       "noiseRandRange": "Random range",
       "noiseRandRangePlaceholder": "e.g. 0-255",
-      "noiseExpPlaceholder": "e.g. <b 0d0a><t><r 24-48>"
+      "noiseExpPlaceholder": "e.g. <b 0d0a><t><r 24-48>",
+      "noiseExpSyntaxTitle": "Expression packet syntax",
+      "noiseExpSyntaxIntro": "Join these parts in order to build one packet. The expression is evaluated again for every send.",
+      "noiseExpBytes": "fixed hex bytes (optional 0x prefix)",
+      "noiseExpRandom": "N random bytes, or a random count from A to B",
+      "noiseExpLetters": "random letters (a-zA-Z)",
+      "noiseExpDigits": "random digits (0-9)",
+      "noiseExpTime": "current Unix time in seconds, 4 bytes, big endian",
+      "noiseExpCounter": "4-byte counter, incremented for each send",
+      "noiseExpNonce": "8 random bytes",
+      "noiseExpExample": "Example:"
     },
     "muxSettings": "Mux Settings",
     "enableMux": "Enable Mux",
