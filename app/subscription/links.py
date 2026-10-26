@@ -410,7 +410,7 @@ class StandardLinks(BaseSubscription):
                 host = (vhost.get("host") or "").lower()
                 if host and host == wanted:
                     return _telegram_web_link(
-                        host, vhost.get("base_path") or "", vhost.get("secret_mode") or "", secret
+                        host, vhost.get("base_path") or "", vhost.get("secret_mode") or "dd", secret
                     )
             return ""
         if not inbound.mtproto_native:

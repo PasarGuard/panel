@@ -25,7 +25,7 @@ _RESTRICTED_ACCESS_KEYS = (
 _NODE_REJECTED_KEYS = (
     (("include",), "telemt would read other files on the node host"),
     (("web", "debug"), "it opens a debug surface on the node host"),
-    (("web", "limits", "max_profiles"), "the node sizes it for one WEB profile per user and vhost"),
+    (("web", "limits", "max_profiles"), "the node sets it"),
     (("server", "api"), "the node manages the telemt control API"),
     (("server", "admin_api"), "it is an alias of server.api, which the node manages"),
     (("server", "metrics_port"), "the node manages the metrics endpoint"),
@@ -104,6 +104,34 @@ def _private_ip(value) -> bool:
     if address.is_unspecified:
         return False
     return address.is_loopback or any(address in network for network in _PRIVATE_NETWORKS)
+
+
+def _decoy_origin_host(field: str, upstream) -> str | None:
+    """The host of a bare http origin, the only decoy upstream telemt's decoy_dns::parse_origin accepts."""
+    message = f"{field} must be an http origin without credentials, path, query, or fragment"
+    # The node's url.Parse refuses whitespace and control characters, which urlsplit strips or drops.
+    # "?" and "#" are checked on the raw string: urlsplit, like url.Parse, drops an empty query or fragment.
+    if (
+        not isinstance(upstream, str)
+        or any(char.isspace() or not char.isprintable() for char in upstream)
+        or "?" in upstream
+        or "#" in upstream
+    ):
+        raise ValueError(message)
+    try:
+        parts = urlsplit(upstream)
+        port = parts.port
+    except ValueError as exc:
+        raise ValueError(f"{message}: {exc}") from None
+    if (
+        parts.scheme != "http"
+        or not parts.netloc
+        or "@" in parts.netloc
+        or parts.path not in ("", "/")
+        or (port is not None and not 1 <= port <= 65535)
+    ):
+        raise ValueError(message)
+    return parts.hostname
 
 
 def _port_value(field: str, value) -> int:
@@ -374,11 +402,7 @@ class MtprotoConfig(dict):
                 f'{field}.decoy.mode must be "http_upstream" (got {mode!r}); '
                 "static_directory would serve files from the node host"
             )
-        upstream = decoy.get("upstream")
-        # The node's url.Parse refuses whitespace and control characters, which urlsplit strips or drops.
-        if not isinstance(upstream, str) or any(char.isspace() or not char.isprintable() for char in upstream):
-            upstream = None
-        host = urlsplit(upstream).hostname if upstream is not None else None
+        host = _decoy_origin_host(f"{field}.decoy.upstream", decoy.get("upstream"))
         # telemt requires the decoy origin to be a private IP literal; checked here for a clear error.
         if not _private_ip(host):
             raise ValueError(f"{field}.decoy.upstream must be a URL whose host is a loopback or private IP literal")

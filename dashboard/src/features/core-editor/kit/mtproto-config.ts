@@ -123,14 +123,35 @@ function isPrivateIp(value: unknown): boolean {
   return (v6[0] & 0xfe00) === 0xfc00
 }
 
-/** The host of a URL as Python's urlsplit().hostname reads it, or `null`. Whitespace and control characters are refused. */
-function urlHostname(url: string): string | null {
-  if (/[\s\x00-\x1f\x7f]/.test(url)) return null
-  const netloc = /^(?:[A-Za-z][A-Za-z0-9+.-]*:)?\/\/([^/?#]*)/.exec(url)?.[1]
-  if (netloc === undefined) return null
-  const hostinfo = netloc.slice(netloc.lastIndexOf('@') + 1)
-  const bracket = hostinfo.indexOf('[')
-  const host = bracket !== -1 ? hostinfo.slice(bracket + 1).split(']')[0] : hostinfo.split(':')[0]
+/**
+ * The host of a bare http origin, the only decoy upstream telemt accepts (scheme http, path empty or "/",
+ * no userinfo, query or fragment, port 1-65535), read as the panel's urlsplit does; otherwise `null`.
+ * Whitespace and control characters are refused.
+ */
+function decoyOriginHost(url: string): string | null {
+  if (/[\s\x00-\x1f\x7f?#]/.test(url)) return null
+  const match = /^http:\/\/([^/]*)(.*)$/i.exec(url)
+  if (!match) return null
+  const [, netloc, path] = match
+  if (!netloc || netloc.includes('@') || (path !== '' && path !== '/')) return null
+  let host = netloc
+  let port = ''
+  if (netloc.startsWith('[')) {
+    const end = netloc.indexOf(']')
+    if (end === -1) return null
+    host = netloc.slice(1, end)
+    const rest = netloc.slice(end + 1)
+    if (rest && !rest.startsWith(':')) return null
+    port = rest.slice(1)
+  } else {
+    if (netloc.includes('[') || netloc.includes(']')) return null
+    const colon = netloc.indexOf(':')
+    if (colon !== -1) {
+      host = netloc.slice(0, colon)
+      port = netloc.slice(colon + 1)
+    }
+  }
+  if (port && (!/^[0-9]+$/.test(port) || Number(port) < 1 || Number(port) > 65535)) return null
   return host ? host.toLowerCase() : null
 }
 
@@ -321,7 +342,7 @@ function isValidWebVhost(value: unknown): boolean {
   if (typeof vhost.host !== 'string' || vhost.host.trim() === '') return false
   if (vhost.base_path != null && typeof vhost.base_path !== 'string') return false
   const decoy = asObject(vhost.decoy)
-  if (decoy?.mode !== 'http_upstream' || typeof decoy.upstream !== 'string' || !isPrivateIp(urlHostname(decoy.upstream))) return false
+  if (decoy?.mode !== 'http_upstream' || typeof decoy.upstream !== 'string' || !isPrivateIp(decoyOriginHost(decoy.upstream))) return false
   if (vhost.user_profile == null) return true
   const profile = asObject(vhost.user_profile)
   if (!profile) return false

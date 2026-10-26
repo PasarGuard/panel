@@ -428,7 +428,7 @@ def test_web_config_accepted():
 
     for ip in ("10.0.0.5", "172.16.0.1", "192.168.1.2", "::1", "fd00::1", "::ffff:10.0.0.5"):
         MtprotoConfig(_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(ip=ip)]))
-    for upstream in ("http://10.1.2.3:8080", "http://[::1]:8080", "https://192.168.0.10/site"):
+    for upstream in ("http://10.1.2.3:8080", "http://[::1]:8080", "http://127.0.0.1:18081", "http://127.0.0.1:18081/"):
         MtprotoConfig(_web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": upstream})]))
 
 
@@ -528,6 +528,74 @@ def test_empty_or_disabled_web_section_accepted():
         ),
         (
             _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://[fd00::1%25eth0]:80"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream",
+        ),
+        # telemt's decoy_dns::parse_origin: scheme http, path "" or "/", no userinfo, query or fragment.
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "https://192.168.0.10/site"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream must be an http origin",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "https://127.0.0.1:18081"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream must be an http origin",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://192.168.0.10/site"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream must be an http origin",
+        ),
+        (
+            _web_config(
+                vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://127.0.0.1:18081/?a=1"})]
+            ),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream must be an http origin",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://127.0.0.1:18081?"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream must be an http origin",
+        ),
+        (
+            _web_config(
+                vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://127.0.0.1:18081/#top"})]
+            ),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream must be an http origin",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://127.0.0.1:18081#"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream must be an http origin",
+        ),
+        (
+            _web_config(
+                vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://user:pass@127.0.0.1:18081"})]
+            ),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream must be an http origin",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://@127.0.0.1:18081"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream must be an http origin",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://127.0.0.1:0"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream must be an http origin",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://127.0.0.1:65536"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream must be an http origin",
+        ),
+        # urlsplit raises its own ValueError here; the error still names the field.
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://[::1"})]),
             ValueError,
             r"web\.vhosts\[0\]\.decoy\.upstream",
         ),

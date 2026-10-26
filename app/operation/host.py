@@ -91,7 +91,7 @@ class HostOperation(BaseOperation):
         link_type = settings.link_type if settings else "auto"
 
         if link_type == "web":
-            vhosts = {vhost["host"].lower() for vhost in inbound["web_vhosts"] if vhost["host"]}
+            vhosts = {vhost["host"].lower() for vhost in inbound.get("web_vhosts") or [] if vhost.get("host")}
             if not vhosts:
                 await self.raise_error('Link type "web" needs a WEB vhost in the core, and it has none', 400, db=db)
             unknown = sorted(address for address in host.address if address.lower() not in vhosts)
@@ -102,7 +102,7 @@ class HostOperation(BaseOperation):
                 )
             return
 
-        if not inbound["native"]:
+        if not inbound.get("native", True):
             await self.raise_error(
                 f'Link type "{link_type}" needs a native listener in the core, and it only has WEB listeners',
                 400,
@@ -110,14 +110,14 @@ class HostOperation(BaseOperation):
             )
         if link_type == "auto":
             return
-        if not inbound["modes"].get(link_type):
+        if not (inbound.get("modes") or {}).get(link_type):
             await self.raise_error(f'Link type "{link_type}" needs the "{link_type}" mode on in the core', 400, db=db)
         if link_type == "tls" and host.sni:
-            domains = {domain.lower() for domain in inbound["tls_domains"]}
+            tls_domains = inbound.get("tls_domains") or []
+            domains = {domain.lower() for domain in tls_domains}
             if unknown := sorted(sni for sni in host.sni if sni.lower() not in domains):
                 await self.raise_error(
-                    f"SNI {', '.join(unknown)} is not a fake TLS domain of the core "
-                    f"({', '.join(inbound['tls_domains'])})",
+                    f"SNI {', '.join(unknown)} is not a fake TLS domain of the core ({', '.join(tls_domains)})",
                     400,
                     db=db,
                 )

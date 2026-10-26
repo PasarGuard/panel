@@ -135,3 +135,15 @@ async def test_save_paths_run_the_check(use_inbound, monkeypatch):
             await call
         assert exc.value.status_code == 400
         assert '"classic"' in exc.value.detail
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("link_type", ["auto", "web", "tls"])
+async def test_inbound_cached_before_link_types(use_inbound, link_type):
+    """An inbound from an older core-manager snapshot has no web_vhosts, native, modes or tls_domains."""
+    use_inbound({"tag": TAG, "protocol": "mtproto"})
+    host = _host(link_type, sni=["a.example.com"])
+    if link_type == "auto":
+        await _validate(host)
+    else:
+        assert link_type in await _refused(host)

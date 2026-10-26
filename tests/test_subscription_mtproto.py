@@ -232,6 +232,14 @@ def test_web_link_uses_vhost_host():
     assert _telegram_links("Proxy.Example.com", web, {"secret": None}) == []
 
 
+def test_web_link_without_secret_mode_uses_dd():
+    """A vhost without secret_mode gets the node's default, dd."""
+    web = _typed_inbound("web", mtproto_web_vhosts=[{"host": "proxy.example.com", "base_path": ""}])
+    assert _telegram_links("proxy.example.com", web, {"secret": WEB_SECRET}) == [
+        f"tg://webproxy?server=proxy.example.com&secret=dd{WEB_SECRET}"
+    ]
+
+
 def test_type_no_longer_served_gives_no_link():
     secure_off = _typed_inbound("secure", modes={"classic": True, "secure": False, "tls": True})
     assert _telegram_links("edge.example.com", secure_off, {"secret": SECRET}) == []
