@@ -19,6 +19,7 @@ export interface XrayStreamFinalmaskFieldsProps {
   onChange: (next: Record<string, any> | undefined) => void
   t: (key: string, opts?: Record<string, unknown>) => string
   allowClientOnlyMasks?: boolean
+  allowServerOnlyMasks?: boolean
 }
 
 function pruneQuicParams(q: any): any | undefined {
@@ -102,7 +103,7 @@ function hasFinalmaskContent(value: Record<string, any> | undefined): boolean {
   )
 }
 
-export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMasks = true }: XrayStreamFinalmaskFieldsProps) {
+export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMasks = true, allowServerOnlyMasks = false }: XrayStreamFinalmaskFieldsProps) {
   const dir = useDirDetection()
 
   const form = useForm<any>({
@@ -148,7 +149,7 @@ export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMask
         </TabsList>
 
         <TabsContent dir={dir} value="tcp">
-          <TcpLayersForm form={form} />
+          <TcpLayersForm form={form} allowServerOnlyMasks={allowServerOnlyMasks} />
         </TabsContent>
 
         <TabsContent dir={dir} value="udp">
@@ -166,7 +167,7 @@ export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMask
 // ==========================================
 // TCP Layers component
 // ==========================================
-function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
+function TcpLayersForm({ form, allowServerOnlyMasks }: { form: UseFormReturn<any>; allowServerOnlyMasks: boolean }) {
   const { t } = useTranslation()
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -185,7 +186,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
     })
   }
 
-  const handleTypeChange = (index: number, newType: FinalMaskTcpType) => {
+  const handleTypeChange = (index: number, newType: FinalMaskTcpType | 'filter') => {
     form.setValue(`tcp.${index}.type`, newType)
     if (newType === 'fragment') {
       form.setValue(`tcp.${index}.settings`, {
@@ -215,6 +216,11 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
         usernames: [],
         password: '',
       })
+    } else if (newType === 'filter') {
+      form.setValue(`tcp.${index}.settings`, {
+        allowedSourceIPs: [],
+        blockedSourceIPs: [],
+      })
     }
   }
 
@@ -241,7 +247,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`tcp.${index}.type`}
                     render={({ field: selectField }) => (
                       <FormItem className="w-48">
-                        <Select onValueChange={val => handleTypeChange(index, val as FinalMaskTcpType)} value={selectField.value || ''}>
+                        <Select onValueChange={val => handleTypeChange(index, val as FinalMaskTcpType | 'filter')} value={selectField.value || ''}>
                           <FormControl>
                             <SelectTrigger className="h-8">
                               <SelectValue placeholder={t('hostsDialog.finalmask.selectType')} />
@@ -252,6 +258,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
                             <SelectItem value="sudoku">sudoku</SelectItem>
                             <SelectItem value="header-custom">header-custom</SelectItem>
                             <SelectItem value="xmc">xmc</SelectItem>
+                            {(allowServerOnlyMasks || selectField.value === 'filter') && <SelectItem value="filter">filter</SelectItem>}
                           </SelectContent>
                         </Select>
                       </FormItem>
@@ -276,6 +283,8 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
               )}
 
               {type === 'xmc' && <XmcSettingsForm prefix={`tcp.${index}.settings`} form={form} />}
+
+              {type === 'filter' && <TcpFilterSettingsForm prefix={`tcp.${index}.settings`} form={form} />}
             </div>
           )
         })}
@@ -286,6 +295,51 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function TcpFilterSettingsForm({ prefix, form }: { prefix: string; form: UseFormReturn<any> }) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="bg-background space-y-3 rounded-md border p-3">
+      <p className="text-muted-foreground text-xs">
+        {t('hostsDialog.finalmask.filterHint', { defaultValue: 'Inbound only. Place filter last so it is the outermost TCP layer. Blocked IPs take precedence over allowed IPs.' })}
+      </p>
+      {(['allowedSourceIPs', 'blockedSourceIPs'] as const).map(key => (
+        <FormField
+          key={key}
+          control={form.control}
+          name={`${prefix}.${key}`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs">
+                {key === 'allowedSourceIPs'
+                  ? t('hostsDialog.finalmask.allowedSourceIPs', { defaultValue: 'Allowed source IPs' })
+                  : t('hostsDialog.finalmask.blockedSourceIPs', { defaultValue: 'Blocked source IPs' })}
+              </FormLabel>
+              <FormControl>
+                <StringArrayPopoverInput
+                  value={Array.isArray(field.value) ? field.value : []}
+                  onChange={field.onChange}
+                  placeholder={t('hostsDialog.finalmask.sourceIPsPlaceholder', { defaultValue: 'Add CIDR or geoip:cn' })}
+                  addPlaceholder={t('arrayInput.addPlaceholder')}
+                  addButtonLabel={t('arrayInput.addButton')}
+                  itemsLabel={t('arrayInput.items')}
+                  emptyMessage={t('arrayInput.noItems')}
+                  duplicateErrorMessage={t('arrayInput.duplicateError')}
+                  clickToEditTitle={t('arrayInput.clickToEdit')}
+                  editItemTitle={t('arrayInput.editItem')}
+                  removeItemTitle={t('arrayInput.removeItem')}
+                  saveEditTitle={t('arrayInput.saveEdit')}
+                  cancelEditTitle={t('arrayInput.cancelEdit')}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+      ))}
     </div>
   )
 }
@@ -1656,7 +1710,7 @@ export function XrayStreamFinalmaskInboundAccordion({ accordionItemClassName, va
               }}
             />
           </div>
-          {enabled && <XrayStreamFinalmaskFields value={value} onChange={onChange} t={t} />}
+          {enabled && <XrayStreamFinalmaskFields value={value} onChange={onChange} t={t} allowServerOnlyMasks />}
         </AccordionContent>
       </AccordionItem>
     </Accordion>
