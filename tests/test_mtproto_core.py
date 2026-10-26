@@ -420,6 +420,9 @@ def test_web_config_accepted():
     assert defaulted.inbounds_by_tag["mtproto"]["web_vhosts"] == [
         {"host": _WEB_HOST, "base_path": "dobry-cola/super_app", "secret_mode": "dd"}
     ]
+    # telemt lowercases vhost hosts at load, so links must use the lowercase form
+    mixed = MtprotoConfig(_web_config(vhosts=[_web_vhost(host="Proxy.Example.COM")]))
+    assert mixed.inbounds_by_tag["mtproto"]["web_vhosts"][0]["host"] == _WEB_HOST
     no_mode = MtprotoConfig(_web_config(vhosts=[_web_vhost(user_profile={"max_streams": 4})]))
     assert no_mode.inbounds_by_tag["mtproto"]["web_vhosts"][0]["secret_mode"] == "dd"
 

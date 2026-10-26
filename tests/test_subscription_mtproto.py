@@ -220,6 +220,15 @@ def test_web_link_uses_vhost_host():
         "tg://webproxy?server=proxy.example.com%2Fapp&secret=cN0AAQIDBAUGBwgJCgsMDQ4P"
     ]
     assert _telegram_links("unknown.example.com", web, {"secret": WEB_SECRET}) == []
+
+    stored_mixed = _typed_inbound(
+        "web", mtproto_web_vhosts=[{"host": "Proxy.Example.com", "base_path": "", "secret_mode": "plain"}]
+    )
+    assert _telegram_links("proxy.example.com", stored_mixed, {"secret": WEB_SECRET}) == [
+        f"tg://webproxy?server=proxy.example.com&secret={WEB_SECRET}"
+    ]
+    no_host = _typed_inbound("web", mtproto_web_vhosts=[{"host": None, "base_path": "", "secret_mode": "dd"}])
+    assert _telegram_links("proxy.example.com", no_host, {"secret": WEB_SECRET}) == []
     assert _telegram_links("Proxy.Example.com", web, {"secret": None}) == []
 
 
