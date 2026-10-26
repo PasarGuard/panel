@@ -10,19 +10,40 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { CoreEditorLayout } from '@/features/core-editor/components/shell/core-editor-layout'
 import { carriedCoreName } from '@/features/core-editor/kit/core-kind'
-import { applyMtprotoFields, mtprotoConfigIssues, readMtprotoFields, type MtprotoConfigIssue, type MtprotoFields, type MtprotoModes } from '@/features/core-editor/kit/mtproto-config'
+import {
+  applyMtprotoFields,
+  emptyMtprotoWebVhost,
+  mtprotoConfigIssues,
+  mtprotoWebDefaults,
+  readMtprotoFields,
+  type MtprotoConfigIssue,
+  type MtprotoFields,
+  type MtprotoModes,
+  type MtprotoWebFields,
+  type MtprotoWebVhostFields,
+} from '@/features/core-editor/kit/mtproto-config'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { DEFAULT_MTPROTO_CORE_CONFIG_JSON } from '@/lib/default-mtproto-core-config'
 import { cn } from '@/lib/utils'
 import { getGetCoreConfigQueryKey, useCreateCoreConfig, useGetCoreConfig, useModifyCoreConfig } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 
 type EditorSnapshot = { name: string; text: string }
+
+const WEB_GUIDE_URL = 'https://github.com/PasarGuard/node#web-mode'
+
+/** A whole number from a number input, `null` for an empty one, `undefined` while it is not a whole number. */
+function parsePortInput(value: string): number | null | undefined {
+  const raw = value.trim()
+  if (raw === '') return null
+  const port = Number(raw)
+  return Number.isInteger(port) ? port : undefined
+}
 
 const MODE_SWITCHES: ReadonlyArray<{ key: keyof MtprotoModes; labelKey: string; defaultLabel: string }> = [
   { key: 'tls', labelKey: 'coreEditor.mtproto.modeTls', defaultLabel: 'Fake TLS (ee, recommended)' },
@@ -107,6 +128,24 @@ export function MtprotoCoreEditorPage({ coreId }: { coreId: number | null }) {
   }
 
   const issueText = (issue: MtprotoConfigIssue) => t(`coreEditor.mtproto.issue.${issue}`)
+
+  const changeTlsDomains = (tlsDomains: string[]) => changeFields({ tlsDomains })
+
+  const changeWeb = (patch: Partial<MtprotoWebFields>) => {
+    if (fields.web) changeFields({ web: { ...fields.web, ...patch } })
+  }
+
+  const changeVhost = (index: number, patch: Partial<MtprotoWebVhostFields>) => {
+    if (fields.web) changeWeb({ vhosts: fields.web.vhosts.map((vhost, i) => (i === index ? { ...vhost, ...patch } : vhost)) })
+  }
+
+  const removeVhost = (index: number) => {
+    if (fields.web) changeWeb({ vhosts: fields.web.vhosts.filter((_, i) => i !== index) })
+  }
+
+  const addVhost = () => {
+    if (fields.web) changeWeb({ vhosts: [...fields.web.vhosts, emptyMtprotoWebVhost()] })
+  }
 
   const handleBack = useCallback(() => {
     if (dirty) {
@@ -291,13 +330,8 @@ export function MtprotoCoreEditorPage({ coreId }: { coreId: number | null }) {
             value={fields.port ?? ''}
             isError={issues.has('port') || issues.has('listenerPort')}
             onChange={e => {
-              const raw = e.target.value.trim()
-              if (raw === '') {
-                changeFields({ port: null })
-                return
-              }
-              const port = Number(raw)
-              if (Number.isInteger(port)) changeFields({ port })
+              const port = parsePortInput(e.target.value)
+              if (port !== undefined) changeFields({ port })
             }}
           />
           {issueMessage('port')}
@@ -310,6 +344,39 @@ export function MtprotoCoreEditorPage({ coreId }: { coreId: number | null }) {
             {t('coreEditor.mtproto.tlsDomainHint', { defaultValue: 'The site fake TLS imitates. Changing it later breaks every ee link already shared.' })}
           </p>
           {issueMessage('tlsDomain')}
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label>{t('coreEditor.mtproto.tlsDomains', { defaultValue: 'Extra fake TLS domains' })}</Label>
+          {fields.tlsDomains.map((domain, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <Input
+                dir="ltr"
+                disabled={fieldsDisabled}
+                value={domain}
+                aria-label={t('coreEditor.mtproto.tlsDomains', { defaultValue: 'Extra fake TLS domains' })}
+                onChange={e => changeTlsDomains(fields.tlsDomains.map((item, i) => (i === index ? e.target.value : item)))}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                disabled={fieldsDisabled}
+                aria-label={t('coreEditor.mtproto.remove', { defaultValue: 'Remove' })}
+                onClick={() => changeTlsDomains(fields.tlsDomains.filter((_, i) => i !== index))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <Button type="button" variant="outline" size="sm" disabled={fieldsDisabled} onClick={() => changeTlsDomains([...fields.tlsDomains, ''])}>
+            <Plus className="h-4 w-4" />
+            {t('coreEditor.mtproto.tlsDomainsAdd', { defaultValue: 'Add domain' })}
+          </Button>
+          <p className="text-muted-foreground text-xs">
+            {t('coreEditor.mtproto.tlsDomainsHint', { defaultValue: 'Optional. More sites fake TLS clients can present, next to the TLS domain above.' })}
+          </p>
+          {issueMessage('tlsDomains')}
         </div>
         <div className="space-y-2 sm:col-span-2">
           <Label>{t('coreEditor.mtproto.modes', { defaultValue: 'Modes' })}</Label>
@@ -330,6 +397,143 @@ export function MtprotoCoreEditorPage({ coreId }: { coreId: number | null }) {
           </div>
           {issueMessage('modes')}
         </div>
+      </div>
+      <div className="space-y-4 rounded-md border p-4">
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="mtproto-web-enabled">{t('coreEditor.mtproto.webEnable', { defaultValue: 'WEB mode' })}</Label>
+          <Switch
+            id="mtproto-web-enabled"
+            checked={fields.web !== null}
+            disabled={fieldsDisabled}
+            onCheckedChange={checked => {
+              if (parsedConfig) changeFields({ web: checked ? mtprotoWebDefaults(parsedConfig) : null })
+            }}
+          />
+        </div>
+        <div className="text-muted-foreground space-y-1 text-xs">
+          <p>
+            {t('coreEditor.mtproto.webHint', {
+              defaultValue: 'WEB carries MTProto over HTTPS. It needs an HTTPS front (Caddy or nginx) on the server that holds the certificate and forwards to the WEB listener.',
+            })}
+          </p>
+          <p>{t('coreEditor.mtproto.webOneServer', { defaultValue: 'WEB settings are for one server; with several MTProto nodes, use one core per node.' })}</p>
+          <a href={WEB_GUIDE_URL} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 hover:underline">
+            {t('coreEditor.mtproto.webGuide', { defaultValue: 'How to set up WEB' })}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+        {fields.web && (
+          <>
+            <div className="space-y-2 sm:max-w-xs">
+              <Label htmlFor="mtproto-web-port">{t('coreEditor.mtproto.webListenerPort', { defaultValue: 'WEB listener port' })}</Label>
+              <Input
+                id="mtproto-web-port"
+                dir="ltr"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={65535}
+                disabled={fieldsDisabled}
+                value={fields.web.listenerPort ?? ''}
+                isError={issues.has('webListener')}
+                onChange={e => {
+                  const port = parsePortInput(e.target.value)
+                  if (port !== undefined) changeWeb({ listenerPort: port })
+                }}
+              />
+              <p className="text-muted-foreground text-xs">
+                {t('coreEditor.mtproto.webListenerPortHint', { defaultValue: 'The local port the front forwards to. It must differ from the MTProto port.' })}
+              </p>
+              {issueMessage('webListener')}
+            </div>
+            <div className="space-y-3">
+              <Label>{t('coreEditor.mtproto.webVhosts', { defaultValue: 'Domains' })}</Label>
+              {fields.web.vhosts.map((vhost, index) => (
+                <div key={index} className="grid grid-cols-1 gap-3 rounded-md border p-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor={`mtproto-web-host-${index}`} className="text-xs font-normal">
+                      {t('coreEditor.mtproto.webHost', { defaultValue: 'Domain' })}
+                    </Label>
+                    <Input
+                      id={`mtproto-web-host-${index}`}
+                      dir="ltr"
+                      placeholder="proxy.example.com"
+                      disabled={fieldsDisabled}
+                      value={vhost.host}
+                      onChange={e => changeVhost(index, { host: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`mtproto-web-path-${index}`} className="text-xs font-normal">
+                      {t('coreEditor.mtproto.webBasePath', { defaultValue: 'Path (optional)' })}
+                    </Label>
+                    <Input id={`mtproto-web-path-${index}`} dir="ltr" disabled={fieldsDisabled} value={vhost.basePath} onChange={e => changeVhost(index, { basePath: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`mtproto-web-public-${index}`} className="text-xs font-normal">
+                      {t('coreEditor.mtproto.webPublicAddr', { defaultValue: 'Public address' })}
+                    </Label>
+                    <Input
+                      id={`mtproto-web-public-${index}`}
+                      dir="ltr"
+                      placeholder="203.0.113.10:443"
+                      disabled={fieldsDisabled}
+                      value={vhost.publicAddr}
+                      onChange={e => changeVhost(index, { publicAddr: e.target.value })}
+                    />
+                    <p className="text-muted-foreground text-xs">{t('coreEditor.mtproto.webPublicAddrHint', { defaultValue: "The server's public IP and port 443." })}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`mtproto-web-decoy-${index}`} className="text-xs font-normal">
+                      {t('coreEditor.mtproto.webDecoyUpstream', { defaultValue: 'Decoy site URL' })}
+                    </Label>
+                    <Input
+                      id={`mtproto-web-decoy-${index}`}
+                      dir="ltr"
+                      placeholder="http://127.0.0.1:8080"
+                      disabled={fieldsDisabled}
+                      value={vhost.decoyUpstream}
+                      onChange={e => changeVhost(index, { decoyUpstream: e.target.value })}
+                    />
+                    <p className="text-muted-foreground text-xs">
+                      {t('coreEditor.mtproto.webDecoyUpstreamHint', { defaultValue: 'Other visitors see this site. Its address must be a loopback or private IP.' })}
+                    </p>
+                  </div>
+                  <div className="flex items-end justify-between gap-2 sm:col-span-2">
+                    <div className="w-full max-w-[200px] space-y-1">
+                      <Label className="text-xs font-normal">{t('coreEditor.mtproto.webSecretMode', { defaultValue: 'Secret mode' })}</Label>
+                      <Select value={vhost.secretMode} disabled={fieldsDisabled} onValueChange={value => changeVhost(index, { secretMode: value === 'plain' ? 'plain' : 'dd' })}>
+                        <SelectTrigger aria-label={t('coreEditor.mtproto.webSecretMode', { defaultValue: 'Secret mode' })}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="dd">{t('coreEditor.mtproto.webSecretModeDd', { defaultValue: 'dd (recommended)' })}</SelectItem>
+                          <SelectItem value="plain">{t('coreEditor.mtproto.webSecretModePlain', { defaultValue: 'Plain' })}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0"
+                      disabled={fieldsDisabled}
+                      aria-label={t('coreEditor.mtproto.remove', { defaultValue: 'Remove' })}
+                      onClick={() => removeVhost(index)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              <Button type="button" variant="outline" size="sm" disabled={fieldsDisabled} onClick={addVhost}>
+                <Plus className="h-4 w-4" />
+                {t('coreEditor.mtproto.webVhostAdd', { defaultValue: 'Add domain' })}
+              </Button>
+              {issueMessage('webVhost')}
+            </div>
+          </>
+        )}
       </div>
       <div className="space-y-2">
         <Label>{t('coreEditor.mtproto.config', { defaultValue: 'Config (JSON)' })}</Label>
