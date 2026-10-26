@@ -79,13 +79,19 @@ const SubscriptionModal: FC<SubscriptionModalProps> = memo(({ open, subscribeUrl
       const configLines = text.split('\n').filter(line => line.trim() !== '')
 
       setConfigs(
-        configLines.map(config => ({
-          config,
-          name:
-            extractNameFromConfigUrl(config) ||
-            (parseTelegramProxyLink(config) ? t('subscriptionModal.telegramProxy', { defaultValue: 'Telegram proxy' }) : t('subscriptionModal.unknownConfig', { defaultValue: 'Unknown Config' })),
-          address: extractAddressFromConfigUrl(config),
-        })),
+        configLines.map(config => {
+          const telegramProxy = parseTelegramProxyLink(config)
+          const fallbackName = !telegramProxy
+            ? t('subscriptionModal.unknownConfig', { defaultValue: 'Unknown Config' })
+            : telegramProxy.kind === 'webproxy'
+              ? t('subscriptionModal.telegramWebProxy', { defaultValue: 'Telegram WEB proxy' })
+              : t('subscriptionModal.telegramProxy', { defaultValue: 'Telegram proxy' })
+          return {
+            config,
+            name: extractNameFromConfigUrl(config) || fallbackName,
+            address: extractAddressFromConfigUrl(config),
+          }
+        }),
       )
       setCurrentPage(0)
     } catch (err) {

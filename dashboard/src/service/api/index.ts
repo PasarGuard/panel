@@ -762,6 +762,21 @@ export interface MasqueHostSettings {
   xmux?: XMuxSettings | null;
 }
 
+export type MtprotoHostSettingsLinkType = typeof MtprotoHostSettingsLinkType[keyof typeof MtprotoHostSettingsLinkType];
+
+
+export const MtprotoHostSettingsLinkType = {
+  auto: 'auto',
+  tls: 'tls',
+  secure: 'secure',
+  classic: 'classic',
+  web: 'web',
+} as const;
+
+export interface MtprotoHostSettings {
+  link_type?: MtprotoHostSettingsLinkType;
+}
+
 export interface TransportSettings {
   xhttp_settings?: XHttpSettings | null;
   grpc_settings?: GRPCSettings | null;
@@ -769,6 +784,7 @@ export interface TransportSettings {
   tcp_settings?: TcpSettings | null;
   websocket_settings?: WebSocketSettings | null;
   masque_settings?: MasqueHostSettings | null;
+  mtproto_settings?: MtprotoHostSettings | null;
 }
 
 export type MultiplexProtocol = typeof MultiplexProtocol[keyof typeof MultiplexProtocol];

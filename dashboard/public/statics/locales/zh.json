@@ -1773,7 +1773,19 @@
       "dnsHint": "留空使用系统 DNS"
     },
     "mtproto": {
-      "hint": "MTProto 主机只需要地址和端口。订阅页面和仪表盘会为其显示 Telegram 代理链接；客户端应用永远不会收到该链接。"
+      "hint": "订阅页面和仪表盘会为 MTProto 主机显示 Telegram 代理链接；客户端应用永远不会收到该链接。",
+      "linkType": "链接类型",
+      "linkTypeHelp": "这里只决定用户从此主机获得哪些链接。所有类型都使用同一个用户密钥，因此只有核心的模式开关才能真正关闭某种类型。",
+      "linkTypes": {
+        "auto": "自动",
+        "tls": "Fake TLS",
+        "secure": "Secure",
+        "classic": "经典",
+        "web": "WEB"
+      },
+      "fakeTlsDomain": "Fake TLS 域名",
+      "fakeTlsDomainHelp": "必须是核心的 Fake TLS 域名之一。留空则使用核心的主域名。",
+      "webAddressHelp": "每个地址都必须是核心的 WEB vhost 域名之一。WEB 链接始终使用 443 端口，因此会忽略端口设置。"
     }
   },
   "inbound": "入站",
@@ -1836,6 +1848,7 @@
   "subscriptionModal.noConfigs": "未找到配置",
   "subscriptionModal.unknownConfig": "未知配置",
   "subscriptionModal.telegramProxy": "Telegram 代理",
+  "subscriptionModal.telegramWebProxy": "Telegram WEB 代理",
   "subscriptionModal.qrFormat": "二维码格式",
   "subscriptionModal.qrFormatConfig": "配置",
   "configActions.copyConfig": "复制配置",

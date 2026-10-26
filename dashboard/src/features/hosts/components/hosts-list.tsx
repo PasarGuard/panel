@@ -346,6 +346,11 @@ export default function HostsList({
                   heartbeatPeriod: host.transport_settings.websocket_settings.heartbeatPeriod ?? undefined,
                 }
               : undefined,
+            mtproto_settings: host.transport_settings.mtproto_settings
+              ? {
+                  link_type: host.transport_settings.mtproto_settings.link_type ?? undefined,
+                }
+              : undefined,
           }
         : undefined,
       wireguard_overrides: host.wireguard_overrides
@@ -717,6 +722,11 @@ export default function HostsList({
               websocket_settings: host.transport_settings.websocket_settings
                 ? {
                     heartbeatPeriod: host.transport_settings.websocket_settings.heartbeatPeriod ?? undefined,
+                  }
+                : undefined,
+              mtproto_settings: host.transport_settings.mtproto_settings
+                ? {
+                    link_type: host.transport_settings.mtproto_settings.link_type ?? undefined,
                   }
                 : undefined,
             }

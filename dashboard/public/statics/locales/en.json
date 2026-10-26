@@ -1807,7 +1807,19 @@
       "dnsHint": "Leave empty to use system DNS"
     },
     "mtproto": {
-      "hint": "MTProto hosts only need an address and a port. The subscription page and the dashboard show a Telegram proxy link for them; client apps never receive it."
+      "hint": "The subscription page and the dashboard show a Telegram proxy link for MTProto hosts; client apps never receive it.",
+      "linkType": "Link type",
+      "linkTypeHelp": "This only picks which links users get from this host. Every type uses the same user secret, so only the core's mode switches really turn a type off.",
+      "linkTypes": {
+        "auto": "Auto",
+        "tls": "Fake TLS",
+        "secure": "Secure",
+        "classic": "Classic",
+        "web": "WEB"
+      },
+      "fakeTlsDomain": "Fake TLS domain",
+      "fakeTlsDomainHelp": "Must be one of the core's fake TLS domains. Leave empty to use the core's main domain.",
+      "webAddressHelp": "Each address must be one of the core's WEB vhost domains. WEB links always use port 443, so the port is ignored."
     }
   },
   "inbound": "Inbound",
@@ -1863,6 +1875,7 @@
   "subscriptionModal.noConfigs": "No configurations found",
   "subscriptionModal.unknownConfig": "Unknown Config",
   "subscriptionModal.telegramProxy": "Telegram proxy",
+  "subscriptionModal.telegramWebProxy": "Telegram WEB proxy",
   "subscriptionModal.qrFormat": "QR Code Format",
   "subscriptionModal.qrFormatConfig": "Config",
   "configActions.copyConfig": "Copy Config",

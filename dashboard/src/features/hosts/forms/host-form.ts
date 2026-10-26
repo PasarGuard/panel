@@ -1,5 +1,5 @@
 import * as z from 'zod'
-import type { CreateHost, FinalMask, XMuxSettings, XrayNoiseSettings } from '@/service/api'
+import type { CreateHost, FinalMask, MtprotoHostSettingsLinkType, XMuxSettings, XrayNoiseSettings } from '@/service/api'
 
 interface Brutal {
   enable?: boolean
@@ -177,6 +177,9 @@ export interface HostFormValues {
     }
     websocket_settings?: {
       heartbeatPeriod?: number
+    }
+    mtproto_settings?: {
+      link_type?: MtprotoHostSettingsLinkType
     }
   }
   final_mask_settings?: FinalMask
@@ -439,6 +442,12 @@ const transportSettingsSchema = z
           })
           .nullish()
           .optional(),
+      })
+      .nullish()
+      .optional(),
+    mtproto_settings: z
+      .object({
+        link_type: z.enum(['auto', 'tls', 'secure', 'classic', 'web']).optional(),
       })
       .nullish()
       .optional(),

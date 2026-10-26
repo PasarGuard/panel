@@ -713,6 +713,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const isInboundModeResolved = !isDialogOpen || !selectedInboundTag || !!selectedInbound || !isLoadingInbounds
   const shouldRenderWireGuardLayout = resolvedHostMode === 'wireguard'
   const shouldRenderMtprotoLayout = resolvedHostMode === 'mtproto'
+  const mtprotoLinkType = form.watch('transport_settings.mtproto_settings.link_type') ?? 'auto'
 
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
@@ -836,8 +837,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       const payload = { ...data }
 
       if (isSimpleInbound) {
+        // MTProto keeps only its link type, plus the SNI as the fake TLS domain of a tls host; missing means auto
+        const linkType = isMtprotoInbound ? (data.transport_settings?.mtproto_settings?.link_type ?? 'auto') : 'auto'
         payload.host = []
-        payload.sni = []
+        payload.sni = linkType === 'tls' ? data.sni : []
         payload.path = ''
         payload.http_headers = {}
         payload.security = 'inbound_default'
@@ -857,7 +860,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         payload.pinned_peer_cert_sha256 = undefined
         payload.verify_peer_cert_by_name = []
         payload.mux_settings = undefined
-        payload.transport_settings = undefined
+        payload.transport_settings = linkType === 'auto' ? undefined : { mtproto_settings: { link_type: linkType } }
         if (isWireGuardInbound && payload.wireguard_overrides) {
           const wg = payload.wireguard_overrides
           const next: NonNullable<HostFormValues['wireguard_overrides']> = {}
@@ -1198,10 +1201,68 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                   </div>
                 </div>
               ) : shouldRenderMtprotoLayout ? (
-                <div className="text-muted-foreground mb-6 rounded-sm border px-4 py-3 text-sm">
-                  {t('hostsDialog.mtproto.hint', {
-                    defaultValue: 'MTProto hosts only need an address and a port. The subscription page and the dashboard show a Telegram proxy link for them; client apps never receive it.',
-                  })}
+                <div className="mb-6 space-y-4 rounded-sm border px-4 py-3">
+                  <p className="text-muted-foreground text-sm">
+                    {t('hostsDialog.mtproto.hint', {
+                      defaultValue: 'The subscription page and the dashboard show a Telegram proxy link for MTProto hosts; client apps never receive it.',
+                    })}
+                  </p>
+                  <FormField
+                    control={form.control}
+                    name="transport_settings.mtproto_settings.link_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('hostsDialog.mtproto.linkType', { defaultValue: 'Link type' })}</FormLabel>
+                        <Select dir={dir} onValueChange={field.onChange} value={field.value ?? 'auto'}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="auto">{t('hostsDialog.mtproto.linkTypes.auto', { defaultValue: 'Auto' })}</SelectItem>
+                            <SelectItem value="tls">{t('hostsDialog.mtproto.linkTypes.tls', { defaultValue: 'Fake TLS' })}</SelectItem>
+                            <SelectItem value="secure">{t('hostsDialog.mtproto.linkTypes.secure', { defaultValue: 'Secure' })}</SelectItem>
+                            <SelectItem value="classic">{t('hostsDialog.mtproto.linkTypes.classic', { defaultValue: 'Classic' })}</SelectItem>
+                            <SelectItem value="web">{t('hostsDialog.mtproto.linkTypes.web', { defaultValue: 'WEB' })}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-muted-foreground text-xs">
+                          {t('hostsDialog.mtproto.linkTypeHelp', {
+                            defaultValue: "This only picks which links users get from this host. Every type uses the same user secret, so only the core's mode switches really turn a type off.",
+                          })}
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {mtprotoLinkType === 'tls' && (
+                    <FormField
+                      control={form.control}
+                      name="sni"
+                      render={({ field }) => (
+                        <ArrayInput
+                          field={field}
+                          placeholder="example.com"
+                          label={t('hostsDialog.mtproto.fakeTlsDomain', { defaultValue: 'Fake TLS domain' })}
+                          infoContent={
+                            <p className="text-muted-foreground text-[11px]">
+                              {t('hostsDialog.mtproto.fakeTlsDomainHelp', {
+                                defaultValue: "Must be one of the core's fake TLS domains. Leave empty to use the core's main domain.",
+                              })}
+                            </p>
+                          }
+                        />
+                      )}
+                    />
+                  )}
+                  {mtprotoLinkType === 'web' && (
+                    <p className="text-muted-foreground text-xs">
+                      {t('hostsDialog.mtproto.webAddressHelp', {
+                        defaultValue: "Each address must be one of the core's WEB vhost domains. WEB links always use port 443, so the port is ignored.",
+                      })}
+                    </p>
+                  )}
                 </div>
               ) : shouldRenderWireGuardLayout ? (
                 <Accordion type="single" collapsible value={wireguardOpenSection} onValueChange={handleWireguardAccordionChange} className="!mt-0 mb-6 flex w-full flex-col gap-y-6">

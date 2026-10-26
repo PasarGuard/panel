@@ -1323,6 +1323,7 @@
   "subscriptionModal.noConfigs": "Конфигурации не найдены",
   "subscriptionModal.unknownConfig": "Неизвестная конфигурация",
   "subscriptionModal.telegramProxy": "Прокси Telegram",
+  "subscriptionModal.telegramWebProxy": "WEB-прокси Telegram",
   "subscriptionModal.qrFormat": "Формат QR-кода",
   "subscriptionModal.qrFormatConfig": "Конфиг",
   "configActions.copyConfig": "Копировать конфиг",
@@ -2000,7 +2001,19 @@
       "dnsHint": "Оставьте пустым для использования системного DNS"
     },
     "mtproto": {
-      "hint": "Хостам MTProto нужны только адрес и порт. Страница подписки и панель показывают для них ссылку на прокси Telegram; клиентские приложения её никогда не получают."
+      "hint": "Страница подписки и панель показывают для хостов MTProto ссылку на прокси Telegram; клиентские приложения её никогда не получают.",
+      "linkType": "Тип ссылки",
+      "linkTypeHelp": "Здесь выбирается только то, какие ссылки пользователи получат от этого хоста. Все типы используют один и тот же секрет пользователя, поэтому по-настоящему отключить тип можно только переключателями режимов в ядре.",
+      "linkTypes": {
+        "auto": "Авто",
+        "tls": "Fake TLS",
+        "secure": "Secure",
+        "classic": "Классический",
+        "web": "WEB"
+      },
+      "fakeTlsDomain": "Домен Fake TLS",
+      "fakeTlsDomainHelp": "Должен быть одним из доменов Fake TLS ядра. Оставьте пустым, чтобы использовать основной домен ядра.",
+      "webAddressHelp": "Каждый адрес должен быть одним из доменов WEB vhost ядра. Ссылки WEB всегда используют порт 443, поэтому порт не учитывается."
     }
   },
   "enable": "Включить",

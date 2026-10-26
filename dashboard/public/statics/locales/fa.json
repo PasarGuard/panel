@@ -1621,7 +1621,19 @@
       "dnsHint": "خالی بگذارید تا از DNS سیستم استفاده شود"
     },
     "mtproto": {
-      "hint": "هاست‌های MTProto فقط به یک آدرس و یک پورت نیاز دارند. صفحه اشتراک و داشبورد برای آن‌ها لینک پروکسی تلگرام نشان می‌دهند؛ برنامه‌های کلاینت هرگز آن را دریافت نمی‌کنند."
+      "hint": "The subscription page and the dashboard show a Telegram proxy link for MTProto hosts; client apps never receive it.",
+      "linkType": "Link type",
+      "linkTypeHelp": "This only picks which links users get from this host. Every type uses the same user secret, so only the core's mode switches really turn a type off.",
+      "linkTypes": {
+        "auto": "Auto",
+        "tls": "Fake TLS",
+        "secure": "Secure",
+        "classic": "Classic",
+        "web": "WEB"
+      },
+      "fakeTlsDomain": "Fake TLS domain",
+      "fakeTlsDomainHelp": "Must be one of the core's fake TLS domains. Leave empty to use the core's main domain.",
+      "webAddressHelp": "Each address must be one of the core's WEB vhost domains. WEB links always use port 443, so the port is ignored."
     }
   },
   "inbound": "ورودی",
@@ -1687,6 +1699,7 @@
   "subscriptionModal.noConfigs": "کانفیگی یافت نشد",
   "subscriptionModal.unknownConfig": "کانفیگ ناشناخته",
   "subscriptionModal.telegramProxy": "پروکسی تلگرام",
+  "subscriptionModal.telegramWebProxy": "Telegram WEB proxy",
   "subscriptionModal.qrFormat": "فرمت کد QR",
   "subscriptionModal.qrFormatConfig": "کانفیگ",
   "configActions.copyConfig": "کپی کانفیگ",
