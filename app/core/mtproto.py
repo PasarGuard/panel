@@ -90,9 +90,14 @@ def _find_key(value, key: str, path: str = "") -> str | None:
 
 def _private_ip(value) -> bool:
     """True for a loopback or private IP literal, like the node's IsLoopback() || IsPrivate()."""
+    # net.ParseIP takes only a string and knows no IPv6 zone; ipaddress also takes integers and "%zone".
+    if not isinstance(value, str):
+        return False
     try:
         address = ipaddress.ip_address(value)
     except ValueError:
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.scope_id is not None:
         return False
     if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
         address = address.ipv4_mapped
@@ -370,7 +375,10 @@ class MtprotoConfig(dict):
                 "static_directory would serve files from the node host"
             )
         upstream = decoy.get("upstream")
-        host = urlsplit(upstream).hostname if isinstance(upstream, str) else None
+        # The node's url.Parse refuses whitespace and control characters, which urlsplit strips or drops.
+        if not isinstance(upstream, str) or any(char.isspace() or not char.isprintable() for char in upstream):
+            upstream = None
+        host = urlsplit(upstream).hostname if upstream is not None else None
         # telemt requires the decoy origin to be a private IP literal; checked here for a clear error.
         if not _private_ip(host):
             raise ValueError(f"{field}.decoy.upstream must be a URL whose host is a loopback or private IP literal")
@@ -383,6 +391,9 @@ class MtprotoConfig(dict):
         secret_mode = profile.get("secret_mode")
         if secret_mode is not None and secret_mode not in _WEB_SECRET_MODES:
             raise ValueError(f'{field}.user_profile.secret_mode must be "dd" or "plain"; WEB does not support "ee"')
+        for key in profile:
+            if key != "secret_mode" and key not in _WEB_PROFILE_LIMITS:
+                raise ValueError(f"{field}.user_profile.{key} is not supported")
         for key in _WEB_PROFILE_LIMITS:
             value = profile.get(key)
             if value is None:

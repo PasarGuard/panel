@@ -504,6 +504,30 @@ def test_empty_or_disabled_web_section_accepted():
             r"web\.vhosts\[0\]\.user_profile\.max_sessions",
         ),
         (_web_config(vhosts=[_web_vhost(user_profile="dd")]), TypeError, r"web\.vhosts\[0\]\.user_profile"),
+        (
+            _web_config(vhosts=[_web_vhost(user_profile={"max_session": 4})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.user_profile\.max_session is not supported",
+        ),
+        # The node reads ip as a string and parses it with net.ParseIP, which has no integer form and no IPv6 zone.
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(ip=2130706433)]), ValueError, "private"),
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(ip="fd00::1%eth0")]), ValueError, "private"),
+        # The node's url.Parse refuses whitespace and control characters; urlsplit would strip or drop them.
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": " http://127.0.0.1:18081"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://127.0.0.1:18\t081"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://[fd00::1%25eth0]:80"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.decoy\.upstream",
+        ),
         (_web_config(listeners=[{"ip": "0.0.0.0"}]), ValueError, "web"),
         (_web_config(listeners=[]), ValueError, "web"),
         (_tls_config(server={"port": 443, "listeners": [{"ip": "0.0.0.0"}, _web_listener()]}), ValueError, "web"),
