@@ -1277,6 +1277,14 @@
     "addressRequired": "地址是必填的",
     "portRequired": "端口是必填的",
     "fingerprint": "指纹",
+    "realityFingerprint": {
+      "title": "REALITY 指纹兼容性",
+      "tls13": "此预设不支持 Xray REALITY 所需的 TLS 1.3 握手。请选择 chrome 或 firefox。",
+      "modern": "此预设可能无法提供新版 Xray REALITY 服务端所需的 X25519MLKEM768。请使用 chrome 或 firefox，并保持客户端为最新版本。",
+      "random": "随机预设可能生成被新版 Xray REALITY 服务端拒绝的握手。请选择 chrome 或 firefox 以使用固定预设，并保持客户端为最新版本。",
+      "unsafe": "unsafe 不是 uTLS 预设，不能用于 Xray REALITY。请选择 chrome 或 firefox。",
+      "useChrome": "使用 Chrome"
+    },
     "status": {
       "label": "状态",
       "active": "启用",

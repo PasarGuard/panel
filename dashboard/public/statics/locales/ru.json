@@ -1509,6 +1509,14 @@
     "addHost": "Добавить хост",
     "selectInbound": "Выберите входящий",
     "fingerprint": "Отпечаток",
+    "realityFingerprint": {
+      "title": "Совместимость отпечатка с REALITY",
+      "tls13": "Этот профиль не поддерживает рукопожатие TLS 1.3, необходимое для Xray REALITY. Выберите chrome или firefox.",
+      "modern": "Этот профиль может не предоставлять X25519MLKEM768, который требуется новым серверам Xray REALITY. Используйте chrome или firefox и обновлённый клиент.",
+      "random": "Случайные профили могут создавать рукопожатия, которые отклоняют новые серверы Xray REALITY. Выберите chrome или firefox для постоянного профиля и обновляйте клиент.",
+      "unsafe": "Параметр unsafe не является профилем uTLS и не подходит для Xray REALITY. Выберите chrome или firefox.",
+      "useChrome": "Использовать Chrome"
+    },
     "selectStatus": "Выберите статус",
     "remarkRequired": "Примечание обязательно",
     "addressRequired": "Адрес обязателен",

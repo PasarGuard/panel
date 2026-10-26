@@ -122,7 +122,13 @@ class SystemOperation(BaseOperation):
         summaries: list[InboundSummary] = []
         for tag, data in sorted(inbounds.items()):
             protocol = data.get("protocol", "")
-            kwargs: dict = {"tag": tag, "protocol": protocol, "network": data.get("network")}
+            kwargs: dict = {
+                "tag": tag,
+                "protocol": protocol,
+                "network": data.get("network"),
+                "security": data.get("tls"),
+                "fingerprint": data.get("fp"),
+            }
             if protocol == "wireguard":
                 addrs = data.get("address")
                 kwargs["wireguard_public_key"] = data.get("public_key") or None

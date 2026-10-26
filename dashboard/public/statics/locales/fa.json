@@ -1129,6 +1129,14 @@
     "loading": "در حال بارگذاری...",
     "port": "پورت",
     "fingerprint": "اثر انگشت",
+    "realityFingerprint": {
+      "title": "سازگاری اثر انگشت با REALITY",
+      "tls13": "این گزینه از دست‌دهی TLS 1.3 موردنیاز Xray REALITY پشتیبانی نمی‌کند. chrome یا firefox را انتخاب کنید.",
+      "modern": "ممکن است این گزینه کلید X25519MLKEM768 موردنیاز سرورهای جدید Xray REALITY را ارائه نکند. از chrome یا firefox و کلاینت به‌روز استفاده کنید.",
+      "random": "گزینه‌های تصادفی ممکن است دست‌دهی‌ای ایجاد کنند که سرورهای جدید Xray REALITY آن را رد کنند. برای استفاده از گزینه‌ای ثابت، chrome یا firefox را انتخاب کنید و کلاینت را به‌روز نگه دارید.",
+      "unsafe": "گزینهٔ unsafe یک اثر انگشت uTLS نیست و نمی‌توان از آن با Xray REALITY استفاده کرد. chrome یا firefox را انتخاب کنید.",
+      "useChrome": "استفاده از Chrome"
+    },
     "sni": "SNI",
     "sniPlaceholder": "SNI (مثال: example.com)",
     "host": "هاست",
