@@ -2626,7 +2626,7 @@
       "modeTls": "Fake TLS (ee, recommended)",
       "modeSecure": "Secure (dd)",
       "modeClassic": "Classic",
-      "tlsDomains": "Each extra TLS domain must be a bare domain name, not the template placeholder.",
+      "tlsDomains": "Extra fake TLS domains",
       "tlsDomainsHint": "Optional. More sites fake TLS clients can present, next to the TLS domain above.",
       "tlsDomainsAdd": "Add domain",
       "remove": "Remove",

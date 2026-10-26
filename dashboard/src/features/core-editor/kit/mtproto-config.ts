@@ -17,7 +17,15 @@ export type MtprotoFields = {
 
 export type MtprotoWebSecretMode = 'dd' | 'plain'
 
-export type MtprotoWebVhostFields = { host: string; basePath: string; publicAddr: string; decoyUpstream: string; secretMode: MtprotoWebSecretMode }
+export type MtprotoWebVhostFields = {
+  host: string
+  basePath: string
+  publicAddr: string
+  decoyUpstream: string
+  secretMode: MtprotoWebSecretMode
+  /** Index of the `web.vhosts` entry the row was read from, so its other keys stay with it when rows are removed; unset for a new row. */
+  source?: number
+}
 
 export type MtprotoWebFields = {
   /** The port of the first `transport = "web"` listener; `null` when it has none or it is not a whole number. */
@@ -145,9 +153,10 @@ function readTlsDomains(config: Record<string, unknown>): string[] {
   return Array.isArray(domains) ? domains.filter((domain): domain is string => typeof domain === 'string') : []
 }
 
-function readWebVhost(value: unknown): MtprotoWebVhostFields {
+function readWebVhost(value: unknown, source: number): MtprotoWebVhostFields {
   const vhost = asObject(value)
   return {
+    source,
     host: stringOr(vhost?.host),
     basePath: stringOr(vhost?.base_path),
     publicAddr: stringOr(vhost?.public_addr),
@@ -158,7 +167,7 @@ function readWebVhost(value: unknown): MtprotoWebVhostFields {
 
 function readWebVhosts(config: Record<string, unknown>): MtprotoWebVhostFields[] {
   const vhosts = asObject(config.web)?.vhosts
-  return Array.isArray(vhosts) ? vhosts.map(readWebVhost) : []
+  return Array.isArray(vhosts) ? vhosts.map((vhost, index) => readWebVhost(vhost, index)) : []
 }
 
 function readWeb(config: Record<string, unknown>): MtprotoWebFields | null {
@@ -169,7 +178,7 @@ function readWeb(config: Record<string, unknown>): MtprotoWebFields | null {
 }
 
 function sameVhost(a: MtprotoWebVhostFields, b: MtprotoWebVhostFields): boolean {
-  return a.host === b.host && a.basePath === b.basePath && a.publicAddr === b.publicAddr && a.decoyUpstream === b.decoyUpstream && a.secretMode === b.secretMode
+  return a.source === b.source && a.host === b.host && a.basePath === b.basePath && a.publicAddr === b.publicAddr && a.decoyUpstream === b.decoyUpstream && a.secretMode === b.secretMode
 }
 
 function sameWeb(a: MtprotoWebFields | null, b: MtprotoWebFields | null): boolean {
@@ -206,10 +215,11 @@ export function readMtprotoFields(config: Record<string, unknown>): MtprotoField
   }
 }
 
-/** One vhost with the form's fields written over `previous`; only changed fields are written, so other keys and values stay. */
-function applyWebVhost(previous: unknown, fields: MtprotoWebVhostFields): unknown {
+/** The row's own vhost (`fields.source`) with the form's fields written over it; only changed fields are written, so other keys and values stay. */
+function applyWebVhost(previousVhosts: unknown[], fields: MtprotoWebVhostFields): unknown {
+  const previous = fields.source === undefined ? undefined : previousVhosts[fields.source]
   const old = asObject(previous)
-  const was = old ? readWebVhost(old) : null
+  const was = old && fields.source !== undefined ? readWebVhost(old, fields.source) : null
   if (was && sameVhost(was, fields)) return previous
   const vhost: Record<string, unknown> = { ...old }
   if (!was || was.host !== fields.host) vhost.host = fields.host
@@ -263,7 +273,7 @@ function applyWeb(next: Record<string, unknown>, config: Record<string, unknown>
   const section: Record<string, unknown> = { ...asObject(config.web) }
   const previous = Array.isArray(section.vhosts) ? section.vhosts : []
   section.enabled = true
-  section.vhosts = web.vhosts.map((vhost, index) => applyWebVhost(previous[index], vhost))
+  section.vhosts = web.vhosts.map(vhost => applyWebVhost(previous, vhost))
   next.web = section
 }
 

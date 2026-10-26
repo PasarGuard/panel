@@ -2578,7 +2578,7 @@
       "modeTls": "Fake TLS（ee，推荐）",
       "modeSecure": "安全（dd）",
       "modeClassic": "经典",
-      "tlsDomains": "每个额外的 TLS 域名都必须是纯域名，不能是模板占位符。",
+      "tlsDomains": "额外的 Fake TLS 域名",
       "tlsDomainsHint": "可选。除上面的 TLS 域名外，Fake TLS 客户端还可以使用的其他站点。",
       "tlsDomainsAdd": "添加域名",
       "remove": "移除",
