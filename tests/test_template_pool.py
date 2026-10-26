@@ -5,6 +5,8 @@ import threading
 
 import pytest
 
+from app.models.client_template import ClientTemplateType
+from app.operation.client_template import InvalidTemplateContent, check_template_content
 from app.subscription.host_refs import sample_host_refs
 from app.templates import pool
 from app.templates.pool import RenderPool, TemplatesBusy, subscription_pool, validation_pool
@@ -103,3 +105,16 @@ def test_sample_hosts_cover_every_prefix_and_end_with_one_without_access():
     assert [h.available for h in hosts] == [True] * 9 + [False]
     assert len({h.tag for h in hosts}) == 10
     assert len(sample_host_refs([], 0)) == 2
+
+
+QUADRATIC = (
+    '{"inbounds": [{"tag": "in"}], "outbounds": [{"tag": "out"}]'
+    "{% for a in hosts %}{% for b in hosts %}{% endfor %}{% endfor %}}"
+)
+
+
+def test_a_template_too_heavy_for_the_real_number_of_hosts_is_refused():
+    check_template_content(ClientTemplateType.xray_subscription, QUADRATIC, use_jinja=True)
+
+    with pytest.raises(InvalidTemplateContent, match="800 sample hosts"):
+        check_template_content(ClientTemplateType.xray_subscription, QUADRATIC, host_count=800, use_jinja=True)

@@ -51,11 +51,12 @@ def _clear_sub_config_cache():
 def test_memory_and_recursion_errors_are_logged_not_hidden(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
-    # An admin's typo must not look the same in the logs as a real resource-exhaustion signal.
+    # The sandbox's budget is meant to make these unreachable; if one gets through, an admin's typo must not
+    # look the same in the logs as a real resource-exhaustion signal.
     def boom(*args, **kwargs):
         raise MemoryError("simulated")
 
-    monkeypatch.setattr(templates_module, "_compile", lambda content: SimpleNamespace(render=boom))
+    monkeypatch.setattr(templates_module.sandbox_env, "render_limited", boom)
     with caplog.at_level("ERROR"), pytest.raises(ValueError, match="Invalid template"):
         render_variables("{{ 1 }}", {}, use_jinja=True)
     assert "MemoryError" in caplog.text
