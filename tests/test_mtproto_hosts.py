@@ -90,7 +90,7 @@ async def test_tls_host_sni_must_be_core_domain(use_inbound):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("link_type", [None, "auto", "tls", "secure", "classic"])
 async def test_native_types_need_native_listener(use_inbound, link_type):
-    vhosts = [{"host": "proxy.example.com", "base_path": "/", "secret_mode": "dd"}]
+    vhosts = [{"host": "proxy.example.com", "base_path": "tg", "secret_mode": "dd"}]
     use_inbound(
         _inbound(
             modes={"classic": True, "secure": True, "tls": True},
@@ -109,7 +109,7 @@ async def test_web_host_address_matching(use_inbound):
     detail = await _refused(_host("web", address=["proxy.example.com"]))
     assert "WEB vhost" in detail
 
-    vhosts = [{"host": "proxy.example.com", "base_path": "/tg", "secret_mode": "dd"}]
+    vhosts = [{"host": "proxy.example.com", "base_path": "tg", "secret_mode": "dd"}]
     use_inbound(_inbound(native=False, web_vhosts=vhosts))
     await _validate(_host("web", address=["Proxy.Example.com"]))
 

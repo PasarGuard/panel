@@ -66,7 +66,8 @@ def _telegram_web_link(host: str, base_path: str, secret_mode: str, hex_secret: 
     dd = secret_mode == "dd"
     if not base_path:
         return f"tg://webproxy?server={host}&secret={'dd' if dd else ''}{secret}"
-    # telemt form-urlencodes host/base_path; quote matches it for host and path characters
+    # telemt form-urlencodes host/base_path. The core check limits base_path to telemt's rule
+    # ([A-Za-z0-9_-] segments joined by "/"), so it is used as is and quote matches telemt for it.
     server = quote(f"{host}/{base_path}", safe="")
     marked = bytes([0x70, *([0xDD] if dd else []), *bytes.fromhex(secret)])
     return f"tg://webproxy?server={server}&secret={base64.urlsafe_b64encode(marked).rstrip(b'=').decode()}"

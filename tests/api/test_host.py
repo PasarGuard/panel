@@ -11,6 +11,7 @@ from tests.api.helpers import (
     get_inbounds,
     unique_name,
 )
+from tests.api.sample_data import XRAY_CONFIG
 
 
 def test_host_create(access_token):
@@ -677,8 +678,9 @@ def test_host_finalmask_header_custom_numeric_rand(access_token):
 
 def test_non_mtproto_host_ignores_mtproto_settings(access_token):
     core = create_core(access_token)
-    inbounds = get_inbounds(access_token)
-    assert inbounds
+    # Use an inbound of the Xray core created here: the global list can start with another core's MTProto inbound.
+    available = set(get_inbounds(access_token))
+    xray_inbound = next(inbound["tag"] for inbound in XRAY_CONFIG["inbounds"] if inbound["tag"] in available)
     host_id = None
     try:
         response = client.post(
@@ -688,7 +690,7 @@ def test_non_mtproto_host_ignores_mtproto_settings(access_token):
                 "remark": unique_name("xray_host_mtproto_settings"),
                 "address": ["127.0.0.1"],
                 "port": 443,
-                "inbound_tag": inbounds[0],
+                "inbound_tag": xray_inbound,
                 "priority": 1,
                 "transport_settings": {"mtproto_settings": {"link_type": "web"}},
             },

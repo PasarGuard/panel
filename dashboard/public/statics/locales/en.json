@@ -2657,6 +2657,7 @@
         "listenerPort": "Every MTProxy listener port must equal the server port.",
         "tlsDomains": "Each extra TLS domain must be a bare domain name, not the template placeholder.",
         "webListener": "WEB needs web.enabled and one listener with transport \"web\" on a loopback or private IP, with its own port that differs from the server port.",
+        "webBasePath": "Each domain path must be empty or up to 128 characters of Latin letters, digits, \"-\" and \"_\" in parts separated by \"/\", each part starting with a letter or digit, with no \"/\" at the start or end (for example tg or my-app/web).",
         "webVhost": "WEB needs at least one domain, each with a domain name and a decoy URL on a loopback or private IP."
       }
     },

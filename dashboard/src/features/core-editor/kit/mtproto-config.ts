@@ -33,7 +33,7 @@ export type MtprotoWebFields = {
   vhosts: MtprotoWebVhostFields[]
 }
 
-export type MtprotoConfigIssue = 'inboundTag' | 'port' | 'modes' | 'tlsDomain' | 'tlsDomains' | 'listenerPort' | 'webListener' | 'webVhost'
+export type MtprotoConfigIssue = 'inboundTag' | 'port' | 'modes' | 'tlsDomain' | 'tlsDomains' | 'listenerPort' | 'webListener' | 'webVhost' | 'webBasePath'
 
 /** telemt 3.5.14 per-field defaults: a missing `general.modes` means fake TLS only. */
 export const TELEMT_DEFAULT_MODES: Readonly<MtprotoModes> = { classic: false, secure: false, tls: true }
@@ -51,6 +51,9 @@ const WEB_DEFAULT_SECRET_MODE: MtprotoWebSecretMode = 'dd'
 const WEB_SECRET_MODES: readonly unknown[] = ['dd', 'plain']
 const WEB_PROFILE_LIMITS: readonly string[] = ['max_sessions', 'max_streams', 'max_streams_per_session']
 const UINT32_MAX = 4294967295
+// telemt validate_web_base_path: at most 128 ASCII bytes of slash-separated [A-Za-z0-9][A-Za-z0-9_-]* segments.
+const WEB_BASE_PATH = /^[A-Za-z0-9][A-Za-z0-9_-]*(\/[A-Za-z0-9][A-Za-z0-9_-]*)*$/
+const WEB_BASE_PATH_MAX_BYTES = 128
 const DEFAULT_WEB_LISTENER_PORT = 18080
 
 function asObject(value: unknown): Record<string, unknown> | undefined {
@@ -336,6 +339,11 @@ function isExtraTlsDomain(value: unknown): boolean {
   return TLS_HOST_NAME.test(host) && !host.toLowerCase().endsWith('.example')
 }
 
+/** A vhost base_path telemt accepts: empty, or slash-separated segments without a leading or trailing slash. */
+export function isValidWebBasePath(value: string): boolean {
+  return value === '' || (value.length <= WEB_BASE_PATH_MAX_BYTES && WEB_BASE_PATH.test(value))
+}
+
 function isValidWebVhost(value: unknown): boolean {
   const vhost = asObject(value)
   if (!vhost || vhost.profiles != null) return false
@@ -404,6 +412,11 @@ export function mtprotoConfigIssues(config: Record<string, unknown>): MtprotoCon
   const hasWebListener = webListeners.length > 0
   // A WEB listener and web.enabled go together.
   if (enabled !== hasWebListener) add('webListener')
+  const badBasePath = (vhost: unknown) => {
+    const basePath = asObject(vhost)?.base_path
+    return typeof basePath === 'string' && !isValidWebBasePath(basePath)
+  }
+  if (Array.isArray(vhosts) && vhosts.some(badBasePath)) add('webBasePath')
   if (vhosts != null && (!Array.isArray(vhosts) || !vhosts.every(isValidWebVhost))) add('webVhost')
   if (enabled && hasWebListener && !(Array.isArray(vhosts) && vhosts.length > 0)) add('webVhost')
 

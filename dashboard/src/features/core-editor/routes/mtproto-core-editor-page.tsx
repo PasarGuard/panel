@@ -13,6 +13,7 @@ import { carriedCoreName } from '@/features/core-editor/kit/core-kind'
 import {
   applyMtprotoFields,
   emptyMtprotoWebVhost,
+  isValidWebBasePath,
   mtprotoConfigIssues,
   mtprotoWebDefaults,
   readMtprotoFields,
@@ -467,7 +468,14 @@ export function MtprotoCoreEditorPage({ coreId }: { coreId: number | null }) {
                     <Label htmlFor={`mtproto-web-path-${index}`} className="text-xs font-normal">
                       {t('coreEditor.mtproto.webBasePath', { defaultValue: 'Path (optional)' })}
                     </Label>
-                    <Input id={`mtproto-web-path-${index}`} dir="ltr" disabled={fieldsDisabled} value={vhost.basePath} onChange={e => changeVhost(index, { basePath: e.target.value })} />
+                    <Input
+                      id={`mtproto-web-path-${index}`}
+                      dir="ltr"
+                      disabled={fieldsDisabled}
+                      value={vhost.basePath}
+                      isError={!isValidWebBasePath(vhost.basePath)}
+                      onChange={e => changeVhost(index, { basePath: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor={`mtproto-web-public-${index}`} className="text-xs font-normal">
@@ -530,6 +538,7 @@ export function MtprotoCoreEditorPage({ coreId }: { coreId: number | null }) {
                 <Plus className="h-4 w-4" />
                 {t('coreEditor.mtproto.webVhostAdd', { defaultValue: 'Add domain' })}
               </Button>
+              {issueMessage('webBasePath')}
               {issueMessage('webVhost')}
             </div>
           </>

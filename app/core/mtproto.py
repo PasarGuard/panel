@@ -58,6 +58,9 @@ TLS_DOMAIN_PLACEHOLDER = "your-domain.example"
 _TLS_HOST_NAME = re.compile(
     r"(?=.{1,253}$)[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*"
 )
+# telemt validate_web_base_path: empty, or at most 128 ASCII bytes of slash-separated segments.
+_WEB_BASE_PATH = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*(?:/[A-Za-z0-9][A-Za-z0-9_-]*)*")
+_WEB_BASE_PATH_MAX_BYTES = 128
 # The PasarGuard-only per-vhost user_profile (the node expands it into one telemt profile per user).
 _WEB_SECRET_MODES = ("dd", "plain")
 _WEB_DEFAULT_SECRET_MODE = "dd"
@@ -394,6 +397,12 @@ class MtprotoConfig(dict):
         for key in ("host", "base_path"):
             if vhost.get(key) is not None and not isinstance(vhost[key], str):
                 raise TypeError(f"{field}.{key} must be a string")
+        base_path = vhost.get("base_path") or ""
+        if base_path and not (len(base_path) <= _WEB_BASE_PATH_MAX_BYTES and _WEB_BASE_PATH.fullmatch(base_path)):
+            raise ValueError(
+                f"{field}.base_path must be empty or at most {_WEB_BASE_PATH_MAX_BYTES} ASCII bytes of "
+                "slash-separated [A-Za-z0-9][A-Za-z0-9_-]* segments, without a leading or trailing slash"
+            )
 
         decoy = vhost.get("decoy")
         if not isinstance(decoy, dict) or decoy.get("mode") != "http_upstream":

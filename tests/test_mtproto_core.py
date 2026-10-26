@@ -615,6 +615,22 @@ def test_unsafe_web_rejected(config, error, message):
         MtprotoConfig(config)
 
 
+# telemt validate_web_base_path: empty, or at most 128 ASCII bytes of
+# slash-separated [A-Za-z0-9][A-Za-z0-9_-]* segments; telemt refuses anything else at Start.
+@pytest.mark.parametrize(
+    "base_path", ["/tg", "tg/", "/", "a//b", "-x", "_x", "a" * 129, "t\u00e9l\u00e9gram", "tg.app", "tg path"]
+)
+def test_web_base_path_rejected(base_path):
+    with pytest.raises(ValueError, match=r"web\.vhosts\[0\]\.base_path"):
+        MtprotoConfig(_web_config(vhosts=[_web_vhost(base_path=base_path)]))
+
+
+@pytest.mark.parametrize("base_path", ["", "tg", "dobry-cola/super_app", "A1/b-2/c_3", "a" * 128])
+def test_web_base_path_accepted(base_path):
+    core = MtprotoConfig(_web_config(vhosts=[_web_vhost(base_path=base_path)]))
+    assert core.inbounds_by_tag["mtproto"]["web_vhosts"][0]["base_path"] == base_path
+
+
 def test_web_listener_port_clash():
     with pytest.raises(ValueError, match=r"server\.listeners\[1\]\.port"):
         MtprotoConfig(_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(port=443)]))
