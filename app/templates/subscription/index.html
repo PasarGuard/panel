@@ -617,7 +617,7 @@
                     <button class="qr-button" data-link="{{ link }}">
                         QR Code
                     </button>
-                    {% if link.startswith("tg://proxy?") %}
+                    {% if link.startswith(("tg://proxy?", "tg://webproxy?")) %}
                     <a class="open-button" href="{{ link }}">Open in Telegram</a>
                     {% endif %}
                 </div>

@@ -329,6 +329,10 @@ class SubscriptionInboundData(BaseModel):
     # MTProto / telemt
     mtproto_modes: dict[str, bool] = Field(default_factory=dict)
     mtproto_tls_domain: str = Field("")
+    mtproto_link_type: str = Field("auto")
+    mtproto_link_domains: list[str] = Field(default_factory=list)
+    mtproto_native: bool = Field(True)
+    mtproto_web_vhosts: list[dict[str, str]] = Field(default_factory=list)
 
     # Flow (from inbound, user can override)
     inbound_flow: str = Field("")

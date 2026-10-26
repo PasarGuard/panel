@@ -31,20 +31,45 @@ def _telegram_link_host(address: str) -> str:
 
 
 def _mtproto_client_secret(hex_secret: str, inbound: SubscriptionInboundData) -> str:
-    """Client secret for the best mode the inbound serves (fake TLS, then secure, then classic).
+    """Client secret for the host's link type; "auto" takes the best mode the inbound serves
+    (fake TLS, then secure, then classic).
 
-    Return "" when no mode the link can use is on; tls without a domain cannot be used.
+    Return "" when the core does not serve the type; tls without a domain cannot be used.
     """
     secret = hex_secret.strip().lower()
     modes = inbound.mtproto_modes or {}
-    domain = (inbound.mtproto_tls_domain or "").strip()
-    if modes.get("tls") and domain:
-        return "ee" + secret + domain.encode("utf-8").hex()
-    if modes.get("secure"):
+    link_type = inbound.mtproto_link_type
+    if link_type == "auto":
+        domain = (inbound.mtproto_tls_domain or "").strip()
+        if modes.get("tls") and domain:
+            return "ee" + secret + domain.encode("utf-8").hex()
+        if modes.get("secure"):
+            return "dd" + secret
+        if modes.get("classic"):
+            return secret
+        return ""
+    if not modes.get(link_type):
+        return ""
+    if link_type == "tls":
+        domains = [domain for domain in inbound.mtproto_link_domains if domain]
+        return "ee" + secret + choice(domains).encode("utf-8").hex() if domains else ""
+    if link_type == "secure":
         return "dd" + secret
-    if modes.get("classic"):
+    if link_type == "classic":
         return secret
     return ""
+
+
+def _telegram_web_link(host: str, base_path: str, secret_mode: str, hex_secret: str) -> str:
+    """WEB proxy link exactly as telemt's format_web_proxy_link writes it."""
+    secret = hex_secret.lower()
+    dd = secret_mode == "dd"
+    if not base_path:
+        return f"tg://webproxy?server={host}&secret={'dd' if dd else ''}{secret}"
+    # telemt form-urlencodes host/base_path; quote matches it for host and path characters
+    server = quote(f"{host}/{base_path}", safe="")
+    marked = bytes([0x70, *([0xDD] if dd else []), *bytes.fromhex(secret)])
+    return f"tg://webproxy?server={server}&secret={base64.urlsafe_b64encode(marked).rstrip(b'=').decode()}"
 
 
 class StandardLinks(BaseSubscription):
@@ -375,9 +400,19 @@ class StandardLinks(BaseSubscription):
         return components["uri"]
 
     def _build_mtproto(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
-        """Build a Telegram proxy link in telemt's form; "" without a valid secret or a usable mode."""
+        """Build a Telegram proxy or WEB proxy link in telemt's form; "" without a valid secret or a served type."""
         secret = str(settings.get("secret") or "").strip().lower()
         if not _MTPROTO_SECRET_RE.fullmatch(secret):
+            return ""
+        if inbound.mtproto_link_type == "web":
+            wanted = address.strip().lower()
+            for vhost in inbound.mtproto_web_vhosts:
+                if vhost.get("host", "").lower() == wanted:
+                    return _telegram_web_link(
+                        vhost["host"], vhost.get("base_path", ""), vhost.get("secret_mode", ""), secret
+                    )
+            return ""
+        if not inbound.mtproto_native:
             return ""
         client_secret = _mtproto_client_secret(secret, inbound)
         if not client_secret:
