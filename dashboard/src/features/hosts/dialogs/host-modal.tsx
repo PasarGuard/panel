@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { hostFormDefaultValues, type HostFormValues } from '@/features/hosts/forms/host-form'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { XrayStreamFinalmaskFields } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'
-import RealityFingerprintWarning from '@/features/hosts/components/reality-fingerprint-warning'
+import { FormRealityFingerprintWarning as RealityFingerprintWarning } from '@/components/common/reality-fingerprint-warning'
 
 // Predefined sessionIDTable aliases recognized by Xray 26.6.22+.
 const SESSION_ID_TABLE_PRESETS = ['ALPHABET', 'Alphabet', 'BASE36', 'Base62', 'HEX', 'alphabet', 'base36', 'hex', 'number']
@@ -356,7 +356,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                     <AlertDescription className="text-xs sm:text-sm">
                       {t('hostsDialog.fragmentNoiseDeprecated', {
-                        defaultValue: '`noise` and `fragment` are being removed in newer versions — use `finalMask` instead.',
+                        defaultValue: '`noise` and `fragment` are being removed in newer versions â€” use `finalMask` instead.',
                       })}
                     </AlertDescription>
                   </Alert>
@@ -1062,7 +1062,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     field.onChange(field.value.filter(s => s !== status))
                                   }}
                                 >
-                                  ×
+                                  أ—
                                 </button>
                               </span>
                             )
@@ -1614,7 +1614,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     fingerprint={effectiveFingerprint}
                                     onUseChrome={() => {
                                       form.setValue('fingerprint', 'chrome', { shouldDirty: true, shouldTouch: true, shouldValidate: true })
-                                      form.setFocus('fingerprint')
                                     }}
                                   />
                                 )}

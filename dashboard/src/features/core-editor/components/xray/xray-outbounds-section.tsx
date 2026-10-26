@@ -65,7 +65,8 @@ import type { XrayGeneratedFormField } from '@pasarguard/xray-config-kit'
 import type { ColumnDef } from '@tanstack/react-table'
 import { arrayMove } from '@dnd-kit/sortable'
 import type { ReactElement, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import RealityFingerprintWarning from '@/components/common/reality-fingerprint-warning'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -1650,6 +1651,7 @@ const OUTBOUND_TLS_ALPN_PARITY_FIELD = {
 } as XrayGeneratedFormField
 
 function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutbound, t, dialerProxyTagOptions, streamIssues, onInvalidInputsChange }: OutboundStreamSettingsAccordionProps) {
+  const realityFingerprintId = useId()
   const streamSecurity = normalizeOutboundStreamSecurity(obStreamSettings?.security)
   const sockoptValue =
     obStreamSettings && typeof obStreamSettings.sockopt === 'object' && obStreamSettings.sockopt !== null && !Array.isArray(obStreamSettings.sockopt)
@@ -2029,7 +2031,13 @@ function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutb
                   value={typeof realitySettings?.fingerprint === 'string' ? realitySettings.fingerprint : '__none'}
                   onValueChange={v => patchReality({ fingerprint: v === '__none' ? undefined : v })}
                 >
-                  <SelectTrigger className="h-10 w-full min-w-0" dir="ltr">
+                  <SelectTrigger
+                    id={realityFingerprintId}
+                    aria-label={t('coreEditor.field.fingerprint', { defaultValue: 'TLS Fingerprint' })}
+                    aria-describedby={`${realityFingerprintId}-description`}
+                    className="h-10 w-full min-w-0"
+                    dir="ltr"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent dir="ltr">
@@ -2041,6 +2049,12 @@ function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutb
                     ))}
                   </SelectContent>
                 </Select>
+                <RealityFingerprintWarning
+                  id={`${realityFingerprintId}-description`}
+                  controlId={realityFingerprintId}
+                  fingerprint={typeof realitySettings?.fingerprint === 'string' ? realitySettings.fingerprint : 'chrome'}
+                  onUseChrome={() => patchReality({ fingerprint: 'chrome' })}
+                />
               </FieldRow>
 
               <FieldRow label={t('coreEditor.field.publicKey', { defaultValue: 'Server Public Key' })} wide>
