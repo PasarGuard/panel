@@ -254,6 +254,22 @@ def test_node_rejected_keys(path):
     MtprotoConfig(_with_path(_tls_config(), path, None))
 
 
+@pytest.mark.parametrize(
+    ("config", "path"),
+    [
+        (_tls_config(general={"include": "x"}), "general.include"),
+        (_tls_config(server={"port": 443, "listeners": [{"ip": "::", "include": "x"}]}), "server.listeners[0].include"),
+    ],
+)
+def test_nested_include_keys_rejected(config, path):
+    with pytest.raises(ValueError, match=rf"{re.escape(path)} must not be set: telemt would read"):
+        MtprotoConfig(config)
+
+
+def test_keys_that_start_with_include_allowed():
+    MtprotoConfig(_tls_config(general={"included": "x", "include": None}))
+
+
 @pytest.mark.parametrize("key", _RESTRICTED_ACCESS_KEYS)
 def test_restricted_access_keys(key):
     with pytest.raises(ValueError, match=rf"access\.{key} must not be set"):

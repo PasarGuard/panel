@@ -55,6 +55,24 @@ _TLS_HOST_NAME = re.compile(
 )
 
 
+def _find_key(value, key: str, path: str = "") -> str | None:
+    """Path of the first set key named key at any depth (tables in arrays included), or None."""
+    if isinstance(value, dict):
+        for name in sorted(value):
+            name_path = f"{path}.{name}" if path else name
+            if name == key and value[name] is not None:
+                return name_path
+            found = _find_key(value[name], key, name_path)
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            found = _find_key(item, key, f"{path}[{index}]")
+            if found is not None:
+                return found
+    return None
+
+
 def _port_value(field: str, value) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise TypeError(f"{field} must be an integer between 1 and 65535")
@@ -118,6 +136,11 @@ class MtprotoConfig(dict):
             parent = self._object_at(*path[:-1])
             if parent is not None and parent.get(path[-1]) is not None:
                 raise ValueError(f"{'.'.join(path)} must not be set: {reason}")
+
+        # telemt reads a key named include in any table as a file include, so the node refuses it at any depth.
+        include_path = _find_key(self, "include")
+        if include_path is not None:
+            raise ValueError(f"{include_path} must not be set: telemt would read other files on the node host")
 
         port = self._validate_ports()
         self._validate_modes()
