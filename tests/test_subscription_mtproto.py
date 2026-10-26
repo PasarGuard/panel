@@ -350,3 +350,12 @@ async def test_unserved_link_type_is_logged(monkeypatch: pytest.MonkeyPatch, cap
         _mtproto_host(transport_settings={"mtproto_settings": {"link_type": "web"}}, address=["Proxy.Example.com"])
     )
     assert "gives no link" not in caplog.text
+
+
+def test_web_link_trims_vhost_host_like_telemt():
+    web = _typed_inbound(
+        "web", mtproto_web_vhosts=[{"host": " Proxy.Example.com ", "base_path": "", "secret_mode": "plain"}]
+    )
+    assert _telegram_links("proxy.example.com", web, {"secret": WEB_SECRET}) == [
+        f"tg://webproxy?server=proxy.example.com&secret={WEB_SECRET}"
+    ]

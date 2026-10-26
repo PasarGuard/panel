@@ -408,7 +408,7 @@ class StandardLinks(BaseSubscription):
         if inbound.mtproto_link_type == "web":
             wanted = address.strip().lower()
             for vhost in inbound.mtproto_web_vhosts:
-                host = (vhost.get("host") or "").lower()
+                host = (vhost.get("host") or "").strip().lower()
                 if host and host == wanted:
                     return _telegram_web_link(
                         host, vhost.get("base_path") or "", vhost.get("secret_mode") or "dd", secret

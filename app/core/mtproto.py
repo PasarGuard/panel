@@ -481,7 +481,7 @@ class MtprotoConfig(dict):
             vhosts.append(
                 {
                     # telemt lowercases vhost hosts at load (normalize_web_host)
-                    "host": (vhost.get("host") or "").lower(),
+                    "host": (vhost.get("host") or "").strip().lower(),
                     "base_path": vhost.get("base_path") or "",
                     "secret_mode": profile.get("secret_mode") or _WEB_DEFAULT_SECRET_MODE,
                 }

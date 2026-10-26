@@ -51,7 +51,7 @@ def _mtproto_unserved_reason(
 ) -> str:
     """Why the core no longer serves an MTProto host's link type ("" when it does); saving refuses these."""
     if link_type == "web":
-        vhosts = {str(vhost.get("host") or "").lower() for vhost in inbound_config.get("web_vhosts") or []}
+        vhosts = {str(vhost.get("host") or "").strip().lower() for vhost in inbound_config.get("web_vhosts") or []}
         if not any(address.strip().lower() in vhosts for address in addresses):
             return "no WEB vhost of the core matches its address"
         return ""

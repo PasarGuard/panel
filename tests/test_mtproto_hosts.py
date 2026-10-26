@@ -113,6 +113,11 @@ async def test_web_host_address_matching(use_inbound):
     use_inbound(_inbound(native=False, web_vhosts=vhosts))
     await _validate(_host("web", address=["Proxy.Example.com"]))
 
+    padded = [{"host": " Proxy.Example.com ", "base_path": "tg", "secret_mode": "dd"}]
+    use_inbound(_inbound(native=False, web_vhosts=padded))
+    await _validate(_host("web", address=["proxy.example.com"]))
+
+    use_inbound(_inbound(native=False, web_vhosts=vhosts))
     for address in (["{SERVER_IP}"], ["other.example.com"], ["proxy.example.com", "other.example.com"], []):
         detail = await _refused(_host("web", address=address))
         assert "WEB vhost" in detail

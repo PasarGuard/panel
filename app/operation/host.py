@@ -91,7 +91,7 @@ class HostOperation(BaseOperation):
         link_type = settings.link_type if settings else "auto"
 
         if link_type == "web":
-            vhosts = {vhost["host"].lower() for vhost in inbound.get("web_vhosts") or [] if vhost.get("host")}
+            vhosts = {vhost["host"].strip().lower() for vhost in inbound.get("web_vhosts") or [] if vhost.get("host")}
             if not vhosts:
                 await self.raise_error('Link type "web" needs a WEB vhost in the core, and it has none', 400, db=db)
             unknown = sorted(address for address in host.address if address.lower() not in vhosts)
