@@ -66,7 +66,8 @@ def test_mtproto_config_roundtrip_json():
 _DOMAIN = "www.example.org"
 _NODE_REJECTED_PATHS = (
     "include",
-    "web",
+    "web.debug",
+    "web.limits.max_profiles",
     "server.api",
     "server.admin_api",
     "server.metrics_port",
@@ -84,7 +85,17 @@ _RESTRICTED_ACCESS_KEYS = (
     "user_max_unique_ips",
     "user_enabled",
 )
-_OBJECT_PATHS = ("general", "general.telemetry", "general.modes", "server", "access", "logging", "censorship")
+_OBJECT_PATHS = (
+    "general",
+    "general.telemetry",
+    "general.modes",
+    "server",
+    "access",
+    "logging",
+    "censorship",
+    "web",
+    "web.limits",
+)
 
 
 def _tls_config(**overrides) -> dict:
@@ -237,7 +248,7 @@ def test_listener_rules():
     assert defaulted.inbounds_by_tag["mtproto"]["listen_port"] == 443
 
     with pytest.raises(ValueError, match=r"server\.listeners\[0\]\.transport"):
-        MtprotoConfig(_tls_config(server={"port": 443, "listeners": [{"ip": "0.0.0.0", "transport": "web"}]}))
+        MtprotoConfig(_tls_config(server={"port": 443, "listeners": [{"ip": "0.0.0.0", "transport": "socks"}]}))
     MtprotoConfig(_tls_config(server={"port": 443, "listeners": [{"ip": "0.0.0.0", "transport": "mtproxy"}]}))
     MtprotoConfig(_tls_config(server={"port": 443, "listeners": [{"ip": "0.0.0.0", "transport": None, "port": None}]}))
 
@@ -313,6 +324,228 @@ def test_unknown_keys_pass_through():
 
 def test_telemt_default_modes_constant():
     assert TELEMT_DEFAULT_MODES == {"classic": False, "secure": False, "tls": True}
+
+
+@pytest.mark.parametrize(
+    ("domains", "message"),
+    [
+        ("www.example.org", r"censorship\.tls_domains must be a list"),
+        ([5], r"censorship\.tls_domains\[0\] must be a string"),
+        (["a b.org"], r"censorship\.tls_domains\[0\]"),
+        (["x.org:443"], r"censorship\.tls_domains\[0\]"),
+        (["www.exämple.org"], r"censorship\.tls_domains\[0\]"),
+        (["ok.org", "a_b.org"], r"censorship\.tls_domains\[1\]"),
+        ([TLS_DOMAIN_PLACEHOLDER], r"censorship\.tls_domains\[0\] .*replace"),
+    ],
+)
+def test_tls_domains_validated(domains, message):
+    with pytest.raises((ValueError, TypeError), match=message):
+        MtprotoConfig(_tls_config(censorship={"tls_domain": _DOMAIN, "tls_domains": domains}))
+
+
+def test_tls_domains_metadata_primary_first():
+    core = MtprotoConfig(
+        _tls_config(
+            censorship={
+                "tls_domain": _DOMAIN,
+                "tls_domains": [" Cdn.Example.net ", _DOMAIN, "", "cdn.example.net", "xn--exmple-cua.org."],
+            }
+        )
+    )
+    inbound = core.inbounds_by_tag["mtproto"]
+    assert inbound["tls_domain"] == _DOMAIN
+    assert inbound["tls_domains"] == [_DOMAIN, "Cdn.Example.net", "xn--exmple-cua.org."]
+    # The list goes to the node as stored (telemt merges and deduplicates it itself), only trimmed.
+    assert core["censorship"]["tls_domains"] == [
+        "Cdn.Example.net",
+        _DOMAIN,
+        "",
+        "cdn.example.net",
+        "xn--exmple-cua.org.",
+    ]
+
+
+def test_tls_domains_metadata_without_extra_domains_or_tls():
+    assert MtprotoConfig(_tls_config()).inbounds_by_tag["mtproto"]["tls_domains"] == [_DOMAIN]
+    assert MtprotoConfig(_tls_config(censorship={"tls_domain": _DOMAIN, "tls_domains": None})).inbounds_by_tag[
+        "mtproto"
+    ]["tls_domains"] == [_DOMAIN]
+    tls_off = MtprotoConfig(
+        {**_modes(tls=False, secure=True), "censorship": {"tls_domain": _DOMAIN, "tls_domains": ["cdn.example.net"]}}
+    )
+    assert tls_off.inbounds_by_tag["mtproto"]["tls_domains"] == []
+
+
+_WEB_HOST = "proxy.example.com"
+
+
+def _web_listener(**overrides) -> dict:
+    listener = {"ip": "127.0.0.1", "port": 18080, "transport": "web", "web_trusted_proxy_cidrs": ["127.0.0.1/32"]}
+    listener.update(overrides)
+    return listener
+
+
+def _web_vhost(**overrides) -> dict:
+    vhost = {
+        "host": _WEB_HOST,
+        "public_addr": "203.0.113.10:443",
+        "decoy": {"mode": "http_upstream", "upstream": "http://127.0.0.1:18081"},
+        "user_profile": {"secret_mode": "plain", "max_sessions": 8},
+    }
+    vhost.update(overrides)
+    return vhost
+
+
+def _web_config(listeners=None, vhosts=None, **web) -> dict:
+    if listeners is None:
+        listeners = [{"ip": "0.0.0.0"}, _web_listener()]
+    if vhosts is None:
+        vhosts = [_web_vhost()]
+    return _tls_config(
+        server={"port": 443, "listeners": listeners},
+        web={"enabled": True, "vhosts": vhosts, **web},
+    )
+
+
+def test_web_config_accepted():
+    core = MtprotoConfig(_web_config())
+    inbound = core.inbounds_by_tag["mtproto"]
+    assert inbound["web_vhosts"] == [{"host": _WEB_HOST, "base_path": "", "secret_mode": "plain"}]
+    assert inbound["native"] is True
+    assert inbound["listen_port"] == 443
+    # The node strips user_profile; the panel stores the config as written.
+    assert core["web"]["vhosts"][0]["user_profile"] == {"secret_mode": "plain", "max_sessions": 8}
+
+    defaulted = MtprotoConfig(_web_config(vhosts=[_web_vhost(user_profile=None, base_path="dobry-cola/super_app")]))
+    assert defaulted.inbounds_by_tag["mtproto"]["web_vhosts"] == [
+        {"host": _WEB_HOST, "base_path": "dobry-cola/super_app", "secret_mode": "dd"}
+    ]
+    no_mode = MtprotoConfig(_web_config(vhosts=[_web_vhost(user_profile={"max_streams": 4})]))
+    assert no_mode.inbounds_by_tag["mtproto"]["web_vhosts"][0]["secret_mode"] == "dd"
+
+    for ip in ("10.0.0.5", "172.16.0.1", "192.168.1.2", "::1", "fd00::1", "::ffff:10.0.0.5"):
+        MtprotoConfig(_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(ip=ip)]))
+    for upstream in ("http://10.1.2.3:8080", "http://[::1]:8080", "https://192.168.0.10/site"):
+        MtprotoConfig(_web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": upstream})]))
+
+
+def test_empty_or_disabled_web_section_accepted():
+    for web in ({}, {"enabled": False}, {"enabled": False, "vhosts": [_web_vhost()]}):
+        core = MtprotoConfig(_tls_config(web=web))
+        assert core.inbounds_by_tag["mtproto"]["web_vhosts"] == []
+    assert MtprotoConfig(_tls_config()).inbounds_by_tag["mtproto"]["web_vhosts"] == []
+
+
+@pytest.mark.parametrize(
+    ("config", "error", "message"),
+    [
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(ip="0.0.0.0")]), ValueError, "private"),
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(ip="::")]), ValueError, "private"),
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(ip="198.51.100.1")]), ValueError, "private"),
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(ip=None)]), ValueError, "private"),
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(ip="localhost")]), ValueError, "private"),
+        # The node uses Go's IsLoopback() || IsPrivate(): no link-local, shared or documentation ranges.
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(ip="169.254.1.1")]), ValueError, "private"),
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(ip="100.64.0.1")]), ValueError, "private"),
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(ip="::ffff:8.8.8.8")]), ValueError, "private"),
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(port=None)]), ValueError, r"listeners\[1\]\.port"),
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(port="18080")]), TypeError, r"listeners\[1\]\.port"),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "static_directory", "directory": "/srv"})]),
+            ValueError,
+            "static_directory",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://example.com"})]),
+            ValueError,
+            "private",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://8.8.8.8"})]),
+            ValueError,
+            "private",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(decoy={"mode": "http_upstream", "upstream": "http://0.0.0.0:80"})]),
+            ValueError,
+            "private",
+        ),
+        (_web_config(vhosts=[_web_vhost(decoy=None)]), ValueError, r"web\.vhosts\[0\]\.decoy"),
+        (
+            _web_config(vhosts=[_web_vhost(profiles=[{"user": "a", "secret_mode": "dd"}])]),
+            ValueError,
+            r"web\.vhosts\[0\]\.profiles must not be set: ",
+        ),
+        (_web_config(debug={"enabled": True}), ValueError, r"web\.debug must not be set: "),
+        (_web_config(limits={"max_profiles": 10}), ValueError, r"web\.limits\.max_profiles must not be set: "),
+        (
+            _web_config(vhosts=[_web_vhost(user_profile={"secret_mode": "ee"})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.user_profile\.secret_mode",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(user_profile={"max_sessions": -1})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.user_profile\.max_sessions",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(user_profile={"max_streams": 1.5})]),
+            TypeError,
+            r"web\.vhosts\[0\]\.user_profile\.max_streams",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(user_profile={"max_streams_per_session": True})]),
+            TypeError,
+            r"web\.vhosts\[0\]\.user_profile\.max_streams_per_session",
+        ),
+        (
+            _web_config(vhosts=[_web_vhost(user_profile={"max_sessions": 4294967296})]),
+            ValueError,
+            r"web\.vhosts\[0\]\.user_profile\.max_sessions",
+        ),
+        (_web_config(vhosts=[_web_vhost(user_profile="dd")]), TypeError, r"web\.vhosts\[0\]\.user_profile"),
+        (_web_config(listeners=[{"ip": "0.0.0.0"}]), ValueError, "web"),
+        (_web_config(listeners=[]), ValueError, "web"),
+        (_tls_config(server={"port": 443, "listeners": [{"ip": "0.0.0.0"}, _web_listener()]}), ValueError, "web"),
+        (_web_config(enabled=False), ValueError, "web"),
+        (_web_config(vhosts=[]), ValueError, "web"),
+        (_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(transport="socks")]), ValueError, "transport"),
+        (_web_config(enabled="yes"), TypeError, r"web\.enabled"),
+        (_web_config(vhosts="x"), TypeError, r"web\.vhosts"),
+        (_web_config(vhosts=[1]), TypeError, r"web\.vhosts\[0\]"),
+    ],
+)
+def test_unsafe_web_rejected(config, error, message):
+    with pytest.raises(error, match=message):
+        MtprotoConfig(config)
+
+
+def test_web_listener_port_clash():
+    with pytest.raises(ValueError, match=r"server\.listeners\[1\]\.port"):
+        MtprotoConfig(_web_config(listeners=[{"ip": "0.0.0.0"}, _web_listener(port=443)]))
+    with pytest.raises(ValueError, match=r"server\.listeners\[1\]\.port"):
+        MtprotoConfig(_web_config(listeners=[{"ip": "0.0.0.0", "port": 443}, _web_listener(port=443)]))
+    # A WEB-only core still keeps telemt's default port free of the WEB listener.
+    with pytest.raises(ValueError, match=r"server\.listeners\[0\]\.port"):
+        MtprotoConfig(_web_config(listeners=[_web_listener(port=443)]))
+
+
+def test_native_flag():
+    assert MtprotoConfig(_tls_config()).inbounds_by_tag["mtproto"]["native"] is True
+    assert (
+        MtprotoConfig(_tls_config(server={"port": 443, "listeners": []})).inbounds_by_tag["mtproto"]["native"] is True
+    )
+    mixed = MtprotoConfig(_web_config(listeners=[_web_listener(), {"ip": "::", "transport": "mtproxy"}]))
+    assert mixed.inbounds_by_tag["mtproto"]["native"] is True
+    web_only = MtprotoConfig(_web_config(listeners=[_web_listener(), _web_listener(ip="10.0.0.5")]))
+    assert web_only.inbounds_by_tag["mtproto"]["native"] is False
+
+
+def test_port_rule_applies_to_mtproxy_only():
+    core = MtprotoConfig(_web_config(listeners=[{"ip": "0.0.0.0", "port": 443}, _web_listener(port=18080)]))
+    assert core.inbounds_by_tag["mtproto"]["listen_port"] == 443
+    with pytest.raises(ValueError, match=r"server\.listeners\[0\]\.port must equal server\.port"):
+        MtprotoConfig(_web_config(listeners=[{"ip": "0.0.0.0", "port": 8443}, _web_listener()]))
 
 
 _SECRET = "00112233445566778899aabbccddeeff"

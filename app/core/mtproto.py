@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
 from copy import deepcopy
+from urllib.parse import urlsplit
 
 import commentjson
 
@@ -22,7 +24,8 @@ _RESTRICTED_ACCESS_KEYS = (
 # Paths the node refuses (node backend/mtproto/config.go rejectedConfigKeys), with the node's reason.
 _NODE_REJECTED_KEYS = (
     (("include",), "telemt would read other files on the node host"),
-    (("web",), "the web transport can serve files from the node host"),
+    (("web", "debug"), "it opens a debug surface on the node host"),
+    (("web", "limits", "max_profiles"), "the node sizes it for one WEB profile per user and vhost"),
     (("server", "api"), "the node manages the telemt control API"),
     (("server", "admin_api"), "it is an alias of server.api, which the node manages"),
     (("server", "metrics_port"), "the node manages the metrics endpoint"),
@@ -39,6 +42,8 @@ _OBJECT_PATHS = (
     ("access",),
     ("logging",),
     ("censorship",),
+    ("web",),
+    ("web", "limits"),
 )
 _DEFAULT_INBOUND_TAG = "mtproto"
 # The inbounds.tag column length.
@@ -52,6 +57,16 @@ TLS_DOMAIN_PLACEHOLDER = "your-domain.example"
 # telemt hex-encodes its IDNA-normalized host into the "ee" secret, so any other character gives a dead link.
 _TLS_HOST_NAME = re.compile(
     r"(?=.{1,253}$)[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*"
+)
+# The PasarGuard-only per-vhost user_profile (the node expands it into one telemt profile per user).
+_WEB_SECRET_MODES = ("dd", "plain")
+_WEB_DEFAULT_SECRET_MODE = "dd"
+_WEB_PROFILE_LIMITS = ("max_sessions", "max_streams", "max_streams_per_session")
+_UINT32_MAX = 4294967295
+# Go's net.IP.IsPrivate ranges (RFC 1918 and RFC 4193), which the node uses. Python's is_private also
+# accepts documentation and other reserved ranges, such as 198.51.100.0/24, so it is not used.
+_PRIVATE_NETWORKS = tuple(
+    ipaddress.ip_network(network) for network in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7")
 )
 
 
@@ -71,6 +86,19 @@ def _find_key(value, key: str, path: str = "") -> str | None:
             if found is not None:
                 return found
     return None
+
+
+def _private_ip(value) -> bool:
+    """True for a loopback or private IP literal, like the node's IsLoopback() || IsPrivate()."""
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    if address.is_unspecified:
+        return False
+    return address.is_loopback or any(address in network for network in _PRIVATE_NETWORKS)
 
 
 def _port_value(field: str, value) -> int:
@@ -104,6 +132,7 @@ class MtprotoConfig(dict):
         self._inbounds: list[str] = []
         self._inbounds_by_tag: dict[str, dict] = {}
         self._listen_port = TELEMT_DEFAULT_PORT
+        self._native = True
 
         if skip_validation:
             return
@@ -145,6 +174,8 @@ class MtprotoConfig(dict):
         port = self._validate_ports()
         self._validate_modes()
         self._validate_tls_domain()
+        self._validate_tls_domains()
+        self._validate_web()
         self._listen_port = port
 
     def _object_at(self, *path: str) -> dict | None:
@@ -185,20 +216,41 @@ class MtprotoConfig(dict):
             return port
         if not isinstance(listeners, list):
             raise TypeError("server.listeners must be a list of objects")
+        native = False
         for index, listener in enumerate(listeners):
             field = f"server.listeners[{index}]"
             if not isinstance(listener, dict):
                 raise TypeError(f"{field} must be an object")
+            transport = listener.get("transport")
+            if transport == "web":
+                self._validate_web_listener(field, listener, port)
+                continue
+            if transport is not None and transport != "mtproxy":
+                raise ValueError(f'{field}.transport must be "mtproxy" or "web"; the node supports no other listener')
+            native = True
             # telemt's own links use the first listener's port: equal ports keep its links, the panel's
             # links and the node's port bookkeeping identical.
             if listener.get("port") is not None and _port_value(f"{field}.port", listener["port"]) != port:
                 raise ValueError(
                     f"{field}.port must equal server.port ({port}); the panel builds MTProto links with one port"
                 )
-            transport = listener.get("transport")
-            if transport is not None and transport != "mtproxy":
-                raise ValueError(f'{field}.transport must be "mtproxy"; the node supports only MTProxy listeners')
+        # telemt opens its default public listener only when server.listeners is empty.
+        self._native = native or not listeners
         return port
+
+    @staticmethod
+    def _validate_web_listener(field: str, listener: dict, port: int):
+        # A front (Caddy, nginx) holds the certificate and the public address; telemt's WEB listener stays private.
+        if not _private_ip(listener.get("ip")):
+            raise ValueError(
+                f"{field}.ip must be a loopback or private IP address for a web listener; "
+                "a front such as Caddy or nginx serves the public side"
+            )
+        if listener.get("port") is None:
+            raise ValueError(f"{field}.port is required for a web listener")
+        # Native listeners all use server.port (or telemt's default listener does), so this is the only clash.
+        if _port_value(f"{field}.port", listener["port"]) == port:
+            raise ValueError(f"{field}.port must differ from server.port ({port}), which MTProxy listeners use")
 
     def _validate_modes(self):
         raw_modes = self._object_at("general", "modes") or {}
@@ -248,6 +300,103 @@ class MtprotoConfig(dict):
                 )
         censorship["tls_domain"] = domain
 
+    def _validate_tls_domains(self):
+        censorship = self._object_at("censorship")
+        domains = censorship.get("tls_domains") if censorship is not None else None
+        if domains is None:
+            return
+        if not isinstance(domains, list):
+            raise TypeError("censorship.tls_domains must be a list of domain names")
+        stored = []
+        for index, domain in enumerate(domains):
+            field = f"censorship.tls_domains[{index}]"
+            if not isinstance(domain, str):
+                raise TypeError(f"{field} must be a string")
+            domain = domain.strip()
+            # telemt skips empty entries and checks the rest like tls_domain, even with tls mode off.
+            if domain:
+                host = domain.removesuffix(".")
+                if not _TLS_HOST_NAME.fullmatch(host):
+                    raise ValueError(
+                        f'{field} "{domain}" must be an ASCII host name: letters, digits, "-" and "." '
+                        "(write an internationalized name in its xn-- form)"
+                    )
+                if host.lower().endswith(".example"):
+                    raise ValueError(
+                        f'{field} "{domain}" is a placeholder (.example is a reserved TLD); '
+                        "replace it with a real domain that TLS-mode clients present"
+                    )
+            stored.append(domain)
+        censorship["tls_domains"] = stored
+
+    def _validate_web(self):
+        web = self._object_at("web") or {}
+        enabled = web.get("enabled")
+        if enabled is not None and not isinstance(enabled, bool):
+            raise TypeError("web.enabled must be true or false")
+        vhosts = web.get("vhosts")
+        if vhosts is None:
+            vhosts = []
+        if not isinstance(vhosts, list):
+            raise TypeError("web.vhosts must be a list of objects")
+        for index, vhost in enumerate(vhosts):
+            self._validate_web_vhost(f"web.vhosts[{index}]", vhost)
+
+        has_listener = any(
+            isinstance(listener, dict) and listener.get("transport") == "web" for listener in self._listeners()
+        )
+        if enabled and not has_listener:
+            raise ValueError('web.enabled needs a server.listeners entry with transport "web"')
+        if has_listener and not (enabled and vhosts):
+            raise ValueError('a "web" listener needs web.enabled set to true and at least one web.vhosts entry')
+
+    @staticmethod
+    def _validate_web_vhost(field: str, vhost):
+        if not isinstance(vhost, dict):
+            raise TypeError(f"{field} must be an object")
+        if vhost.get("profiles") is not None:
+            raise ValueError(
+                f"{field}.profiles must not be set: the node creates one profile per user from user_profile"
+            )
+        for key in ("host", "base_path"):
+            if vhost.get(key) is not None and not isinstance(vhost[key], str):
+                raise TypeError(f"{field}.{key} must be a string")
+
+        decoy = vhost.get("decoy")
+        if not isinstance(decoy, dict) or decoy.get("mode") != "http_upstream":
+            mode = decoy.get("mode") if isinstance(decoy, dict) else None
+            raise ValueError(
+                f'{field}.decoy.mode must be "http_upstream" (got {mode!r}); '
+                "static_directory would serve files from the node host"
+            )
+        upstream = decoy.get("upstream")
+        host = urlsplit(upstream).hostname if isinstance(upstream, str) else None
+        # telemt requires the decoy origin to be a private IP literal; checked here for a clear error.
+        if not _private_ip(host):
+            raise ValueError(f"{field}.decoy.upstream must be a URL whose host is a loopback or private IP literal")
+
+        profile = vhost.get("user_profile")
+        if profile is None:
+            return
+        if not isinstance(profile, dict):
+            raise TypeError(f"{field}.user_profile must be an object")
+        secret_mode = profile.get("secret_mode")
+        if secret_mode is not None and secret_mode not in _WEB_SECRET_MODES:
+            raise ValueError(f'{field}.user_profile.secret_mode must be "dd" or "plain"; WEB does not support "ee"')
+        for key in _WEB_PROFILE_LIMITS:
+            value = profile.get(key)
+            if value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise TypeError(f"{field}.user_profile.{key} must be an integer")
+            if not 0 <= value <= _UINT32_MAX:
+                raise ValueError(f"{field}.user_profile.{key} must be between 0 and {_UINT32_MAX}, got {value}")
+
+    def _listeners(self) -> list:
+        server = self.get("server")
+        listeners = server.get("listeners") if isinstance(server, dict) else None
+        return listeners if isinstance(listeners, list) else []
+
     def _modes(self) -> dict[str, bool]:
         """telemt's resolved modes: its per-field defaults updated with the configured values."""
         modes = dict(TELEMT_DEFAULT_MODES)
@@ -264,6 +413,36 @@ class MtprotoConfig(dict):
         domain = censorship.get("tls_domain") if isinstance(censorship, dict) else None
         return domain.strip() if isinstance(domain, str) else ""
 
+    def _tls_domains(self) -> list[str]:
+        """telemt's fake TLS domains: tls_domain first, then tls_domains, deduplicated like telemt (case-insensitive)."""
+        primary = self._tls_domain()
+        if not primary:
+            return []
+        domains = [primary]
+        seen = {primary.lower()}
+        extra = self["censorship"].get("tls_domains") or []
+        for domain in extra:
+            if domain and domain.lower() not in seen:
+                seen.add(domain.lower())
+                domains.append(domain)
+        return domains
+
+    def _web_vhosts(self) -> list[dict]:
+        web = self.get("web")
+        if not isinstance(web, dict) or not web.get("enabled"):
+            return []
+        vhosts = []
+        for vhost in web.get("vhosts") or []:
+            profile = vhost.get("user_profile") or {}
+            vhosts.append(
+                {
+                    "host": vhost.get("host") or "",
+                    "base_path": vhost.get("base_path") or "",
+                    "secret_mode": profile.get("secret_mode") or _WEB_DEFAULT_SECRET_MODE,
+                }
+            )
+        return vhosts
+
     def _resolve_inbounds(self):
         inbound_tag = self["inbound_tag"]
         metadata = {
@@ -275,6 +454,9 @@ class MtprotoConfig(dict):
             "port": self._listen_port,
             "modes": self._modes(),
             "tls_domain": self._tls_domain(),
+            "tls_domains": self._tls_domains(),
+            "native": self._native,
+            "web_vhosts": self._web_vhosts(),
         }
         self._inbounds = [inbound_tag]
         self._inbounds_by_tag = {inbound_tag: metadata}
