@@ -673,3 +673,29 @@ def test_host_finalmask_header_custom_numeric_rand(access_token):
         for host_id in created_ids:
             client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
         delete_core(access_token, core["id"])
+
+
+def test_non_mtproto_host_ignores_mtproto_settings(access_token):
+    core = create_core(access_token)
+    inbounds = get_inbounds(access_token)
+    assert inbounds
+    host_id = None
+    try:
+        response = client.post(
+            "/api/host",
+            headers=auth_headers(access_token),
+            json={
+                "remark": unique_name("xray_host_mtproto_settings"),
+                "address": ["127.0.0.1"],
+                "port": 443,
+                "inbound_tag": inbounds[0],
+                "priority": 1,
+                "transport_settings": {"mtproto_settings": {"link_type": "web"}},
+            },
+        )
+        assert response.status_code == status.HTTP_201_CREATED, response.text
+        host_id = response.json()["id"]
+    finally:
+        if host_id is not None:
+            client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])

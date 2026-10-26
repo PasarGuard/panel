@@ -2,7 +2,7 @@ from copy import deepcopy
 from enum import Enum
 from ipaddress import ip_address, ip_network
 from string import Formatter
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import (
     AliasChoices,
@@ -17,7 +17,7 @@ from pydantic import (
 )
 
 from app.db.models import ProxyHostALPN, ProxyHostFingerprint, ProxyHostSecurity, UserStatus
-from app.utils.helpers import MAX_FORMAT_SPEC_NUMBER, has_markup_unsafe_chars, has_oversized_format_spec
+from app.utils.helpers import MAX_FORMAT_SPEC_NUMBER, has_oversized_format_spec
 
 from .validators import ListValidator, StringArrayValidator
 
@@ -815,6 +815,13 @@ class MasqueHostSettings(BaseModel):
     xmux: XMuxSettings | None = Field(default=None)
 
 
+MtprotoLinkType = Literal["auto", "tls", "secure", "classic", "web"]
+
+
+class MtprotoHostSettings(BaseModel):
+    link_type: MtprotoLinkType = "auto"
+
+
 class TransportSettings(BaseModel):
     xhttp_settings: XHttpSettings | None = Field(default=None)
     grpc_settings: GRPCSettings | None = Field(default=None)
@@ -822,6 +829,7 @@ class TransportSettings(BaseModel):
     tcp_settings: TcpSettings | None = Field(default=None)
     websocket_settings: WebSocketSettings | None = Field(default=None)
     masque_settings: MasqueHostSettings | None = Field(default=None)
+    mtproto_settings: MtprotoHostSettings | None = Field(default=None)
 
 
 class FormatVariables(dict):
