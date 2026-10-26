@@ -1300,6 +1300,14 @@
     "cancelEdit": "Cancel edit",
     "clickToEdit": "Click to edit"
   },
+  "realityFingerprint": {
+    "title": "REALITY fingerprint compatibility",
+    "tls13": "This preset does not support the TLS 1.3 handshake required by Xray REALITY. Choose chrome or firefox.",
+    "modern": "This preset may not provide X25519MLKEM768, which newer Xray REALITY servers require. Use chrome or firefox with an up-to-date client.",
+    "random": "Random presets can produce handshakes that newer Xray REALITY servers reject. Use chrome or firefox for a consistent preset, and keep the client up to date.",
+    "unsafe": "The unsafe setting is not a uTLS preset and cannot be used with Xray REALITY. Choose chrome or firefox.",
+    "useChrome": "Use Chrome"
+  },
   "hostsDialog": {
     "addHost": "Create Host",
     "selectInbound": "Select an inbound",

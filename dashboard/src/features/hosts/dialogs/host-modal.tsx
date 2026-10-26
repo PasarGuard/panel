@@ -16,7 +16,7 @@ import { CustomVariablesPopover, VariablesList, VariablesPopover } from '@/compo
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
-import { ClientTemplateType, UserStatus, getGetHostsQueryKey, getHosts, useGetClientTemplatesSimple } from '@/service/api'
+import { ClientTemplateType, type InboundSummary, UserStatus, getGetHostsQueryKey, getHosts, useGetClientTemplatesSimple } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Cable, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X, ListTodo } from 'lucide-react'
@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { hostFormDefaultValues, type HostFormValues } from '@/features/hosts/forms/host-form'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { XrayStreamFinalmaskFields } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'
+import { FormRealityFingerprintWarning as RealityFingerprintWarning } from '@/components/common/reality-fingerprint-warning'
 
 // Predefined sessionIDTable aliases recognized by Xray 26.6.22+.
 const SESSION_ID_TABLE_PRESETS = ['ALPHABET', 'Alphabet', 'BASE36', 'Base62', 'HEX', 'alphabet', 'base36', 'hex', 'number']
@@ -104,7 +105,7 @@ interface HostModalProps {
   onSubmit: (data: HostFormValues) => Promise<{ status: number }>
   editingHost?: boolean
   form: UseFormReturn<HostFormValues>
-  inboundDetails?: Array<{ tag: string; protocol: string }>
+  inboundDetails?: InboundSummary[]
   isLoadingInbounds?: boolean
 }
 
@@ -324,6 +325,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const selectedFragmentSettings = form.watch('fragment_settings.xray')
   const xPaddingObfsEnabled = form.watch('transport_settings.xhttp_settings.x_padding_obfs_mode') === true
   const selectedFingerprint = form.watch('fingerprint')
+  const selectedSecurity = form.watch('security')
   const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
   const infoPopoverAlign = isMobile ? 'center' : 'start'
   const hasFragmentPopulated = Boolean(
@@ -354,7 +356,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                     <AlertDescription className="text-xs sm:text-sm">
                       {t('hostsDialog.fragmentNoiseDeprecated', {
-                        defaultValue: '`noise` and `fragment` are being removed in newer versions — use `finalMask` instead.',
+                        defaultValue: '`noise` and `fragment` are being removed in newer versions â€” use `finalMask` instead.',
                       })}
                     </AlertDescription>
                   </Alert>
@@ -703,6 +705,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
   const inbounds = useMemo(() => inboundDetails?.map(inbound => inbound.tag) || [], [inboundDetails])
   const selectedInbound = useMemo(() => inboundDetails?.find(inbound => inbound.tag === selectedInboundTag), [inboundDetails, selectedInboundTag])
+  const usesReality = selectedSecurity === 'inbound_default' && selectedInbound?.security === 'reality'
+  const effectiveFingerprint = selectedFingerprint && selectedFingerprint !== 'none' ? selectedFingerprint : selectedInbound?.fingerprint || 'chrome'
   const isWireGuardInbound = selectedInbound?.protocol === 'wireguard'
   const isInboundModeResolved = !isDialogOpen || !selectedInboundTag || !!selectedInbound || !isLoadingInbounds
   const shouldRenderWireGuardLayout = resolvedHostMode === 'wireguard'
@@ -1058,7 +1062,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     field.onChange(field.value.filter(s => s !== status))
                                   }}
                                 >
-                                  ×
+                                  أ—
                                 </button>
                               </span>
                             )
@@ -1585,7 +1589,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <FormLabel>{t('hostsDialog.fingerprint')}</FormLabel>
                                 <Select onValueChange={value => field.onChange(value === 'default' ? '' : value)} value={field.value || 'default'}>
                                   <FormControl>
-                                    <SelectTrigger>
+                                    <SelectTrigger ref={field.ref}>
                                       <SelectValue placeholder={t('hostsDialog.fingerprint')} />
                                     </SelectTrigger>
                                   </FormControl>
@@ -1605,6 +1609,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     <SelectItem value="unsafe">{t('unsafe')}</SelectItem>
                                   </SelectContent>
                                 </Select>
+                                {usesReality && (
+                                  <RealityFingerprintWarning
+                                    fingerprint={effectiveFingerprint}
+                                    onUseChrome={() => {
+                                      form.setValue('fingerprint', 'chrome', { shouldDirty: true, shouldTouch: true, shouldValidate: true })
+                                    }}
+                                  />
+                                )}
                                 <FormMessage />
                               </FormItem>
                             )}

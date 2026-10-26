@@ -1,4 +1,5 @@
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
+import { FormRealityFingerprintWarning } from '@/components/common/reality-fingerprint-warning'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
@@ -4339,6 +4340,16 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                           revalidateRealityInboundForm()
                                         }}
                                       />
+                                      {isReality && jsonKey === 'fingerprint' && (
+                                        <FormRealityFingerprintWarning
+                                          fingerprint={field.value || 'chrome'}
+                                          onUseChrome={() => {
+                                            field.onChange('chrome')
+                                            patchSecurity({ fingerprint: 'chrome' })
+                                            revalidateRealityInboundForm()
+                                          }}
+                                        />
+                                      )}
                                       <FormMessage />
                                     </FormItem>
                                   )}
