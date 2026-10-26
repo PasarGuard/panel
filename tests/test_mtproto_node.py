@@ -165,6 +165,9 @@ def _attachable_bridge_node(**extra):
         info=AsyncMock(return_value=SimpleNamespace(started=True, **vars(INFO))),
         get_health=AsyncMock(return_value=Health.HEALTHY),
         connect=AsyncMock(),
+        # Attaching wakes the shared sync worker when NATS and several workers are on (CI's multi-worker jobs).
+        _work_available=asyncio.Event(),
+        _ensure_sync_worker_running=AsyncMock(),
         **extra,
     )
 
