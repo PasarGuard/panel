@@ -742,6 +742,15 @@ const UsersTable = memo(() => {
     setSelectedUsersById({})
   }, [])
 
+  const handleUserDeleted = useCallback((userId: number) => {
+    setSelectedUsersById(previous => {
+      if (!previous[userId]) return previous
+      const next = { ...previous }
+      delete next[userId]
+      return next
+    })
+  }, [])
+
   // Keep selections across pages, page sizes, sorting and refreshes, but start over for a different search or filter.
   const selectionFilterKey = JSON.stringify({ ...filters, offset: undefined, limit: undefined, sort: undefined })
   useEffect(clearSelection, [clearSelection, selectionFilterKey])
@@ -1374,7 +1383,7 @@ const UsersTable = memo(() => {
           }}
         />
       )}
-      <ActionButtonsModalHost />
+      <ActionButtonsModalHost onDeleted={handleUserDeleted} />
     </div>
   )
 })

@@ -32,6 +32,7 @@ type ActionButtonsProps = {
   user: UserResponse
   isModalHost?: boolean
   renderActions?: boolean
+  onDeleted?: (userId: number) => void
 }
 
 export interface SubscribeLink {
@@ -216,7 +217,7 @@ const buildUserEditFormValues = (user: UserResponse): UseEditFormValues => ({
     : undefined,
 })
 
-const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, renderActions = true }) => {
+const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, renderActions = true, onDeleted }) => {
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [isActionsMenuOpen, setActionsMenuOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
@@ -491,6 +492,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
       toast.success(t('usersTable.deleteSuccess', { name: user.username }))
       setDeleteDialogOpen(false)
       removeUserFromUsersCache(queryClient, user)
+      onDeleted?.(user.id)
     } catch (error: any) {
       toast.error(t('usersTable.deleteFailed', { name: user.username, error: error?.message || '' }))
     }
@@ -895,7 +897,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   )
 }
 
-export const ActionButtonsModalHost: FC = () => {
+export const ActionButtonsModalHost: FC<Pick<ActionButtonsProps, 'onDeleted'>> = ({ onDeleted }) => {
   const modalStateVersion = useSyncExternalStore(subscribeGlobalModalState, getGlobalModalStateSnapshot, getGlobalModalStateSnapshot)
   const usersWithOpenModals = useMemo(() => getOpenModalUsers(), [modalStateVersion])
 
@@ -904,7 +906,7 @@ export const ActionButtonsModalHost: FC = () => {
   return (
     <div className="hidden" aria-hidden="true">
       {usersWithOpenModals.map(user => (
-        <ActionButtons key={`modal-host-${user.id}`} user={user} renderActions={false} />
+        <ActionButtons key={`modal-host-${user.id}`} user={user} renderActions={false} onDeleted={onDeleted} />
       ))}
     </div>
   )
