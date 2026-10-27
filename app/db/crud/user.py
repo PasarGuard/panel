@@ -1908,9 +1908,10 @@ async def get_user_count_metric_stats(
 
     query_parts = _build_user_count_query_parts(db, admins, start, end, period, metric, node_id)
     count_expr = _build_user_count_metric_expression(metric).label("count")
-    total_stmt = select(count_expr).select_from(query_parts["from_clause"]).where(and_(*query_parts["conditions"]))
+    use_distinct_pairs = _user_count_buckets_from_distinct_pairs(query_parts["dialect"])
 
-    if _user_count_buckets_from_distinct_pairs(query_parts["dialect"]):
+    if use_distinct_pairs:
+        # One pass over the history rows: the bucket counts and the period total both come from the pairs
         stmt = _build_user_count_buckets_from_distinct_pairs(query_parts, metric, group_by_node)
     elif group_by_node:
         stmt = (
@@ -1933,13 +1934,17 @@ async def get_user_count_metric_stats(
             .order_by(query_parts["trunc_expr"])
         )
 
-    total_result = await db.execute(total_stmt)
+    count_during_period = 0
+    if not use_distinct_pairs:
+        total_stmt = select(count_expr).select_from(query_parts["from_clause"]).where(and_(*query_parts["conditions"]))
+        count_during_period = (await db.execute(total_stmt)).scalar_one() or 0
     result = await db.execute(stmt)
-    count_during_period = total_result.scalar_one() or 0
 
     stats = {}
     for row in result.mappings():
         row_dict = dict(row)
+        if use_distinct_pairs:
+            count_during_period = row_dict.pop("count_during_period") or 0
         node_id_val = row_dict.pop("node_id", query_parts["stats_key"])
 
         attach_timezone_to_period_start(row_dict, start.tzinfo, query_parts["dialect"])
@@ -2028,6 +2033,10 @@ def _build_user_count_buckets_from_distinct_pairs(query_parts: dict, metric: Use
 
     Same result as count(DISTINCT ...) per bucket: a NULL user id (a row the metric does not count) is kept as
     one pair, so its bucket still appears, and count() skips it.
+
+    Each row also carries count_during_period, the distinct users over the whole range. It is counted from the
+    pairs (at most buckets x users rows) instead of a second scan that sorts every history row in range.
+    PostgreSQL materializes the CTE because it is read twice, so the history rows are scanned once.
     """
     pair_columns = [query_parts["trunc_expr"].label("period_start")]
     if group_by_node:
@@ -2037,8 +2046,9 @@ def _build_user_count_buckets_from_distinct_pairs(query_parts: dict, metric: Use
         .select_from(query_parts["from_clause"])
         .where(and_(*query_parts["conditions"]))
         .distinct()
-        .subquery()
+        .cte("user_count_pairs")
     )
+    count_during_period = select(func.count(func.distinct(pairs.c.user_id))).scalar_subquery()
 
     group_columns = [pairs.c.period_start]
     output_columns = [pairs.c.period_start]
@@ -2046,7 +2056,11 @@ def _build_user_count_buckets_from_distinct_pairs(query_parts: dict, metric: Use
         group_columns.append(pairs.c.node_id)
         output_columns.append(func.coalesce(pairs.c.node_id, 0).label("node_id"))
     return (
-        select(*output_columns, func.count(pairs.c.user_id).label("count"))
+        select(
+            *output_columns,
+            func.count(pairs.c.user_id).label("count"),
+            count_during_period.label("count_during_period"),
+        )
         .group_by(*group_columns)
         .order_by(*group_columns)
     )
