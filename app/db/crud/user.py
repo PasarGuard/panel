@@ -1918,7 +1918,9 @@ async def get_users_usage_totals(
     if node_id is not None:
         conditions.append(NodeUserUsage.node_id == node_id)
 
-    from_clause = NodeUserUsage.__table__.join(User, User.id == NodeUserUsage.user_id)
+    from_clause = NodeUserUsage.__table__
+    if _usage_history_needs_users_join(db.bind.dialect.name, admins_filter, False):
+        from_clause = from_clause.join(User, User.id == NodeUserUsage.user_id)
     if admins_filter:
         from_clause = from_clause.join(Admin, Admin.id == User.admin_id)
 
