@@ -57,9 +57,35 @@ jobs:
 
             - name: Generate changelog
               run: |
-                  bunx changelogen@latest --from "${{ steps.tags.outputs.previous }}" --to "${{ steps.tags.outputs.current }}" \
+                  bunx changelogen@latest --no-authors --from "${{ steps.tags.outputs.previous }}" --to "${{ steps.tags.outputs.current }}" \
                     | grep -v "Generating changelog for " \
                     | sed -e '/^\[log\]/d' -e '/./,$!d' > CHANGELOG.md
+
+            - name: Add GitHub contributors
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  PREVIOUS_TAG: ${{ steps.tags.outputs.previous }}
+                  CURRENT_TAG: ${{ steps.tags.outputs.current }}
+              run: |
+                  contributors=()
+                  conventional_re='(feat|perf|fix|refactor|docs|build|types|chore|examples|test|style|ci)(\([^)]+\))?!?:[[:space:]]'
+                  while IFS=$'\t' read -r sha subject; do
+                    if [[ "$subject" =~ $conventional_re ]]; then
+                      if [[ "${BASH_REMATCH[1]}" == chore && ( "${BASH_REMATCH[2]}" == '(deps)' || "${BASH_REMATCH[2]}" == '(release)' ) ]]; then
+                        continue
+                      fi
+                      login="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${sha}" --jq '.author.login // empty')"
+                      if [[ -n "$login" && "$login" != *'[bot]' ]]; then
+                        contributors+=("$login")
+                      fi
+                    fi
+                  done < <(git log "${PREVIOUS_TAG}...${CURRENT_TAG}" --format='%H%x09%s')
+
+                  if (( ${#contributors[@]} )); then
+                    # Plain @mentions also make GitHub render its native Contributors avatar row.
+                    printf '\n### Contributors\n\n' >> CHANGELOG.md
+                    printf '%s\n' "${contributors[@]}" | sort -fu | sed 's/^/- @/' >> CHANGELOG.md
+                  fi
 
             - name: Update release notes
               env:
@@ -126,13 +152,13 @@ jobs:
               uses: docker/setup-buildx-action@v4
 
             - name: Login to Docker Hub
-              uses: docker/login-action@v4.6.0
+              uses: docker/login-action@v4.7.0
               with:
                   username: ${{ secrets.DOCKERHUB_USERNAME }}
                   password: ${{ secrets.DOCKERHUB_TOKEN }}
 
             - name: Login to GitHub Container Registry
-              uses: docker/login-action@v4.6.0
+              uses: docker/login-action@v4.7.0
               with:
                   registry: ghcr.io
                   username: ${{ github.repository_owner }}
@@ -156,13 +182,13 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Login to Docker Hub
-              uses: docker/login-action@v4.6.0
+              uses: docker/login-action@v4.7.0
               with:
                   username: ${{ secrets.DOCKERHUB_USERNAME }}
                   password: ${{ secrets.DOCKERHUB_TOKEN }}
 
             - name: Login to GitHub Container Registry
-              uses: docker/login-action@v4.6.0
+              uses: docker/login-action@v4.7.0
               with:
                   registry: ghcr.io
                   username: ${{ github.repository_owner }}

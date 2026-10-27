@@ -6,12 +6,14 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { FormField, FormItem, FormLabel, FormControl } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Plus, Trash2, Copy, SlidersHorizontal } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Plus, Trash2, Copy, SlidersHorizontal, Info } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { CodeEditorPanel } from '@/components/common/code-editor-panel'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 
 export interface XrayStreamFinalmaskFieldsProps {
@@ -19,6 +21,7 @@ export interface XrayStreamFinalmaskFieldsProps {
   onChange: (next: Record<string, any> | undefined) => void
   t: (key: string, opts?: Record<string, unknown>) => string
   allowClientOnlyMasks?: boolean
+  allowServerOnlyMasks?: boolean
 }
 
 function pruneQuicParams(q: any): any | undefined {
@@ -102,7 +105,7 @@ function hasFinalmaskContent(value: Record<string, any> | undefined): boolean {
   )
 }
 
-export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMasks = true }: XrayStreamFinalmaskFieldsProps) {
+export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMasks = true, allowServerOnlyMasks = false }: XrayStreamFinalmaskFieldsProps) {
   const dir = useDirDetection()
 
   const form = useForm<any>({
@@ -148,7 +151,7 @@ export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMask
         </TabsList>
 
         <TabsContent dir={dir} value="tcp">
-          <TcpLayersForm form={form} />
+          <TcpLayersForm form={form} allowServerOnlyMasks={allowServerOnlyMasks} />
         </TabsContent>
 
         <TabsContent dir={dir} value="udp">
@@ -166,7 +169,7 @@ export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMask
 // ==========================================
 // TCP Layers component
 // ==========================================
-function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
+function TcpLayersForm({ form, allowServerOnlyMasks }: { form: UseFormReturn<any>; allowServerOnlyMasks: boolean }) {
   const { t } = useTranslation()
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -185,7 +188,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
     })
   }
 
-  const handleTypeChange = (index: number, newType: FinalMaskTcpType) => {
+  const handleTypeChange = (index: number, newType: FinalMaskTcpType | 'filter') => {
     form.setValue(`tcp.${index}.type`, newType)
     if (newType === 'fragment') {
       form.setValue(`tcp.${index}.settings`, {
@@ -215,6 +218,11 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
         usernames: [],
         password: '',
       })
+    } else if (newType === 'filter') {
+      form.setValue(`tcp.${index}.settings`, {
+        allowedSourceIPs: [],
+        blockedSourceIPs: [],
+      })
     }
   }
 
@@ -241,7 +249,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`tcp.${index}.type`}
                     render={({ field: selectField }) => (
                       <FormItem className="w-48">
-                        <Select onValueChange={val => handleTypeChange(index, val as FinalMaskTcpType)} value={selectField.value || ''}>
+                        <Select onValueChange={val => handleTypeChange(index, val as FinalMaskTcpType | 'filter')} value={selectField.value || ''}>
                           <FormControl>
                             <SelectTrigger className="h-8">
                               <SelectValue placeholder={t('hostsDialog.finalmask.selectType')} />
@@ -252,6 +260,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
                             <SelectItem value="sudoku">sudoku</SelectItem>
                             <SelectItem value="header-custom">header-custom</SelectItem>
                             <SelectItem value="xmc">xmc</SelectItem>
+                            {(allowServerOnlyMasks || selectField.value === 'filter') && <SelectItem value="filter">filter</SelectItem>}
                           </SelectContent>
                         </Select>
                       </FormItem>
@@ -276,6 +285,8 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
               )}
 
               {type === 'xmc' && <XmcSettingsForm prefix={`tcp.${index}.settings`} form={form} />}
+
+              {type === 'filter' && <TcpFilterSettingsForm prefix={`tcp.${index}.settings`} form={form} />}
             </div>
           )
         })}
@@ -286,6 +297,51 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function TcpFilterSettingsForm({ prefix, form }: { prefix: string; form: UseFormReturn<any> }) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="bg-background space-y-3 rounded-md border p-3">
+      <p className="text-muted-foreground text-xs">
+        {t('hostsDialog.finalmask.filterHint', { defaultValue: 'Inbound only. Place filter last so it is the outermost TCP layer. Blocked IPs take precedence over allowed IPs.' })}
+      </p>
+      {(['allowedSourceIPs', 'blockedSourceIPs'] as const).map(key => (
+        <FormField
+          key={key}
+          control={form.control}
+          name={`${prefix}.${key}`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs">
+                {key === 'allowedSourceIPs'
+                  ? t('hostsDialog.finalmask.allowedSourceIPs', { defaultValue: 'Allowed source IPs' })
+                  : t('hostsDialog.finalmask.blockedSourceIPs', { defaultValue: 'Blocked source IPs' })}
+              </FormLabel>
+              <FormControl>
+                <StringArrayPopoverInput
+                  value={Array.isArray(field.value) ? field.value : []}
+                  onChange={field.onChange}
+                  placeholder={t('hostsDialog.finalmask.sourceIPsPlaceholder', { defaultValue: 'Add CIDR or geoip:cn' })}
+                  addPlaceholder={t('arrayInput.addPlaceholder')}
+                  addButtonLabel={t('arrayInput.addButton')}
+                  itemsLabel={t('arrayInput.items')}
+                  emptyMessage={t('arrayInput.noItems')}
+                  duplicateErrorMessage={t('arrayInput.duplicateError')}
+                  clickToEditTitle={t('arrayInput.clickToEdit')}
+                  editItemTitle={t('arrayInput.editItem')}
+                  removeItemTitle={t('arrayInput.removeItem')}
+                  saveEditTitle={t('arrayInput.saveEdit')}
+                  cancelEditTitle={t('arrayInput.cancelEdit')}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+      ))}
     </div>
   )
 }
@@ -574,55 +630,17 @@ function UdpLayersForm({ form, allowClientOnlyMasks }: { form: UseFormReturn<any
               )}
 
               {type === 'xdns' && (
-                <div className="bg-background grid grid-cols-2 gap-3 rounded-md border p-3">
+                <div className="bg-background space-y-3 rounded-md border p-3">
+                  <XdnsObjectArrayField form={form} name={`udp.${index}.settings.domains`} label={t('hostsDialog.finalmask.serverDomains')} hint={t('hostsDialog.finalmask.xdnsDomainsHint')} />
+                  <XdnsObjectArrayField form={form} name={`udp.${index}.settings.resolvers`} label={t('hostsDialog.finalmask.clientResolvers')} hint={t('hostsDialog.finalmask.xdnsResolversHint')} />
                   <FormField
                     control={form.control}
-                    name={`udp.${index}.settings.domains`}
-                    render={({ field: inputField }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.serverDomains')}</FormLabel>
+                    name={`udp.${index}.settings.extraPoll`}
+                    render={({ field }) => (
+                      <FormItem className="w-full sm:w-40">
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.xdnsExtraPoll')}</FormLabel>
                         <FormControl>
-                          <StringArrayPopoverInput
-                            value={Array.isArray(inputField.value) ? inputField.value : []}
-                            onChange={(next: string[]) => inputField.onChange(next)}
-                            placeholder={t('hostsDialog.finalmask.serverDomainsPlaceholder')}
-                            addPlaceholder={t('arrayInput.addPlaceholder')}
-                            addButtonLabel={t('arrayInput.addButton')}
-                            itemsLabel={t('arrayInput.items')}
-                            emptyMessage={t('arrayInput.noItems')}
-                            duplicateErrorMessage={t('arrayInput.duplicateError')}
-                            clickToEditTitle={t('arrayInput.clickToEdit')}
-                            editItemTitle={t('arrayInput.editItem')}
-                            removeItemTitle={t('arrayInput.removeItem')}
-                            saveEditTitle={t('arrayInput.saveEdit')}
-                            cancelEditTitle={t('arrayInput.cancelEdit')}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={`udp.${index}.settings.resolvers`}
-                    render={({ field: inputField }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.clientResolvers')}</FormLabel>
-                        <FormControl>
-                          <StringArrayPopoverInput
-                            value={Array.isArray(inputField.value) ? inputField.value : []}
-                            onChange={(next: string[]) => inputField.onChange(next)}
-                            placeholder={t('hostsDialog.finalmask.clientResolversPlaceholder')}
-                            addPlaceholder={t('arrayInput.addPlaceholder')}
-                            addButtonLabel={t('arrayInput.addButton')}
-                            itemsLabel={t('arrayInput.items')}
-                            emptyMessage={t('arrayInput.noItems')}
-                            duplicateErrorMessage={t('arrayInput.duplicateError')}
-                            clickToEditTitle={t('arrayInput.clickToEdit')}
-                            editItemTitle={t('arrayInput.editItem')}
-                            removeItemTitle={t('arrayInput.removeItem')}
-                            saveEditTitle={t('arrayInput.saveEdit')}
-                            cancelEditTitle={t('arrayInput.cancelEdit')}
-                          />
+                          <Input type="number" min={0} max={3} step={1} className="h-8 text-xs" {...field} value={field.value ?? ''} onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))} />
                         </FormControl>
                       </FormItem>
                     )}
@@ -697,6 +715,7 @@ function UdpLayersForm({ form, allowClientOnlyMasks }: { form: UseFormReturn<any
 
               {type === 'xicmp' && (
                 <div className="bg-background space-y-3 rounded-md border p-3">
+                  <p className="text-muted-foreground text-[11px]">{t('hostsDialog.finalmask.xicmpIpsHint')}</p>
                   <FormField
                     control={form.control}
                     name={`udp.${index}.settings.dgram`}
@@ -744,7 +763,7 @@ function UdpLayersForm({ form, allowClientOnlyMasks }: { form: UseFormReturn<any
                     control={form.control}
                     name={`udp.${index}.settings.reset`}
                     render={({ field: inputField }) => (
-                      <FormItem className="w-56">
+                      <FormItem className="w-full sm:w-56">
                         <FormLabel className="text-xs">{t('hostsDialog.finalmask.reset')}</FormLabel>
                         <FormControl>
                           <Input
@@ -752,7 +771,7 @@ function UdpLayersForm({ form, allowClientOnlyMasks }: { form: UseFormReturn<any
                             {...inputField}
                             value={inputField.value ?? ''}
                             onChange={e => inputField.onChange(e.target.value === '' ? undefined : e.target.value)}
-                            className="h-8 text-xs"
+                            className="h-10 text-sm"
                           />
                         </FormControl>
                       </FormItem>
@@ -1349,6 +1368,56 @@ function JsonObjectField({ form, name, label }: JsonArrayFieldProps) {
   return <FormField control={form.control} name={name} render={({ field }) => <JsonObjectEditor label={label} value={field.value} onChange={field.onChange} />} />
 }
 
+function XdnsObjectArrayField({ form, name, label, hint }: JsonArrayFieldProps & { hint: string }) {
+  const { t } = useTranslation()
+  return <FormField control={form.control} name={name} render={({ field }) => <XdnsObjectArrayEditor label={label} hint={hint} value={field.value} onChange={field.onChange} invalidMessage={t('hostsDialog.finalmask.xdnsInvalidArray')} />} />
+}
+
+function XdnsObjectArrayEditor({ label, hint, value, onChange, invalidMessage }: { label: string; hint: string; value: unknown; onChange: (value: Record<string, unknown>[]) => void; invalidMessage: string }) {
+  const serializedValue = JSON.stringify(Array.isArray(value) ? value : [], null, 2)
+  const [editorText, setEditorText] = useState(serializedValue)
+  const [error, setError] = useState(false)
+  const lastEditedValue = useRef(serializedValue)
+
+  useEffect(() => {
+    if (serializedValue !== lastEditedValue.current) {
+      lastEditedValue.current = serializedValue
+      setEditorText(serializedValue)
+      setError(false)
+    }
+  }, [serializedValue])
+
+  return (
+    <FormItem>
+      <FormLabel className="text-xs">{label}</FormLabel>
+      <p className="text-muted-foreground text-[11px]">{hint}</p>
+      <FormControl>
+        <CodeEditorPanel
+          language="json"
+          value={editorText}
+          onChange={next => {
+            setEditorText(next)
+            try {
+              const parsed: unknown = JSON.parse(next)
+              if (Array.isArray(parsed) && parsed.every(item => item !== null && typeof item === 'object' && !Array.isArray(item))) {
+                setError(false)
+                lastEditedValue.current = JSON.stringify(parsed, null, 2)
+                onChange(parsed as Record<string, unknown>[])
+                return
+              }
+            } catch {
+              // Keep the draft visible until it is valid JSON.
+            }
+            setError(true)
+          }}
+          embeddedContainerClassName="h-32"
+        />
+      </FormControl>
+      {error && <p className="text-destructive text-[11px]">{invalidMessage}</p>}
+    </FormItem>
+  )
+}
+
 function JsonObjectEditor({ label, value, onChange }: { label: string; value: unknown; onChange: (value: Record<string, unknown> | undefined) => void }) {
   const { t } = useTranslation()
   const serializedValue = value && typeof value === 'object' && !Array.isArray(value) ? JSON.stringify(value, null, 2) : ''
@@ -1434,6 +1503,53 @@ interface XrayNoiseSettingsListProps {
   allowExp?: boolean
 }
 
+function NoiseExpPacketInfo() {
+  const { t } = useTranslation()
+  const dir = useDirDetection()
+  const isMobile = useIsMobile()
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-4 w-4 p-0 hover:bg-transparent"
+          aria-label={t('hostsDialog.finalmask.noiseExpSyntaxTitle', { defaultValue: 'Expression packet syntax' })}
+        >
+          <Info className="text-muted-foreground h-4 w-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={isMobile ? 'bottom' : 'top'} align={dir === 'rtl' ? 'end' : 'start'} sideOffset={5}>
+        <div className="space-y-1.5">
+          <h4 className="mb-2 text-[11px] font-medium">{t('hostsDialog.finalmask.noiseExpSyntaxTitle', { defaultValue: 'Expression packet syntax' })}</h4>
+          <div className="text-muted-foreground max-h-[60vh] space-y-1 overflow-y-auto pr-1 text-[11px] leading-relaxed">
+            <p>{t('hostsDialog.finalmask.noiseExpSyntaxIntro', { defaultValue: 'Join these parts in order to build one packet. The expression is evaluated again for every send.' })}</p>
+            <ul className="list-inside list-disc space-y-1">
+              {([
+                ['<b hex>', 'noiseExpBytes'],
+                ['<r N> / <r A-B>', 'noiseExpRandom'],
+                ['<rc N> / <rc A-B>', 'noiseExpLetters'],
+                ['<rd N> / <rd A-B>', 'noiseExpDigits'],
+                ['<t>', 'noiseExpTime'],
+                ['<c>', 'noiseExpCounter'],
+                ['<n>', 'noiseExpNonce'],
+              ] as const).map(([syntax, key]) => (
+                <li key={key}><code dir="ltr">{syntax}</code> — {t(`hostsDialog.finalmask.${key}`)}</li>
+              ))}
+            </ul>
+            <p>
+              {t('hostsDialog.finalmask.noiseExpExample', { defaultValue: 'Example:' })}{' '}
+              <code dir="ltr">{'<b 0d0a0d0a><t><r 24>'}</code>
+            </p>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSettingsListProps) {
   const { t } = useTranslation()
   const { fields, append, remove, insert } = useFieldArray({
@@ -1466,13 +1582,31 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
           const packetPlaceholderKey = isExpType ? 'hostsDialog.finalmask.noiseExpPlaceholder' : 'hostsDialog.noise.packet'
           return (
           <div key={field.id} className="bg-background space-y-2 rounded-md border p-2">
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground w-5 shrink-0 text-center text-xs">{index + 1}</span>
-              <FormField
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground text-xs">{index + 1}</span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="hover:bg-muted h-9 w-9 transition-colors"
+                  onClick={() => handleDuplicate(index)}
+                  title={t('hostsDialog.noise.duplicateNoise')}
+                  aria-label={t('hostsDialog.noise.duplicateNoise')}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+                <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-9 w-9" onClick={() => remove(index)} aria-label={t('hostsDialog.noise.removeNoise')}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+            <FormField
                 control={form.control}
                 name={`${name}.${index}.type`}
                 render={({ field: inputField }) => (
-                  <FormItem className="w-[100px] shrink-0">
+                  <FormItem className="min-w-0">
+                    <FormLabel className="text-xs">{t('hostsDialog.noise.type')}</FormLabel>
                     <Select
                       onValueChange={val => {
                         inputField.onChange(val)
@@ -1493,7 +1627,7 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                       value={inputField.value || 'array'}
                     >
                       <FormControl>
-                        <SelectTrigger className="h-8 text-xs">
+                        <SelectTrigger className="h-10 text-sm">
                           <SelectValue placeholder={t('hostsDialog.noise.type')} />
                         </SelectTrigger>
                       </FormControl>
@@ -1508,29 +1642,16 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                   </FormItem>
                 )}
               />
-              <div className="ml-auto flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="hover:bg-muted h-7 w-7 transition-colors"
-                  onClick={() => handleDuplicate(index)}
-                  title={t('hostsDialog.noise.duplicateNoise')}
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
-                <Button type="button" variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 h-7 w-7" onClick={() => remove(index)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-4 gap-2 pl-7">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name={`${name}.${index}.packet`}
                 render={({ field: inputField }) => (
-                  <FormItem className={isExpType ? 'col-span-3' : undefined}>
+                  <FormItem className="min-w-0 sm:col-span-2">
+                    <div className="flex items-center gap-1">
+                      <FormLabel className="text-xs">{t('hostsDialog.noise.packet')}</FormLabel>
+                      {isExpType && <NoiseExpPacketInfo />}
+                    </div>
                     <FormControl>
                       {isArrayType ? (
                         <StringArrayPopoverInput
@@ -1547,9 +1668,10 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                           removeItemTitle={t('arrayInput.removeItem')}
                           saveEditTitle={t('arrayInput.saveEdit')}
                           cancelEditTitle={t('arrayInput.cancelEdit')}
+                          className="min-h-10"
                         />
                       ) : (
-                        <Input placeholder={t(packetPlaceholderKey)} {...inputField} value={typeof inputField.value === 'string' ? inputField.value : ''} className="h-8 text-xs" />
+                        <Input placeholder={t(packetPlaceholderKey)} {...inputField} value={typeof inputField.value === 'string' ? inputField.value : ''} className="h-10 text-sm" />
                       )}
                     </FormControl>
                   </FormItem>
@@ -1559,9 +1681,10 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                 control={form.control}
                 name={`${name}.${index}.delay`}
                 render={({ field: inputField }) => (
-                  <FormItem>
+                  <FormItem className="min-w-0">
+                    <FormLabel className="text-xs">{t('hostsDialog.noise.delay')}</FormLabel>
                     <FormControl>
-                      <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                      <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...inputField} value={inputField.value || ''} className="h-10 text-sm" />
                     </FormControl>
                   </FormItem>
                 )}
@@ -1572,9 +1695,10 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                     control={form.control}
                     name={`${name}.${index}.rand`}
                     render={({ field: inputField }) => (
-                      <FormItem>
+                      <FormItem className="min-w-0">
+                        <FormLabel className="text-xs">{t('hostsDialog.noise.rand')}</FormLabel>
                         <FormControl>
-                          <Input placeholder={t('hostsDialog.finalmask.noiseRandPlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          <Input placeholder={t('hostsDialog.finalmask.noiseRandPlaceholder')} {...inputField} value={inputField.value || ''} className="h-10 text-sm" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -1583,9 +1707,10 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                     control={form.control}
                     name={`${name}.${index}.randRange`}
                     render={({ field: inputField }) => (
-                      <FormItem>
+                      <FormItem className="min-w-0">
+                        <FormLabel className="text-xs">{t('hostsDialog.finalmask.noiseRandRange')}</FormLabel>
                         <FormControl>
-                          <Input placeholder={t('hostsDialog.finalmask.noiseRandRangePlaceholder')} {...inputField} value={inputField.value || ''} className="h-8 text-xs" />
+                          <Input placeholder={t('hostsDialog.finalmask.noiseRandRangePlaceholder')} {...inputField} value={inputField.value || ''} className="h-10 text-sm" />
                         </FormControl>
                       </FormItem>
                     )}
@@ -1593,7 +1718,7 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                 </>
               )}
             </div>
-            {isExpType && <p className="text-muted-foreground pl-7 text-[11px] leading-relaxed">{t('hostsDialog.finalmask.noiseExpVersionHint')}</p>}
+            {isExpType && <p className="text-muted-foreground text-xs leading-relaxed">{t('hostsDialog.finalmask.noiseExpVersionHint')}</p>}
           </div>
           )
         })}
@@ -1637,7 +1762,7 @@ export function XrayStreamFinalmaskInboundAccordion({ accordionItemClassName, va
               }}
             />
           </div>
-          {enabled && <XrayStreamFinalmaskFields value={value} onChange={onChange} t={t} allowClientOnlyMasks={false} />}
+          {enabled && <XrayStreamFinalmaskFields value={value} onChange={onChange} t={t} allowServerOnlyMasks />}
         </AccordionContent>
       </AccordionItem>
     </Accordion>

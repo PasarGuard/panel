@@ -455,6 +455,7 @@ export default function UserTemplates() {
           form={form}
           editingUserTemplate={!!editingUserTemplate}
           editingUserTemplateId={editingUserTemplate?.id}
+          editingUserTemplateDataLimit={editingUserTemplate?.data_limit}
         />
       )}
       {activeBulkActionConfig && (

@@ -128,6 +128,19 @@ def test_xray_wireguard_lifecycle_preserves_kernel_allocations(access_token):
         delete_core(access_token, kernel["id"])
 
 
+@pytest.mark.parametrize("addresses", [[], None, ["10.95.0.1"], ["10.95.0.1/32"]])
+def test_xray_core_with_unmanaged_wireguard_inbound_saves(access_token, addresses):
+    secret, _ = generate_wireguard_keypair()
+    tag = unique_name("xray_wg_unmanaged")
+    core = create_core(access_token, config=wireguard_config("xray", tag, secret, addresses))
+    try:
+        response = client.get("/api/inbounds", headers=auth_headers(access_token))
+        assert response.status_code == 200, response.text
+        assert tag not in response.json()
+    finally:
+        delete_core(access_token, core["id"])
+
+
 @pytest.mark.parametrize("first_type,second_type", [("wg", "xray"), ("xray", "wg"), ("xray", "xray")])
 def test_wireguard_overlap_validation_across_backends(access_token, first_type, second_type):
     secret, _ = generate_wireguard_keypair()

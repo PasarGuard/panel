@@ -4,6 +4,7 @@ import secrets
 import warnings
 from collections import Counter
 from datetime import UTC, datetime, datetime as dt, timedelta as td
+from typing import Literal
 
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -13,9 +14,11 @@ from app import notification
 from app.db import AsyncSession
 from app.db.crud.admin import get_admin
 from app.db.crud.bulk import (
+    BulkUserUpdateConflict,
     count_bulk_datalimit_targets,
     count_bulk_expire_targets,
     count_bulk_proxy_targets,
+    get_bulk_user_limit_targets,
     reset_all_users_data_usage,
     update_users_datalimit,
     update_users_expire,
@@ -53,6 +56,7 @@ from app.db.crud.user import (
     revoke_user_sub,
     set_owner,
 )
+from app.db.crud.wireguard import ensure_wireguard_subnet_pools
 from app.db.models import User, UserStatus, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.proxy import ProxyTable
@@ -494,6 +498,7 @@ class UserOperation(BaseOperation):
         require_finite_expire: bool = True,
         require_finite_on_hold_timeout: bool = True,
         require_finite_hwid_limit: bool = True,
+        reference_time: dt | None = None,
     ) -> None:
         """Enforce role-level limits and feature flags. No-op for owner."""
         if admin.is_owner:
@@ -502,6 +507,7 @@ class UserOperation(BaseOperation):
         limits = get_effective_limits(admin)
 
         if check_max_users and limits.max_users is not None:
+            await lock_admin_quota_row(db, admin.id)
             current_count = await get_users_count_by_admin(db, admin.id)
             if current_count >= limits.max_users:
                 await self.raise_error(message=f"User limit reached ({limits.max_users})", code=400, db=db)
@@ -545,7 +551,7 @@ class UserOperation(BaseOperation):
 
         if expire is not None and expire != 0:
             expire_dt = fix_datetime_timezone(expire)
-            seconds = (expire_dt - datetime.now(UTC)).total_seconds()
+            seconds = (expire_dt - (reference_time or datetime.now(UTC))).total_seconds()
             if limits.expire_min is not None and seconds < limits.expire_min:
                 await self.raise_error(
                     message=f"Expire must be at least {readable_duration(limits.expire_min)} from now",
@@ -888,8 +894,12 @@ class UserOperation(BaseOperation):
         new_status = UserStatus.disabled if toggle.disabled else _resolve_enabled_user_status(db_user)
 
         if db_user.status != new_status:
+            changed_at = dt.now(UTC)
+            if new_status == UserStatus.on_hold:
+                # Back on hold: like an edit, it makes earlier traffic not count as coming online.
+                db_user.edit_at = changed_at
             db_user.status = new_status
-            db_user.last_status_change = dt.now(UTC)
+            db_user.last_status_change = changed_at
             await db.commit()
             await load_user_attrs(db_user, load_admin_role=True)
 
@@ -997,6 +1007,7 @@ class UserOperation(BaseOperation):
         load_admin_role: bool = False,
         scope_action: str = "read",
     ) -> list[User]:
+        """Validate the entire selection against scope, using aggregates when history is omitted."""
         if not user_ids:
             return []
 
@@ -1009,7 +1020,13 @@ class UserOperation(BaseOperation):
             admin_ids=[scope_admin_id] if scope_admin_id is not None else None,
             limit=len(ids_list),
         )
-        users = await get_users(db, query=query, load_admin_role=load_admin_role)
+        users = await get_users(
+            db,
+            query=query,
+            load_admin_role=load_admin_role,
+            load_usage_logs=load_usage_logs,
+            load_lifetime_used_traffic=not load_usage_logs,
+        )
 
         # Verify every requested ID was found (mirrors the 404 in get_validated_user_by_id)
         found_ids = {user.id for user in users}
@@ -1021,13 +1038,24 @@ class UserOperation(BaseOperation):
 
     @staticmethod
     def _build_bulk_action_response(users: list[User | UserNotificationResponse]) -> BulkUsersActionResponse:
+        """Summarize the users returned by a completed bulk action."""
         usernames = [user.username for user in users]
         return BulkUsersActionResponse(users=usernames, count=len(usernames))
 
     async def _load_users_by_ids(self, db: AsyncSession, user_ids: list[int]) -> list[User]:
-        return await get_users_by_ids(db, user_ids, load_admin_role=True, load_group_inbounds=True)
+        """Refresh bulk results and node-sync relationships without materializing reset history."""
+        return await get_users_by_ids(
+            db,
+            user_ids,
+            load_admin_role=True,
+            load_group_inbounds=True,
+            load_usage_logs=False,
+            load_lifetime_used_traffic=True,
+            populate_existing=True,
+        )
 
     async def _load_users_by_usernames(self, db: AsyncSession, usernames: list[str]) -> list[User]:
+        """Load bulk results by username with their administrators' roles."""
         return await get_users_by_usernames(db, usernames, load_admin_role=True)
 
     async def bulk_remove_users(
@@ -1224,6 +1252,9 @@ class UserOperation(BaseOperation):
                 if db_user.id is None:
                     continue
                 original_statuses[db_user.id] = db_user.status
+                if new_status == UserStatus.on_hold:
+                    # Back on hold: like an edit, it makes earlier traffic not count as coming online.
+                    db_user.edit_at = changed_at
                 db_user.status = new_status
                 db_user.last_status_change = changed_at
                 changed_user_ids.append(db_user.id)
@@ -1705,6 +1736,7 @@ class UserOperation(BaseOperation):
             "data_limit_reset_strategy": template.data_limit_reset_strategy,
             "status": template.status,
             "hwid_limit": template.hwid_limit,
+            "next_plan": None,
         }
 
         if template.status == UserStatus.active:
@@ -1941,15 +1973,19 @@ class UserOperation(BaseOperation):
 
         modified_user_ids: list[int] = []
         try:
-            for db_user, modified_user_model, validated_groups, _, _ in prepared_updates:
-                if user_template.reset_usages:
-                    await reset_user_data_usage(
-                        db,
-                        db_user,
-                        clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
-                        commit=False,
-                    )
+            if user_template.reset_usages:
+                # The modify below allocates WireGuard IPs, which locks the pool rows before user rows everywhere
+                # else: take them before the reset locks the users, or a concurrent modify can deadlock with us
+                await ensure_wireguard_subnet_pools(db)
+                # One set-based reset for all users; it reloads them, so each one below is edited from fresh state
+                await bulk_reset_user_data_usage(
+                    db,
+                    [db_user for db_user, *_ in prepared_updates],
+                    clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+                    commit=False,
+                )
 
+            for db_user, modified_user_model, validated_groups, _, _ in prepared_updates:
                 self._apply_explicit_null_hwid_limit(db_user, modified_user_model)
                 await crud_modify_user(
                     db,
@@ -1993,22 +2029,71 @@ class UserOperation(BaseOperation):
 
         return self._build_bulk_action_response(users)
 
-    async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUser):
+    async def _prepare_bulk_limit_update(
+        self, db: AsyncSession, bulk_model: BulkUser, admin: AdminDetails, field: Literal["expire", "data_limit"]
+    ) -> dict:
+        """Check write access and validate every final value before a guarded batch update."""
+        if not _has_permission(admin, "users", "update") or not is_scope_all(admin, "users", "update"):
+            await self.raise_error(message="All-user update permission is required", code=403, db=db)
+        await self._enforce_manual_user_write_access(admin, db)
+        if admin.is_owner:
+            return {}
+
+        limits = get_effective_limits(admin)
+        minimum = getattr(limits, f"{field}_min")
+        maximum = getattr(limits, f"{field}_max")
+        if minimum is None and maximum is None:
+            return {}
+
+        targets = await get_bulk_user_limit_targets(db, bulk_model, field, lock=not bulk_model.dry_run)
+        now = datetime.now(UTC)
+        for _, value in targets:
+            final_value = (
+                fix_datetime_timezone(value) + td(seconds=bulk_model.amount)
+                if field == "expire"
+                else value + bulk_model.amount
+            )
+            await self._enforce_user_limits(
+                db,
+                admin,
+                **{field: final_value},
+                require_finite_data_limit=field == "data_limit",
+                require_finite_expire=field == "expire",
+                require_finite_on_hold_timeout=False,
+                require_finite_hwid_limit=False,
+                reference_time=now,
+            )
+        if field == "expire":
+            minimum = now + td(seconds=minimum) if minimum is not None else None
+            maximum = now + td(seconds=maximum) if maximum is not None else None
+        return {"target_ids": [user_id for user_id, _ in targets], "minimum": minimum, "maximum": maximum}
+
+    async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUser, admin: AdminDetails):
+        """Adjust finite expirations atomically within the actor's role and override limits."""
+        constraints = await self._prepare_bulk_limit_update(db, bulk_model, admin, "expire")
         if bulk_model.dry_run:
-            n = await count_bulk_expire_targets(db, bulk_model)
+            n = len(constraints["target_ids"]) if constraints else await count_bulk_expire_targets(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)
-        users, users_count = await update_users_expire(db, bulk_model)
+        try:
+            users, users_count = await update_users_expire(db, bulk_model, **constraints)
+        except BulkUserUpdateConflict as exc:
+            await self.raise_error(message=str(exc), code=409, db=db)
         await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
         return users_count
 
-    async def bulk_modify_datalimit(self, db: AsyncSession, bulk_model: BulkUser):
+    async def bulk_modify_datalimit(self, db: AsyncSession, bulk_model: BulkUser, admin: AdminDetails):
+        """Adjust finite quotas atomically within the actor's role and override limits."""
+        constraints = await self._prepare_bulk_limit_update(db, bulk_model, admin, "data_limit")
         if bulk_model.dry_run:
-            n = await count_bulk_datalimit_targets(db, bulk_model)
+            n = len(constraints["target_ids"]) if constraints else await count_bulk_datalimit_targets(db, bulk_model)
             return BulkOperationDryRunResponse(affected_users=n)
-        users, users_count = await update_users_datalimit(db, bulk_model)
+        try:
+            users, users_count = await update_users_datalimit(db, bulk_model, **constraints)
+        except BulkUserUpdateConflict as exc:
+            await self.raise_error(message=str(exc), code=409, db=db)
         await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):

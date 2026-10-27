@@ -27,6 +27,8 @@ class NodeManager:
     def __init__(self):
         self._nodes: dict[int, PasarGuardNode] = {}
         self._node_signatures: dict[int, tuple] = {}
+        # keep_alive goes to Start, not to the bridge object; the heartbeat reads it here.
+        self._keep_alives: dict[int, int] = {}
         self._user_sync_locks: dict[int, asyncio.Lock] = {}
         self._user_sync_tasks: dict[int, set[asyncio.Task]] = {}
         self._lock = RWLock(fast=True)
@@ -112,6 +114,7 @@ class NodeManager:
     async def update_node(self, node: Node) -> PasarGuardNode:
         await ensure_bridge_memory()
 
+        self._keep_alives[node.id] = node.keep_alive or 0
         signature = self._connection_signature(node)
         async with self._lock.reader_lock:
             existing = self._nodes.get(node.id)
@@ -168,6 +171,7 @@ class NodeManager:
         async with lock, self._lock.writer_lock:
             old_node: PasarGuardNode | None = self._nodes.pop(id, None)
             self._node_signatures.pop(id, None)
+            self._keep_alives.pop(id, None)
             self._user_sync_tasks.pop(id, None)
 
         # Do cleanup without holding the lock to avoid slow delete operations.
@@ -189,6 +193,15 @@ class NodeManager:
     async def get_nodes(self) -> dict[int, PasarGuardNode]:
         async with self._lock.reader_lock:
             return self._nodes
+
+    async def get_keep_alive_nodes(self) -> list[tuple[int, PasarGuardNode, int]]:
+        """Nodes whose core stops without regular requests, with their keep_alive."""
+        async with self._lock.reader_lock:
+            return [
+                (node_id, node, self._keep_alives[node_id])
+                for node_id, node in self._nodes.items()
+                if self._keep_alives.get(node_id, 0) > 0
+            ]
 
     async def get_healthy_nodes(self) -> list[tuple[int, PasarGuardNode]]:
         async with self._lock.reader_lock:
@@ -438,8 +451,16 @@ class NodeManager:
             elif isinstance(result, Exception):
                 self.logger.error("Failed to sync users to node %s: %s", node_id, result)
 
-    async def update_users(self, users: list[ProtoUser]) -> None:
-        asyncio.create_task(self._update_users(users))
+    async def update_users(self, users: list[ProtoUser], *, await_dispatch: bool = False) -> None:
+        """Queue a batch, optionally waiting so a producer cannot outrun node dispatch.
+
+        Per-node failures are logged, never raised: a node that misses a batch gets a
+        full snapshot when it reconnects.
+        """
+        if await_dispatch:
+            await self._update_users(users)
+        else:
+            asyncio.create_task(self._update_users(users))
 
     async def update_user(self, user: ProtoUser) -> None:
         nodes = await self._snapshot_nodes()
