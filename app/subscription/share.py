@@ -198,9 +198,13 @@ def apply_custom_format_variables(format_variables: dict, custom_variables: list
         key, raw_value = _custom_variable_parts(variable)
         if not key:
             continue
+        if has_oversized_format_spec(raw_value):
+            # A value saved before the size check stays raw text instead of allocating per request
+            format_variables[key] = raw_value
+            continue
         try:
             format_variables[key] = raw_value.format_map(base_variables)
-        except ValueError, KeyError:
+        except ValueError, KeyError, AttributeError, IndexError, TypeError:
             format_variables[key] = raw_value
 
     return format_variables

@@ -12,12 +12,14 @@ from app.db.crud.user import get_user_usages, user_sub_update
 from app.db.models import User
 from app.models.admin import AdminDetails
 from app.models.settings import (
+    BLOCKED_ICON_URL_SCHEMES,
     Application,
     ConfigFormat,
     HeaderPlacement,
     HWIDSettings,
     SubRule,
     Subscription as SubSettings,
+    has_blocked_link_scheme,
 )
 from app.models.stats import UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
@@ -33,7 +35,9 @@ from app.subscription.share import (
     setup_format_variables,
 )
 from app.templates import render_template
+from app.utils.helpers import has_oversized_format_spec
 from app.utils.hwid import resolve_effective_hwid_settings
+from app.utils.jwt import get_subscription_payload
 from app.utils.performance import phase
 from config import template_settings
 
@@ -129,15 +133,21 @@ class SubscriptionOperation(BaseOperation):
     async def detect_client_type(user_agent: str, rules: list[SubRule]) -> ConfigFormat | None:
         """Detect the appropriate client configuration based on the user agent."""
         for rule in rules:
-            if re.match(rule.pattern, user_agent):
-                return rule.target
+            try:
+                if re.match(rule.pattern, user_agent[:1024]):
+                    return rule.target
+            except re.error:
+                continue
 
     @staticmethod
     def detect_client_rule(user_agent: str, rules: list[SubRule]) -> SubRule | None:
         """Return the first matching subscription rule for the provided user agent."""
         for rule in rules:
-            if re.match(rule.pattern, user_agent):
-                return rule
+            try:
+                if re.match(rule.pattern, user_agent[:1024]):
+                    return rule
+            except re.error:
+                continue
         return None
 
     @staticmethod
@@ -152,10 +162,13 @@ class SubscriptionOperation(BaseOperation):
 
         if not profile_title:
             return "Subscription"
+        if has_oversized_format_spec(profile_title):
+            # Saved before the size check: keep it raw instead of allocating per request
+            return profile_title
 
         try:
             return profile_title.format_map(format_variables)
-        except ValueError, KeyError:
+        except ValueError, KeyError, AttributeError, IndexError, TypeError:
             # Invalid format string, return original title
             return profile_title
 
@@ -164,10 +177,12 @@ class SubscriptionOperation(BaseOperation):
         """Format announcement text with dynamic variables, falling back to raw text if needed."""
         if not sub_settings.announce:
             return ""
+        if has_oversized_format_spec(sub_settings.announce):
+            return sub_settings.announce
 
         try:
             return sub_settings.announce.format_map(format_variables)
-        except ValueError, KeyError:
+        except ValueError, KeyError, AttributeError, IndexError, TypeError:
             return sub_settings.announce
 
     @staticmethod
@@ -175,11 +190,15 @@ class SubscriptionOperation(BaseOperation):
         """Format announcement URL with dynamic variables, falling back to raw URL if needed."""
         if not sub_settings.announce_url:
             return ""
-
-        try:
-            return sub_settings.announce_url.format_map(format_variables)
-        except ValueError, KeyError:
-            return sub_settings.announce_url
+        if has_oversized_format_spec(sub_settings.announce_url):
+            announce_url = sub_settings.announce_url
+        else:
+            try:
+                announce_url = sub_settings.announce_url.format_map(format_variables)
+            except ValueError, KeyError, AttributeError, IndexError, TypeError:
+                announce_url = sub_settings.announce_url
+        # A javascript:/data: URL saved before the input check must not reach the page's <a href>
+        return "" if has_blocked_link_scheme(announce_url) else announce_url
 
     @staticmethod
     def create_response_headers(
@@ -305,9 +324,11 @@ class SubscriptionOperation(BaseOperation):
             header_value = value.strip()
             if not header_value:
                 return ""
+            if has_oversized_format_spec(header_value):
+                return header_value
             try:
                 return header_value.format_map(format_variables)
-            except ValueError, KeyError:
+            except ValueError, KeyError, AttributeError, IndexError, TypeError:
                 return header_value
 
         if isinstance(value, (dict, list, tuple, bool, int, float)):
@@ -464,6 +485,10 @@ class SubscriptionOperation(BaseOperation):
         Provides a subscription link based on the user agent (Clash, V2Ray, etc.).
         """
         sub_settings: SubSettings = await subscription_settings()
+        # Client rules are admin-configured regular expressions. Validate the token first so an
+        # anonymous request cannot make the worker evaluate them.
+        if await get_subscription_payload(token) is None:
+            await self.raise_error(message="Not Found", code=404)
         matched_rule = self.detect_client_rule(user_agent, sub_settings.rules)
         wireguard_fast = (
             "text/html" not in accept_header
@@ -811,14 +836,30 @@ class SubscriptionOperation(BaseOperation):
             is_hwid_enabled=is_hwid_enabled,
         )
 
+    @staticmethod
+    def _format_import_url(import_url: str, format_variables: dict) -> str:
+        # Values saved before import_url was validated may still hold an oversized format width or a field the
+        # variables cannot fill; keep them raw instead of allocating or failing the whole page.
+        if has_oversized_format_spec(import_url):
+            return import_url
+        try:
+            return import_url.format_map(format_variables)
+        except ValueError, KeyError, AttributeError, IndexError, TypeError:
+            return import_url
+
     def _make_apps_import_urls(
         self, applications: list[Application], format_variables: dict, *, is_hwid_enabled: bool
     ) -> list[Application]:
         apps_with_updated_urls = []
         for app in applications:
             updated_app = app.model_copy()
-            import_url = app.import_url.format_map(format_variables)
-            updated_app.import_url = import_url
+            updated_app.import_url = self._format_import_url(app.import_url, format_variables)
+            # Links saved before the scheme check are dropped here instead of failing the settings load
+            if has_blocked_link_scheme(updated_app.import_url):
+                updated_app.import_url = ""
+            if has_blocked_link_scheme(app.icon_url, BLOCKED_ICON_URL_SCHEMES):
+                updated_app.icon_url = ""
+            updated_app.download_links = [link for link in app.download_links if not has_blocked_link_scheme(link.url)]
             if is_hwid_enabled:
                 if app.show_when_hwid_enabled:
                     apps_with_updated_urls.append(updated_app)

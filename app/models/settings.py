@@ -1,15 +1,57 @@
 import re
 from enum import Enum, StrEnum
 from typing import Any
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
+from app.models.host import validate_format_variables
 from app.models.proxy import ShadowsocksMethods
+from app.utils.helpers import has_oversized_format_spec
 
 from .notification_enable import NotificationEnable
 from .validators import DiscordValidator, ProxyValidator, URLValidator
 
 TELEGRAM_TOKEN_PATTERN = r"^\d{8,12}:[A-Za-z0-9_-]{35}$"
+BLOCKED_URL_SCHEMES = {"javascript", "data", "vbscript", "file", "blob"}
+# An icon only ends up in <img src>, where a data: image is inert.
+BLOCKED_ICON_URL_SCHEMES = BLOCKED_URL_SCHEMES - {"data"}
+
+# Strict on input only: settings saved before these checks existed must still load (a failing load is a
+# 500 on every subscription and on the settings page, with no way to fix it from the UI). Writes validate
+# with this context (SettingsOperation.modify_settings); the subscription renderer neutralises old values.
+SETTINGS_INPUT_CONTEXT = {"settings_input": True}
+
+
+def _is_settings_input(info: ValidationInfo) -> bool:
+    return bool(info.context and info.context.get("settings_input"))
+
+
+def _validate_no_oversized_format_spec(value: str | None) -> str | None:
+    if value and has_oversized_format_spec(value):
+        raise ValueError("Format width or precision is too large")
+    return value
+
+
+def _validate_link_scheme(value: str, blocked_schemes: set[str] = BLOCKED_URL_SCHEMES) -> str:
+    if not value:
+        return value
+    scheme = urlparse(value).scheme.lower()
+    if scheme in blocked_schemes:
+        raise ValueError(f"URL scheme '{scheme}' is not allowed")
+    return value
+
+
+def has_blocked_link_scheme(value: str, blocked_schemes: set[str] = BLOCKED_URL_SCHEMES) -> bool:
+    """Render-time twin of _validate_link_scheme for values stored before the input check existed."""
+    if not value:
+        return False
+    try:
+        return urlparse(value).scheme.lower() in blocked_schemes
+    except ValueError:
+        return True
+
+
 BUILTIN_FORMAT_VARIABLES = {
     "SERVER_IP",
     "SERVER_IPV6",
@@ -213,6 +255,20 @@ class SubRule(BaseModel):
     target: ConfigFormat
     response_headers: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("pattern")
+    @classmethod
+    def validate_pattern(cls, value: str, info: ValidationInfo) -> str:
+        # A stored pattern that does not compile is skipped by detect_client_rule.
+        if not _is_settings_input(info):
+            return value
+        if not value or len(value) > 512:
+            raise ValueError("pattern must be between 1 and 512 characters")
+        try:
+            re.compile(value)
+        except re.error as exc:
+            raise ValueError(f"invalid regular expression: {exc}")
+        return value
+
 
 class SubFormatEnable(BaseModel):
     links: bool = Field(default=True)
@@ -247,6 +303,11 @@ class DownloadLink(BaseModel):
     url: str
     language: Language
 
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str, info: ValidationInfo) -> str:
+        return _validate_link_scheme(value) if _is_settings_input(info) else value
+
 
 class Application(BaseModel):
     name: str = Field(max_length=32)
@@ -258,13 +319,25 @@ class Application(BaseModel):
     platform: Platform
     download_links: list[DownloadLink]
 
+    @field_validator("icon_url")
+    @classmethod
+    def validate_icon_url(cls, v: str, info: ValidationInfo) -> str:
+        return _validate_link_scheme(v, BLOCKED_ICON_URL_SCHEMES) if _is_settings_input(info) else v
+
     @field_validator("import_url")
     @classmethod
-    def validate_import_url(cls, v: str) -> str:
+    def validate_import_url(cls, v: str, info: ValidationInfo) -> str:
         """Validate import_url contains {url} if not empty."""
         if v and "{url}" not in v:
             raise ValueError("import_url must contain {url} placeholder for URL replacement")
-        return v
+        if not _is_settings_input(info):
+            # A stored value that cannot be formatted is served raw by _format_import_url.
+            return v
+        if v:
+            # Rendered with str.format_map on every subscription page: no oversized widths, and no
+            # attribute or index fields that fail (500) or allocate per request.
+            validate_format_variables(v)
+        return _validate_link_scheme(v)
 
 
 class CustomVariable(BaseModel):
@@ -290,13 +363,20 @@ class CustomVariable(BaseModel):
 
     @field_validator("value")
     @classmethod
-    def validate_value_format(cls, value: str) -> str:
+    def validate_value_format(cls, value: str, info: ValidationInfo) -> str:
+        if has_oversized_format_spec(value):
+            # Checked before format_map, which would build the padded string first. Stored values load as raw text.
+            if _is_settings_input(info):
+                raise ValueError("Format width or precision is too large")
+            return value
         try:
             value.format_map({key: "" for key in BUILTIN_FORMAT_VARIABLES})
-        except ValueError:
-            raise ValueError("Invalid formatting variables")
         except KeyError:
             pass
+        except ValueError, IndexError, AttributeError, TypeError:
+            # Stray brace, {X[0]}, {X.y}: refused on input, kept as raw text when loading a stored value.
+            if _is_settings_input(info):
+                raise ValueError("Invalid formatting variables")
         return value
 
 
@@ -334,6 +414,16 @@ class Subscription(BaseModel):
     @classmethod
     def validate_url_prefix(cls, v: str) -> str:
         return v.strip("/")
+
+    @field_validator("profile_title", "announce", "announce_url")
+    @classmethod
+    def validate_format_specs(cls, value: str, info: ValidationInfo) -> str:
+        return _validate_no_oversized_format_spec(value) if _is_settings_input(info) else value
+
+    @field_validator("announce_url", "support_url")
+    @classmethod
+    def validate_link_urls(cls, value: str, info: ValidationInfo) -> str:
+        return _validate_link_scheme(value) if _is_settings_input(info) else value
 
     @field_validator("custom_variables")
     @classmethod
