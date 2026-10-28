@@ -16,11 +16,28 @@ interface CoreEditorLayoutProps {
   saving: boolean
   showRestart?: boolean
   restartNodes: boolean
+  restartDisabled?: boolean
   onRestartChange: (v: boolean) => void
   className?: string
 }
 
-export function CoreEditorLayout({ header, sectionHeader, main, dirty, canSave, saveLabel, onSave, onDiscard, onCancel, saving, showRestart, restartNodes, onRestartChange, className }: CoreEditorLayoutProps) {
+export function CoreEditorLayout({
+  header,
+  sectionHeader,
+  main,
+  dirty,
+  canSave,
+  saveLabel,
+  onSave,
+  onDiscard,
+  onCancel,
+  saving,
+  showRestart,
+  restartNodes,
+  restartDisabled,
+  onRestartChange,
+  className,
+}: CoreEditorLayoutProps) {
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col gap-0', className)}>
       <div className="px-4 pt-3 pb-2 md:pt-6 md:pb-0">{header}</div>
@@ -39,6 +56,7 @@ export function CoreEditorLayout({ header, sectionHeader, main, dirty, canSave, 
         saving={saving}
         showRestart={showRestart}
         restartNodes={restartNodes}
+        restartDisabled={restartDisabled}
         onRestartChange={onRestartChange}
       />
     </div>

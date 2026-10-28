@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -35,7 +36,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FieldErrors, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import type { CoreBackendType, CoreConfigFormValues } from '@/features/nodes/forms/core-config-form'
+import { isNoteOnlyCoreEdit, type CoreBackendType, type CoreConfigFormValues } from '@/features/nodes/forms/core-config-form'
 import { VlessAdvancedGenerationModal, type VlessKeyVariant } from '@/features/core-editor/components/shared/vless-advanced-generation-modal'
 import { XrayInboundTagPicker } from '@/features/core-editor/components/shared/xray-inbound-tag-selectors'
 
@@ -66,6 +67,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   const isMobile = useIsMobile()
   const backendType = (form.watch('type') ?? 'xray') as CoreBackendType
   const isXrayBackend = backendType !== 'wg'
+  // A note-only save has nothing to sync, so nodes are not restarted for it.
+  const noteOnlyChange = editingCore && isNoteOnlyCoreEdit(form.formState.defaultValues as Partial<CoreConfigFormValues> | undefined, form.watch())
   const [validation, setValidation] = useState<ValidationResult>({ isValid: true })
   const createCoreMutation = useCreateCoreConfig()
   const modifyCoreMutation = useModifyCoreConfig()
@@ -401,9 +404,10 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
             config: configObj,
             fallbacks_inbound_tags: fallbackTags,
             exclude_inbound_tags: excludeInboundTags,
+            note: values.note?.trim() || null,
           },
           params: {
-            restart_nodes: values.restart_nodes ?? true,
+            restart_nodes: (values.restart_nodes ?? true) && !isNoteOnlyCoreEdit(form.formState.defaultValues as Partial<CoreConfigFormValues> | undefined, values),
           },
         })
       } else {
@@ -415,6 +419,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
             config: configObj,
             fallbacks_inbound_tags: fallbackTags,
             exclude_inbound_tags: excludeInboundTags,
+            note: values.note?.trim() || null,
           },
         })
       }
@@ -542,6 +547,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
           excluded_inbound_ids: [],
           fallback_id: [],
           restart_nodes: true,
+          note: '',
         })
       } else {
         // Set restart_nodes to true for editing
@@ -985,6 +991,20 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                       )}
                     />
 
+                    <FormField
+                      control={form.control}
+                      name="note"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('coreConfigModal.note')}</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder={t('coreConfigModal.notePlaceholder')} className="min-h-[60px] resize-y" maxLength={500} {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
                     <div>
                       {!isXrayBackend && (
                         <LoaderButton type="button" onClick={viewWireGuardKeys} className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
@@ -1209,9 +1229,10 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                       control={form.control}
                       name="restart_nodes"
                       render={({ field }) => (
-                        <FormItem className="flex flex-row-reverse items-center gap-2">
+                        <FormItem className="flex flex-row-reverse flex-wrap items-center gap-2">
+                          {noteOnlyChange && <span className="text-muted-foreground text-xs">{t('coreConfigModal.restartNodesNoteOnly')}</span>}
                           <FormControl>
-                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                            <Checkbox checked={!!field.value && !noteOnlyChange} disabled={noteOnlyChange} onCheckedChange={field.onChange} />
                           </FormControl>
                           <FormLabel className="!m-0 text-sm">{t('coreConfigModal.restartNodes')}</FormLabel>
                         </FormItem>

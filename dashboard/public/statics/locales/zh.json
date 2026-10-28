@@ -2120,6 +2120,12 @@
   },
   "name": "名称",
   "nodeModal": {
+    "country": "国家/地区",
+    "countryNone": "无",
+    "countrySearch": "搜索国家/地区",
+    "countryNotFound": "未找到国家/地区",
+    "note": "备注",
+    "notePlaceholder": "可选的管理员备注",
     "title": "添加节点",
     "description": "添加新节点到您的网络",
     "name": "节点名称",
@@ -2382,6 +2388,8 @@
     "previewMuted": "用量"
   },
   "coreConfigModal": {
+    "note": "备注",
+    "notePlaceholder": "可选的管理员备注",
     "addConfig": "添加核心配置",
     "createNewConfig": "创建新的核心配置",
     "editCore": "编辑核心配置",
@@ -2418,6 +2426,7 @@
     "copyPrivateKey": "复制私钥",
     "copyShortId": "复制短 ID",
     "restartNodes": "同步节点",
+    "restartNodesNoteOnly": "仅修改了备注，节点不会重启",
     "generateShadowsocksPassword": "Shadowsocks 密码",
     "generatingShadowsocksPassword": "正在生成密码...",
     "shadowsocksPassword": "Shadowsocks 密码",

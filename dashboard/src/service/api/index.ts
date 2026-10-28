@@ -1251,6 +1251,7 @@ export interface CoreCreate {
   type?: CoreType | null;
   exclude_inbound_tags?: unknown[] | null;
   fallbacks_inbound_tags?: unknown[] | null;
+  note?: string | null;
 }
 
 export type CoreResponseConfig = { [key: string]: unknown };
@@ -1261,6 +1262,7 @@ export interface CoreResponse {
   type?: CoreType | null;
   exclude_inbound_tags: string[];
   fallbacks_inbound_tags: string[];
+  note?: string | null;
   id: number;
   sort_order?: number;
   created_at: string;
@@ -1793,6 +1795,8 @@ export interface NodeCreate {
      */
   internal_timeout?: number;
   proxy_url?: string | null;
+  country_code?: string | null;
+  note?: string | null;
 }
 
 export interface NodeGeoFilesUpdate {
@@ -1827,6 +1831,8 @@ export interface NodeModify {
   default_timeout?: number | null;
   internal_timeout?: number | null;
   proxy_url?: string | null;
+  country_code?: string | null;
+  note?: string | null;
   status?: NodeStatus | null;
 }
 
@@ -1888,6 +1894,8 @@ export interface NodeResponse {
      */
   internal_timeout?: number;
   proxy_url?: string | null;
+  country_code?: string | null;
+  note?: string | null;
   id: number;
   sort_order?: number;
   xray_version: string | null;
@@ -1913,6 +1921,7 @@ export interface NodeSimple {
   name: string;
   status: NodeStatus;
   core_config_id?: number | null;
+  country_code?: string | null;
 }
 
 export interface NodeStats {

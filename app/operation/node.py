@@ -169,7 +169,10 @@ class NodeOperation(BaseOperation):
         """Get lightweight node list with only id and name"""
         rows, total = await get_nodes_simple(db=db, query=query)
 
-        nodes = [NodeSimple(id=row[0], name=row[1], status=row[2], core_config_id=row[3]) for row in rows]
+        nodes = [
+            NodeSimple(id=row[0], name=row[1], status=row[2], core_config_id=row[3], country_code=row[4])
+            for row in rows
+        ]
 
         return NodesSimpleResponse(nodes=nodes, total=total)
 

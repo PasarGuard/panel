@@ -2056,6 +2056,12 @@
   },
   "name": "Имя",
   "nodeModal": {
+    "country": "Страна",
+    "countryNone": "Не указана",
+    "countrySearch": "Поиск страны",
+    "countryNotFound": "Страна не найдена",
+    "note": "Заметка",
+    "notePlaceholder": "Необязательная заметка для админов",
     "title": "Добавить узел",
     "description": "Добавить новый узел в сеть",
     "name": "Название узла",
@@ -2314,6 +2320,8 @@
     "previewMuted": "Использование"
   },
   "coreConfigModal": {
+    "note": "Заметка",
+    "notePlaceholder": "Необязательная заметка для админов",
     "addConfig": "Добавить конфигурацию ядра",
     "createNewConfig": "Создать новую конфигурацию ядра",
     "editCore": "Редактировать конфигурацию ядра",
@@ -2350,6 +2358,7 @@
     "copyPrivateKey": "Копировать приватный ключ",
     "copyShortId": "Копировать короткий ID",
     "restartNodes": "Синхронизировать узлы",
+    "restartNodesNoteOnly": "Изменена только заметка, узлы не перезапускаются",
     "generateShadowsocksPassword": "Пароль Shadowsocks",
     "generatingShadowsocksPassword": "Генерация пароля...",
     "shadowsocksPassword": "Пароль Shadowsocks",

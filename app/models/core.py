@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models import CoreType
 
-from .validators import AwareDatetime, ListValidator, StringArrayValidator
+from .validators import AwareDatetime, ListValidator, NoteValidator, StringArrayValidator
 
 
 class CoreBase(BaseModel):
@@ -13,6 +13,7 @@ class CoreBase(BaseModel):
     type: CoreType | None = Field(default=None)
     exclude_inbound_tags: set[str]
     fallbacks_inbound_tags: set[str]
+    note: str | None = Field(default=None, max_length=500)
 
     @property
     def exclude_tags(self) -> str:
@@ -42,6 +43,11 @@ class CoreCreate(CoreBase):
     @field_validator("exclude_inbound_tags", "fallbacks_inbound_tags", mode="after")
     def validate_sets(cls, v: set):
         return StringArrayValidator.len_check(v, 2048)
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def validate_note(cls, v):
+        return NoteValidator.normalize_note(v)
 
 
 class CoreResponse(CoreBase):

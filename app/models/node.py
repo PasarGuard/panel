@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 from app.db.models import DataLimitResetStrategy, NodeConnectionType, NodeStatus
 from app.models.stats import Period
 
-from .validators import ListValidator, OptionalAwareDatetime, ProxyValidator
+from .validators import CountryCodeValidator, ListValidator, NoteValidator, OptionalAwareDatetime, ProxyValidator
 
 # Basic PEM format validation
 CERT_PATTERN = r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----"
@@ -53,6 +53,8 @@ class Node(BaseModel):
     default_timeout: int = Field(default=10, ge=3)
     internal_timeout: int = Field(default=15, ge=3, le=60)
     proxy_url: str | None = Field(default=None, max_length=256)
+    country_code: str | None = Field(default=None, min_length=2, max_length=2)
+    note: str | None = Field(default=None, max_length=500)
 
 
 class NodeCreate(Node):
@@ -165,6 +167,16 @@ class NodeCreate(Node):
     def validate_proxy_url(cls, v):
         return ProxyValidator.validate_proxy_url(v)
 
+    @field_validator("country_code", mode="before")
+    @classmethod
+    def validate_country_code(cls, v):
+        return CountryCodeValidator.validate_country_code(v)
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def validate_note(cls, v):
+        return NoteValidator.normalize_note(v)
+
 
 class NodeModify(NodeCreate):
     name: str | None = Field(default=None)
@@ -235,6 +247,7 @@ class NodeSimple(BaseModel):
     name: str
     status: NodeStatus
     core_config_id: int | None = None
+    country_code: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
