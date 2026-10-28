@@ -70,7 +70,7 @@ class ServerSettings(EnvSettings):
     proxy_headers: bool = Field(default=False, validation_alias="UVICORN_PROXY_HEADERS")
     forwarded_allow_ips: str | list[str] = Field(default="127.0.0.1", validation_alias="UVICORN_FORWARDED_ALLOW_IPS")
     gzip_enabled: bool = Field(default=True, validation_alias="GZIP_ENABLED")
-    gzip_minimum_size: int = Field(default=1000, ge=0, validation_alias="GZIP_MINIMUM_SIZE")
+    gzip_minimum_size: int = Field(default=1000, ge=1, validation_alias="GZIP_MINIMUM_SIZE")
 
     @field_validator("ssl_ca_type")
     @classmethod
