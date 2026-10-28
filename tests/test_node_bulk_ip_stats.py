@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from PasarGuardNodeBridge import NodeAPIError
 from sqlalchemy import update
 
-from app.db.models import Admin, Group, ProxyInbound, User, UserStatus, users_groups_association
+from app.db.models import Admin, AdminRole, Group, ProxyInbound, User, UserStatus, users_groups_association
 from app.models.admin import AdminDetails
 from app.models.node import UserIPRankingQuery
 from app.models.proxy import ProxyTable
@@ -269,8 +269,12 @@ def _ips(count: int, *, offset: int = 0) -> dict[str, int]:
 async def _make_ranking_fixture():
     suffix = uuid4().hex[:8]
     async with TestSession() as session:
-        admin_a = Admin(username=f"ipr_admin_a_{suffix}", hashed_password="secret", role_id=3)
-        admin_b = Admin(username=f"ipr_admin_b_{suffix}", hashed_password="secret", role_id=3)
+        role = AdminRole(name=f"ipr_role_{suffix}", is_owner=False, permissions={}, limits={}, features={}, access={})
+        session.add(role)
+        await session.flush()
+
+        admin_a = Admin(username=f"ipr_admin_a_{suffix}", hashed_password="secret", role_id=role.id)
+        admin_b = Admin(username=f"ipr_admin_b_{suffix}", hashed_password="secret", role_id=role.id)
         session.add_all([admin_a, admin_b])
         await session.flush()
 

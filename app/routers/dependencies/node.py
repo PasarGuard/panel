@@ -64,6 +64,8 @@ get_user_ip_ranking_query = make_query_dependency(
     field_overrides={
         "offset": Query(None, ge=0),
         "limit": Query(None, ge=1),
+        "ip_count_min": Query(None, ge=0),
+        "ip_count_max": Query(None, ge=0),
         "admin_ids": Query(None, alias="admin_ids"),
         "group_ids": Query(None, alias="group"),
         "status": Query(None),
