@@ -1329,7 +1329,8 @@ class NodeOperation(BaseOperation):
         counts = {
             user_id: len(ips)
             for user_id, ips in ips_by_user.items()
-            if (query.ip_count_min is None or len(ips) >= query.ip_count_min)
+            if len(ips) > 0
+            and (query.ip_count_min is None or len(ips) >= query.ip_count_min)
             and (query.ip_count_max is None or len(ips) <= query.ip_count_max)
         }
 

@@ -405,6 +405,19 @@ async def test_ip_ranking_entries_include_ips_and_traffic():
 
 
 @pytest.mark.asyncio
+async def test_ip_ranking_skips_users_without_online_ips():
+    ids = await _make_ranking_fixture()
+    operation = NodeOperation(operator_type=OperatorType.API)
+    ips_by_user = {ids["active"]: {}, ids["limited"]: _ips(2)}
+
+    async with TestSession() as session:
+        result = await operation._resolve_ip_ranking(session, ips_by_user, NOW, UserIPRankingQuery())
+
+    assert [entry.user_id for entry in result.users] == [ids["limited"]]
+    assert result.total == 1
+
+
+@pytest.mark.asyncio
 async def test_ip_ranking_with_no_online_ips_returns_empty_list():
     await _make_ranking_fixture()
     operation = NodeOperation(operator_type=OperatorType.API)

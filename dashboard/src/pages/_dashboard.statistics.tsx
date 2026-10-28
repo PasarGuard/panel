@@ -150,7 +150,7 @@ const Statistics = () => {
         </div>
       </div>
 
-      {canViewNodeStats && (
+      {canViewNodeStats && hasPermission(admin, 'users', 'read') && (
         <div className="w-full px-3 pt-2 pb-4 sm:px-4">
           <div className="animate-slide-up transform-gpu" style={{ animationDuration: '500ms', animationDelay: '150ms', animationFillMode: 'both' }}>
             <IpRankingTable nodesData={nodesData} isLoadingNodes={isLoadingNodes} />
