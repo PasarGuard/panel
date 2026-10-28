@@ -3,7 +3,7 @@ import PageTransition from '@/components/layout/page-transition'
 import { useAdmin } from '@/hooks/use-admin'
 import { getDocsUrl } from '@/utils/docs-url'
 import { hasPermission } from '@/utils/rbac'
-import { FileCode2, FileUser, LucideIcon, Plus } from 'lucide-react'
+import { FileCode2, FileUser, LucideIcon, Plus, SlidersHorizontal } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
@@ -18,6 +18,7 @@ interface Tab {
 const tabs: Tab[] = [
   { id: 'templates.userTemplates', label: 'templates.userTemplates', icon: FileUser, url: '/templates/user' },
   { id: 'templates.clientTemplates', label: 'templates.clientTemplates', icon: FileCode2, url: '/templates/client' },
+  { id: 'templates.clientProfiles', label: 'templates.clientProfiles', icon: SlidersHorizontal, url: '/templates/profiles' },
 ]
 
 export default function TemplatesLayout() {
@@ -29,9 +30,12 @@ export default function TemplatesLayout() {
   const canCreateUserTemplates = hasPermission(admin, 'templates', 'create')
   const canReadClientTemplates = hasPermission(admin, 'client_templates', 'read')
   const canCreateClientTemplates = hasPermission(admin, 'client_templates', 'create')
+  const canReadClientProfiles = hasPermission(admin, 'client_profiles', 'read')
+  const canCreateClientProfiles = hasPermission(admin, 'client_profiles', 'create')
   const visibleTabs = tabs.filter(tab => {
     if (tab.url === '/templates/user') return canReadUserTemplates
     if (tab.url === '/templates/client') return canReadClientTemplates
+    if (tab.url === '/templates/profiles') return canReadClientProfiles
     return false
   })
   const [activeTab, setActiveTab] = useState<string>(tabs[0].id)
@@ -52,6 +56,19 @@ export default function TemplatesLayout() {
   }, [location.pathname, navigate, visibleTabs])
 
   const getPageHeaderProps = () => {
+    if (location.pathname === '/templates/profiles') {
+      return {
+        title: 'clientProfiles.title',
+        description: 'clientProfiles.description',
+        buttonIcon: canCreateClientProfiles ? Plus : undefined,
+        buttonText: canCreateClientProfiles ? 'clientProfiles.addProfile' : undefined,
+        onButtonClick: canCreateClientProfiles
+          ? () => {
+              window.dispatchEvent(new CustomEvent('openClientProfileDialog'))
+            }
+          : undefined,
+      }
+    }
     if (location.pathname === '/templates/client') {
       return {
         title: 'clientTemplates.title',
@@ -84,18 +101,20 @@ export default function TemplatesLayout() {
         <PageHeader {...getPageHeaderProps()} tutorialUrl={getDocsUrl(location.pathname)} />
       </PageTransition>
       <div className="w-full">
-        <div className="flex border-b px-4">
+        <div className="scrollbar-hide flex overflow-x-auto border-b px-4 lg:flex-wrap">
           {visibleTabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => navigate(tab.url)}
-              className={`relative px-3 py-2 text-sm font-medium transition-colors ${
+              className={`relative flex-shrink-0 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
                 activeTab === tab.id ? 'border-primary text-foreground border-b-2' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <div className="flex items-center gap-1.5">
                 <tab.icon className="h-4 w-4" />
-                <span>{t(tab.label, { defaultValue: tab.label === 'templates.userTemplates' ? 'User Templates' : 'Client Templates' })}</span>
+                <span>
+                  {t(tab.label, { defaultValue: tab.label === 'templates.userTemplates' ? 'User Templates' : tab.label === 'templates.clientProfiles' ? 'Client Profiles' : 'Client Templates' })}
+                </span>
               </div>
             </button>
           ))}

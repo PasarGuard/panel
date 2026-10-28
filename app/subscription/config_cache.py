@@ -50,6 +50,7 @@ def make_sub_config_key(
         expire_key,
         tuple(inbounds),
         proxy_key,
+        getattr(user, "client_profile_id", None),
     )
 
 

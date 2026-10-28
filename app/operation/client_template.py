@@ -4,6 +4,7 @@ import yaml
 from sqlalchemy.exc import IntegrityError
 
 from app.db import AsyncSession
+from app.db.crud.client_profile import get_client_profiles_using_templates
 from app.db.crud.client_template import (
     clear_host_subscription_template_overrides,
     count_client_templates_by_type,
@@ -46,6 +47,14 @@ class ClientTemplateOperation(BaseOperation):
     async def _sync_client_template_cache() -> None:
         await refresh_client_templates_cache()
         await router.publish(MessageTopic.CLIENT_TEMPLATE, {"action": "refresh"})
+
+    async def _ensure_not_used_by_client_profiles(self, db: AsyncSession, template_ids: list[int] | set[int]) -> None:
+        profile_names = await get_client_profiles_using_templates(db, template_ids)
+        if profile_names:
+            await self.raise_error(
+                message=f"Cannot delete client template: used by client profile(s) {', '.join(profile_names)}",
+                code=409,
+            )
 
     async def _validate_template_content(self, template_type: ClientTemplateType, content: str) -> None:
         try:
@@ -166,6 +175,8 @@ class ClientTemplateOperation(BaseOperation):
         if template_count <= 1:
             await self.raise_error(message="Cannot delete the last template for this type", code=403)
 
+        await self._ensure_not_used_by_client_profiles(db, {db_template.id})
+
         replacement = None
         if db_template.is_default:
             replacement = await get_first_template_by_type(db, template_type, exclude_id=db_template.id)
@@ -218,6 +229,8 @@ class ClientTemplateOperation(BaseOperation):
                 await self.raise_error(
                     message=f"Cannot delete the last template for type {template_type.value}", code=403
                 )
+
+        await self._ensure_not_used_by_client_profiles(db, found_ids)
 
         # Handle default template replacements
         for template_type, templates_of_type in templates_by_type.items():

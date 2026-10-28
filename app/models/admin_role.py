@@ -42,7 +42,7 @@ class _ResourcePermissions(BaseModel):
 
 class CRUDPermissions(_ResourcePermissions):
     """Standard create/read/read_simple/update/delete permissions.
-    Used directly by: groups, templates, client_templates, cores, admin_roles.
+    Used directly by: groups, templates, client_templates, client_profiles, cores, admin_roles.
     Also serves as base for resources with additional actions."""
 
     create: RoleActionValue | None = None
@@ -138,6 +138,7 @@ class RolePermissions(BaseModel):
     hosts: HostsPermissions | None = None
     templates: CRUDPermissions | None = None
     client_templates: CRUDPermissions | None = None
+    client_profiles: CRUDPermissions | None = None
     cores: CRUDPermissions | None = None
     settings: SettingsPermissions | None = None
     system: SystemPermissions | None = None

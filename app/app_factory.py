@@ -15,6 +15,7 @@ from app.nats import is_multi_worker, require_nats_if_multiworker
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.settings import handle_settings_message
+from app.subscription.client_profiles import handle_client_profile_message
 from app.subscription.client_templates import handle_client_template_message
 from app.utils.logger import get_logger
 from app.version import __version__
@@ -203,6 +204,7 @@ def _register_nats_handlers(
         router.register_handler(MessageTopic.SETTING, handle_settings_message)
     if enable_client_templates:
         router.register_handler(MessageTopic.CLIENT_TEMPLATE, handle_client_template_message)
+        router.register_handler(MessageTopic.CLIENT_PROFILE, handle_client_profile_message)
     if ignore_host_messages:
         router.register_handler(MessageTopic.HOST, _ignore_worker_sync_message)
     if enable_node_sync:

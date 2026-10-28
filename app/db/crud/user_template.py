@@ -57,6 +57,7 @@ async def create_user_template(db: AsyncSession, user_template: UserTemplateCrea
         on_hold_timeout=user_template.on_hold_timeout,
         is_disabled=user_template.is_disabled,
         data_limit_reset_strategy=user_template.data_limit_reset_strategy,
+        client_profile_id=user_template.client_profile_id,
     )
 
     db.add(db_user_template)
@@ -108,6 +109,8 @@ async def modify_user_template(
         db_user_template.is_disabled = modified_user_template.is_disabled
     if "data_limit_reset_strategy" in modified_user_template.model_fields_set:
         db_user_template.data_limit_reset_strategy = modified_user_template.data_limit_reset_strategy
+    if "client_profile_id" in modified_user_template.model_fields_set:
+        db_user_template.client_profile_id = modified_user_template.client_profile_id
 
     await db.commit()
     await db.refresh(db_user_template)

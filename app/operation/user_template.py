@@ -45,6 +45,7 @@ class UserTemplateOperation(BaseOperation):
         self, db: AsyncSession, new_user_template: UserTemplateCreate, admin: Admin
     ) -> UserTemplateResponse:
         await self.validate_all_groups(db, new_user_template, admin)
+        await self.validate_client_profile_id(db, new_user_template.client_profile_id, admin)
         try:
             db_user_template = await create_user_template(db, new_user_template)
         except IntegrityError:
@@ -67,6 +68,13 @@ class UserTemplateOperation(BaseOperation):
                 modified_user_template,
                 admin,
                 existing_group_ids=set(db_user_template.group_ids or []),
+            )
+        if "client_profile_id" in modified_user_template.model_fields_set:
+            await self.validate_client_profile_id(
+                db,
+                modified_user_template.client_profile_id,
+                admin,
+                current_profile_id=db_user_template.client_profile_id,
             )
         try:
             db_user_template = await modify_user_template(db, db_user_template, modified_user_template)

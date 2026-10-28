@@ -281,6 +281,9 @@ class User(Base, CreatedAtUTCMixin):
     on_hold_timeout: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     auto_delete_in_days: Mapped[int | None] = mapped_column(default=None)
     hwid_limit: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    client_profile_id: Mapped[int | None] = fk_id_column(
+        "client_profiles.id", ondelete="SET NULL", default=None, index=True
+    )
     edit_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     last_status_change: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     _reseted_usage_query: Mapped[int | None] = query_expression(repr=False)
@@ -546,6 +549,7 @@ class UserTemplate(Base, IdMixin):
         server_default="no_reset",
     )
     is_disabled: Mapped[bool] = mapped_column(server_default="0", default=False)
+    client_profile_id: Mapped[int | None] = fk_id_column("client_profiles.id", ondelete="SET NULL", default=None)
 
     @property
     def group_ids(self):
@@ -960,6 +964,15 @@ class ClientTemplate(Base, IdMixin):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     is_default: Mapped[bool] = mapped_column(default=False, server_default="0")
     is_system: Mapped[bool] = mapped_column(default=False, server_default="0")
+
+
+class ClientProfile(Base, CreatedAtUTCMixin):
+    __tablename__ = "client_profiles"
+    name: Mapped[str] = mapped_column(String(64), unique=True)
+    note: Mapped[str | None] = mapped_column(String(500), default=None)
+    # template type -> client template id (whole-config subscription types only)
+    templates: Mapped[dict[str, int] | None] = mapped_column(JSON(none_as_null=True), default=None)
+    settings: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), default=None)
 
 
 class NodeStat(Base, CreatedAtUTCMixin):

@@ -45,6 +45,8 @@ import { parseDateInput } from '@/utils/dateTimeParsing'
 import { bytesToFormGigabytes, formatBytes, formGigabytesToBytes, gbToBytes } from '@/utils/formatByte'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
+import { ClientProfileSelect } from '@/features/templates/components/client-profile-select'
+import { useCanAssignClientProfile } from '@/features/templates/components/use-client-profile-options'
 import { toWholeSeconds } from '@/utils/timeUnitSeconds'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -328,6 +330,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   const canUseNextPlan = admin?.role?.features?.can_use_next_plan !== false
   const requireTemplateForCreate = !editingUser && admin?.role?.access?.require_template === true
   const canUseUserTemplates = hasPermission(admin, 'templates', 'read_simple')
+  const canAssignClientProfile = useCanAssignClientProfile()
   const showTemplateTab = canUseUserTemplates || requireTemplateForCreate
   const dir = useDirDetection()
   const handleError = useDynamicErrorHandler()
@@ -1105,6 +1108,11 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
           delete sendValues.proxy_settings
         }
 
+        // Without client_profiles read/read_simple the field is hidden; leave the stored profile untouched
+        if (!canAssignClientProfile || sendValues.client_profile_id === undefined) {
+          delete sendValues.client_profile_id
+        }
+
         // Make API calls to the backend
         if (editingUser && editingUserId) {
           try {
@@ -1168,13 +1176,28 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         setActiveTab('groups')
         setSelectedTemplateId(null)
       } catch (error: any) {
-        const fields = ['username', 'data_limit', 'hwid_limit', 'expire', 'note', 'data_limit_reset_strategy', 'on_hold_expire_duration', 'on_hold_timeout', 'group_ids']
+        const fields = ['username', 'data_limit', 'hwid_limit', 'expire', 'note', 'data_limit_reset_strategy', 'on_hold_expire_duration', 'on_hold_timeout', 'group_ids', 'client_profile_id']
         handleError({ error, fields, form, contextKey: 'users' })
       } finally {
         setLoading(false)
       }
     },
-    [canUseNextPlan, canUseResetStrategy, editingUser, editingUserData, editingUserId, form, handleTemplateMutation, onOpenChange, requireTemplateForCreate, selectedTemplateId, status, t, touchedFields],
+    [
+      canAssignClientProfile,
+      canUseNextPlan,
+      canUseResetStrategy,
+      editingUser,
+      editingUserData,
+      editingUserId,
+      form,
+      handleTemplateMutation,
+      onOpenChange,
+      requireTemplateForCreate,
+      selectedTemplateId,
+      status,
+      t,
+      touchedFields,
+    ],
   )
 
   // Helper for cryptographically secure random integer
@@ -1757,6 +1780,31 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                           popoverAlignDesktop="start"
                           popoverSideDesktop={dir === 'rtl' ? 'left' : 'right'}
                         />
+                      )}
+                    />
+                  )}
+                  {activeTab === 'groups' && !selectedTemplateId && canAssignClientProfile && (
+                    <FormField
+                      control={form.control}
+                      name="client_profile_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('clientProfiles.userField', { defaultValue: 'Client profile' })}</FormLabel>
+                          <FormControl>
+                            <ClientProfileSelect
+                              value={field.value}
+                              enabled={isDialogOpen}
+                              onChange={value => {
+                                field.onChange(value)
+                                handleFieldChange('client_profile_id', value)
+                              }}
+                            />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            {t('clientProfiles.userFieldHint', { defaultValue: 'Which templates and subscription settings this user gets.' })}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
                       )}
                     />
                   )}
