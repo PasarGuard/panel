@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.utils.logger import get_logger
@@ -19,6 +20,9 @@ def setup_middleware(app: FastAPI):
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    if server_settings.gzip_enabled:
+        # Level 6 is close to 9 in size at a fraction of the CPU. SSE (text/event-stream) is never compressed.
+        app.add_middleware(GZipMiddleware, minimum_size=server_settings.gzip_minimum_size, compresslevel=6)
     if server_settings.proxy_headers:
         app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=server_settings.forwarded_allow_ips)
     app.add_middleware(RequestProcessTimeLoggingMiddleware, access_logger=get_logger("uvicorn.access"))
