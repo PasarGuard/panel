@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sse_starlette.sse import EventSourceResponse
@@ -26,6 +27,7 @@ def _app(monkeypatch, enabled: bool = True, minimum_size: int = 1000, file_path=
     app.get("/small")(lambda: {"ok": True})
     if file_path is not None:
         app.get("/file")(lambda: FileResponse(file_path))
+        app.mount("/static", StaticFiles(directory=file_path.parent))
 
     async def events():
         yield {"data": "x" * 2000}
@@ -40,8 +42,9 @@ def _raw_get(client: TestClient, path: str, accept_encoding: str = "gzip", **hea
         return response, b"".join(response.iter_raw())
 
 
-def test_large_response_is_gzipped(monkeypatch):
-    response, body = _raw_get(_app(monkeypatch), "/page")
+@pytest.mark.parametrize("accept_encoding", ["gzip", "GZIP;q=0.5", "br, gzip"])
+def test_large_response_is_gzipped(monkeypatch, accept_encoding):
+    response, body = _raw_get(_app(monkeypatch), "/page", accept_encoding=accept_encoding)
 
     assert response.headers["content-encoding"] == "gzip"
     assert "Accept-Encoding" in response.headers["vary"]
@@ -102,3 +105,23 @@ def test_zero_minimum_size_is_rejected(monkeypatch):
 
     with pytest.raises(ValidationError):
         ServerSettings()
+
+
+def test_gzipped_file_gets_weak_etag_and_if_range_falls_back_to_full_body(monkeypatch, tmp_path):
+    asset = tmp_path / "app.js"
+    asset.write_text(BIG_HTML)
+    client = _app(monkeypatch, file_path=asset)
+
+    identity, _ = _raw_get(client, "/file", accept_encoding="identity")
+    gzipped, _ = _raw_get(client, "/file")
+    assert gzipped.headers["content-encoding"] == "gzip"
+    assert gzipped.headers["etag"] == f"W/{identity.headers['etag']}"
+
+    # Resuming the gzipped body must not return a slice of the identity file.
+    resumed, body = _raw_get(client, "/file", Range="bytes=100-", **{"If-Range": gzipped.headers["etag"]})
+    assert resumed.status_code == 200
+    assert body.decode() == BIG_HTML
+
+    # Conditional requests still revalidate against the weak tag.
+    not_modified, _ = _raw_get(client, "/static/app.js", **{"If-None-Match": gzipped.headers["etag"]})
+    assert not_modified.status_code == 304
