@@ -437,7 +437,9 @@ class NodeManager:
             return node
 
     async def _update_users(self, users: list[ProtoUser]):
-        nodes = await self._snapshot_node_items()
+        # Unhealthy nodes get a full snapshot when they reconnect; sending per-user
+        # updates to them makes dead nodes accumulate claims in the NATS KV bucket.
+        nodes = await self.get_healthy_nodes()
         if not nodes:
             return
 
@@ -463,7 +465,7 @@ class NodeManager:
             asyncio.create_task(self._update_users(users))
 
     async def update_user(self, user: ProtoUser) -> None:
-        nodes = await self._snapshot_nodes()
+        nodes = [node for _node_id, node in await self.get_healthy_nodes()]
         if not nodes:
             return
 
