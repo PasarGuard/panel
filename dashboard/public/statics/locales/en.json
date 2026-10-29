@@ -3562,7 +3562,7 @@
   "statistics.trafficUsage": "Traffic Usage",
   "statistics.outboundUsage": "Outbound Usage",
   "statistics.outboundUsageDescription": "Traffic per outbound tag (direct, warp, block, ...)",
-  "statistics.outboundUsageEmpty": "No outbound usage yet. Turn on \"Record usage per outbound\" in Settings > General to start recording.",
+  "statistics.outboundUsageEmpty": "No outbound usage in this period. It is recorded only while \"Record usage per outbound\" is on in Settings > General.",
   "statistics.outboundUsageOther": "Other",
   "statistics.trafficUsageDescription": "Total traffic usage across all servers",
   "statistics.usageDuringPeriod": "Usage During Period",

@@ -31,7 +31,7 @@ type OutboundDataPoint = { time: string; _period_start: string } & Record<string
 
 const statBytes = (stat: NodeUsageStat) => Number(stat.uplink || 0) + Number(stat.downlink || 0)
 
-function OutboundTooltip({ active, payload, chartConfig, period }: TooltipProps<number, string> & { chartConfig: ChartConfig; period: Period }) {
+function OutboundTooltip({ active, payload, chartConfig, period, dir }: TooltipProps<number, string> & { chartConfig: ChartConfig; period: Period; dir: string }) {
   const { i18n } = useTranslation()
   if (!active || !payload?.length) return null
 
@@ -39,7 +39,7 @@ function OutboundTooltip({ active, payload, chartConfig, period }: TooltipProps<
   const rows = payload.filter(item => Number(item.value || 0) > 0).sort((a, b) => Number(b.value || 0) - Number(a.value || 0))
 
   return (
-    <div className="border-border bg-background min-w-[140px] rounded border p-2 text-xs shadow">
+    <div dir={dir} className="border-border bg-background min-w-[140px] rounded border p-2 text-xs shadow">
       <div className="mb-1 text-center font-semibold opacity-70" dir="ltr">
         {formatTooltipDate(point._period_start, period, i18n.language)}
       </div>
@@ -163,12 +163,24 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
                 width={36}
                 tickMargin={2}
               />
-              <ChartTooltip cursor={false} content={props => <OutboundTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} period={period} />} />
+              <ChartTooltip cursor={false} content={props => <OutboundTooltip {...(props as TooltipProps<number, string>)} chartConfig={chartConfig} period={period} dir={dir} />} />
               {series.map(item => (
                 <Bar key={item.key} dataKey={item.key} stackId="outbound" fill={chartConfig[item.key]?.color} isAnimationActive={chartData.length < 200} />
               ))}
             </BarChart>
           </ChartContainer>
+        )}
+        {!isLoading && !error && series.length > 0 && (
+          <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1.5 text-xs">
+            {series.map(item => (
+              <span key={item.key} className="text-muted-foreground flex min-w-0 items-center gap-1.5">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: chartConfig[item.key]?.color }} />
+                <span className="max-w-[140px] truncate" title={item.label}>
+                  {item.label}
+                </span>
+              </span>
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>

@@ -1458,3 +1458,20 @@ async def test_outbound_tags_that_differ_in_case_stay_separate(session_factory):
             select(NodeOutboundUsage.outbound_tag, NodeOutboundUsage.uplink, NodeOutboundUsage.downlink)
         )
         assert sorted(tuple(row) for row in rows.all()) == [("WARP", 3, 4), ("warp", 1, 2)]
+
+
+@pytest.mark.asyncio
+async def test_node_and_outbound_history_share_one_bucket(monkeypatch: pytest.MonkeyPatch, session_factory):
+    node_one_id, node_two_id = await _seed_outbound_nodes(session_factory)
+    stats_map = {node_one_id: [{"tag": "direct", "up": 5, "down": 6}], node_two_id: []}
+    _patch_outbound_job(monkeypatch, [node_one_id, node_two_id], stats_map, enabled=True)
+    # A tick that crosses a 10-minute boundary would see a later bucket on its second read
+    buckets = iter([datetime(2026, 10, 29, 12, 0, tzinfo=UTC), datetime(2026, 10, 29, 12, 10, tzinfo=UTC)])
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda now=None: next(buckets))
+
+    await record_usages.record_node_usages()
+
+    async with session_factory() as session:
+        node_bucket = await session.scalar(select(NodeUsage.created_at))
+        outbound_bucket = await session.scalar(select(NodeOutboundUsage.created_at))
+        assert node_bucket.replace(tzinfo=UTC) == outbound_bucket.replace(tzinfo=UTC)

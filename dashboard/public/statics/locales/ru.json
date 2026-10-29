@@ -3470,7 +3470,7 @@
   "statistics.trafficUsage": "Использование трафика",
   "statistics.outboundUsage": "Использование outbound",
   "statistics.outboundUsageDescription": "Трафик по тегам outbound (direct, warp, block и т. д.)",
-  "statistics.outboundUsageEmpty": "Данных пока нет. Включите «Учитывать трафик по outbound» в Настройки > Общие.",
+  "statistics.outboundUsageEmpty": "За этот период нет данных по outbound. Они записываются, только пока включено «Учитывать трафик по outbound» в Настройки > Общие.",
   "statistics.outboundUsageOther": "Другое",
   "statistics.trafficUsageDescription": "Общее использование трафика на всех серверах",
   "statistics.usageDuringPeriod": "Использование за период",

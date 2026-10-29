@@ -715,18 +715,19 @@ async def _flush_user_usage_history_on_shutdown() -> None:
             logger.exception("Failed to flush pending node user usage history during shutdown")
 
 
-async def record_node_stats_batched(all_node_params: dict):
+async def record_node_stats_batched(all_node_params: dict, created_at: dt | None = None):
     """
     Record node-level statistics for ALL nodes in batched operations.
     This reduces write amplification and lock contention.
 
     Args:
         all_node_params: Dict mapping node_id -> list of node stat params
+        created_at: Bucket to write into; defaults to the current one
     """
     if not all_node_params:
         return
 
-    created_at = _get_time_bucket()
+    created_at = created_at or _get_time_bucket()
     dialect = await get_dialect()
 
     # Process each node's stats with concurrency control
@@ -782,9 +783,9 @@ def _prepare_node_outbound_usage_params(all_node_params: dict, created_at: dt) -
     ]
 
 
-async def record_outbound_stats_batched(all_node_params: dict) -> None:
+async def record_outbound_stats_batched(all_node_params: dict, created_at: dt | None = None) -> None:
     """Record per-outbound history for nodes that still exist."""
-    upsert_params = _prepare_node_outbound_usage_params(all_node_params, _get_time_bucket())
+    upsert_params = _prepare_node_outbound_usage_params(all_node_params, created_at or _get_time_bucket())
     if not upsert_params:
         return
 
@@ -1202,11 +1203,13 @@ async def _record_node_usages_impl():
             return
 
         # Batch all node usage writes
-        await record_node_stats_batched(api_params)
+        # One bucket for both histories, so a tick that crosses a boundary keeps them aligned
+        created_at = _get_time_bucket()
+        await record_node_stats_batched(api_params, created_at)
 
         try:
             if (await general_settings()).record_outbound_usage:
-                await record_outbound_stats_batched(api_params)
+                await record_outbound_stats_batched(api_params, created_at)
         except Exception:
             # Node totals are already recorded; per-outbound history is optional
             logger.exception("Failed to record node outbound usage history")

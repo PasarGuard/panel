@@ -3519,7 +3519,7 @@
   "statistics.trafficUsage": "流量使用",
   "statistics.outboundUsage": "出站使用情况",
   "statistics.outboundUsageDescription": "按出站标签统计的流量（direct、warp、block 等）",
-  "statistics.outboundUsageEmpty": "暂无出站使用数据。请在 设置 > 常规 中开启“按出站记录使用量”。",
+  "statistics.outboundUsageEmpty": "此时间段内没有出站使用数据。仅在 设置 > 常规 中开启“按出站记录使用量”时才会记录。",
   "statistics.outboundUsageOther": "其他",
   "statistics.trafficUsageDescription": "所有服务器的总流量使用情况",
   "statistics.usageDuringPeriod": "期间使用量",

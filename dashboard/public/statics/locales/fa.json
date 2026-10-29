@@ -3510,7 +3510,7 @@
   "statistics.trafficUsage": "میزان مصرف ترافیک",
   "statistics.outboundUsage": "مصرف خروجی‌ها",
   "statistics.outboundUsageDescription": "ترافیک هر تگ خروجی (direct، warp، block و ...)",
-  "statistics.outboundUsageEmpty": "هنوز مصرف خروجی ثبت نشده است. «ثبت مصرف هر خروجی» را در تنظیمات > عمومی روشن کنید.",
+  "statistics.outboundUsageEmpty": "در این بازه مصرف خروجی ثبت نشده است. این مصرف فقط زمانی ثبت می‌شود که «ثبت مصرف هر خروجی» در تنظیمات > عمومی روشن باشد.",
   "statistics.outboundUsageOther": "سایر",
   "statistics.trafficUsageDescription": "کل مصرف ترافیک در تمام سرورها",
   "statistics.usageDuringPeriod": "مصرف در دوره زمانی",
