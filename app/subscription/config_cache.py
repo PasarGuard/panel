@@ -8,6 +8,7 @@ Uvicorn worker has its own cache (same model as the sub-update buffer).
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
@@ -38,6 +39,9 @@ def make_sub_config_key(
         proxy_key = proxy_settings.model_dump_json()
     else:
         proxy_key = ""
+    admin = getattr(user, "admin", None)
+    admin_hosts = getattr(admin, "my_hosts", None)
+    admin_hosts_key = json.dumps(admin_hosts, sort_keys=True, separators=(",", ":")) if admin_hosts else ""
     return (
         _generation if config_format == "wireguard" else 0,
         getattr(user, "id", None),
@@ -50,6 +54,7 @@ def make_sub_config_key(
         expire_key,
         tuple(inbounds),
         proxy_key,
+        admin_hosts_key,
     )
 
 
