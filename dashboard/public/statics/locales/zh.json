@@ -253,7 +253,9 @@
         "disableSubTemplate": "禁用订阅模板",
         "disableSubTemplateDescription": "禁用后，浏览器请求将返回 API 响应而不是 HTML 订阅页面",
         "randomizeOrder": "随机化订阅顺序",
-        "randomizeOrderDescription": "每次请求订阅时，随机打乱配置顺序"
+        "randomizeOrderDescription": "每次请求订阅时，随机打乱配置顺序",
+        "clientsLimit": "每位用户保留的更新数",
+        "clientsLimitDescription": "每位用户保留多少条最近的订阅更新（客户端应用）。0 或更小表示全部保留"
       },
       "responseHeaders": {
         "title": "响应头",
@@ -461,7 +463,9 @@
         "miniAppUrlPlaceholder": "输入 Mini App 链接（可选）",
         "miniAppUrlDescription": "您的 Telegram Mini App 链接。如果未使用请留空。",
         "forAdminsOnly": "仅限管理员",
-        "forAdminsOnlyDescription": "限制机器人访问仅限管理员"
+        "forAdminsOnlyDescription": "限制机器人访问仅限管理员",
+        "doNotLogBot": "在日志中隐藏 Webhook 请求",
+        "doNotLogBotDescription": "不将 Telegram Webhook 请求写入访问日志"
       }
     },
     "webhook": {
@@ -670,7 +674,55 @@
         "disable": "禁用用户",
         "delete": "删除用户"
       },
-      "errorLoadingSettings": "加载设置时出错"
+      "errorLoadingSettings": "加载设置时出错",
+      "usage": {
+        "title": "用量记录",
+        "description": "选择面板保存哪些用量数据",
+        "recordNodeUsage": {
+          "title": "记录节点用量",
+          "description": "按节点保存用户和节点的流量。用户和管理员的用量始终会统计"
+        },
+        "recordNodeStats": {
+          "title": "记录节点系统统计",
+          "description": "保存节点的 CPU、内存和带宽历史。仅支持 PostgreSQL 和 TimescaleDB"
+        },
+        "resetUsageCleanChartData": {
+          "title": "重置用量时清除图表",
+          "description": "重置用户流量时删除其用量图表历史"
+        }
+      },
+      "nodeHealth": {
+        "title": "节点健康检查",
+        "description": "节点何时被判定为离线或恢复",
+        "failThreshold": {
+          "title": "失败阈值",
+          "description": "连续失败多少次检查后将节点标记为错误"
+        },
+        "recoverThreshold": {
+          "title": "恢复阈值",
+          "description": "连续成功多少次检查后将节点重新标记为已连接"
+        },
+        "probeTimeout": {
+          "title": "探测超时（秒）",
+          "description": "健康探测等待节点响应的时间，不会超过节点自身的超时"
+        },
+        "maxBackoff": {
+          "title": "最大退避（秒）",
+          "description": "处于错误状态的节点两次探测之间的最长间隔。0 表示每次检查都探测"
+        }
+      },
+      "stopNodesOnShutdown": {
+        "title": "关闭时停止节点核心",
+        "description": "面板关闭时停止所有节点的核心。仅在单个 worker 时生效"
+      },
+      "adminSessions": {
+        "title": "管理员会话",
+        "description": "签发给管理员的登录令牌",
+        "tokenExpireMinutes": {
+          "title": "会话有效期（分钟）",
+          "description": "管理员登录的有效时长。0 或更小表示永不过期。对新的登录生效"
+        }
+      }
     },
     "errorLoadingSettings": "加载设置时出错"
   },
@@ -2036,7 +2088,7 @@
   "statistics.subscriptionDistribution": "订阅客户端分布",
   "statistics.subscriptionDistributionDetails": "订阅客户端详情",
   "statistics.subscriptionDistributionDescription": "不同代理和应用的订阅更新占比。",
-  "statistics.subscriptionDistributionRetentionNote": "默认每位用户仅保留最近 {{limit}} 条订阅更新记录。如需修改，请在环境变量中设置 {{env}}。",
+  "statistics.subscriptionDistributionRetentionNote": "默认每位用户仅保留最近 {{limit}} 条订阅更新记录。可在订阅设置中修改。",
   "statistics.totalSubscriptions": "总更新次数",
   "statistics.percentage": "百分比",
   "statistics.adminFilterLabel": "按管理员筛选",

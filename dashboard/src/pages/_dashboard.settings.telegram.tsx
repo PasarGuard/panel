@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Bot, Webhook, Shield, Globe, Smartphone, Send, Users, Settings, RefreshCcw } from 'lucide-react'
+import { Bot, Webhook, Shield, Globe, Smartphone, Send, Users, Settings, RefreshCcw, EyeOff } from 'lucide-react'
 import { useSettingsContext } from './_dashboard.settings'
 import { toast } from 'sonner'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -59,6 +59,7 @@ const telegramSettingsSchema = z.object({
   mini_app_login: z.boolean().default(false),
   mini_app_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
   for_admins_only: z.boolean().default(true),
+  do_not_log_bot: z.boolean().default(true),
 })
 
 type TelegramSettingsFormInput = z.input<typeof telegramSettingsSchema>
@@ -78,6 +79,7 @@ function mapTelegramFormToPayload(data: TelegramSettingsFormInput) {
     method: data.method ?? 'webhook',
     mini_app_login: data.mini_app_login ?? false,
     for_admins_only: data.for_admins_only ?? true,
+    do_not_log_bot: data.do_not_log_bot ?? true,
     token: data.token?.trim() || undefined,
     webhook_url: data.webhook_url?.trim() || undefined,
     webhook_secret: data.webhook_secret?.trim() || undefined,
@@ -112,6 +114,7 @@ export default function TelegramSettings() {
       mini_app_login: false,
       mini_app_url: '',
       for_admins_only: true,
+      do_not_log_bot: true,
     },
   })
 
@@ -136,6 +139,7 @@ export default function TelegramSettings() {
         mini_app_login: telegramData.mini_app_login || false,
         mini_app_url: telegramData.mini_app_web_url || '',
         for_admins_only: telegramData.for_admins_only !== undefined ? telegramData.for_admins_only : true,
+        do_not_log_bot: telegramData.do_not_log_bot ?? true,
       })
     }
   }, [settings, form])
@@ -163,6 +167,7 @@ export default function TelegramSettings() {
         mini_app_login: telegramData.mini_app_login || false,
         mini_app_url: telegramData.mini_app_web_url || '',
         for_admins_only: telegramData.for_admins_only !== undefined ? telegramData.for_admins_only : true,
+        do_not_log_bot: telegramData.do_not_log_bot ?? true,
       })
       toast.success(t('settings.telegram.cancelSuccess'))
     }
@@ -468,6 +473,26 @@ export default function TelegramSettings() {
                             {t('settings.telegram.advanced.forAdminsOnly')}
                           </FormLabel>
                           <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.telegram.advanced.forAdminsOnlyDescription')}</FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Hide webhook requests from the access log */}
+                  <FormField
+                    control={form.control}
+                    name="do_not_log_bot"
+                    render={({ field }) => (
+                      <FormItem className="bg-card hover:bg-accent/50 flex flex-row items-center justify-between space-y-0 rounded-lg border p-3 transition-colors sm:p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="flex cursor-pointer items-center gap-2 text-xs font-medium sm:text-sm">
+                            <EyeOff className="h-4 w-4" />
+                            {t('settings.telegram.advanced.doNotLogBot')}
+                          </FormLabel>
+                          <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.telegram.advanced.doNotLogBotDescription')}</FormDescription>
                         </div>
                         <FormControl>
                           <Switch checked={field.value} onCheckedChange={field.onChange} />

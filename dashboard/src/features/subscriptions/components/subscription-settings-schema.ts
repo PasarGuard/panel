@@ -100,6 +100,7 @@ export type SubscriptionApplicationFormData = z.infer<typeof subscriptionApplica
 export const subscriptionSchema = z.object({
   url_prefix: z.string().optional(),
   update_interval: z.number().min(1, 'Update interval must be at least 1 hour').max(168, 'Update interval cannot exceed 168 hours (1 week)').optional(),
+  clients_limit: z.number().int().optional(),
   support_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
   profile_title: z.string().optional(),
   announce: z.string().max(128, 'Announcement must be 128 characters or less').optional(),
