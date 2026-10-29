@@ -69,6 +69,10 @@ class ServerSettings(EnvSettings):
     loop: str = Field(default="auto", validation_alias="UVICORN_LOOP")
     proxy_headers: bool = Field(default=False, validation_alias="UVICORN_PROXY_HEADERS")
     forwarded_allow_ips: str | list[str] = Field(default="127.0.0.1", validation_alias="UVICORN_FORWARDED_ALLOW_IPS")
+    # Lets webhooks target private, loopback and link-local addresses (a receiver on the same host or LAN).
+    webhook_allow_private_destinations: bool = Field(
+        default=False, validation_alias="WEBHOOK_ALLOW_PRIVATE_DESTINATIONS"
+    )
 
     @field_validator("ssl_ca_type")
     @classmethod
