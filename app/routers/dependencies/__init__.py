@@ -8,9 +8,9 @@ from .host import get_host_list_query
 from .node import (
     get_node_clear_usage_query,
     get_node_list_query,
+    get_node_outbound_usage_query,
     get_node_simple_list_query,
     get_node_stats_period_query,
-    get_node_outbound_usage_query,
     get_node_usage_query,
 )
 from .subscription import get_subscription_headers, get_subscription_usage_query
@@ -49,9 +49,9 @@ __all__ = [
     # node
     "get_node_clear_usage_query",
     "get_node_list_query",
+    "get_node_outbound_usage_query",
     "get_node_simple_list_query",
     "get_node_stats_period_query",
-    "get_node_outbound_usage_query",
     "get_node_usage_query",
     # subscription
     "get_subscription_headers",

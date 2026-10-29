@@ -36,10 +36,10 @@ from app.models.core import CoreCreate
 from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, NodesResponse
 from app.models.proxy import ProxyTable
 from app.models.stats import (
+    NodeOutboundUsageStatsList,
     NodeRealtimeStats,
     NodeStats,
     NodeStatsList,
-    NodeOutboundUsageStatsList,
     NodeUsageStat,
     NodeUsageStatsList,
     Period,
