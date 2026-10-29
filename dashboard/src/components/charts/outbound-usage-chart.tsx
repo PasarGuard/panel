@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, TooltipProps } from 'recharts'
 import { useTranslation } from 'react-i18next'
 import { Network } from 'lucide-react'
@@ -25,6 +25,7 @@ import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 
 // Tags past this rank are summed into one "other" series so the stack stays readable
 const MAX_OUTBOUND_SERIES = 8
+const OUTBOUND_REFRESH_MS = 1000 * 60 * 5
 
 type Series = { key: string; label: string; isOther: boolean }
 type OutboundDataPoint = { time: string; _period_start: string } & Record<string, number | string>
@@ -65,10 +66,19 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
   const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
 
+  // Move the range forward while mounted; a fixed end would hide buckets recorded after the first load
+  const [rangeTick, setRangeTick] = useState(0)
+  useEffect(() => {
+    const id = window.setInterval(() => setRangeTick(tick => tick + 1), OUTBOUND_REFRESH_MS)
+    return () => window.clearInterval(id)
+  }, [])
+
   const queryRange = useMemo(
     () => getChartQueryRangeFromShortcut(selectedTime, new Date(), { minuteForOneHour: true, periodOverride: resolvePeriodOverride(periodOverride) }),
-    [selectedTime, periodOverride],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the tick only re-runs new Date()
+    [selectedTime, periodOverride, rangeTick],
   )
+  const selection = `${selectedTime}|${periodOverride}|${nodeId ?? ''}`
   const period = queryRange.period
 
   const { data, isLoading, error } = useGetOutboundUsage(
@@ -78,7 +88,13 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
       end: queryRange.endDate,
       ...(nodeId !== undefined ? { node_id: nodeId } : {}),
     },
-    { query: { refetchInterval: 1000 * 60 * 5 } },
+    {
+      query: {
+        meta: { selection },
+        // Keep the bars on a timed range move, show the skeleton when the admin picks another range
+        placeholderData: (previous, previousQuery) => (previousQuery?.meta?.selection === selection ? previous : undefined),
+      },
+    },
   )
 
   // Series keys are not the tags themselves: recharts reads a dotted dataKey as a nested path
