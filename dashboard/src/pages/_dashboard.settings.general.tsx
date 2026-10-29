@@ -35,7 +35,7 @@ const generalSettingsSchema = z.object({
     max_backoff: z.number().int().min(0),
   }),
   stop_nodes_on_shutdown: z.boolean(),
-  admin_token_expire_minutes: z.number().int(),
+  admin_token_expire_minutes: z.number().int().max(5_256_000),
 })
 
 type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>

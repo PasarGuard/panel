@@ -85,3 +85,13 @@ def test_settings_update_rejects_invalid_nested_values(access_token):
     )
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_settings_update_rejects_token_expiry_past_ten_years(access_token):
+    response = client.put(
+        "/api/settings",
+        headers=auth_headers(access_token),
+        json={"general": {"admin_token_expire_minutes": 5_256_001}},
+    )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

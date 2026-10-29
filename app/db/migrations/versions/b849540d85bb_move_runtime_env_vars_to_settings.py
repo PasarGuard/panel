@@ -40,11 +40,13 @@ def _not_bool(value: str) -> bool:
     return not _bool(value)
 
 
-def _int(minimum: int | None = None):
+def _int(minimum: int | None = None, maximum: int | None = None):
     def parse(value: str) -> int:
         number = int(value.strip())
         if minimum is not None and number < minimum:
             raise ValueError(f"must be at least {minimum}")
+        if maximum is not None and number > maximum:
+            raise ValueError(f"must be at most {maximum}")
         return number
 
     return parse
@@ -60,7 +62,7 @@ ENV_SETTINGS = {
     "NODE_HEALTH_PROBE_TIMEOUT": ("general", ("node_health", "probe_timeout"), _int(1)),
     "NODE_HEALTH_MAX_BACKOFF": ("general", ("node_health", "max_backoff"), _int(0)),
     "STOP_NODES_ON_SHUTDOWN": ("general", ("stop_nodes_on_shutdown",), _bool),
-    "JWT_ACCESS_TOKEN_EXPIRE_MINUTES": ("general", ("admin_token_expire_minutes",), _int()),
+    "JWT_ACCESS_TOKEN_EXPIRE_MINUTES": ("general", ("admin_token_expire_minutes",), _int(maximum=5_256_000)),
     "USER_SUBSCRIPTION_CLIENTS_LIMIT": ("subscription", ("clients_limit",), _int()),
     "DO_NOT_LOG_TELEGRAM_BOT": ("telegram", ("do_not_log_bot",), _bool),
 }

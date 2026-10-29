@@ -107,12 +107,19 @@ def test_migration_without_env_values_writes_nothing(migration):
 def test_migration_skips_values_the_settings_reject(migration, caplog):
     with caplog.at_level(logging.INFO, logger="alembic.runtime.migration"):
         sections = migration.apply_env_values(
-            {}, {"NODE_HEALTH_FAIL_THRESHOLD": "0", "STOP_NODES_ON_SHUTDOWN": "maybe", "NODE_HEALTH_MAX_BACKOFF": "0"}
+            {},
+            {
+                "NODE_HEALTH_FAIL_THRESHOLD": "0",
+                "STOP_NODES_ON_SHUTDOWN": "maybe",
+                "NODE_HEALTH_MAX_BACKOFF": "0",
+                "JWT_ACCESS_TOKEN_EXPIRE_MINUTES": "5256001",
+            },
         )
 
     assert sections["general"] == {"node_health": {"max_backoff": 0}}
     assert "Skipped NODE_HEALTH_FAIL_THRESHOLD" in caplog.text
     assert "Skipped STOP_NODES_ON_SHUTDOWN" in caplog.text
+    assert "Skipped JWT_ACCESS_TOKEN_EXPIRE_MINUTES" in caplog.text
     assert "Moved NODE_HEALTH_MAX_BACKOFF" in caplog.text
 
 

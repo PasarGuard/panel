@@ -396,6 +396,9 @@ class NodeHealthSettings(BaseModel):
     max_backoff: int = Field(default=60, ge=0)
 
 
+MAX_ADMIN_TOKEN_EXPIRE_MINUTES = 5_256_000
+
+
 class General(BaseModel):
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
     on_hold_timeout_action: OnHoldTimeoutAction = Field(default=OnHoldTimeoutAction.activate)
@@ -403,8 +406,8 @@ class General(BaseModel):
     usage: UsageSettings = Field(default_factory=UsageSettings)
     node_health: NodeHealthSettings = Field(default_factory=NodeHealthSettings)
     stop_nodes_on_shutdown: bool = Field(default=True)
-    # 0 or less issues admin tokens that never expire
-    admin_token_expire_minutes: int = Field(default=1440)
+    # 0 or less issues admin tokens that never expire; capped at 10 years so the expiry date stays valid
+    admin_token_expire_minutes: int = Field(default=1440, le=MAX_ADMIN_TOKEN_EXPIRE_MINUTES)
 
     @field_validator("custom_variables")
     @classmethod
