@@ -14,6 +14,7 @@ from PasarGuardNodeBridge.storage import LifecycleStatus
 
 from app.db.models import CoreType, NodeStatus
 from app.jobs import node_checker
+from app.models.settings import General, NodeHealthSettings
 from app.node import heartbeat as heartbeat_module
 from app.node.bridge import create_node
 from app.operation import node as node_operation
@@ -48,6 +49,18 @@ class _FakeDB:
         return False
 
 
+def _patch_health_settings(monkeypatch, **values):
+    """Serve `general.node_health` from memory; tests change the returned object in place."""
+    health = NodeHealthSettings.model_construct(**{**NodeHealthSettings().model_dump(), **values})
+    general = General.model_construct(node_health=health)
+
+    async def get_general_settings():
+        return general
+
+    monkeypatch.setattr(node_checker, "general_settings", get_general_settings)
+    return health
+
+
 def _real_node(name: str):
     node = create_node(
         connection=NodeType.grpc,
@@ -77,11 +90,10 @@ def checker(monkeypatch):
     monkeypatch.setattr(node_checker, "_health_streaks", {})
     monkeypatch.setattr(node_checker, "_probe_backoffs", {})
     monkeypatch.setattr(node_checker, "_core_starting_since", {})
-    monkeypatch.setattr(node_checker.job_settings, "node_health_fail_threshold", 3)
-    monkeypatch.setattr(node_checker.job_settings, "node_health_recover_threshold", 2)
+    health = _patch_health_settings(
+        monkeypatch, fail_threshold=3, recover_threshold=2, probe_timeout=0.2, max_backoff=60
+    )
     monkeypatch.setattr(node_checker.job_settings, "core_health_check_interval", 10)
-    monkeypatch.setattr(node_checker.job_settings, "node_health_probe_timeout", 0.2)
-    monkeypatch.setattr(node_checker.job_settings, "node_health_max_backoff", 60)
     monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: True)
     monkeypatch.setattr(node_checker, "needs_shared_bridge_memory", lambda: False)
     monkeypatch.setattr(node_checker, "GetDB", lambda: _FakeDB())
@@ -90,7 +102,7 @@ def checker(monkeypatch):
     monkeypatch.setattr(NodeOperation, "_update_single_node_status", AsyncMock(return_value=True))
     clock = [1000.0]
     monkeypatch.setattr(node_checker, "time", SimpleNamespace(monotonic=lambda: clock[0]))
-    return SimpleNamespace(monkeypatch=monkeypatch, clock=clock)
+    return SimpleNamespace(monkeypatch=monkeypatch, clock=clock, health=health)
 
 
 def _fake_node(health=Health.BROKEN):
@@ -190,7 +202,7 @@ async def test_probe_does_not_wait_for_a_raised_default_timeout(checker):
 
 @pytest.mark.asyncio
 async def test_probe_timeout_is_capped_by_the_node_default_timeout(checker):
-    checker.monkeypatch.setattr(node_checker.job_settings, "node_health_probe_timeout", 5)
+    checker.health.probe_timeout = 5
     node = _fake_node(Health.HEALTHY)
     node.get_backend_stats = AsyncMock()
 
@@ -214,7 +226,7 @@ async def test_errored_unreachable_node_is_probed_with_backoff(checker):
 
 @pytest.mark.asyncio
 async def test_backoff_can_be_disabled(checker):
-    checker.monkeypatch.setattr(node_checker.job_settings, "node_health_max_backoff", 0)
+    checker.health.max_backoff = 0
     checker.monkeypatch.setattr(node_checker, "verify_node_backend_health", AsyncMock(return_value=TIMEOUT))
 
     probed = await _runs(checker, _db_node(), _fake_node(), 60)

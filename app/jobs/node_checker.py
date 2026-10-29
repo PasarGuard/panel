@@ -10,6 +10,7 @@ from app.db import GetDB
 from app.db.crud.node import get_limited_nodes, get_nodes
 from app.db.models import Node, NodeStatus
 from app.models.node import NodeListQuery, NodeNotification
+from app.models.settings import NodeHealthSettings
 from app.nats import is_multi_worker, needs_shared_bridge_memory
 from app.nats.leader import is_job_leader, needs_job_leader, set_on_leadership_lost
 from app.node import node_manager
@@ -17,8 +18,9 @@ from app.node.heartbeat import node_heartbeat
 from app.node.nats_memory import ensure_bridge_memory, get_bridge_memory, shutdown_bridge_memory
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
+from app.settings import general_settings
 from app.utils.logger import get_logger
-from config import feature_settings, job_settings, runtime_settings, server_settings
+from config import job_settings, runtime_settings, server_settings
 
 node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
 logger = get_logger("node-checker")
@@ -67,6 +69,8 @@ class _ProbeAttempt:
 
 
 _probe_backoffs: dict[int, _ProbeBackoff] = {}
+# Panel settings `general.node_health`, reloaded before each node check so the sync helpers below can read them.
+_health_settings = NodeHealthSettings()
 # Per-node checks still running after their run returned (see node_health_check).
 _check_tasks: dict[int, asyncio.Task] = {}
 
@@ -75,10 +79,19 @@ def _owns_health_checks() -> bool:
     return not needs_job_leader() or is_job_leader()
 
 
+async def _load_health_settings() -> None:
+    global _health_settings
+    try:
+        _health_settings = (await general_settings()).node_health
+    except Exception as exc:
+        # Keep checking nodes with the last values loaded.
+        logger.warning("Failed to load node health settings: %s", exc)
+
+
 def _probe_timeout(db_node: Node) -> int:
     # Not default_timeout: admins raise that for slow Starts, and a probe that waits
     # as long on a dead link holds a check slot and delays every other node.
-    limit = job_settings.node_health_probe_timeout
+    limit = _health_settings.probe_timeout
     return min(limit, db_node.default_timeout or limit)
 
 
@@ -114,7 +127,7 @@ async def _record_probe(db_node: Node, node: PasarGuardNode, probed: Health, att
         backoff = _probe_backoffs[db_node.id] = _ProbeBackoff(node, leader)
     backoff.failures = min(backoff.failures + 1, 10)
     interval = job_settings.core_health_check_interval
-    delay = min(job_settings.node_health_max_backoff, interval * 2**backoff.failures)
+    delay = min(_health_settings.max_backoff, interval * 2**backoff.failures)
     # Half an interval of slack, so a run that starts a moment early still probes.
     backoff.next_probe_at = attempt.started + delay - interval / 2
     backoff.probed_at = attempt.started
@@ -141,14 +154,14 @@ def _accept_health(db_node: Node, node: PasarGuardNode, health: Health) -> bool:
         streak = _health_streaks[db_node.id] = _HealthStreak(node, db_node.status, leader)
     if health is Health.BROKEN:
         streak.successes = 0
-        streak.failures = min(streak.failures + 1, job_settings.node_health_fail_threshold)
-        accepted = streak.failures >= job_settings.node_health_fail_threshold
+        streak.failures = min(streak.failures + 1, _health_settings.fail_threshold)
+        accepted = streak.failures >= _health_settings.fail_threshold
         streak.broken = streak.broken or accepted
         return accepted
     streak.failures = 0
-    streak.successes = min(streak.successes + 1, job_settings.node_health_recover_threshold)
+    streak.successes = min(streak.successes + 1, _health_settings.recover_threshold)
     if (streak.broken or db_node.status != NodeStatus.connected) and (
-        streak.successes < job_settings.node_health_recover_threshold
+        streak.successes < _health_settings.recover_threshold
     ):
         return False
     streak.broken = False
@@ -267,6 +280,7 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
         _probe_backoffs.pop(db_node.id, None)
         _core_starting_since.pop(db_node.id, None)
         return
+    await _load_health_settings()
     if _in_probe_backoff(db_node, node):
         return
 
@@ -422,10 +436,7 @@ async def _check_node(db_node: Node, node: PasarGuardNode, attempt: _ProbeAttemp
                 return health
             if shared_state is not None and not starting:
                 await node.update_observed_lifecycle(LifecycleStatus.BROKEN, expected_epoch=shared_state.epoch)
-            if not starting and (
-                should_reconnect_after_health_error(error_code, error_message)
-                or core_is_dead
-            ):
+            if not starting and (should_reconnect_after_health_error(error_code, error_message) or core_is_dead):
                 await _repair_node(db_node.id)
             return health
 
@@ -603,7 +614,7 @@ async def initialize_nodes():
     )
 
     # Multi-uvicorn workers must not Stop remote cores / clear shared sync queues on exit.
-    if feature_settings.stop_nodes_on_shutdown and server_settings.workers <= 1:
+    if server_settings.workers <= 1:
         on_shutdown(shutdown_nodes)
 
     on_shutdown(_stop_node_loops)
@@ -628,6 +639,15 @@ async def shutdown_nodes():
         return
     if is_multi_worker() and server_settings.workers > 1:
         logger.info("Skipping remote node stop on multi-worker shutdown")
+        return
+
+    try:
+        stop_nodes = (await general_settings()).stop_nodes_on_shutdown
+    except Exception as exc:
+        logger.warning("Failed to load the stop nodes on shutdown setting, stopping nodes: %s", exc)
+        stop_nodes = True
+    if not stop_nodes:
+        logger.info("Leaving nodes' cores running on shutdown")
         return
 
     logger.info("Stopping nodes' cores...")

@@ -132,16 +132,11 @@ class CorsSettings(EnvSettings):
 class SubscriptionEnvSettings(EnvSettings):
     xray_path: str = Field(default="", validation_alias="XRAY_SUBSCRIPTION_PATH")
     fallback_path: str = Field(default="sub", validation_alias="SUBSCRIPTION_PATH")
-    clients_limit: int = Field(default=10, validation_alias="USER_SUBSCRIPTION_CLIENTS_LIMIT")
     external_config: str = Field(default="", validation_alias="EXTERNAL_CONFIG")
 
     @cached_property
     def path(self) -> str:
         return (self.xray_path or self.fallback_path).strip("/")
-
-
-class JwtSettings(EnvSettings):
-    access_token_expire_minutes: int = Field(default=1440, validation_alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
 
 
 class TemplateSettings(EnvSettings):
@@ -155,10 +150,6 @@ class TemplateSettings(EnvSettings):
 class UserCleanupSettings(EnvSettings):
     autodelete_days: int = Field(default=-1, validation_alias="USERS_AUTODELETE_DAYS")
     include_limited_accounts: bool = Field(default=False, validation_alias="USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS")
-
-
-class TelegramEnvSettings(EnvSettings):
-    do_not_log_bot: bool = Field(default=True, validation_alias="DO_NOT_LOG_TELEGRAM_BOT")
 
 
 class LoggingSettings(EnvSettings):
@@ -193,25 +184,15 @@ class AuthSettings(EnvSettings):
 
 
 class UsageSettings(EnvSettings):
-    disable_recording_node_usage: bool = Field(default=False, validation_alias="DISABLE_RECORDING_NODE_USAGE")
-    enable_recording_nodes_stats: bool = Field(default=False, validation_alias="ENABLE_RECORDING_NODES_STATS")
     user_usage_history_flush_interval: int = Field(
         default=60,
         ge=1,
         validation_alias="USER_USAGE_HISTORY_FLUSH_INTERVAL",
     )
-    reset_user_usage_clean_chart_data: bool = Field(
-        default=False,
-        validation_alias="RESET_USER_USAGE_CLEAN_CHART_DATA",
-    )
 
 
 class JobSettings(EnvSettings):
     core_health_check_interval: int = Field(default=10, validation_alias="JOB_CORE_HEALTH_CHECK_INTERVAL")
-    node_health_fail_threshold: int = Field(default=3, ge=1, validation_alias="NODE_HEALTH_FAIL_THRESHOLD")
-    node_health_recover_threshold: int = Field(default=2, ge=1, validation_alias="NODE_HEALTH_RECOVER_THRESHOLD")
-    node_health_probe_timeout: int = Field(default=5, ge=1, validation_alias="NODE_HEALTH_PROBE_TIMEOUT")
-    node_health_max_backoff: int = Field(default=60, ge=0, validation_alias="NODE_HEALTH_MAX_BACKOFF")
     record_node_usages_interval: int = Field(default=30, validation_alias="JOB_RECORD_NODE_USAGES_INTERVAL")
     record_user_usages_interval: int = Field(default=10, validation_alias="JOB_RECORD_USER_USAGES_INTERVAL")
     review_users_interval: int = Field(default=30, validation_alias="JOB_REVIEW_USERS_INTERVAL")
@@ -228,28 +209,18 @@ class JobSettings(EnvSettings):
     )
 
 
-class FeatureSettings(EnvSettings):
-    stop_nodes_on_shutdown: bool = Field(default=True, validation_alias="STOP_NODES_ON_SHUTDOWN")
-
-
 database_settings = DatabaseSettings()
 server_settings = ServerSettings()
 dashboard_settings = DashboardSettings()
 nats_settings = NatsSettings()
 cors_settings = CorsSettings()
 subscription_env_settings = SubscriptionEnvSettings()
-jwt_settings = JwtSettings()
 template_settings = TemplateSettings()
 user_cleanup_settings = UserCleanupSettings()
-telegram_env_settings = TelegramEnvSettings()
 logging_settings = LoggingSettings()
 auth_settings = AuthSettings()
 usage_settings = UsageSettings()
 job_settings = JobSettings()
-feature_settings = FeatureSettings()
-
-if not database_settings.is_postgresql:
-    usage_settings.enable_recording_nodes_stats = False
 
 if runtime_settings.debug and dashboard_settings.vite_base_api == "/":
     scheme = "https" if server_settings.has_ssl else "http"

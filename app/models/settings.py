@@ -50,6 +50,8 @@ class Telegram(BaseModel):
     mini_app_web_url: str | None = Field(default="")
 
     for_admins_only: bool = Field(default=True)
+    # Hide the webhook endpoint from the uvicorn access log
+    do_not_log_bot: bool = Field(default=True)
 
     @field_validator("mini_app_web_url")
     @classmethod
@@ -329,6 +331,8 @@ class Subscription(BaseModel):
     disable_sub_template: bool = Field(default=False)
     randomize_order: bool = Field(default=False)
     custom_variables: list[CustomVariable] = Field(default_factory=list)
+    # Subscription updates (client user agents) kept per user, 0 or less keeps all
+    clients_limit: int = Field(default=10)
 
     @field_validator("url_prefix")
     @classmethod
@@ -374,10 +378,33 @@ class OnHoldTimeoutAction(StrEnum):
     delete = "delete"
 
 
+class UsageSettings(BaseModel):
+    record_node_usage: bool = Field(default=True)
+    # PostgreSQL only
+    record_node_stats: bool = Field(default=False)
+    reset_usage_clean_chart_data: bool = Field(default=False)
+
+
+class NodeHealthSettings(BaseModel):
+    # Consecutive failed checks before a node is reported as error
+    fail_threshold: int = Field(default=3, ge=1)
+    # Consecutive good checks before a node is reported as healthy again
+    recover_threshold: int = Field(default=2, ge=1)
+    # Seconds a health probe waits for the node
+    probe_timeout: int = Field(default=5, ge=1)
+    # Upper bound in seconds between probes of a node in error, 0 probes on every run
+    max_backoff: int = Field(default=60, ge=0)
+
+
 class General(BaseModel):
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
     on_hold_timeout_action: OnHoldTimeoutAction = Field(default=OnHoldTimeoutAction.activate)
     custom_variables: list[CustomVariable] | None = Field(default=None)
+    usage: UsageSettings = Field(default_factory=UsageSettings)
+    node_health: NodeHealthSettings = Field(default_factory=NodeHealthSettings)
+    stop_nodes_on_shutdown: bool = Field(default=True)
+    # 0 or less issues admin tokens that never expire
+    admin_token_expire_minutes: int = Field(default=1440)
 
     @field_validator("custom_variables")
     @classmethod

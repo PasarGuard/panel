@@ -23,11 +23,10 @@ from app.nats.node_rpc import node_nats_client
 from app.nats.scheduler_rpc import scheduler_nats_client
 from app.operation import OperatorType
 from app.operation.system import SystemOperation
-from app.settings import telegram_settings
+from app.settings import do_not_log_telegram_bot, telegram_settings
 from app.telegram import get_bot, get_dispatcher
 from app.utils import responses
 from app.utils.logger import EndpointFilter, get_logger
-from config import telegram_env_settings
 
 from .authentication import require_permission
 
@@ -35,9 +34,19 @@ system_operator = SystemOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["System"], prefix="/api", responses={401: responses._401})
 
 TELEGRAM_WEBHOOK_PATH = "/tghook"
-if telegram_env_settings.do_not_log_bot:
-    uvicorn_access_logger = get_logger("uvicorn.access")
-    uvicorn_access_logger.addFilter(EndpointFilter([f"{router.prefix}{TELEGRAM_WEBHOOK_PATH}"]))
+
+
+class TelegramWebhookLogFilter(EndpointFilter):
+    """Hides the webhook endpoint while the telegram setting `do_not_log_bot` is on."""
+
+    def filter(self, record) -> bool:
+        if not do_not_log_telegram_bot():
+            return True
+        return super().filter(record)
+
+
+uvicorn_access_logger = get_logger("uvicorn.access")
+uvicorn_access_logger.addFilter(TelegramWebhookLogFilter([f"{router.prefix}{TELEGRAM_WEBHOOK_PATH}"]))
 
 
 @router.get("/system", response_model=SystemStats)

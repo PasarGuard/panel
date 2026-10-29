@@ -10,7 +10,7 @@ from aiocache import cached
 
 from app.db import GetDB
 from app.db.crud.general import get_jwt_secret_key
-from config import jwt_settings
+from app.settings import general_settings
 
 
 @cached()
@@ -37,8 +37,9 @@ async def create_admin_token(admin_id: int | None, username: str, hashed_passwor
             raise ValueError("Database admin tokens require a password hash")
         data["aid"] = int(admin_id)
         data["binding"] = _admin_token_binding(hashed_password, secret_key)
-    if jwt_settings.access_token_expire_minutes > 0:
-        expire = datetime.now(UTC) + timedelta(minutes=jwt_settings.access_token_expire_minutes)
+    expire_minutes = (await general_settings()).admin_token_expire_minutes
+    if expire_minutes > 0:
+        expire = datetime.now(UTC) + timedelta(minutes=expire_minutes)
         data["exp"] = expire
     encoded_jwt = jwt.encode(data, secret_key, algorithm="HS256")
     return encoded_jwt

@@ -112,14 +112,14 @@ from app.operation.permissions import (
     get_scope_admin_id,
     is_scope_all,
 )
-from app.settings import hwid_settings, subscription_settings
+from app.settings import general_settings, hwid_settings, subscription_settings
 from app.utils.helpers import fix_datetime_timezone
 from app.utils.hwid import resolve_effective_hwid_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
 from app.utils.system import readable_duration, readable_size
 from app.utils.wireguard import ensure_unique_wireguard_public_key, prepare_wireguard_keys
-from config import subscription_env_settings, usage_settings
+from config import subscription_env_settings
 
 
 def _has_permission(admin: AdminDetails, resource: str, action: str) -> bool:
@@ -1082,7 +1082,7 @@ class UserOperation(BaseOperation):
         old_status = db_user.status
 
         if clean_chart_data is None:
-            clean_chart_data = usage_settings.reset_user_usage_clean_chart_data
+            clean_chart_data = (await general_settings()).usage.reset_usage_clean_chart_data
 
         db_user = await reset_user_data_usage(db=db, db_user=db_user, clean_chart_data=clean_chart_data)
         user = await self.update_user(db_user)
@@ -1122,7 +1122,7 @@ class UserOperation(BaseOperation):
         db_users = await bulk_reset_user_data_usage(
             db,
             db_users,
-            clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+            clean_chart_data=(await general_settings()).usage.reset_usage_clean_chart_data,
         )
         await sync_users(db_users)
 
@@ -1308,7 +1308,7 @@ class UserOperation(BaseOperation):
         await reset_all_users_data_usage(
             db=db,
             admin=None,  # None = all admins, not filtered by owner
-            clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+            clean_chart_data=(await general_settings()).usage.reset_usage_clean_chart_data,
         )
 
     async def _active_next_plan(self, db: AsyncSession, db_user: User, admin: AdminDetails) -> UserResponse:
@@ -1319,7 +1319,7 @@ class UserOperation(BaseOperation):
         db_user = await reset_user_by_next(
             db=db,
             db_user=db_user,
-            clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+            clean_chart_data=(await general_settings()).usage.reset_usage_clean_chart_data,
         )
         user = await self.update_user(db_user)
 
@@ -1945,7 +1945,7 @@ class UserOperation(BaseOperation):
                 await bulk_reset_user_data_usage(
                     db,
                     [db_user for db_user, *_ in prepared_updates],
-                    clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+                    clean_chart_data=(await general_settings()).usage.reset_usage_clean_chart_data,
                     commit=False,
                 )
 
