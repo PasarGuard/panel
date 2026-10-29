@@ -467,6 +467,7 @@ async def _prepare_subscription_inbound_data(
             eager_window_ms=inbound_config.get("xdrive_eager_window_ms"),
             hole_timeout_ms=inbound_config.get("xdrive_hole_timeout_ms"),
             template=inbound_config.get("xdrive_template"),
+            s3=inbound_config.get("xdrive_s3"),
         )
     elif network in ("ws", "websocket", "httpupgrade"):
         ws = ts.websocket_settings if ts else None
