@@ -644,8 +644,8 @@ async def shutdown_nodes():
     try:
         stop_nodes = (await general_settings()).stop_nodes_on_shutdown
     except Exception as exc:
-        logger.warning("Failed to load the stop nodes on shutdown setting, stopping nodes: %s", exc)
-        stop_nodes = True
+        logger.warning("Failed to load the stop nodes on shutdown setting, leaving nodes running: %s", exc)
+        return
     if not stop_nodes:
         logger.info("Leaving nodes' cores running on shutdown")
         return

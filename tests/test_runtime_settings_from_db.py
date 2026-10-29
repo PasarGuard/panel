@@ -12,7 +12,7 @@ import jwt
 import pytest
 
 from app import settings as app_settings
-from app.jobs import node_stats
+from app.jobs import node_checker, node_stats
 from app.models.settings import General, Telegram, UsageSettings
 from app.routers import system
 from app.utils import jwt as jwt_utils
@@ -159,6 +159,35 @@ async def test_node_stats_job_runs_when_on(monkeypatch):
     await node_stats.gather_nodes_stats()
 
     get_nodes.assert_awaited_once()
+
+
+async def _fail_general_settings():
+    raise RuntimeError("settings unavailable")
+
+
+@pytest.mark.asyncio
+async def test_shutdown_leaves_nodes_running_when_the_setting_fails_to_load(monkeypatch):
+    monkeypatch.setattr(node_checker, "general_settings", _fail_general_settings)
+    monkeypatch.setattr(node_checker, "is_multi_worker", lambda: False)
+    get_nodes = AsyncMock(return_value={})
+    monkeypatch.setattr(node_checker.node_manager, "get_nodes", get_nodes)
+
+    await node_checker.shutdown_nodes()
+
+    get_nodes.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("stop", "stops"), [(True, True), (False, False)])
+async def test_shutdown_follows_the_stop_nodes_setting(monkeypatch, stop, stops):
+    _serve_general(monkeypatch, node_checker, General(stop_nodes_on_shutdown=stop))
+    monkeypatch.setattr(node_checker, "is_multi_worker", lambda: False)
+    get_nodes = AsyncMock(return_value={})
+    monkeypatch.setattr(node_checker.node_manager, "get_nodes", get_nodes)
+
+    await node_checker.shutdown_nodes()
+
+    assert get_nodes.await_count == (1 if stops else 0)
 
 
 @pytest.mark.asyncio
