@@ -9,7 +9,7 @@ Create Date: 2026-10-29 00:00:00.000000
 import sqlalchemy as sa
 from alembic import op
 
-from app.db.compiles_types import SqliteCompatibleBigInteger
+from app.db.compiles_types import CaseSensitiveString, SqliteCompatibleBigInteger
 
 revision = "e5a7c3f9b214"
 down_revision = "c8d2e4f6a1b3"
@@ -23,7 +23,7 @@ def upgrade() -> None:
         sa.Column("id", SqliteCompatibleBigInteger(), autoincrement=True, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("node_id", SqliteCompatibleBigInteger(), nullable=False),
-        sa.Column("outbound_tag", sa.String(length=256), nullable=False),
+        sa.Column("outbound_tag", CaseSensitiveString(length=256), nullable=False),
         sa.Column("uplink", sa.BigInteger(), nullable=False),
         sa.Column("downlink", sa.BigInteger(), nullable=False),
         sa.ForeignKeyConstraint(
@@ -41,10 +41,8 @@ def upgrade() -> None:
         ["node_id", "created_at"],
         unique=False,
     )
-    op.create_index("ix_node_outbound_usages_created_at", "node_outbound_usages", ["created_at"], unique=False)
 
 
 def downgrade() -> None:
-    op.drop_index("ix_node_outbound_usages_created_at", table_name="node_outbound_usages")
-    op.drop_index("ix_node_outbound_usages_node_id_created_at", table_name="node_outbound_usages")
+    # Dropping the table drops its indexes; MySQL refuses to drop the node_id index first (the foreign key needs it)
     op.drop_table("node_outbound_usages")

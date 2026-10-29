@@ -1222,11 +1222,11 @@ class TestGetNodesOutboundUsage:
                 end=end,
                 period=Period.hour,
             )
-            assert all(
-                stat.period_start >= datetime(2032, 5, 1, 14, 0, tzinfo=tehran)
-                for stats in shifted.stats.values()
-                for stat in stats
-            )
+            # 10:10 and 10:20 UTC fall in the partial 13:00 local hour; only 11:00 UTC (14:30 local) is complete
+            assert {
+                tag: [(stat.period_start, stat.uplink, stat.downlink) for stat in stats]
+                for tag, stats in shifted.stats.items()
+            } == {"direct": [(datetime(2032, 5, 1, 14, 0, tzinfo=tehran), 8, 80)]}
 
             for model in (NodeOutboundUsage,):
                 for row in (await session.execute(select(model).where(model.node_id.in_([node_a, node_b])))).scalars():

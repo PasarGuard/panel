@@ -1443,3 +1443,18 @@ async def test_settings_read_failure_keeps_node_totals(monkeypatch: pytest.Monke
         node = await session.get(Node, node_one_id)
         assert (node.uplink, node.downlink) == (5, 6)
         assert await session.scalar(select(func.count()).select_from(NodeOutboundUsage)) == 0
+
+
+@pytest.mark.asyncio
+async def test_outbound_tags_that_differ_in_case_stay_separate(session_factory):
+    node_id, _ = await _seed_outbound_nodes(session_factory)
+
+    await record_usages.record_outbound_stats_batched(
+        {node_id: [{"tag": "warp", "up": 1, "down": 2}, {"tag": "WARP", "up": 3, "down": 4}]}
+    )
+
+    async with session_factory() as session:
+        rows = await session.execute(
+            select(NodeOutboundUsage.outbound_tag, NodeOutboundUsage.uplink, NodeOutboundUsage.downlink)
+        )
+        assert sorted(tuple(row) for row in rows.all()) == [("WARP", 3, 4), ("warp", 1, 2)]

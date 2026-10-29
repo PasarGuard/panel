@@ -27,3 +27,27 @@ async def test_database_operational_error_handler_handles_dbapi_errors():
 
     assert response.status_code == 503
     assert json.loads(response.body) == {"detail": "Database temporarily unavailable"}
+
+
+@pytest.mark.asyncio
+async def test_node_role_clears_general_settings_cache_on_settings_message(monkeypatch: pytest.MonkeyPatch):
+    from unittest.mock import AsyncMock
+
+    from app import app_factory, settings as app_settings
+    from app.nats.message import MessageTopic
+
+    handlers = {}
+    monkeypatch.setattr(
+        app_factory.router, "register_handler", lambda topic, handler: handlers.setdefault(topic, handler)
+    )
+    monkeypatch.setattr("app.node.manager_sync.register_node_sync_handler", lambda: None)
+
+    # A node-only worker runs the usage jobs but not the full settings handler (which also syncs the bot)
+    app_factory._register_nats_handlers(
+        enable_router=False, enable_settings=False, enable_client_templates=False, enable_node_sync=True
+    )
+
+    clear = AsyncMock()
+    monkeypatch.setattr(app_settings.general_settings.cache, "clear", clear)
+    await handlers[MessageTopic.SETTING]({"action": "refresh"})
+    clear.assert_awaited_once()
