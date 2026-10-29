@@ -16,6 +16,7 @@ from app.jobs import node_checker, node_stats
 from app.models.settings import General, Telegram, UsageSettings
 from app.routers import system
 from app.utils import jwt as jwt_utils
+from role import Role
 
 MIGRATION = (
     Path(__file__).resolve().parents[1] / "app/db/migrations/versions/b849540d85bb_move_runtime_env_vars_to_settings.py"
@@ -168,6 +169,7 @@ async def _fail_general_settings():
 @pytest.mark.asyncio
 async def test_shutdown_leaves_nodes_running_when_the_setting_fails_to_load(monkeypatch):
     monkeypatch.setattr(node_checker, "general_settings", _fail_general_settings)
+    monkeypatch.setattr(node_checker.runtime_settings, "role", Role.ALL_IN_ONE)
     monkeypatch.setattr(node_checker, "is_multi_worker", lambda: False)
     get_nodes = AsyncMock(return_value={})
     monkeypatch.setattr(node_checker.node_manager, "get_nodes", get_nodes)
@@ -181,6 +183,7 @@ async def test_shutdown_leaves_nodes_running_when_the_setting_fails_to_load(monk
 @pytest.mark.parametrize(("stop", "stops"), [(True, True), (False, False)])
 async def test_shutdown_follows_the_stop_nodes_setting(monkeypatch, stop, stops):
     _serve_general(monkeypatch, node_checker, General(stop_nodes_on_shutdown=stop))
+    monkeypatch.setattr(node_checker.runtime_settings, "role", Role.ALL_IN_ONE)
     monkeypatch.setattr(node_checker, "is_multi_worker", lambda: False)
     get_nodes = AsyncMock(return_value={})
     monkeypatch.setattr(node_checker.node_manager, "get_nodes", get_nodes)
