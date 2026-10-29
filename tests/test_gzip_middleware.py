@@ -107,21 +107,55 @@ def test_zero_minimum_size_is_rejected(monkeypatch):
         ServerSettings()
 
 
-def test_gzipped_file_gets_weak_etag_and_if_range_falls_back_to_full_body(monkeypatch, tmp_path):
+def test_gzipped_file_gets_weak_etag(monkeypatch, tmp_path):
     asset = tmp_path / "app.js"
     asset.write_text(BIG_HTML)
     client = _app(monkeypatch, file_path=asset)
 
     identity, _ = _raw_get(client, "/file", accept_encoding="identity")
     gzipped, _ = _raw_get(client, "/file")
+
     assert gzipped.headers["content-encoding"] == "gzip"
     assert gzipped.headers["etag"] == f"W/{identity.headers['etag']}"
 
-    # Resuming the gzipped body must not return a slice of the identity file.
-    resumed, body = _raw_get(client, "/file", Range="bytes=100-", **{"If-Range": gzipped.headers["etag"]})
-    assert resumed.status_code == 200
-    assert body.decode() == BIG_HTML
 
-    # Conditional requests still revalidate against the weak tag.
-    not_modified, _ = _raw_get(client, "/static/app.js", **{"If-None-Match": gzipped.headers["etag"]})
-    assert not_modified.status_code == 304
+@pytest.mark.parametrize("validator", ["etag", "last-modified"])
+def test_resuming_gzipped_copy_gets_full_body(monkeypatch, tmp_path, validator):
+    asset = tmp_path / "app.js"
+    asset.write_text(BIG_HTML)
+    client = _app(monkeypatch, file_path=asset)
+    gzipped, _ = _raw_get(client, "/file")
+
+    resumed, body = _raw_get(client, "/file", Range="bytes=100-", **{"If-Range": gzipped.headers[validator]})
+
+    assert resumed.status_code == 200
+    assert gzip.decompress(body).decode() == BIG_HTML
+
+
+def test_resuming_identity_copy_with_strong_etag_gets_range(monkeypatch, tmp_path):
+    asset = tmp_path / "app.js"
+    asset.write_text(BIG_HTML)
+    client = _app(monkeypatch, file_path=asset)
+    identity, _ = _raw_get(client, "/file", accept_encoding="identity")
+
+    resumed, body = _raw_get(client, "/file", Range="bytes=100-", **{"If-Range": identity.headers["etag"]})
+
+    assert resumed.status_code == 206
+    assert "content-encoding" not in resumed.headers
+    assert body.decode() == BIG_HTML[100:]
+
+
+def test_not_modified_keeps_validators_of_the_cached_copy(monkeypatch, tmp_path):
+    asset = tmp_path / "app.js"
+    asset.write_text(BIG_HTML)
+    client = _app(monkeypatch, file_path=asset)
+    gzipped, _ = _raw_get(client, "/static/app.js")
+    strong_etag = gzipped.headers["etag"].removeprefix("W/")
+
+    weak, _ = _raw_get(client, "/static/app.js", **{"If-None-Match": gzipped.headers["etag"]})
+    strong, _ = _raw_get(client, "/static/app.js", **{"If-None-Match": strong_etag})
+
+    assert weak.status_code == strong.status_code == 304
+    assert weak.headers["etag"] == gzipped.headers["etag"]
+    assert "Accept-Encoding" in weak.headers["vary"]
+    assert strong.headers["etag"] == strong_etag
