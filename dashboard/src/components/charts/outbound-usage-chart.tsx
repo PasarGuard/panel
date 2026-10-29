@@ -91,6 +91,8 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
     {
       query: {
         meta: { selection },
+        // Day buckets keep the same start/end until midnight, so the key alone does not refresh them
+        refetchInterval: OUTBOUND_REFRESH_MS,
         // Keep the bars on a timed range move, show the skeleton when the admin picks another range
         placeholderData: (previous, previousQuery) => (previousQuery?.meta?.selection === selection ? previous : undefined),
       },
