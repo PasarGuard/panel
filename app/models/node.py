@@ -303,6 +303,13 @@ class NodeUsageQuery(BaseModel):
     end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
 
 
+class NodeOutboundUsageQuery(BaseModel):
+    period: Period = Field(default=Period.hour)
+    node_id: int | None = None
+    start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
+
+
 class NodeStatsPeriodQuery(BaseModel):
     period: Period = Field(default=Period.hour)
     start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])

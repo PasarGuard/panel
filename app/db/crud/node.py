@@ -27,7 +27,14 @@ from app.models.node import (
     NodeSimpleSortOption,
     UsageTable,
 )
-from app.models.stats import NodeStats, NodeStatsList, NodeUsageStat, NodeUsageStatsList, Period
+from app.models.stats import (
+    NodeOutboundUsageStatsList,
+    NodeStats,
+    NodeStatsList,
+    NodeUsageStat,
+    NodeUsageStatsList,
+    Period,
+)
 
 from .general import (
     MYSQL_FORMATS,
@@ -247,6 +254,32 @@ async def get_limited_nodes(db: AsyncSession) -> list[Node]:
     return nodes
 
 
+def _exclude_partial_first_bucket(stmt, trunc_expr, start: datetime, period: Period, dialect: str):
+    """Add a HAVING clause that drops the partial first bucket of a timezone-aware range."""
+    # Only needed if start has timezone (which means we did timezone-aware grouping)
+    if not start.tzinfo:
+        return stmt
+
+    # Get the first COMPLETE bucket boundary
+    # Example: if start is 14:02:37, first_complete_bucket is 15:00:00
+    first_complete_bucket = _get_next_period_boundary(start, period)
+
+    # Convert to naive for comparison (represents wall-clock time in target timezone)
+    boundary_value = first_complete_bucket.replace(tzinfo=None)
+
+    # Add HAVING clause with appropriate comparison based on dialect
+    if dialect == "postgresql":
+        # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
+        return stmt.having(trunc_expr >= boundary_value)
+    if dialect in ("mysql", "sqlite"):
+        # MySQL/SQLite: Use the alias 'period_start' in HAVING
+        # The column is already formatted as a string in the SELECT list
+        format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
+        boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))
+        return stmt.having(literal_column("period_start") >= boundary_str)
+    return stmt
+
+
 async def get_nodes_usage(
     db: AsyncSession,
     start: datetime,
@@ -314,26 +347,7 @@ async def get_nodes_usage(
             .order_by(trunc_expr)
         )
 
-    # HAVING clause to exclude partial first bucket
-    # Only needed if start has timezone (which means we did timezone-aware grouping)
-    if start.tzinfo:
-        # Get the first COMPLETE bucket boundary
-        # Example: if start is 14:02:37, first_complete_bucket is 15:00:00
-        first_complete_bucket = _get_next_period_boundary(start, period)
-
-        # Convert to naive for comparison (represents wall-clock time in target timezone)
-        boundary_value = first_complete_bucket.replace(tzinfo=None)
-
-        # Add HAVING clause with appropriate comparison based on dialect
-        if dialect == "postgresql":
-            # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
-            stmt = stmt.having(trunc_expr >= boundary_value)
-        elif dialect in ("mysql", "sqlite"):
-            # MySQL/SQLite: Use the alias 'period_start' in HAVING
-            # The column is already formatted as a string in the SELECT list
-            format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
-            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))
-            stmt = stmt.having(literal_column("period_start") >= boundary_str)
+    stmt = _exclude_partial_first_bucket(stmt, trunc_expr, start, period, dialect)
 
     result = await db.execute(stmt)
 
@@ -350,6 +364,47 @@ async def get_nodes_usage(
         stats[node_id_val].append(NodeUsageStat(**row_dict))
 
     return NodeUsageStatsList(period=period, start=start, end=end, stats=stats)
+
+
+async def get_nodes_outbound_usage(
+    db: AsyncSession,
+    start: datetime,
+    end: datetime,
+    period: Period,
+    node_id: int | None = None,
+) -> NodeOutboundUsageStatsList:
+    """Usage per outbound tag, summed over all nodes or one, in complete period buckets."""
+    dialect = db.bind.dialect.name
+    trunc_expr = _build_trunc_expression(db, period, NodeOutboundUsage.created_at, start)
+
+    conditions = [
+        NodeOutboundUsage.created_at >= to_utc_for_filter(start),
+        NodeOutboundUsage.created_at < to_utc_for_filter(end),
+    ]
+    if node_id is not None:
+        conditions.append(NodeOutboundUsage.node_id == node_id)
+
+    stmt = (
+        select(
+            trunc_expr.label("period_start"),
+            NodeOutboundUsage.outbound_tag,
+            func.sum(NodeOutboundUsage.downlink).label("downlink"),
+            func.sum(NodeOutboundUsage.uplink).label("uplink"),
+        )
+        .where(and_(*conditions))
+        .group_by(trunc_expr, NodeOutboundUsage.outbound_tag)
+        .order_by(trunc_expr, NodeOutboundUsage.outbound_tag)
+    )
+    stmt = _exclude_partial_first_bucket(stmt, trunc_expr, start, period, dialect)
+
+    stats: dict[str, list[NodeUsageStat]] = {}
+    for row in (await db.execute(stmt)).mappings():
+        row_dict = dict(row)
+        tag = row_dict.pop("outbound_tag")
+        attach_timezone_to_period_start(row_dict, start.tzinfo, dialect)
+        stats.setdefault(tag, []).append(NodeUsageStat(**row_dict))
+
+    return NodeOutboundUsageStatsList(period=period, start=start, end=end, stats=stats)
 
 
 async def get_node_stats(
