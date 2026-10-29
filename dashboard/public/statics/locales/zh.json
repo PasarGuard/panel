@@ -1279,6 +1279,9 @@
   },
   "hostsDialog": {
     "addHost": "添加主机",
+    "tagPrefix": "标签前缀",
+    "tagPrefixPlaceholder": "例如 de",
+    "tagPrefixDescription": "客户端模板会以“<前缀>-<id>”的形式获得此主机，即使它已被禁用（默认前缀：“out”）。可用它将流量路由或负载均衡到该主机。保留值：proxy、dialer、direct、block。",
     "selectInbound": "选择入站",
     "selectStatus": "选择状态",
     "remarkRequired": "备注是必填的",

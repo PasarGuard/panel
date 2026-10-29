@@ -1134,6 +1134,9 @@
   },
   "hostsDialog": {
     "addHost": "افزودن هاست",
+    "tagPrefix": "پیشوند تگ",
+    "tagPrefixPlaceholder": "مثلاً de",
+    "tagPrefixDescription": "قالب‌های کلاینت این هاست را به‌صورت «<پیشوند>-<id>» دریافت می‌کنند، حتی اگر غیرفعال باشد (پیشوند پیش‌فرض: «out»). از آن برای مسیریابی یا توزیع بار به این هاست استفاده کنید. رزروشده: proxy، dialer، direct، block.",
     "loading": "در حال بارگذاری...",
     "port": "پورت",
     "fingerprint": "اثر انگشت",

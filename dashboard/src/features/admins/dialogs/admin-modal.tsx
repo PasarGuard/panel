@@ -221,7 +221,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   }
 
   const addCustomVariable = () => {
-    setCustomVariables([...customVariables, { key: nextCustomVariableKey(customVariables), value: '' }])
+    setCustomVariables([...customVariables, { key: nextCustomVariableKey(customVariables), value: '', use_jinja: false }])
   }
 
   const updateCustomVariable = (index: number, patch: Partial<NonNullable<AdminFormValuesInput['custom_variables']>[number]>) => {
@@ -709,10 +709,16 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                                   <Textarea
                                     value={variable.value}
                                     onChange={event => updateCustomVariable(index, { value: event.target.value })}
-                                    placeholder="{USERNAME}.example.com"
+                                    placeholder={variable.use_jinja ? '{{ USERNAME | upper }}' : '{USERNAME}.example.com'}
                                     className="min-h-[60px] resize-none font-mono text-xs"
                                     rows={2}
                                   />
+                                  <div className="flex items-center justify-between gap-2">
+                                    <label htmlFor={`admin-custom-variable-jinja-${index}`} className="text-muted-foreground cursor-pointer text-xs">
+                                      {t('admins.customVariables.useJinja', { defaultValue: 'Render as Jinja2' })}
+                                    </label>
+                                    <Switch id={`admin-custom-variable-jinja-${index}`} checked={!!variable.use_jinja} onCheckedChange={checked => updateCustomVariable(index, { use_jinja: checked })} />
+                                  </div>
                                 </div>
                               )
                             })

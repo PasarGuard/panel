@@ -1,36 +1,24 @@
 import re
+from collections.abc import Iterable
 from enum import Enum, StrEnum
+from functools import lru_cache
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.proxy import ShadowsocksMethods
+from app.templates import compile_template, render_variables
+from app.templates.variables import (
+    BUILTIN_CUSTOM_VARIABLE_KEYS,
+    BUILTIN_FORMAT_VARIABLES,
+    SAMPLE_FORMAT_VARIABLES,
+    UNLIMITED_FORMAT_VARIABLES,
+)
 
 from .notification_enable import NotificationEnable
 from .validators import DiscordValidator, ProxyValidator, URLValidator
 
 TELEGRAM_TOKEN_PATTERN = r"^\d{8,12}:[A-Za-z0-9_-]{35}$"
-BUILTIN_FORMAT_VARIABLES = {
-    "SERVER_IP",
-    "SERVER_IPV6",
-    "USERNAME",
-    "DATA_USAGE",
-    "DATA_LIMIT",
-    "DATA_LEFT",
-    "DAYS_LEFT",
-    "EXPIRE_DATE",
-    "JALALI_EXPIRE_DATE",
-    "TIME_LEFT",
-    "STATUS_EMOJI",
-    "USAGE_PERCENTAGE",
-    "ADMIN_USERNAME",
-    "PROFILE_TITLE",
-    "PROTOCOL",
-    "TRANSPORT",
-    "url",
-    "format",
-}
-BUILTIN_CUSTOM_VARIABLE_KEYS = {variable.upper() for variable in BUILTIN_FORMAT_VARIABLES}
 
 
 class RunMethod(StrEnum):
@@ -270,6 +258,7 @@ class Application(BaseModel):
 class CustomVariable(BaseModel):
     key: str = Field(max_length=64)
     value: str = Field(default="", max_length=512)
+    use_jinja: bool = Field(default=False)
 
     @field_validator("key", mode="before")
     @classmethod
@@ -288,16 +277,56 @@ class CustomVariable(BaseModel):
             raise ValueError("Variable key must use uppercase letters, numbers, and underscores")
         return value
 
-    @field_validator("value")
-    @classmethod
-    def validate_value_format(cls, value: str) -> str:
+    @model_validator(mode="after")
+    def validate_value_format(self) -> CustomVariable:
+        if error := _format_string_error(self.value, self.use_jinja):
+            raise ValueError(error)
+        return self
+
+
+@lru_cache(maxsize=512)
+def _format_string_error(value: str, use_jinja: bool) -> str | None:
+    # Stored values are validated again on every load of the settings or an admin, and this runs inside a pydantic
+    # validator, on the event loop. So Jinja is only parsed here, which costs in proportion to the text. Rendering it
+    # can take as long as the template likes: that is `custom_variable_render_error`, which the operations that save
+    # a variable run in the validation pool.
+    if use_jinja:
         try:
-            value.format_map({key: "" for key in BUILTIN_FORMAT_VARIABLES})
-        except ValueError:
-            raise ValueError("Invalid formatting variables")
-        except KeyError:
-            pass
-        return value
+            compile_template(value, cache=False)
+        except Exception as exc:
+            return f"Invalid formatting variables: {exc}"
+        return None
+    try:
+        render_variables(value, dict.fromkeys(BUILTIN_FORMAT_VARIABLES, ""), use_jinja=False)
+    except ValueError as exc:
+        return f"Invalid formatting variables: {exc}"
+    except KeyError:
+        pass
+    return None
+
+
+def custom_variable_render_error(value: str) -> str | None:
+    """Renders a Jinja variable the way a subscription will, for a user with limits and for one without.
+
+    CPU work of unbounded length: call it from `check_custom_variables`, not from a validator."""
+    for sample in (SAMPLE_FORMAT_VARIABLES, UNLIMITED_FORMAT_VARIABLES):
+        try:
+            rendered = render_variables(value, sample, use_jinja=True, cache=False)
+        except ValueError as exc:
+            return f"Invalid formatting variables: {exc}"
+        # Variables end up in response headers, which refuse line breaks. Block tags leave them behind inside the text.
+        if "\n" in rendered or "\r" in rendered:
+            return "Invalid formatting variables: the result contains a line break"
+    return None
+
+
+def jinja_variable_errors(variables: Iterable[CustomVariable]) -> dict[str, str]:
+    """Key -> error for the Jinja variables that do not render. Run it in a render pool."""
+    return {
+        variable.key: error
+        for variable in variables
+        if variable.use_jinja and (error := custom_variable_render_error(variable.value))
+    }
 
 
 def validate_custom_variables(value: list[CustomVariable]) -> list[CustomVariable]:
