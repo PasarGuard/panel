@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -25,6 +25,9 @@ def _app(monkeypatch, enabled: bool = True, minimum_size: int = 1000, file_path=
     middlewares.setup_middleware(app)
     app.get("/page")(lambda: HTMLResponse(BIG_HTML))
     app.get("/small")(lambda: {"ok": True})
+    app.get("/pre-gzipped")(
+        lambda: Response(gzip.compress(BIG_HTML.encode()), headers={"Content-Encoding": "gzip", "ETag": '"own"'})
+    )
     if file_path is not None:
         app.get("/file")(lambda: FileResponse(file_path))
         app.mount("/static", StaticFiles(directory=file_path.parent))
@@ -159,3 +162,10 @@ def test_not_modified_keeps_validators_of_the_cached_copy(monkeypatch, tmp_path)
     assert weak.headers["etag"] == gzipped.headers["etag"]
     assert "Accept-Encoding" in weak.headers["vary"]
     assert strong.headers["etag"] == strong_etag
+
+
+def test_app_gzipped_response_keeps_strong_etag(monkeypatch):
+    response, body = _raw_get(_app(monkeypatch), "/pre-gzipped")
+
+    assert response.headers["etag"] == '"own"'
+    assert gzip.decompress(body).decode() == BIG_HTML

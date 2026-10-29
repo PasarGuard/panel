@@ -45,12 +45,15 @@ class PanelGZipMiddleware(GZipMiddleware):
             scope = {**scope, "headers": [(k, v) for k, v in scope["headers"] if k not in (b"range", b"if-range")]}
         if_none_match = headers.get("if-none-match", "")
 
+        responder = GZipResponder(self.app, self.minimum_size, compresslevel=self.compresslevel)
+
         async def send_with_weak_etag(message: Message) -> None:
             if message["type"] == "http.response.start":
                 response_headers = MutableHeaders(raw=message["headers"])
                 etag = response_headers.get("etag")
                 if etag and not etag.startswith("W/"):
-                    if response_headers.get("content-encoding") == "gzip":
+                    # content_encoding_set: the app sent its own encoding, so the body and its ETag are untouched.
+                    if response_headers.get("content-encoding") == "gzip" and not responder.content_encoding_set:
                         response_headers["etag"] = f"W/{etag}"
                     elif message["status"] == 304 and f"W/{etag}" in if_none_match:
                         # The client revalidated its gzipped copy: answer with that copy's validators.
@@ -58,5 +61,4 @@ class PanelGZipMiddleware(GZipMiddleware):
                         response_headers.add_vary_header("Accept-Encoding")
             await send(message)
 
-        responder = GZipResponder(self.app, self.minimum_size, compresslevel=self.compresslevel)
         await responder(scope, receive, send_with_weak_etag)
