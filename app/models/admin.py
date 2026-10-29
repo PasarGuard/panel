@@ -97,6 +97,7 @@ class AdminContactInfo(AdminBase):
     support_url: str | None = None
     custom_variables: list[CustomVariable] = Field(default_factory=list)
     notification_enable: UserNotificationEnable | None = None
+    my_hosts: dict | None = Field(default=None, exclude=True)
 
     model_config = ConfigDict(from_attributes=True)
 

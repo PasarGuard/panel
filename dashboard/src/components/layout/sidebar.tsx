@@ -46,6 +46,7 @@ import {
   PieChart,
   RssIcon,
   Send,
+  Server,
   Settings,
   Settings2,
   Share2Icon,
@@ -229,6 +230,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             },
           ]
         : []),
+      {
+        title: 'My Hosts',
+        url: '/my-hosts',
+        icon: Server,
+      },
       ...(canReadGroups
         ? [
             {

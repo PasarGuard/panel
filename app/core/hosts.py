@@ -515,6 +515,7 @@ async def _prepare_subscription_inbound_data(
         )
 
     return SubscriptionInboundData(
+        id=host.id,
         remark=host.remark,
         inbound_tag=host.inbound_tag,
         protocol=protocol,
@@ -822,6 +823,10 @@ class HostManager:
         async with self._lock:
             # Return hosts sorted by priority (accessing from subscription_data model)
             sorted_hosts = dict(sorted(self._hosts.items(), key=lambda x: x[1].priority))
+            # Hosts cached in NATS KV before SubscriptionInboundData.id existed have id=0.
+            for host_id, host_data in sorted_hosts.items():
+                if not host_data.id:
+                    host_data.id = host_id
             return deepcopy(sorted_hosts)
 
 

@@ -281,6 +281,7 @@ class SubscriptionInboundData(BaseModel):
     """
 
     # Basic info
+    id: int = Field(0)
     remark: str
     inbound_tag: str
     protocol: str
