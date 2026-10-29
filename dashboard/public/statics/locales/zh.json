@@ -2015,6 +2015,7 @@
     "refreshNow": "立即刷新"
   },
   "statistics.system": "系统",
+  "statistics.periodTooFineForRange": "此时间范围的数据点过多，请选择更短的范围。",
   "statistics.totalTraffic": "总流量",
   "statistics.ramUsage": "RAM 使用情况",
   "statistics.cpuUsage": "CPU 使用情况",
