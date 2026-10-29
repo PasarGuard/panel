@@ -17,6 +17,7 @@ const Statistics = () => {
   const { admin } = useAdmin()
   const canViewNodeStats = hasPermission(admin, 'nodes', 'stats')
   const canViewSystemStats = hasPermission(admin, 'system', 'read')
+  const canViewUsers = hasPermission(admin, 'users', 'read')
 
   // Fetch nodes for the selector
   const { data: nodesResponse, isLoading: isLoadingNodes } = useGetNodesSimple(
@@ -140,6 +141,7 @@ const Statistics = () => {
                   selectedServer={selectedServer}
                   canViewNodeStats={canViewNodeStats}
                   canViewSystemStats={canViewSystemStats}
+                  canViewUsers={canViewUsers}
                   nodesData={nodesData}
                   isLoadingNodes={isLoadingNodes}
                 />
