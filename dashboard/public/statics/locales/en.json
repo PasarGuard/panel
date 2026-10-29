@@ -172,6 +172,10 @@
         "disable": "Disable user",
         "delete": "Delete user"
       },
+      "recordOutboundUsage": {
+        "title": "Record usage per outbound",
+        "description": "Store traffic per outbound tag for each node to show the Outbound Usage chart. Adds rows to the database, more with many outbounds."
+      },
       "errorLoadingSettings": "Error loading settings"
     },
     "notifications": {
@@ -630,7 +634,8 @@
         "warning": "Warning: This will permanently delete all usage data from the selected table. This action cannot be undone.",
         "tables": {
           "nodeUserUsages": "Node User Usages",
-          "nodeUsages": "Node Usages"
+          "nodeUsages": "Node Usages",
+          "nodeOutboundUsages": "Node Outbound Usages"
         }
       }
     },
@@ -3555,6 +3560,10 @@
   "usersTable.delete": "Delete",
   "usersTable.cancel": "Cancel",
   "statistics.trafficUsage": "Traffic Usage",
+  "statistics.outboundUsage": "Outbound Usage",
+  "statistics.outboundUsageDescription": "Traffic per outbound tag (direct, warp, block, ...)",
+  "statistics.outboundUsageEmpty": "No outbound usage yet. Turn on \"Record usage per outbound\" in Settings > General to start recording.",
+  "statistics.outboundUsageOther": "Other",
   "statistics.trafficUsageDescription": "Total traffic usage across all servers",
   "statistics.usageDuringPeriod": "Usage During Period",
   "statistics.users": "Users",

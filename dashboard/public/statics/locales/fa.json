@@ -482,7 +482,8 @@
         "warning": "هشدار: این عمل تمام داده‌های مصرف را از جدول انتخاب شده به طور دائمی حذف می‌کند. این عمل قابل بازگشت نیست.",
         "tables": {
           "nodeUserUsages": "مصرف کاربران گره",
-          "nodeUsages": "مصرف گره"
+          "nodeUsages": "مصرف گره",
+          "nodeOutboundUsages": "مصرف خروجی‌های گره"
         }
       }
     },
@@ -506,6 +507,10 @@
         "activate": "فعال‌سازی کاربر (پیش‌فرض)",
         "disable": "غیرفعال‌سازی کاربر",
         "delete": "حذف کاربر"
+      },
+      "recordOutboundUsage": {
+        "title": "ثبت مصرف هر خروجی",
+        "description": "ترافیک هر تگ خروجی برای هر گره ذخیره می‌شود تا نمودار مصرف خروجی‌ها نمایش داده شود. ردیف‌های بیشتری به پایگاه داده اضافه می‌کند، به‌ویژه با خروجی‌های زیاد."
       },
       "errorLoadingSettings": "خطا در بارگذاری تنظیمات"
     }
@@ -3503,6 +3508,10 @@
   "usersTable.delete": "حذف",
   "usersTable.cancel": "لغو",
   "statistics.trafficUsage": "میزان مصرف ترافیک",
+  "statistics.outboundUsage": "مصرف خروجی‌ها",
+  "statistics.outboundUsageDescription": "ترافیک هر تگ خروجی (direct، warp، block و ...)",
+  "statistics.outboundUsageEmpty": "هنوز مصرف خروجی ثبت نشده است. «ثبت مصرف هر خروجی» را در تنظیمات > عمومی روشن کنید.",
+  "statistics.outboundUsageOther": "سایر",
   "statistics.trafficUsageDescription": "کل مصرف ترافیک در تمام سرورها",
   "statistics.usageDuringPeriod": "مصرف در دوره زمانی",
   "statistics.users": "کاربران",

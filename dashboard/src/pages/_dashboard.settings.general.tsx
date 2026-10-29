@@ -5,6 +5,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { DEFAULT_SHADOWSOCKS_METHOD } from '@/constants/Proxies'
 import { OnHoldTimeoutAction, ShadowsocksMethods, useGetGeneralSettings, useReconnectAllNode } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
@@ -21,6 +22,7 @@ import { useSettingsContext } from './_dashboard.settings'
 const generalSettingsSchema = z.object({
   default_method: z.string().default(''),
   on_hold_timeout_action: z.nativeEnum(OnHoldTimeoutAction).default(OnHoldTimeoutAction.activate),
+  record_outbound_usage: z.boolean().default(false),
 })
 
 type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>
@@ -38,12 +40,14 @@ export default function General() {
         ? {
             default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
             on_hold_timeout_action: generalSettings.on_hold_timeout_action || OnHoldTimeoutAction.activate,
+            record_outbound_usage: generalSettings.record_outbound_usage ?? false,
           }
         : {
             default_method: '',
             on_hold_timeout_action: OnHoldTimeoutAction.activate,
+            record_outbound_usage: false,
           },
-    [generalSettings?.default_method, generalSettings?.on_hold_timeout_action],
+    [generalSettings?.default_method, generalSettings?.on_hold_timeout_action, generalSettings?.record_outbound_usage],
   )
 
   const form = useForm<GeneralSettingsFormInput>({
@@ -58,6 +62,7 @@ export default function General() {
         general: {
           default_method: data.default_method || DEFAULT_SHADOWSOCKS_METHOD,
           on_hold_timeout_action: data.on_hold_timeout_action || OnHoldTimeoutAction.activate,
+          record_outbound_usage: data.record_outbound_usage ?? false,
         },
       }
 
@@ -72,6 +77,7 @@ export default function General() {
     form.reset({
       default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
       on_hold_timeout_action: generalSettings.on_hold_timeout_action || OnHoldTimeoutAction.activate,
+      record_outbound_usage: generalSettings.record_outbound_usage ?? false,
     })
     toast.success(t('settings.general.cancelSuccess'))
   }
@@ -222,6 +228,21 @@ export default function General() {
                 )}
               />
             </div>
+            <FormField
+              control={form.control}
+              name="record_outbound_usage"
+              render={({ field }) => (
+                <FormItem className="bg-card hover:bg-accent/50 mt-3 flex flex-row items-center justify-between gap-4 space-y-0 rounded-md border p-3 transition-colors sm:mt-4 sm:p-4">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <FormLabel className="cursor-pointer text-sm font-medium">{t('settings.general.recordOutboundUsage.title')}</FormLabel>
+                    <FormDescription className="text-xs leading-relaxed sm:text-sm">{t('settings.general.recordOutboundUsage.description')}</FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} className="shrink-0" />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
           </div>
 
           <Separator className="my-3" />

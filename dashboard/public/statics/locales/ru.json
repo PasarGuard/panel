@@ -640,7 +640,8 @@
         "warning": "Предупреждение: Это действие окончательно удалит все данные использования из выбранной таблицы. Это действие нельзя отменить.",
         "tables": {
           "nodeUserUsages": "Использование пользователей узла",
-          "nodeUsages": "Использование узла"
+          "nodeUsages": "Использование узла",
+          "nodeOutboundUsages": "Использование outbound узлов"
         }
       }
     },
@@ -664,6 +665,10 @@
         "activate": "Активировать пользователя (по умолчанию)",
         "disable": "Отключить пользователя",
         "delete": "Удалить пользователя"
+      },
+      "recordOutboundUsage": {
+        "title": "Учитывать трафик по outbound",
+        "description": "Сохранять трафик по каждому тегу outbound для каждого узла, чтобы показывать график. Добавляет строки в базу данных, больше при многих outbound."
       },
       "errorLoadingSettings": "Ошибка загрузки настроек"
     }
@@ -3463,6 +3468,10 @@
   "usersTable.delete": "Удалить",
   "usersTable.cancel": "Отмена",
   "statistics.trafficUsage": "Использование трафика",
+  "statistics.outboundUsage": "Использование outbound",
+  "statistics.outboundUsageDescription": "Трафик по тегам outbound (direct, warp, block и т. д.)",
+  "statistics.outboundUsageEmpty": "Данных пока нет. Включите «Учитывать трафик по outbound» в Настройки > Общие.",
+  "statistics.outboundUsageOther": "Другое",
   "statistics.trafficUsageDescription": "Общее использование трафика на всех серверах",
   "statistics.usageDuringPeriod": "Использование за период",
   "statistics.users": "Пользователи",
