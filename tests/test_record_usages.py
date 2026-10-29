@@ -17,7 +17,17 @@ from sqlalchemy.pool import NullPool
 
 from app.db import base
 from app.db.crud.node import remove_node
-from app.db.models import Admin, AdminRole, AdminStatus, Node, NodeUsage, NodeUserUsage, System, User
+from app.db.models import (
+    Admin,
+    AdminRole,
+    AdminStatus,
+    Node,
+    NodeOutboundUsage,
+    NodeUsage,
+    NodeUserUsage,
+    System,
+    User,
+)
 from app.jobs import record_usages
 from app.models.proxy import ProxyTable
 from app.operation import admin_sync
@@ -1235,3 +1245,35 @@ async def test_usage_coefficient_is_cached_across_collects(monkeypatch: pytest.M
 
     assert extra_calls["n"] == 1
     assert first[1] == second[1] == 2.0
+
+
+def _outbound_test_node(name: str = "node-1", port: int = 1000) -> Node:
+    return Node(
+        name=name,
+        address="10.0.0.1",
+        port=port,
+        api_port=port + 1,
+        server_ca="ca1",
+        api_key="key1",
+        core_config_id=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_remove_node_deletes_outbound_usage(session_factory):
+    bucket = datetime(2026, 10, 29, 12, 0, tzinfo=UTC)
+    async with session_factory() as session:
+        node = _outbound_test_node()
+        session.add(node)
+        await session.flush()
+        session.add_all(
+            [
+                NodeOutboundUsage(created_at=bucket, node_id=node.id, outbound_tag="direct", uplink=1, downlink=2),
+                NodeOutboundUsage(created_at=bucket, node_id=node.id, outbound_tag="warp", uplink=3, downlink=4),
+            ]
+        )
+        await session.commit()
+
+        await remove_node(session, node)
+
+        assert await session.scalar(select(func.count()).select_from(NodeOutboundUsage)) == 0

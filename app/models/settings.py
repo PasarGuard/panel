@@ -378,6 +378,8 @@ class General(BaseModel):
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
     on_hold_timeout_action: OnHoldTimeoutAction = Field(default=OnHoldTimeoutAction.activate)
     custom_variables: list[CustomVariable] | None = Field(default=None)
+    # Store usage per outbound tag per node; adds rows to node_outbound_usages
+    record_outbound_usage: bool = Field(default=False)
 
     @field_validator("custom_variables")
     @classmethod

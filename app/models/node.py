@@ -24,6 +24,7 @@ SECONDS_IN_YEAR = 31536000  # 365 days
 class UsageTable(str, Enum):
     node_user_usages = "node_user_usages"
     node_usages = "node_usages"
+    node_outbound_usages = "node_outbound_usages"
 
 
 class GeoFilseRegion(str, Enum):

@@ -11,6 +11,7 @@ from app.db.compiles_types import DateDiff
 from app.db.models import (
     DataLimitResetStrategy,
     Node,
+    NodeOutboundUsage,
     NodeStat,
     NodeStatus,
     NodeUsage,
@@ -475,6 +476,7 @@ async def remove_node(db: AsyncSession, db_node: Node) -> None:
     # Remove dependent rows explicitly to avoid ORM cascading overhead on large tables.
     await db.execute(delete(NodeUserUsage).where(NodeUserUsage.node_id == node_id))
     await db.execute(delete(NodeUsage).where(NodeUsage.node_id == node_id))
+    await db.execute(delete(NodeOutboundUsage).where(NodeOutboundUsage.node_id == node_id))
     await db.execute(delete(NodeUsageResetLogs).where(NodeUsageResetLogs.node_id == node_id))
     await db.execute(delete(NodeStat).where(NodeStat.node_id == node_id))
     await db.execute(delete(Node).where(Node.id == node_id))
@@ -572,6 +574,8 @@ def _table_model(table: UsageTable):
         return NodeUserUsage
     if table == UsageTable.node_usages:
         return NodeUsage
+    if table == UsageTable.node_outbound_usages:
+        return NodeOutboundUsage
     raise ValueError("Invalid table enum")
 
 
@@ -885,6 +889,7 @@ async def remove_nodes(db: AsyncSession, node_ids: list[int]) -> None:
 
     await db.execute(delete(NodeUserUsage).where(NodeUserUsage.node_id.in_(node_ids)))
     await db.execute(delete(NodeUsage).where(NodeUsage.node_id.in_(node_ids)))
+    await db.execute(delete(NodeOutboundUsage).where(NodeOutboundUsage.node_id.in_(node_ids)))
     await db.execute(delete(NodeUsageResetLogs).where(NodeUsageResetLogs.node_id.in_(node_ids)))
     await db.execute(delete(NodeStat).where(NodeStat.node_id.in_(node_ids)))
     await db.execute(delete(Node).where(Node.id.in_(node_ids)))
