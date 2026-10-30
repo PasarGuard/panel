@@ -775,7 +775,10 @@ class NodeOperation(BaseOperation):
         db: AsyncSession,
         query: NodeOutboundUsageQuery,
     ) -> NodeOutboundUsageStatsList:
-        start, end = await self.validate_dates(query.start, query.end, True)
+        # Outbound rows share the 10 minute bucket of node usage history
+        start, end = await self.validate_dates(
+            query.start, query.end, True, period=query.period, granularity=USAGE_RECORD_GRANULARITY
+        )
         return await get_nodes_outbound_usage(db, start, end, period=query.period, node_id=query.node_id)
 
     async def get_user_count_metric(

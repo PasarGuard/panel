@@ -63,6 +63,7 @@ def _assert_rejected(response):
 
 ADMIN_PATHS = [
     "/api/node/usage",
+    "/api/node/usage/outbounds",
     "/api/node/user_counts/online",
     "/api/node/999999/stats",
     "/api/users/usage",
