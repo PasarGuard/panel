@@ -15,17 +15,10 @@ from app.telegram import startup_telegram_bot
 from . import BaseOperation
 
 
-def _bot_settings(settings: SettingsSchema) -> dict | None:
-    if settings.telegram is None:
-        return None
-    return settings.telegram.model_dump(exclude={"do_not_log_bot"})
-
-
 class SettingsOperation(BaseOperation):
     @staticmethod
     async def reset_services(old_settings: SettingsSchema, new_settings: SettingsSchema):
-        # do_not_log_bot only changes the access log filter, the bot keeps running
-        if _bot_settings(new_settings) != _bot_settings(old_settings):
+        if new_settings.telegram != old_settings.telegram:
             await startup_telegram_bot()
         # When webhooks are disabled, send_notifications() already returns early
         # Pending webhook notifications will be processed when webhooks are re-enabled

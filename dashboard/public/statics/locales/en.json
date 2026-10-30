@@ -212,14 +212,6 @@
       "stopNodesOnShutdown": {
         "title": "Stop node cores on shutdown",
         "description": "Stop the cores of all nodes when the panel shuts down. Only with a single worker"
-      },
-      "adminSessions": {
-        "title": "Admin sessions",
-        "description": "Login tokens issued to admins",
-        "tokenExpireMinutes": {
-          "title": "Session lifetime (minutes)",
-          "description": "How long an admin login stays valid. 0 or less never expires. Applies to new logins"
-        }
       }
     },
     "notifications": {
@@ -540,9 +532,7 @@
         "miniAppUrlPlaceholder": "Enter the Mini App URL (optional)",
         "miniAppUrlDescription": "The URL for your Telegram Mini App. Leave empty if not used.",
         "forAdminsOnly": "For Admins Only",
-        "forAdminsOnlyDescription": "Restrict bot access to administrators only",
-        "doNotLogBot": "Hide webhook requests from logs",
-        "doNotLogBotDescription": "Do not write Telegram webhook requests to the access log"
+        "forAdminsOnlyDescription": "Restrict bot access to administrators only"
       }
     },
     "webhook": {

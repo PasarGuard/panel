@@ -35,7 +35,6 @@ const generalSettingsSchema = z.object({
     max_backoff: z.number().int().min(0),
   }),
   stop_nodes_on_shutdown: z.boolean(),
-  admin_token_expire_minutes: z.number().int().max(5_256_000),
 })
 
 type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>
@@ -55,7 +54,6 @@ const DEFAULT_GENERAL_FORM_VALUES: GeneralSettingsFormInput = {
     max_backoff: 60,
   },
   stop_nodes_on_shutdown: true,
-  admin_token_expire_minutes: 1440,
 }
 
 function toGeneralFormValues(settings?: GeneralSettingsResponse): GeneralSettingsFormInput {
@@ -66,12 +64,11 @@ function toGeneralFormValues(settings?: GeneralSettingsResponse): GeneralSetting
     usage: { ...DEFAULT_GENERAL_FORM_VALUES.usage, ...settings.usage },
     node_health: { ...DEFAULT_GENERAL_FORM_VALUES.node_health, ...settings.node_health },
     stop_nodes_on_shutdown: settings.stop_nodes_on_shutdown ?? DEFAULT_GENERAL_FORM_VALUES.stop_nodes_on_shutdown,
-    admin_token_expire_minutes: settings.admin_token_expire_minutes ?? DEFAULT_GENERAL_FORM_VALUES.admin_token_expire_minutes,
   }
 }
 
 type SwitchFieldName = 'usage.record_node_usage' | 'usage.record_node_stats' | 'usage.reset_usage_clean_chart_data' | 'stop_nodes_on_shutdown'
-type NumberFieldName = Extract<FieldPath<GeneralSettingsFormInput>, `node_health.${string}`> | 'admin_token_expire_minutes'
+type NumberFieldName = Extract<FieldPath<GeneralSettingsFormInput>, `node_health.${string}`>
 
 export default function General() {
   const { t } = useTranslation()
@@ -97,7 +94,6 @@ export default function General() {
           usage: data.usage,
           node_health: data.node_health,
           stop_nodes_on_shutdown: data.stop_nodes_on_shutdown,
-          admin_token_expire_minutes: data.admin_token_expire_minutes,
         },
       }
 
@@ -161,7 +157,7 @@ export default function General() {
     />
   )
 
-  const renderNumberField = (name: NumberFieldName, labelKey: string, min?: number) => (
+  const renderNumberField = (name: NumberFieldName, labelKey: string, min: number) => (
     <FormField
       control={form.control}
       name={name}
@@ -330,15 +326,6 @@ export default function General() {
               {renderNumberField('node_health.max_backoff', 'settings.general.nodeHealth.maxBackoff', 0)}
             </div>
             {renderSwitchField('stop_nodes_on_shutdown', 'settings.general.stopNodesOnShutdown')}
-          </div>
-
-          {/* Admin sessions */}
-          <div className="mb-4 space-y-3 sm:mb-6">
-            <div className="space-y-1">
-              <h3 className="text-base font-semibold sm:text-lg">{t('settings.general.adminSessions.title')}</h3>
-              <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.general.adminSessions.description')}</p>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">{renderNumberField('admin_token_expire_minutes', 'settings.general.adminSessions.tokenExpireMinutes')}</div>
           </div>
 
           <Separator className="my-3" />

@@ -1640,7 +1640,6 @@ export interface General {
   usage?: UsageSettings;
   node_health?: NodeHealthSettings;
   stop_nodes_on_shutdown?: boolean;
-  admin_token_expire_minutes?: number;
 }
 
 export type GeoFilseRegion = typeof GeoFilseRegion[keyof typeof GeoFilseRegion];
@@ -2249,7 +2248,6 @@ export interface Telegram {
   mini_app_login?: boolean;
   mini_app_web_url?: string | null;
   for_admins_only?: boolean;
-  do_not_log_bot?: boolean;
 }
 
 export interface WebhookInfo {

@@ -45,7 +45,6 @@ def test_general_settings_update_keeps_fields_the_request_left_out(access_token)
         "on_hold_timeout_action": "disable",
         "usage": {**original["general"]["usage"], "record_node_stats": True},
         "node_health": {**original["general"]["node_health"], "fail_threshold": 7, "max_backoff": 0},
-        "admin_token_expire_minutes": 90,
     }
     stored_general.pop("custom_variables", None)
 
@@ -64,7 +63,6 @@ def test_general_settings_update_keeps_fields_the_request_left_out(access_token)
         general = client.get("/api/settings", headers=auth_headers(access_token)).json()["general"]
         assert general["stop_nodes_on_shutdown"] is False
         assert general["on_hold_timeout_action"] == "disable"
-        assert general["admin_token_expire_minutes"] == 90
         assert general["usage"]["record_node_stats"] is True
         assert general["node_health"] == {**stored_general["node_health"], "recover_threshold": 4}
     finally:
@@ -82,16 +80,6 @@ def test_settings_update_rejects_invalid_nested_values(access_token):
         "/api/settings",
         headers=auth_headers(access_token),
         json={"general": {"node_health": {"fail_threshold": 0}}},
-    )
-
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-
-
-def test_settings_update_rejects_token_expiry_past_ten_years(access_token):
-    response = client.put(
-        "/api/settings",
-        headers=auth_headers(access_token),
-        json={"general": {"admin_token_expire_minutes": 5_256_001}},
     )
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

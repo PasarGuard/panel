@@ -139,6 +139,10 @@ class SubscriptionEnvSettings(EnvSettings):
         return (self.xray_path or self.fallback_path).strip("/")
 
 
+class JwtSettings(EnvSettings):
+    access_token_expire_minutes: int = Field(default=1440, validation_alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+
+
 class TemplateSettings(EnvSettings):
     custom_templates_directory: str | None = Field(default=None, validation_alias="CUSTOM_TEMPLATES_DIRECTORY")
     subscription_page_template: str = Field(
@@ -150,6 +154,10 @@ class TemplateSettings(EnvSettings):
 class UserCleanupSettings(EnvSettings):
     autodelete_days: int = Field(default=-1, validation_alias="USERS_AUTODELETE_DAYS")
     include_limited_accounts: bool = Field(default=False, validation_alias="USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS")
+
+
+class TelegramEnvSettings(EnvSettings):
+    do_not_log_bot: bool = Field(default=True, validation_alias="DO_NOT_LOG_TELEGRAM_BOT")
 
 
 class LoggingSettings(EnvSettings):
@@ -215,8 +223,10 @@ dashboard_settings = DashboardSettings()
 nats_settings = NatsSettings()
 cors_settings = CorsSettings()
 subscription_env_settings = SubscriptionEnvSettings()
+jwt_settings = JwtSettings()
 template_settings = TemplateSettings()
 user_cleanup_settings = UserCleanupSettings()
+telegram_env_settings = TelegramEnvSettings()
 logging_settings = LoggingSettings()
 auth_settings = AuthSettings()
 usage_settings = UsageSettings()

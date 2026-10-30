@@ -344,9 +344,7 @@
         "miniAppUrlPlaceholder": "آدرس Mini App را وارد کنید (اختیاری)",
         "miniAppUrlDescription": "آدرس Mini App تلگرام خود را وارد کنید. در صورت عدم استفاده، خالی بگذارید.",
         "forAdminsOnly": "فقط برای مدیران",
-        "forAdminsOnlyDescription": "دسترسی ربات فقط به مدیران محدود میشود.",
-        "doNotLogBot": "پنهان کردن درخواست‌های وب‌هوک از لاگ",
-        "doNotLogBotDescription": "درخواست‌های وب‌هوک تلگرام در لاگ دسترسی نوشته نشود"
+        "forAdminsOnlyDescription": "دسترسی ربات فقط به مدیران محدود میشود."
       }
     },
     "webhook": {
@@ -551,14 +549,6 @@
       "stopNodesOnShutdown": {
         "title": "توقف هسته نودها هنگام خاموشی",
         "description": "هنگام خاموش شدن پنل، هسته همه نودها متوقف شود. فقط با یک worker"
-      },
-      "adminSessions": {
-        "title": "نشست‌های ادمین",
-        "description": "توکن‌های ورودی که برای ادمین‌ها صادر می‌شود",
-        "tokenExpireMinutes": {
-          "title": "مدت اعتبار نشست (دقیقه)",
-          "description": "مدت معتبر ماندن ورود ادمین. 0 یا کمتر یعنی هرگز منقضی نمی‌شود. برای ورودهای جدید اعمال می‌شود"
-        }
       }
     }
   },

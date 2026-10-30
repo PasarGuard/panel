@@ -463,9 +463,7 @@
         "miniAppUrlPlaceholder": "输入 Mini App 链接（可选）",
         "miniAppUrlDescription": "您的 Telegram Mini App 链接。如果未使用请留空。",
         "forAdminsOnly": "仅限管理员",
-        "forAdminsOnlyDescription": "限制机器人访问仅限管理员",
-        "doNotLogBot": "在日志中隐藏 Webhook 请求",
-        "doNotLogBotDescription": "不将 Telegram Webhook 请求写入访问日志"
+        "forAdminsOnlyDescription": "限制机器人访问仅限管理员"
       }
     },
     "webhook": {
@@ -714,14 +712,6 @@
       "stopNodesOnShutdown": {
         "title": "关闭时停止节点核心",
         "description": "面板关闭时停止所有节点的核心。仅在单个 worker 时生效"
-      },
-      "adminSessions": {
-        "title": "管理员会话",
-        "description": "签发给管理员的登录令牌",
-        "tokenExpireMinutes": {
-          "title": "会话有效期（分钟）",
-          "description": "管理员登录的有效时长。0 或更小表示永不过期。对新的登录生效"
-        }
       }
     },
     "errorLoadingSettings": "加载设置时出错"
