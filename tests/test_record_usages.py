@@ -5,6 +5,7 @@ import os
 import random
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -17,7 +18,17 @@ from sqlalchemy.pool import NullPool
 
 from app.db import base
 from app.db.crud.node import remove_node
-from app.db.models import Admin, AdminRole, AdminStatus, Node, NodeUsage, NodeUserUsage, System, User
+from app.db.models import (
+    Admin,
+    AdminRole,
+    AdminStatus,
+    Node,
+    NodeOutboundUsage,
+    NodeUsage,
+    NodeUserUsage,
+    System,
+    User,
+)
 from app.jobs import record_usages
 from app.models.proxy import ProxyTable
 from app.models.settings import General, UsageSettings
@@ -51,6 +62,12 @@ def reset_user_usage_history_buffer():
     yield
     record_usages._pending_user_usage_history.clear()
     record_usages._user_usage_history_last_flush = None
+
+
+@pytest.fixture(autouse=True)
+def default_general_settings(monkeypatch: pytest.MonkeyPatch):
+    """The usage jobs read panel settings from the app database, which these tests do not migrate."""
+    monkeypatch.setattr(record_usages, "general_settings", AsyncMock(return_value=General()))
 
 
 def test_prepare_node_user_usage_params_aggregates_nonzero_deltas():
@@ -1245,3 +1262,262 @@ async def test_usage_coefficient_is_cached_across_collects(monkeypatch: pytest.M
 
     assert extra_calls["n"] == 1
     assert first[1] == second[1] == 2.0
+
+
+def _outbound_test_node(name: str = "node-1", port: int = 1000) -> Node:
+    return Node(
+        name=name,
+        address="10.0.0.1",
+        port=port,
+        api_port=port + 1,
+        server_ca="ca1",
+        api_key="key1",
+        core_config_id=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_remove_node_deletes_outbound_usage(session_factory):
+    bucket = datetime(2026, 10, 29, 12, 0, tzinfo=UTC)
+    async with session_factory() as session:
+        node = _outbound_test_node()
+        session.add(node)
+        await session.flush()
+        session.add_all(
+            [
+                NodeOutboundUsage(created_at=bucket, node_id=node.id, outbound_tag="direct", uplink=1, downlink=2),
+                NodeOutboundUsage(created_at=bucket, node_id=node.id, outbound_tag="warp", uplink=3, downlink=4),
+            ]
+        )
+        await session.commit()
+
+        await remove_node(session, node)
+
+        assert await session.scalar(select(func.count()).select_from(NodeOutboundUsage)) == 0
+
+
+def test_prepare_outbound_params_folds_directions():
+    bucket = datetime(2026, 10, 29, 12, 0, tzinfo=UTC)
+
+    params = record_usages._prepare_node_outbound_usage_params(
+        {
+            1: [
+                {"tag": "direct", "up": 5, "down": 0},
+                {"tag": "direct", "up": 0, "down": 7},
+                {"tag": "wg0", "up": 2, "down": 3},
+                {"tag": "block", "up": 0, "down": 0},
+            ],
+            2: [{"tag": "direct", "up": 1, "down": 0}],
+            3: [{"tag": "MTProto", "up": 4, "down": 6}],
+        },
+        bucket,
+    )
+
+    assert params == [
+        {"node_id": 1, "tag": "direct", "up": 5, "down": 7, "created_at": bucket},
+        {"node_id": 1, "tag": "wg0", "up": 2, "down": 3, "created_at": bucket},
+        {"node_id": 2, "tag": "direct", "up": 1, "down": 0, "created_at": bucket},
+        {"node_id": 3, "tag": "MTProto", "up": 4, "down": 6, "created_at": bucket},
+    ]
+
+
+def test_prepare_outbound_params_truncates_long_tags():
+    bucket = datetime(2026, 10, 29, 12, 0, tzinfo=UTC)
+
+    params = record_usages._prepare_node_outbound_usage_params(
+        {1: [{"tag": "x" * 300, "up": 1, "down": 1}, {"up": 9, "down": 9}, {"tag": "", "up": 9, "down": 9}]},
+        bucket,
+    )
+
+    assert [len(param["tag"]) for param in params] == [256]
+
+
+def test_outbounds_stats_response_keeps_the_tag():
+    def stat(name, type_, value):
+        return SimpleNamespace(name=name, type=type_, value=value)
+
+    response = SimpleNamespace(
+        stats=[stat("direct", "uplink", 3), stat("direct", "downlink", 4), stat("warp", "uplink", 0)]
+    )
+
+    assert record_usages._process_outbounds_stats_response(response) == [
+        {"tag": "direct", "up": 3, "down": 0},
+        {"tag": "direct", "up": 0, "down": 4},
+    ]
+
+
+async def _seed_outbound_nodes(session_factory) -> tuple[int, int]:
+    async with session_factory() as session:
+        node_one = _outbound_test_node("node-1", 1000)
+        node_two = _outbound_test_node("node-2", 2000)
+        session.add_all([node_one, node_two, System(uplink=0, downlink=0)])
+        await session.flush()
+        ids = node_one.id, node_two.id
+        await session.commit()
+    return ids
+
+
+def _patch_outbound_job(
+    monkeypatch: pytest.MonkeyPatch, nodes: list[int], stats_map: dict, enabled: bool, node_usage: bool = True
+) -> None:
+    monkeypatch.setattr(
+        record_usages.node_manager,
+        "get_healthy_nodes",
+        AsyncMock(return_value=[(node_id, DummyNode(node_id)) for node_id in nodes]),
+    )
+
+    async def fake_get_outbounds_stats(node: DummyNode, node_id: int | None = None):
+        return stats_map[node.node_id]
+
+    monkeypatch.setattr(record_usages, "get_outbounds_stats", fake_get_outbounds_stats)
+    usage = UsageSettings(record_node_usage=node_usage, record_outbound_usage=enabled)
+    monkeypatch.setattr(record_usages, "general_settings", AsyncMock(return_value=General(usage=usage)))
+
+
+@pytest.mark.asyncio
+async def test_record_node_usages_records_outbound_history(monkeypatch: pytest.MonkeyPatch, session_factory):
+    node_one_id, node_two_id = await _seed_outbound_nodes(session_factory)
+    stats_map = {
+        node_one_id: [
+            {"tag": "direct", "up": 10, "down": 0},
+            {"tag": "direct", "up": 0, "down": 4},
+            {"tag": "warp", "up": 2, "down": 3},
+        ],
+        node_two_id: [{"tag": "direct", "up": 1, "down": 1}],
+    }
+    _patch_outbound_job(monkeypatch, [node_one_id, node_two_id], stats_map, enabled=True)
+
+    await record_usages.record_node_usages()
+    await record_usages.record_node_usages()
+
+    async with session_factory() as session:
+        rows = await session.execute(
+            select(
+                NodeOutboundUsage.node_id,
+                NodeOutboundUsage.outbound_tag,
+                func.sum(NodeOutboundUsage.uplink),
+                func.sum(NodeOutboundUsage.downlink),
+            ).group_by(NodeOutboundUsage.node_id, NodeOutboundUsage.outbound_tag)
+        )
+        assert {(row[0], row[1]): (row[2], row[3]) for row in rows.all()} == {
+            (node_one_id, "direct"): (20, 8),
+            (node_one_id, "warp"): (4, 6),
+            (node_two_id, "direct"): (2, 2),
+        }
+        node_rows = await session.execute(select(Node.id, Node.uplink, Node.downlink))
+        assert {row.id: (row.uplink, row.downlink) for row in node_rows.all()} == {
+            node_one_id: (24, 14),
+            node_two_id: (2, 2),
+        }
+        # Node history is on too, so both histories get rows
+        assert await session.scalar(select(func.count()).select_from(NodeUsage)) > 0
+
+
+@pytest.mark.asyncio
+async def test_outbound_history_records_when_node_history_off(monkeypatch: pytest.MonkeyPatch, session_factory):
+    node_one_id, node_two_id = await _seed_outbound_nodes(session_factory)
+    stats_map = {node_one_id: [{"tag": "direct", "up": 5, "down": 6}], node_two_id: []}
+    _patch_outbound_job(monkeypatch, [node_one_id, node_two_id], stats_map, enabled=True, node_usage=False)
+
+    await record_usages.record_node_usages()
+
+    async with session_factory() as session:
+        rows = await session.execute(
+            select(NodeOutboundUsage.node_id, NodeOutboundUsage.uplink, NodeOutboundUsage.downlink)
+        )
+        assert [tuple(row) for row in rows.all()] == [(node_one_id, 5, 6)]
+        assert await session.scalar(select(func.count()).select_from(NodeUsage)) == 0
+        node = await session.get(Node, node_one_id)
+        assert (node.uplink, node.downlink) == (5, 6)
+
+
+@pytest.mark.asyncio
+async def test_no_history_when_both_off(monkeypatch: pytest.MonkeyPatch, session_factory):
+    node_one_id, node_two_id = await _seed_outbound_nodes(session_factory)
+    stats_map = {node_one_id: [{"tag": "direct", "up": 5, "down": 6}], node_two_id: []}
+    _patch_outbound_job(monkeypatch, [node_one_id, node_two_id], stats_map, enabled=False, node_usage=False)
+
+    await record_usages.record_node_usages()
+
+    async with session_factory() as session:
+        assert await session.scalar(select(func.count()).select_from(NodeOutboundUsage)) == 0
+        assert await session.scalar(select(func.count()).select_from(NodeUsage)) == 0
+        node = await session.get(Node, node_one_id)
+        assert (node.uplink, node.downlink) == (5, 6)
+
+
+@pytest.mark.asyncio
+async def test_outbound_history_off_writes_nothing(monkeypatch: pytest.MonkeyPatch, session_factory):
+    node_one_id, node_two_id = await _seed_outbound_nodes(session_factory)
+    stats_map = {node_one_id: [{"tag": "direct", "up": 5, "down": 5}], node_two_id: []}
+    _patch_outbound_job(monkeypatch, [node_one_id, node_two_id], stats_map, enabled=False)
+
+    await record_usages.record_node_usages()
+
+    async with session_factory() as session:
+        assert await session.scalar(select(func.count()).select_from(NodeOutboundUsage)) == 0
+        assert await session.scalar(select(func.count()).select_from(NodeUsage)) == 1
+
+
+@pytest.mark.asyncio
+async def test_outbound_history_skips_deleted_node(session_factory):
+    node_id, _ = await _seed_outbound_nodes(session_factory)
+
+    await record_usages.record_outbound_stats_batched(
+        {node_id + 1000: [{"tag": "direct", "up": 1, "down": 1}], node_id: [{"tag": "direct", "up": 2, "down": 3}]}
+    )
+
+    async with session_factory() as session:
+        rows = await session.execute(
+            select(NodeOutboundUsage.node_id, NodeOutboundUsage.uplink, NodeOutboundUsage.downlink)
+        )
+        assert [tuple(row) for row in rows.all()] == [(node_id, 2, 3)]
+
+
+@pytest.mark.asyncio
+async def test_settings_read_failure_keeps_node_totals(monkeypatch: pytest.MonkeyPatch, session_factory):
+    node_one_id, node_two_id = await _seed_outbound_nodes(session_factory)
+    stats_map = {node_one_id: [{"tag": "direct", "up": 5, "down": 6}], node_two_id: []}
+    _patch_outbound_job(monkeypatch, [node_one_id, node_two_id], stats_map, enabled=True)
+    monkeypatch.setattr(record_usages, "general_settings", AsyncMock(side_effect=OperationalError("x", {}, None)))
+
+    # History settings are read after the totals are written, so the error surfaces but totals stay
+    with pytest.raises(OperationalError):
+        await record_usages.record_node_usages()
+
+    async with session_factory() as session:
+        node = await session.get(Node, node_one_id)
+        assert (node.uplink, node.downlink) == (5, 6)
+        assert await session.scalar(select(func.count()).select_from(NodeOutboundUsage)) == 0
+
+
+@pytest.mark.asyncio
+async def test_outbound_tags_that_differ_in_case_stay_separate(session_factory):
+    node_id, _ = await _seed_outbound_nodes(session_factory)
+
+    await record_usages.record_outbound_stats_batched(
+        {node_id: [{"tag": "warp", "up": 1, "down": 2}, {"tag": "WARP", "up": 3, "down": 4}]}
+    )
+
+    async with session_factory() as session:
+        rows = await session.execute(
+            select(NodeOutboundUsage.outbound_tag, NodeOutboundUsage.uplink, NodeOutboundUsage.downlink)
+        )
+        assert sorted(tuple(row) for row in rows.all()) == [("WARP", 3, 4), ("warp", 1, 2)]
+
+
+@pytest.mark.asyncio
+async def test_node_and_outbound_history_share_one_bucket(monkeypatch: pytest.MonkeyPatch, session_factory):
+    node_one_id, node_two_id = await _seed_outbound_nodes(session_factory)
+    stats_map = {node_one_id: [{"tag": "direct", "up": 5, "down": 6}], node_two_id: []}
+    _patch_outbound_job(monkeypatch, [node_one_id, node_two_id], stats_map, enabled=True)
+    # A tick that crosses a 10-minute boundary would see a later bucket on its second read
+    buckets = iter([datetime(2026, 10, 29, 12, 0, tzinfo=UTC), datetime(2026, 10, 29, 12, 10, tzinfo=UTC)])
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda now=None: next(buckets))
+
+    await record_usages.record_node_usages()
+
+    async with session_factory() as session:
+        node_bucket = await session.scalar(select(NodeUsage.created_at))
+        outbound_bucket = await session.scalar(select(NodeOutboundUsage.created_at))
+        assert node_bucket.replace(tzinfo=UTC) == outbound_bucket.replace(tzinfo=UTC)

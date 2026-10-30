@@ -603,7 +603,8 @@
         "warning": "警告：此操作将永久删除所选表中的所有使用数据。此操作无法撤销。",
         "tables": {
           "nodeUserUsages": "节点用户使用情况",
-          "nodeUsages": "节点使用情况"
+          "nodeUsages": "节点使用情况",
+          "nodeOutboundUsages": "节点出站使用情况"
         }
       }
     },
@@ -687,6 +688,10 @@
         "resetUsageCleanChartData": {
           "title": "重置用量时清除图表",
           "description": "重置用户流量时删除其用量图表历史"
+        },
+        "recordOutboundUsage": {
+          "title": "按出站记录使用量",
+          "description": "为每个节点按出站标签保存流量，用于显示出站使用情况图表。会增加数据库行数，出站较多时更多。"
         }
       },
       "nodeHealth": {
@@ -3555,6 +3560,10 @@
   "usersTable.delete": "删除",
   "usersTable.cancel": "取消",
   "statistics.trafficUsage": "流量使用",
+  "statistics.outboundUsage": "出站使用情况",
+  "statistics.outboundUsageDescription": "按出站标签统计的流量（direct、warp、block 等）",
+  "statistics.outboundUsageEmpty": "此时间段内没有出站使用数据。仅在 设置 > 常规 中开启“按出站记录使用量”时才会记录。",
+  "statistics.outboundUsageOther": "其他",
   "statistics.trafficUsageDescription": "所有服务器的总流量使用情况",
   "statistics.usageDuringPeriod": "期间使用量",
   "statistics.users": "用户",

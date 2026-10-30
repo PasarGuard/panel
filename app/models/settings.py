@@ -381,6 +381,8 @@ class UsageSettings(BaseModel):
     # PostgreSQL only
     record_node_stats: bool = Field(default=False)
     reset_usage_clean_chart_data: bool = Field(default=False)
+    # Store usage per outbound tag per node; adds rows to node_outbound_usages
+    record_outbound_usage: bool = Field(default=False)
 
 
 class NodeHealthSettings(BaseModel):

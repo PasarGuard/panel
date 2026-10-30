@@ -36,6 +36,7 @@ from app.models.core import CoreCreate
 from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, NodesResponse
 from app.models.proxy import ProxyTable
 from app.models.stats import (
+    NodeOutboundUsageStatsList,
     NodeRealtimeStats,
     NodeStats,
     NodeStatsList,
@@ -707,6 +708,7 @@ def node_operator_mock(monkeypatch: pytest.MonkeyPatch):
         "get_node_stats_periodic",
         "get_node_system_stats",
         "get_user_count_metric",
+        "get_outbound_usage",
     ]
     for name in async_methods:
         setattr(operator, name, AsyncMock(name=name))
@@ -1443,3 +1445,28 @@ async def test_remove_node_deletes_associated_usage_tables():
         assert await count_rows(NodeStat) == 0
         remaining_nodes = await session.scalar(select(func.count()).select_from(Node).where(Node.id == node_id))
         assert remaining_nodes == 0
+
+
+def test_get_outbound_usage_passes_filters(access_token, node_operator_mock):
+    start = datetime(2024, 2, 1, tzinfo=UTC)
+    end = start + timedelta(days=7)
+    usage = NodeOutboundUsageStatsList(
+        start=start,
+        end=end,
+        period=Period.day,
+        stats={"direct": [NodeUsageStat(uplink=10, downlink=20, period_start=start)]},
+    )
+    node_operator_mock.get_outbound_usage.return_value = usage
+    response = client.get(
+        "/api/node/usage/outbounds",
+        headers=auth_headers(access_token),
+        params={"start": start.isoformat(), "end": end.isoformat(), "period": "day", "node_id": 5},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == usage.model_dump(mode="json")
+
+    query = node_operator_mock.get_outbound_usage.await_args.kwargs["query"]
+    assert query.node_id == 5
+    assert query.period == Period.day
+    assert query.start == start
+    assert query.end == end

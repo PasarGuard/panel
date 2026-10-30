@@ -27,6 +27,7 @@ const generalSettingsSchema = z.object({
     record_node_usage: z.boolean(),
     record_node_stats: z.boolean(),
     reset_usage_clean_chart_data: z.boolean(),
+    record_outbound_usage: z.boolean(),
   }),
   node_health: z.object({
     fail_threshold: z.number().int().min(1),
@@ -46,6 +47,7 @@ const DEFAULT_GENERAL_FORM_VALUES: GeneralSettingsFormInput = {
     record_node_usage: true,
     record_node_stats: false,
     reset_usage_clean_chart_data: false,
+    record_outbound_usage: false,
   },
   node_health: {
     fail_threshold: 3,
@@ -67,7 +69,7 @@ function toGeneralFormValues(settings?: GeneralSettingsResponse): GeneralSetting
   }
 }
 
-type SwitchFieldName = 'usage.record_node_usage' | 'usage.record_node_stats' | 'usage.reset_usage_clean_chart_data' | 'stop_nodes_on_shutdown'
+type SwitchFieldName = 'usage.record_node_usage' | 'usage.record_node_stats' | 'usage.reset_usage_clean_chart_data' | 'usage.record_outbound_usage' | 'stop_nodes_on_shutdown'
 type NumberFieldName = Extract<FieldPath<GeneralSettingsFormInput>, `node_health.${string}`>
 
 export default function General() {
@@ -310,6 +312,7 @@ export default function General() {
               {renderSwitchField('usage.record_node_usage', 'settings.general.usage.recordNodeUsage')}
               {renderSwitchField('usage.record_node_stats', 'settings.general.usage.recordNodeStats')}
               {renderSwitchField('usage.reset_usage_clean_chart_data', 'settings.general.usage.resetUsageCleanChartData')}
+              {renderSwitchField('usage.record_outbound_usage', 'settings.general.usage.recordOutboundUsage')}
             </div>
           </div>
 

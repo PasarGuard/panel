@@ -20,6 +20,7 @@ from app.db.crud.node import (
     get_node_by_id,
     get_node_stats,
     get_nodes,
+    get_nodes_outbound_usage,
     get_nodes_simple,
     get_nodes_usage,
     modify_node,
@@ -43,6 +44,7 @@ from app.models.node import (
     NodeListQuery,
     NodeModify,
     NodeNotification,
+    NodeOutboundUsageQuery,
     NodeResponse,
     NodeSimple,
     NodeSimpleListQuery,
@@ -58,6 +60,7 @@ from app.models.node import (
 from app.models.stats import (
     USAGE_RECORD_GRANULARITY,
     NodeOutboundsLatencyResponse,
+    NodeOutboundUsageStatsList,
     NodeRealtimeStats,
     NodeStatsList,
     NodeUsageStatsList,
@@ -767,6 +770,17 @@ class NodeOperation(BaseOperation):
             group_by_node=query.group_by_node,
         )
 
+    async def get_outbound_usage(
+        self,
+        db: AsyncSession,
+        query: NodeOutboundUsageQuery,
+    ) -> NodeOutboundUsageStatsList:
+        # Outbound rows share the 10 minute bucket of node usage history
+        start, end = await self.validate_dates(
+            query.start, query.end, True, period=query.period, granularity=USAGE_RECORD_GRANULARITY
+        )
+        return await get_nodes_outbound_usage(db, start, end, period=query.period, node_id=query.node_id)
+
     async def get_user_count_metric(
         self,
         db: AsyncSession,
@@ -1417,7 +1431,9 @@ class NodeOperation(BaseOperation):
             timeout=_MAINTENANCE_RPC_TIMEOUT,
         )
 
-    async def _update_geofiles_local(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+    async def _update_geofiles_local(
+        self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate
+    ) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -1428,7 +1444,9 @@ class NodeOperation(BaseOperation):
         await self._mark_node_reconnecting_after_update(db, node_id, node)
         return response.json()
 
-    async def _update_geofiles_remote(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+    async def _update_geofiles_remote(
+        self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate
+    ) -> dict:
         return await node_nats_client.request(
             "update_geofiles",
             {"node_id": node_id, "geofiles_update": node_geofiles_update.model_dump(mode="json")},

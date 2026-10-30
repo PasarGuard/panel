@@ -187,6 +187,10 @@
         "resetUsageCleanChartData": {
           "title": "Clear charts on usage reset",
           "description": "Delete a user's usage chart history when their data usage is reset"
+        },
+        "recordOutboundUsage": {
+          "title": "Record usage per outbound",
+          "description": "Store traffic per outbound tag for each node to show the Outbound Usage chart. Adds rows to the database, more with many outbounds."
         }
       },
       "nodeHealth": {
@@ -672,7 +676,8 @@
         "warning": "Warning: This will permanently delete all usage data from the selected table. This action cannot be undone.",
         "tables": {
           "nodeUserUsages": "Node User Usages",
-          "nodeUsages": "Node Usages"
+          "nodeUsages": "Node Usages",
+          "nodeOutboundUsages": "Node Outbound Usages"
         }
       }
     },
@@ -3598,6 +3603,10 @@
   "usersTable.delete": "Delete",
   "usersTable.cancel": "Cancel",
   "statistics.trafficUsage": "Traffic Usage",
+  "statistics.outboundUsage": "Outbound Usage",
+  "statistics.outboundUsageDescription": "Traffic per outbound tag (direct, warp, block, ...)",
+  "statistics.outboundUsageEmpty": "No outbound usage in this period. It is recorded only while \"Record usage per outbound\" is on in Settings > General.",
+  "statistics.outboundUsageOther": "Other",
   "statistics.trafficUsageDescription": "Total traffic usage across all servers",
   "statistics.usageDuringPeriod": "Usage During Period",
   "statistics.users": "Users",

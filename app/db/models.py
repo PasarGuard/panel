@@ -823,6 +823,21 @@ class NodeUsage(Base, IdMixin):
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
+class NodeOutboundUsage(Base, IdMixin):
+    __tablename__ = "node_outbound_usages"
+    __table_args__ = (
+        UniqueConstraint("created_at", "node_id", "outbound_tag"),
+        # The unique constraint already serves created_at range scans
+        Index("ix_node_outbound_usages_node_id_created_at", "node_id", "created_at"),
+    )
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
+    node_id: Mapped[int] = fk_id_column("nodes.id", ondelete="CASCADE")
+    # Xray tags are case sensitive; MySQL's default collation is not
+    outbound_tag: Mapped[str] = mapped_column(CaseSensitiveString(256))
+    uplink: Mapped[int] = mapped_column(BigInteger, default=0)
+    downlink: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
 class NodeUsageResetLogs(Base, CreatedAtUTCMixin):
     __tablename__ = "node_usage_reset_logs"
     __table_args__ = (
