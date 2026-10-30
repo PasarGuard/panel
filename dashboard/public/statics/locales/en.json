@@ -624,7 +624,7 @@
       "rollup": {
         "title": "Usage history detail",
         "description": "Merge older traffic rows into coarser time buckets so the usage tables stop growing at 10-minute detail.",
-        "off": "Keep 10-minute detail",
+        "off": "Off",
         "hourlyStep": {
           "title": "Hourly",
           "description": "Rows older than this are merged into one row per hour."
