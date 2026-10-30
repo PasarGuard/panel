@@ -151,11 +151,6 @@ class TemplateSettings(EnvSettings):
     home_page_template: str = Field(default="home/index.html", validation_alias="HOME_PAGE_TEMPLATE")
 
 
-class UserCleanupSettings(EnvSettings):
-    autodelete_days: int = Field(default=-1, validation_alias="USERS_AUTODELETE_DAYS")
-    include_limited_accounts: bool = Field(default=False, validation_alias="USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS")
-
-
 class TelegramEnvSettings(EnvSettings):
     do_not_log_bot: bool = Field(default=True, validation_alias="DO_NOT_LOG_TELEGRAM_BOT")
 
@@ -225,7 +220,6 @@ cors_settings = CorsSettings()
 subscription_env_settings = SubscriptionEnvSettings()
 jwt_settings = JwtSettings()
 template_settings = TemplateSettings()
-user_cleanup_settings = UserCleanupSettings()
 telegram_env_settings = TelegramEnvSettings()
 logging_settings = LoggingSettings()
 auth_settings = AuthSettings()

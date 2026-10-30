@@ -391,9 +391,7 @@ async def get_users_accessible_tags(db: AsyncSession, user_ids: list[int]) -> di
     return tags_by_user
 
 
-async def get_users_accessible_tags_by_inbound_tags(
-    db: AsyncSession, tags: Iterable[str]
-) -> dict[int, set[str]]:
+async def get_users_accessible_tags_by_inbound_tags(db: AsyncSession, tags: Iterable[str]) -> dict[int, set[str]]:
     """Like get_users_accessible_tags but for all users that can reach any of `tags` (no giant IN)."""
     tag_list = list(tags)
     if not tag_list:
@@ -433,9 +431,7 @@ def _peer_ips_present_clause():
 
 async def _user_ids_with_peer_ips(db: AsyncSession) -> list[int]:
     """Return user ids that have a non-empty wireguard.peer_ips array."""
-    rows = (
-        await db.execute(select(User.id).where(_peer_ips_present_clause()).order_by(User.id))
-    ).scalars().all()
+    rows = (await db.execute(select(User.id).where(_peer_ips_present_clause()).order_by(User.id))).scalars().all()
     return list(rows)
 
 
@@ -522,18 +518,14 @@ async def sync_users_allocations(
         tags_by_user = await get_users_accessible_tags(db, [user.id for user in users])
 
     targets_by_user = {
-        user.id: {ns.key for ns in namespaces.values() if ns.tags & tags_by_user.get(user.id, set())}
-        for user in users
+        user.id: {ns.key for ns in namespaces.values() if ns.tags & tags_by_user.get(user.id, set())} for user in users
     }
     candidate_keys = {
         candidate
         for user in users
-        if targets_by_user[user.id]
-        and (candidate := _wireguard_candidate_public_key(user.proxy_settings)) is not None
+        if targets_by_user[user.id] and (candidate := _wireguard_candidate_public_key(user.proxy_settings)) is not None
     }
-    outside_keys = await _stored_wireguard_keys_in_use(
-        db, candidate_keys, [user.id for user in users]
-    )
+    outside_keys = await _stored_wireguard_keys_in_use(db, candidate_keys, [user.id for user in users])
     by_candidate: dict[str, list[int]] = {}
     for user in users:
         if not targets_by_user[user.id]:
@@ -584,9 +576,7 @@ async def sync_users_allocations(
         if new_ips != old_ips:
             _set_user_peer_ips(user, new_ips)
             user_changed = True
-        if targets and _ensure_wireguard_keys(
-            user, shared_keys=shared_keys, occupied_keys=occupied_keys
-        ):
+        if targets and _ensure_wireguard_keys(user, shared_keys=shared_keys, occupied_keys=occupied_keys):
             user_changed = True
         if user_changed:
             changed.append(user)
@@ -622,6 +612,20 @@ async def _release_proxy_settings(db: AsyncSession, settings_list: Iterable[dict
     for key, offsets in releases.items():
         _give_back(rows[key], offsets)
     await db.flush()
+
+
+async def lock_users_subnets(db: AsyncSession, settings_list: Iterable[dict | None]) -> None:
+    """Lock the subnet rows these users' peer IPs belong to. Callers that lock user rows take this first, in the
+    same order as the allocation paths (subnet rows, then users), so the two cannot deadlock."""
+    namespaces = wg_namespaces(await get_wg_cores(db))
+    keys = set()
+    for proxy_settings in settings_list:
+        for entry in _user_peer_ips(proxy_settings):
+            host = peer_host(entry)
+            if host is not None and (ns := match_namespace(namespaces, *host)):
+                keys.add(ns.key)
+    if keys:
+        await _lock_subnet_rows(db, keys)
 
 
 async def release_users_allocations(db: AsyncSession, users: list[User]) -> None:

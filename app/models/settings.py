@@ -412,6 +412,16 @@ class General(BaseModel):
         return validate_custom_variables(value)
 
 
+class CleanupSettings(BaseModel):
+    """Automatic retention periods. ``None`` keeps the corresponding data indefinitely."""
+
+    expired_users_retention_days: int | None = Field(default=None, ge=0, le=36_500)
+    # Also delete limited users after the same period
+    include_limited_users: bool = Field(default=False)
+    usage_history_retention_days: int | None = Field(default=None, ge=1, le=36_500)
+    node_stats_retention_days: int | None = Field(default=None, ge=1, le=36_500)
+
+
 class SettingsSchema(BaseModel):
     telegram: Telegram | None = Field(default=None)
     webhook: Webhook | None = Field(default=None)
@@ -420,5 +430,6 @@ class SettingsSchema(BaseModel):
     subscription: Subscription | None = Field(default=None)
     hwid: HWIDSettings | None = Field(default=None)
     general: General | None = Field(default=None)
+    cleanup: CleanupSettings | None = Field(default=None)
 
     model_config = ConfigDict(from_attributes=True)
