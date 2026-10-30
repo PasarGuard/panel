@@ -511,9 +511,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
               <span>
                 {t('statistics.subscriptionDistributionRetentionNote', {
                   limit: 10,
-                  env: 'USER_SUBSCRIPTION_CLIENTS_LIMIT',
-                  defaultValue:
-                    'By default only the latest {{limit}} subscription updates are kept per user. Change this with {{env}} in your environment.',
+                  defaultValue: 'By default only the latest {{limit}} subscription updates are kept per user. Change this in the subscription settings.',
                 })}
               </span>
             </p>

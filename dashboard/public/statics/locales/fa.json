@@ -136,7 +136,9 @@
         "disableSubTemplate": "غیرفعال کردن قالب اشتراک",
         "disableSubTemplateDescription": "هنگام غیرفعال بودن، درخواست‌های مرورگر به جای صفحات HTML اشتراک، پاسخ‌های API برمی‌گردانند",
         "randomizeOrder": "تصادفی‌سازی ترتیب اشتراک",
-        "randomizeOrderDescription": "در هر درخواست اشتراک، ترتیب کانفیگ‌ها به‌صورت تصادفی جابه‌جا می‌شود"
+        "randomizeOrderDescription": "در هر درخواست اشتراک، ترتیب کانفیگ‌ها به‌صورت تصادفی جابه‌جا می‌شود",
+        "clientsLimit": "تعداد به‌روزرسانی‌های نگه‌داری‌شده برای هر کاربر",
+        "clientsLimitDescription": "چند به‌روزرسانی اخیر اشتراک (برنامه‌های کلاینت) برای هر کاربر نگه داشته شود. 0 یا کمتر یعنی همه نگه داشته شوند"
       },
       "responseHeaders": {
         "title": "هدرهای پاسخ",
@@ -507,7 +509,47 @@
         "disable": "غیرفعال‌سازی کاربر",
         "delete": "حذف کاربر"
       },
-      "errorLoadingSettings": "خطا در بارگذاری تنظیمات"
+      "errorLoadingSettings": "خطا در بارگذاری تنظیمات",
+      "usage": {
+        "title": "ثبت مصرف",
+        "description": "انتخاب کنید پنل کدام داده‌های مصرف را ذخیره کند",
+        "recordNodeUsage": {
+          "title": "ثبت مصرف نودها",
+          "description": "ترافیک هر نود برای کاربران و نودها ذخیره شود. مصرف کاربران و ادمین‌ها در هر حالت شمرده می‌شود"
+        },
+        "recordNodeStats": {
+          "title": "ثبت آمار سیستم نودها",
+          "description": "تاریخچه پردازنده، حافظه و پهنای باند نودها ذخیره شود. فقط PostgreSQL و TimescaleDB"
+        },
+        "resetUsageCleanChartData": {
+          "title": "پاک کردن نمودار هنگام ریست مصرف",
+          "description": "با ریست مصرف کاربر، تاریخچه نمودار مصرف او هم حذف شود"
+        }
+      },
+      "nodeHealth": {
+        "title": "بررسی سلامت نودها",
+        "description": "چه زمانی یک نود قطع یا دوباره وصل اعلام شود",
+        "failThreshold": {
+          "title": "آستانه خطا",
+          "description": "تعداد بررسی ناموفق پشت سر هم پیش از آن‌که نود در وضعیت خطا قرار گیرد"
+        },
+        "recoverThreshold": {
+          "title": "آستانه بازیابی",
+          "description": "تعداد بررسی موفق پشت سر هم پیش از آن‌که نود دوباره متصل اعلام شود"
+        },
+        "probeTimeout": {
+          "title": "مهلت بررسی (ثانیه)",
+          "description": "مدت انتظار بررسی سلامت برای پاسخ نود، هرگز بیشتر از مهلت خود نود"
+        },
+        "maxBackoff": {
+          "title": "حداکثر فاصله بررسی (ثانیه)",
+          "description": "بیشترین فاصله بین بررسی‌های نودی که در خطاست. عدد 0 یعنی در هر بار بررسی شود"
+        }
+      },
+      "stopNodesOnShutdown": {
+        "title": "توقف هسته نودها هنگام خاموشی",
+        "description": "هنگام خاموش شدن پنل، هسته همه نودها متوقف شود. فقط با یک worker"
+      }
     }
   },
   "saving": "در حال ذخیره...",
@@ -1886,7 +1928,7 @@
   "statistics.subscriptionDistribution": "توزیع کلاینت‌های اشتراک",
   "statistics.subscriptionDistributionDetails": "جزئیات کلاینت‌های اشتراک",
   "statistics.subscriptionDistributionDescription": "سهم به‌روزرسانی‌های لینک اشتراک بین عامل‌ها و برنامه‌ها.",
-  "statistics.subscriptionDistributionRetentionNote": "به‌طور پیش‌فرض فقط {{limit}} به‌روزرسانی اخیر اشتراک برای هر کاربر نگه داشته می‌شود. برای تغییر، {{env}} را در محیط تنظیم کنید.",
+  "statistics.subscriptionDistributionRetentionNote": "به‌طور پیش‌فرض فقط {{limit}} به‌روزرسانی اخیر اشتراک برای هر کاربر نگه داشته می‌شود. این مقدار را در تنظیمات اشتراک تغییر دهید.",
   "statistics.totalSubscriptions": "مجموع به‌روزرسانی‌ها",
   "statistics.percentage": "درصد",
   "statistics.adminFilterLabel": "فیلتر بر اساس ادمین",

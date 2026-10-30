@@ -172,7 +172,47 @@
         "disable": "Disable user",
         "delete": "Delete user"
       },
-      "errorLoadingSettings": "Error loading settings"
+      "errorLoadingSettings": "Error loading settings",
+      "usage": {
+        "title": "Usage recording",
+        "description": "Choose which usage data the panel stores",
+        "recordNodeUsage": {
+          "title": "Record node usage",
+          "description": "Store traffic per node for users and nodes. User and admin usage is counted either way"
+        },
+        "recordNodeStats": {
+          "title": "Record node system stats",
+          "description": "Store CPU, memory and bandwidth history of nodes. PostgreSQL and TimescaleDB only"
+        },
+        "resetUsageCleanChartData": {
+          "title": "Clear charts on usage reset",
+          "description": "Delete a user's usage chart history when their data usage is reset"
+        }
+      },
+      "nodeHealth": {
+        "title": "Node health checks",
+        "description": "When a node is reported as down or back up",
+        "failThreshold": {
+          "title": "Failure threshold",
+          "description": "Failed checks in a row before a node is marked as error"
+        },
+        "recoverThreshold": {
+          "title": "Recovery threshold",
+          "description": "Good checks in a row before a node is marked as connected again"
+        },
+        "probeTimeout": {
+          "title": "Probe timeout (seconds)",
+          "description": "How long a health probe waits for a node, never longer than the node's own timeout"
+        },
+        "maxBackoff": {
+          "title": "Maximum backoff (seconds)",
+          "description": "Longest wait between probes of a node in error. 0 probes it on every check"
+        }
+      },
+      "stopNodesOnShutdown": {
+        "title": "Stop node cores on shutdown",
+        "description": "Stop the cores of all nodes when the panel shuts down. Only with a single worker"
+      }
     },
     "notifications": {
       "title": "Notifications",
@@ -276,7 +316,9 @@
         "disableSubTemplate": "Disable Subscription Template",
         "disableSubTemplateDescription": "When disabled, browser requests will return API responses instead of HTML subscription pages",
         "randomizeOrder": "Randomize Subscription Order",
-        "randomizeOrderDescription": "Shuffle configuration order on each subscription request"
+        "randomizeOrderDescription": "Shuffle configuration order on each subscription request",
+        "clientsLimit": "Client updates kept per user",
+        "clientsLimitDescription": "How many recent subscription updates (client apps) are kept per user. 0 or less keeps all"
       },
       "responseHeaders": {
         "title": "Response Headers",
@@ -2093,7 +2135,7 @@
   "statistics.subscriptionDistribution": "Subscription Client Distribution",
   "statistics.subscriptionDistributionDetails": "Subscription Client Details",
   "statistics.subscriptionDistributionDescription": "Share of subscription updates across agents and applications.",
-  "statistics.subscriptionDistributionRetentionNote": "By default only the latest {{limit}} subscription updates are kept per user. Change this with {{env}} in your environment.",
+  "statistics.subscriptionDistributionRetentionNote": "By default only the latest {{limit}} subscription updates are kept per user. Change this in the subscription settings.",
   "statistics.totalSubscriptions": "Total subscription updates",
   "statistics.percentage": "Percentage",
   "statistics.adminFilterLabel": "Filter by admin",
