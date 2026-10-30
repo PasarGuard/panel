@@ -469,3 +469,35 @@ async def test_expired_user_cleanup_locks_subnets_before_users(retention_db, mon
     await autodelete_expired_users(retention_db, default_autodelete_days=1)
 
     assert calls == [("subnets", [peer_settings]), ("users", ["expired-cleanup-wireguard"])]
+
+
+@pytest.mark.asyncio
+async def test_expired_user_cleanup_retries_when_peer_ip_moves(retention_db, monkeypatch):
+    """A peer IP that changes after the subnet lock makes the batch start over, locking the new subnet first."""
+    import app.db.crud.user as user_crud
+
+    old_settings = {"wireguard": {"peer_ips": ["10.8.0.5/32"]}}
+    new_settings = {"wireguard": {"peer_ips": ["10.9.0.5/32"]}}
+    user = User(
+        username="expired-cleanup-moved-peer",
+        status=UserStatus.expired,
+        last_status_change=datetime.now(UTC) - timedelta(days=2),
+        proxy_settings=old_settings,
+    )
+    retention_db.add(user)
+    await retention_db.commit()
+
+    locked = []
+
+    async def move_after_first_lock(db, settings_list):
+        locked.append(list(settings_list))
+        if len(locked) == 1:
+            await db.execute(update(User).where(User.id == user.id).values(proxy_settings=new_settings))
+            await db.commit()
+
+    monkeypatch.setattr(user_crud, "lock_users_subnets", move_after_first_lock)
+
+    deleted_users = await autodelete_expired_users(retention_db, default_autodelete_days=1)
+
+    assert locked == [[old_settings], [new_settings]]
+    assert [deleted.username for deleted in deleted_users] == ["expired-cleanup-moved-peer"]

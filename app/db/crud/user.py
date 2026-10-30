@@ -1764,6 +1764,11 @@ async def get_users_subscription_agent_stats(
 
 AUTODELETE_BATCH_SIZE = 100
 AUTODELETE_MAX_USERS_PER_RUN = 1000
+AUTODELETE_MAX_RETRIES = 3
+
+
+def _wireguard_settings(proxy_settings: dict | None):
+    return (proxy_settings or {}).get("wireguard")
 
 
 async def autodelete_expired_users(
@@ -1809,12 +1814,14 @@ async def autodelete_expired_users(
     candidate_query = select(User.id, User.proxy_settings).where(*eligibility_conditions).order_by(User.id)
 
     result: list[UserNotificationResponse] = []
+    retries = 0
     while len(result) < max_users:
         current_batch_size = min(batch_size, max_users - len(result))
         candidates = (await db.execute(candidate_query.limit(current_batch_size))).all()
         if not candidates:
             break
         candidate_ids = [candidate.id for candidate in candidates]
+        prelocked = {candidate.id: _wireguard_settings(candidate.proxy_settings) for candidate in candidates}
         # remove_users releases WireGuard peer IPs, which locks subnet rows: take them before the user rows
         await lock_users_subnets(db, [candidate.proxy_settings for candidate in candidates])
 
@@ -1830,6 +1837,13 @@ async def autodelete_expired_users(
         expired_users = (await db.scalars(locked_query)).unique().all()
         if not expired_users:
             break
+        if any(_wireguard_settings(user.proxy_settings) != prelocked[user.id] for user in expired_users):
+            # A peer IP moved after the candidates were read, so its subnet row is not locked yet: start the batch over
+            await db.rollback()
+            retries += 1
+            if retries > AUTODELETE_MAX_RETRIES:
+                break
+            continue
 
         for user in expired_users:
             await load_user_attrs(user)
