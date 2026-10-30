@@ -5,11 +5,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from sqlalchemy import (
+    BigInteger,
     DateTime,
     Row,
     and_,
     bindparam,
     case,
+    cast,
     delete,
     desc,
     func,
@@ -1800,7 +1802,8 @@ async def autodelete_expired_users(
         # Compare with the app's UTC time: NOW() on MySQL is the session time zone. The bind is time zone aware
         # so PostgreSQL does not read it in the session time zone either.
         ElapsedSeconds(literal(datetime.now(UTC), DateTime(timezone=True)), User.last_status_change)
-        >= auto_delete * 86_400,
+        # 36,500 days in seconds does not fit a 32-bit integer
+        >= cast(auto_delete, BigInteger) * 86_400,
     )
     candidate_query = select(User.id).where(*eligibility_conditions).order_by(User.id)
 
