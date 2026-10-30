@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.exc import DBAPIError, OperationalError
 from starlette.requests import Request
 
+from app import app_factory
 from app.app_factory import database_operational_error_handler
 
 
@@ -29,25 +30,34 @@ async def test_database_operational_error_handler_handles_dbapi_errors():
     assert json.loads(response.body) == {"detail": "Database temporarily unavailable"}
 
 
-@pytest.mark.asyncio
-async def test_node_role_clears_general_settings_cache_on_settings_message(monkeypatch: pytest.MonkeyPatch):
-    from unittest.mock import AsyncMock
+class _RecordingRouter:
+    def __init__(self):
+        self.handlers = {}
 
-    from app import app_factory, settings as app_settings
-    from app.nats.message import MessageTopic
+    def register_handler(self, topic, handler):
+        self.handlers[topic] = handler
 
-    handlers = {}
-    monkeypatch.setattr(
-        app_factory.router, "register_handler", lambda topic, handler: handlers.setdefault(topic, handler)
-    )
-    monkeypatch.setattr("app.node.manager_sync.register_node_sync_handler", lambda: None)
 
-    # A node-only worker runs the usage jobs but not the full settings handler (which also syncs the bot)
+@pytest.mark.parametrize(
+    ("enable_settings", "enable_refresh", "expected"),
+    [
+        (True, True, "handle_settings_message"),
+        (False, True, "_refresh_settings_message"),
+        (False, False, None),
+    ],
+)
+def test_settings_messages_reach_node_workers_without_the_bot(monkeypatch, enable_settings, enable_refresh, expected):
+    fake_router = _RecordingRouter()
+    monkeypatch.setattr(app_factory, "router", fake_router)
+    monkeypatch.setattr(app_factory, "on_startup", lambda func: func)
+    monkeypatch.setattr(app_factory, "on_shutdown", lambda func: func)
+
     app_factory._register_nats_handlers(
-        enable_router=False, enable_settings=False, enable_client_templates=False, enable_node_sync=True
+        enable_router=False,
+        enable_settings=enable_settings,
+        enable_client_templates=False,
+        enable_settings_refresh=enable_refresh,
     )
 
-    clear = AsyncMock()
-    monkeypatch.setattr(app_settings.general_settings.cache, "clear", clear)
-    await handlers[MessageTopic.SETTING]({"action": "refresh"})
-    clear.assert_awaited_once()
+    handler = fake_router.handlers.get(app_factory.MessageTopic.SETTING)
+    assert (handler.__name__ if handler else None) == expected

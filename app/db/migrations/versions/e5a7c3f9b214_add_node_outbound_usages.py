@@ -1,7 +1,7 @@
 """add node outbound usages
 
 Revision ID: e5a7c3f9b214
-Revises: c8d2e4f6a1b3
+Revises: b849540d85bb
 Create Date: 2026-10-29 00:00:00.000000
 
 """
@@ -12,7 +12,7 @@ from alembic import op
 from app.db.compiles_types import CaseSensitiveString, SqliteCompatibleBigInteger
 
 revision = "e5a7c3f9b214"
-down_revision = "c8d2e4f6a1b3"
+down_revision = "b849540d85bb"
 branch_labels = None
 depends_on = None
 

@@ -80,11 +80,6 @@ async def refresh_caches() -> None:
     clear_sub_config_cache()
 
 
-async def handle_node_settings_message(_: dict):
-    """Clear the settings a node-only worker reads (its usage jobs) on a settings update."""
-    await general_settings.cache.clear()
-
-
 async def handle_settings_message(_: dict):
     """Handle settings update message from NATS router."""
     await refresh_caches()

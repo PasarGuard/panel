@@ -31,7 +31,7 @@ from app.db.models import (
 )
 from app.jobs import record_usages
 from app.models.proxy import ProxyTable
-from app.models.settings import General
+from app.models.settings import General, UsageSettings
 from app.operation import admin_sync
 from config import database_settings
 
@@ -43,6 +43,15 @@ class DummyNode:
 
     async def get_extra(self) -> dict[str, Any]:
         return {"usage_coefficient": self._usage_coefficient}
+
+
+def _patch_record_node_usage(monkeypatch: pytest.MonkeyPatch, enabled: bool) -> None:
+    general = General.model_construct(usage=UsageSettings(record_node_usage=enabled))
+
+    async def get_general_settings():
+        return general
+
+    monkeypatch.setattr(record_usages, "general_settings", get_general_settings)
 
 
 @pytest.fixture(autouse=True)
@@ -548,7 +557,7 @@ async def test_record_user_usages_updates_users_and_admins(monkeypatch: pytest.M
         return stats_map[node.node_id]
 
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
-    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", False)
+    _patch_record_node_usage(monkeypatch, True)
 
     await record_usages.record_user_usages()
 
@@ -620,7 +629,7 @@ async def test_record_user_usages_limits_overused_admin(monkeypatch: pytest.Monk
 
     remove_users = AsyncMock()
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
-    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", True)
+    _patch_record_node_usage(monkeypatch, False)
     monkeypatch.setattr("app.operation.admin_sync.sync_remove_users", remove_users)
 
     await record_usages.record_user_usages()
@@ -698,7 +707,7 @@ async def test_usage_cycles_match_a_reference_model(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
     monkeypatch.setattr(record_usages, "get_outbounds_stats", fake_get_outbounds_stats)
     monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
-    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", False)
+    _patch_record_node_usage(monkeypatch, True)
     # Flush buffered PostgreSQL history on every cycle
     monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 0)
 
@@ -965,7 +974,7 @@ async def test_record_user_usages_returns_when_no_usage(monkeypatch: pytest.Monk
         return []
 
     monkeypatch.setattr(record_usages, "get_users_stats", fake_get_users_stats)
-    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", False)
+    _patch_record_node_usage(monkeypatch, True)
 
     await record_usages.record_user_usages()
 
@@ -1019,7 +1028,7 @@ async def test_record_node_usages_updates_totals(monkeypatch: pytest.MonkeyPatch
         return stats_map[node.node_id]
 
     monkeypatch.setattr(record_usages, "get_outbounds_stats", fake_get_outbounds_stats)
-    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", False)
+    _patch_record_node_usage(monkeypatch, True)
 
     await record_usages.record_node_usages()
 
@@ -1359,10 +1368,8 @@ def _patch_outbound_job(monkeypatch: pytest.MonkeyPatch, nodes: list[int], stats
         return stats_map[node.node_id]
 
     monkeypatch.setattr(record_usages, "get_outbounds_stats", fake_get_outbounds_stats)
-    monkeypatch.setattr(record_usages.usage_settings, "disable_recording_node_usage", False)
-    monkeypatch.setattr(
-        record_usages, "general_settings", AsyncMock(return_value=General(record_outbound_usage=enabled))
-    )
+    usage = UsageSettings(record_outbound_usage=enabled)
+    monkeypatch.setattr(record_usages, "general_settings", AsyncMock(return_value=General(usage=usage)))
 
 
 @pytest.mark.asyncio
@@ -1437,7 +1444,9 @@ async def test_settings_read_failure_keeps_node_totals(monkeypatch: pytest.Monke
     _patch_outbound_job(monkeypatch, [node_one_id, node_two_id], stats_map, enabled=True)
     monkeypatch.setattr(record_usages, "general_settings", AsyncMock(side_effect=OperationalError("x", {}, None)))
 
-    await record_usages.record_node_usages()
+    # History settings are read after the totals are written, so the error surfaces but totals stay
+    with pytest.raises(OperationalError):
+        await record_usages.record_node_usages()
 
     async with session_factory() as session:
         node = await session.get(Node, node_one_id)

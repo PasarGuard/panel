@@ -58,6 +58,7 @@ from app.models.node import (
     UserIPListAll,
 )
 from app.models.stats import (
+    USAGE_RECORD_GRANULARITY,
     NodeOutboundsLatencyResponse,
     NodeOutboundUsageStatsList,
     NodeRealtimeStats,
@@ -757,7 +758,9 @@ class NodeOperation(BaseOperation):
         db: AsyncSession,
         query: NodeUsageQuery,
     ) -> NodeUsageStatsList:
-        start, end = await self.validate_dates(query.start, query.end, True)
+        start, end = await self.validate_dates(
+            query.start, query.end, True, period=query.period, granularity=USAGE_RECORD_GRANULARITY
+        )
         return await get_nodes_usage(
             db,
             start,
@@ -781,7 +784,9 @@ class NodeOperation(BaseOperation):
         metric: UserCountMetric,
         query: NodeUsageQuery,
     ) -> UserCountMetricStatsList:
-        start, end = await self.validate_dates(query.start, query.end, True)
+        start, end = await self.validate_dates(
+            query.start, query.end, True, period=query.period, granularity=USAGE_RECORD_GRANULARITY
+        )
         try:
             validate_user_count_metric_scope(metric, node_id=query.node_id, group_by_node=query.group_by_node)
         except ValueError as exc:
@@ -804,7 +809,7 @@ class NodeOperation(BaseOperation):
     async def get_node_stats_periodic(
         self, db: AsyncSession, node_id: int, query: NodeStatsPeriodQuery
     ) -> NodeStatsList:
-        start, end = await self.validate_dates(query.start, query.end, True)
+        start, end = await self.validate_dates(query.start, query.end, True, period=query.period)
 
         return await get_node_stats(db, node_id, start, end, period=query.period)
 

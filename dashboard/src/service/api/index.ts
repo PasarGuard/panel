@@ -1616,11 +1616,31 @@ export const OnHoldTimeoutAction = {
   delete: 'delete',
 } as const;
 
+export interface UsageSettings {
+  record_node_usage?: boolean;
+  record_node_stats?: boolean;
+  reset_usage_clean_chart_data?: boolean;
+  record_outbound_usage?: boolean;
+}
+
+export interface NodeHealthSettings {
+  /** @minimum 1 */
+  fail_threshold?: number;
+  /** @minimum 1 */
+  recover_threshold?: number;
+  /** @minimum 1 */
+  probe_timeout?: number;
+  /** @minimum 0 */
+  max_backoff?: number;
+}
+
 export interface General {
   default_method?: ShadowsocksMethods;
   on_hold_timeout_action?: OnHoldTimeoutAction;
   custom_variables?: CustomVariable[] | null;
-  record_outbound_usage?: boolean;
+  usage?: UsageSettings;
+  node_health?: NodeHealthSettings;
+  stop_nodes_on_shutdown?: boolean;
 }
 
 export type GeoFilseRegion = typeof GeoFilseRegion[keyof typeof GeoFilseRegion];
@@ -2298,6 +2318,7 @@ export interface Subscription {
   disable_sub_template?: boolean;
   randomize_order?: boolean;
   custom_variables?: CustomVariable[];
+  clients_limit?: number;
 }
 
 export interface SettingsSchema {

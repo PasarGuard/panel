@@ -1071,7 +1071,7 @@ async def _record_user_usages_impl():
                 await enforce_admin_limits_now(logger=logger)
             except Exception:
                 logger.exception("Failed to enforce admin limits after usage recording")
-        if usage_settings.disable_recording_node_usage:
+        if not (await general_settings()).usage.record_node_usage:
             return
 
         # Batch all node user usage writes into single operation
@@ -1199,7 +1199,7 @@ async def _record_node_usages_impl():
         async with JOB_SEM:
             await safe_execute(system_update_stmt)
 
-        if usage_settings.disable_recording_node_usage:
+        if not (await general_settings()).usage.record_node_usage:
             return
 
         # Batch all node usage writes
@@ -1208,7 +1208,7 @@ async def _record_node_usages_impl():
         await record_node_stats_batched(api_params, created_at)
 
         try:
-            if (await general_settings()).record_outbound_usage:
+            if (await general_settings()).usage.record_outbound_usage:
                 await record_outbound_stats_batched(api_params, created_at)
         except Exception:
             # Node totals are already recorded; per-outbound history is optional
