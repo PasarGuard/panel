@@ -1,5 +1,6 @@
 import re
 from enum import Enum, StrEnum
+from itertools import pairwise
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -420,6 +421,25 @@ class CleanupSettings(BaseModel):
     include_limited_users: bool = Field(default=False)
     usage_history_retention_days: int | None = Field(default=None, ge=1, le=36_500)
     node_stats_retention_days: int | None = Field(default=None, ge=1, le=36_500)
+    # Usage rows older than these are merged into hourly, 12-hour and daily buckets
+    usage_rollup_hourly_after_days: int | None = Field(default=None, ge=1, le=36_500)
+    usage_rollup_half_day_after_days: int | None = Field(default=None, ge=1, le=36_500)
+    usage_rollup_daily_after_days: int | None = Field(default=None, ge=1, le=36_500)
+
+    @model_validator(mode="after")
+    def check_rollup_order(self):
+        enabled = [
+            days
+            for days in (
+                self.usage_rollup_hourly_after_days,
+                self.usage_rollup_half_day_after_days,
+                self.usage_rollup_daily_after_days,
+            )
+            if days is not None
+        ]
+        if any(finer >= coarser for finer, coarser in pairwise(enabled)):
+            raise ValueError("Usage rollup days must increase from hourly to 12-hour to daily.")
+        return self
 
 
 class SettingsSchema(BaseModel):

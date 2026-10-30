@@ -190,6 +190,9 @@ def test_cleanup_settings_default_keeps_everything():
         "include_limited_users": False,
         "usage_history_retention_days": None,
         "node_stats_retention_days": None,
+        "usage_rollup_hourly_after_days": None,
+        "usage_rollup_half_day_after_days": None,
+        "usage_rollup_daily_after_days": None,
     }
 
 
@@ -206,6 +209,9 @@ def test_cleanup_settings_support_independent_disabled_rules():
         "include_limited_users": False,
         "usage_history_retention_days": 120,
         "node_stats_retention_days": None,
+        "usage_rollup_hourly_after_days": None,
+        "usage_rollup_half_day_after_days": None,
+        "usage_rollup_daily_after_days": None,
     }
 
 
