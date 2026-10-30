@@ -1780,8 +1780,9 @@ async def autodelete_expired_users(
         auto_delete >= 0,  # Negative values prevent auto-deletion
         User.status.in_(target_status),
         User.last_status_change.isnot(None),
-        # Compare with the app's UTC time: stored values are naive UTC, and NOW() on MySQL is the session time zone
-        ElapsedSeconds(literal(datetime.now(UTC).replace(tzinfo=None), DateTime), User.last_status_change)
+        # Compare with the app's UTC time: NOW() on MySQL is the session time zone. The bind is time zone aware
+        # so PostgreSQL does not read it in the session time zone either.
+        ElapsedSeconds(literal(datetime.now(UTC), DateTime(timezone=True)), User.last_status_change)
         >= auto_delete * 86_400,
     )
     candidate_query = select(User.id).where(*eligibility_conditions).order_by(User.id)

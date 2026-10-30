@@ -16,7 +16,7 @@ from app.models.settings import CleanupSettings
 
 cleanup_retention_job = importlib.import_module("app.jobs.cleanup_retention")
 cleanup_retention_migration = importlib.import_module(
-    "app.db.migrations.versions.7b3d1e9c4a6f_add_cleanup_retention_settings"
+    "app.db.migrations.versions.f0420da90ff1_add_cleanup_retention_settings"
 )
 remove_expired_users_job = importlib.import_module("app.jobs.remove_expired_users")
 

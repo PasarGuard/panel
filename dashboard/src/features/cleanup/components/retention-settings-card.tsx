@@ -195,7 +195,7 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
                   {item.key === 'expired_users_retention_days' && (
                     <label className="flex items-center justify-between gap-3 text-xs font-medium">
                       <span>{t('settings.cleanup.retention.expiredUsers.includeLimited')}</span>
-                      <Switch checked={draft.include_limited_users} disabled={!enabled} onCheckedChange={checked => setDraft(current => ({ ...current, include_limited_users: checked }))} />
+                      <Switch checked={draft.include_limited_users} onCheckedChange={checked => setDraft(current => ({ ...current, include_limited_users: checked }))} />
                     </label>
                   )}
                   <div className="text-muted-foreground flex items-start gap-2 text-xs leading-relaxed">

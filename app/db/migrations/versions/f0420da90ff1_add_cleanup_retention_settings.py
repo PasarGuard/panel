@@ -1,8 +1,8 @@
 """add cleanup retention settings
 
-Revision ID: 7b3d1e9c4a6f
+Revision ID: f0420da90ff1
 Revises: e5a7c3f9b214
-Create Date: 2026-08-17 00:00:00.000000
+Create Date: 2026-10-30 00:00:00.000000
 
 Adds the cleanup settings section. Every retention period starts as "keep forever", so an upgrade deletes nothing.
 USERS_AUTODELETE_DAYS and USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS move into it when they are set (environment
@@ -15,7 +15,7 @@ import os
 import sqlalchemy as sa
 from alembic import op
 
-revision = "7b3d1e9c4a6f"
+revision = "f0420da90ff1"
 down_revision = "e5a7c3f9b214"
 branch_labels = None
 depends_on = None
@@ -92,7 +92,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     bind = op.get_bind()
-    if bind.dialect.name == "mysql":
+    if bind.dialect.name in ("mysql", "mariadb"):
         # MySQL dropped the foreign key's own index when the (node_id, created_at) index could serve it;
         # it has to exist again before that index can go
         index_names = {index["name"] for index in sa.inspect(bind).get_indexes("node_stats")}
