@@ -151,17 +151,6 @@ class TemplateSettings(EnvSettings):
     home_page_template: str = Field(default="home/index.html", validation_alias="HOME_PAGE_TEMPLATE")
 
 
-class UserCleanupSettings(EnvSettings):
-    autodelete_days: int = Field(default=-1, validation_alias="USERS_AUTODELETE_DAYS")
-    include_limited_accounts: bool = Field(default=False, validation_alias="USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS")
-    autodelete_batch_size: int = Field(default=100, gt=0, validation_alias="USER_AUTODELETE_BATCH_SIZE")
-    autodelete_max_users_per_run: int = Field(
-        default=1000,
-        gt=0,
-        validation_alias="USER_AUTODELETE_MAX_USERS_PER_RUN",
-    )
-
-
 class TelegramEnvSettings(EnvSettings):
     do_not_log_bot: bool = Field(default=True, validation_alias="DO_NOT_LOG_TELEGRAM_BOT")
 
@@ -221,11 +210,6 @@ class JobSettings(EnvSettings):
     cleanup_subscription_updates_interval: int = Field(
         default=600, validation_alias="JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL"
     )
-    cleanup_retention_interval: int = Field(
-        default=3600,
-        gt=0,
-        validation_alias="JOB_CLEANUP_RETENTION_INTERVAL",
-    )
 
 
 database_settings = DatabaseSettings()
@@ -236,7 +220,6 @@ cors_settings = CorsSettings()
 subscription_env_settings = SubscriptionEnvSettings()
 jwt_settings = JwtSettings()
 template_settings = TemplateSettings()
-user_cleanup_settings = UserCleanupSettings()
 telegram_env_settings = TelegramEnvSettings()
 logging_settings = LoggingSettings()
 auth_settings = AuthSettings()

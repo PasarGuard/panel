@@ -533,9 +533,19 @@
         "save": "保存保留设置",
         "saving": "保存中...",
         "reset": "放弃更改",
-        "expiredUsers": { "title": "过期账户", "description": "账户保持过期状态指定天数后删除。每个账户的 auto_delete_in_days 覆盖值仍具有优先权。" },
-        "usageHistory": { "title": "流量历史", "description": "用户和节点流量图表的保留时间。" },
-        "nodeStats": { "title": "节点系统指标", "description": "CPU、内存和带宽速度样本的保留时间。" }
+        "expiredUsers": {
+          "title": "过期账户",
+          "description": "账户保持过期状态指定天数后删除。每个账户的 auto_delete_in_days 覆盖值仍具有优先权。",
+          "includeLimited": "同时删除受限用户"
+        },
+        "usageHistory": {
+          "title": "流量历史",
+          "description": "用户、节点和出站流量图表的保留期限。"
+        },
+        "nodeStats": {
+          "title": "节点系统指标",
+          "description": "CPU、内存和带宽速度样本的保留时间。"
+        }
       },
       "expiredUsers": {
         "title": "按状态删除账户",

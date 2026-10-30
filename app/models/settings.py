@@ -416,8 +416,10 @@ class CleanupSettings(BaseModel):
     """Automatic retention periods. ``None`` keeps the corresponding data indefinitely."""
 
     expired_users_retention_days: int | None = Field(default=None, ge=0, le=36_500)
-    usage_history_retention_days: int | None = Field(default=90, ge=1, le=36_500)
-    node_stats_retention_days: int | None = Field(default=30, ge=1, le=36_500)
+    # Also delete limited users after the same period
+    include_limited_users: bool = Field(default=False)
+    usage_history_retention_days: int | None = Field(default=None, ge=1, le=36_500)
+    node_stats_retention_days: int | None = Field(default=None, ge=1, le=36_500)
 
 
 class SettingsSchema(BaseModel):

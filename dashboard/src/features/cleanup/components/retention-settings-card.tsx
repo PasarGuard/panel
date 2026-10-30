@@ -9,9 +9,9 @@ import { Activity, AlertTriangle, CalendarClock, ChartNoAxesCombined, Loader2, R
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-type RetentionKey = keyof CleanupSettings
+type RetentionKey = 'expired_users_retention_days' | 'usage_history_retention_days' | 'node_stats_retention_days'
 type RetentionValue = number | null | ''
-type RetentionDraft = Record<RetentionKey, RetentionValue>
+type RetentionDraft = Record<RetentionKey, RetentionValue> & { include_limited_users: boolean }
 
 interface RetentionSettingsCardProps {
   value?: CleanupSettings | null
@@ -22,8 +22,9 @@ interface RetentionSettingsCardProps {
 
 const DEFAULT_RETENTION: Required<CleanupSettings> = {
   expired_users_retention_days: null,
-  usage_history_retention_days: 90,
-  node_stats_retention_days: 30,
+  include_limited_users: false,
+  usage_history_retention_days: null,
+  node_stats_retention_days: null,
 }
 
 const ENABLE_DEFAULTS: Record<RetentionKey, number> = {
@@ -38,6 +39,7 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
   const initialValue = value ?? DEFAULT_RETENTION
   const [draft, setDraft] = useState<RetentionDraft>({
     expired_users_retention_days: initialValue.expired_users_retention_days ?? null,
+    include_limited_users: initialValue.include_limited_users ?? false,
     usage_history_retention_days: initialValue.usage_history_retention_days ?? null,
     node_stats_retention_days: initialValue.node_stats_retention_days ?? null,
   })
@@ -47,6 +49,7 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
     const persistedValue = value ?? DEFAULT_RETENTION
     return {
       expired_users_retention_days: persistedValue.expired_users_retention_days ?? null,
+      include_limited_users: persistedValue.include_limited_users ?? false,
       usage_history_retention_days: persistedValue.usage_history_retention_days ?? null,
       node_stats_retention_days: persistedValue.node_stats_retention_days ?? null,
     }
@@ -97,8 +100,8 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
 
   /** Validate and persist the complete retention-policy draft. */
   const handleSave = async () => {
-    const entries = Object.entries(draft) as [RetentionKey, RetentionValue][]
-    const hasInvalidValue = entries.some(([key, days]) => {
+    const hasInvalidValue = retentionItems.some(({ key }) => {
+      const days = draft[key]
       if (days === '') return true
       if (days === null) return false
       const minimum = key === 'expired_users_retention_days' ? 0 : 1
@@ -111,6 +114,7 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
     try {
       await onSave({
         expired_users_retention_days: draft.expired_users_retention_days === '' ? null : draft.expired_users_retention_days,
+        include_limited_users: draft.include_limited_users,
         usage_history_retention_days: draft.usage_history_retention_days === '' ? null : draft.usage_history_retention_days,
         node_stats_retention_days: draft.node_stats_retention_days === '' ? null : draft.node_stats_retention_days,
       })
@@ -187,7 +191,13 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
                   {enabled && <span className="text-muted-foreground shrink-0 text-xs font-medium">{t('settings.cleanup.retention.days')}</span>}
                 </div>
 
-                <div className="border-border/60 border-t pt-3">
+                <div className="border-border/60 space-y-3 border-t pt-3">
+                  {item.key === 'expired_users_retention_days' && (
+                    <label className="flex items-center justify-between gap-3 text-xs font-medium">
+                      <span>{t('settings.cleanup.retention.expiredUsers.includeLimited')}</span>
+                      <Switch checked={draft.include_limited_users} disabled={!enabled} onCheckedChange={checked => setDraft(current => ({ ...current, include_limited_users: checked }))} />
+                    </label>
+                  )}
                   <div className="text-muted-foreground flex items-start gap-2 text-xs leading-relaxed">
                     {enabled ? <Trash2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
                     <span>{enabled ? t('settings.cleanup.retention.cutoff', { days }) : t('settings.cleanup.retention.disabledHint')}</span>

@@ -1163,6 +1163,16 @@ export interface BulkUsersSetOwner {
   admin_username: string;
 }
 
+/**
+ * Automatic retention periods. ``None`` keeps the corresponding data indefinitely.
+ */
+export interface CleanupSettings {
+  expired_users_retention_days?: number | null;
+  include_limited_users?: boolean;
+  usage_history_retention_days?: number | null;
+  node_stats_retention_days?: number | null;
+}
+
 export type ClientTemplateType = typeof ClientTemplateType[keyof typeof ClientTemplateType];
 
 
@@ -2319,13 +2329,6 @@ export interface Subscription {
   randomize_order?: boolean;
   custom_variables?: CustomVariable[];
   clients_limit?: number;
-}
-
-/** Automatic retention periods. null keeps the corresponding data indefinitely. */
-export interface CleanupSettings {
-  expired_users_retention_days?: number | null;
-  usage_history_retention_days?: number | null;
-  node_stats_retention_days?: number | null;
 }
 
 export interface SettingsSchema {

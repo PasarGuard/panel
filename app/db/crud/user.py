@@ -4,7 +4,22 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import Row, and_, bindparam, case, delete, desc, func, insert, literal, not_, or_, select, update
+from sqlalchemy import (
+    DateTime,
+    Row,
+    and_,
+    bindparam,
+    case,
+    delete,
+    desc,
+    func,
+    insert,
+    literal,
+    not_,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only, selectinload, with_expression
 from sqlalchemy.sql import Select
@@ -56,7 +71,6 @@ from app.models.user import (
 )
 from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
 from app.subscription.sub_update_buffer import flush_user_sub_updates, queue_user_sub_update
-from config import user_cleanup_settings
 
 from .general import (
     _build_trunc_expression,
@@ -1728,13 +1742,17 @@ async def get_users_subscription_agent_stats(
     return rows
 
 
+AUTODELETE_BATCH_SIZE = 100
+AUTODELETE_MAX_USERS_PER_RUN = 1000
+
+
 async def autodelete_expired_users(
     db: AsyncSession,
     include_limited_users: bool = False,
     default_autodelete_days: int | None = None,
     *,
-    batch_size: int | None = None,
-    max_users: int | None = None,
+    batch_size: int = AUTODELETE_BATCH_SIZE,
+    max_users: int = AUTODELETE_MAX_USERS_PER_RUN,
 ) -> list[UserNotificationResponse]:
     """
     Deletes expired (optionally also limited) users whose auto-delete time has passed.
@@ -1744,20 +1762,16 @@ async def autodelete_expired_users(
         include_limited_users (bool, optional): Whether to delete limited users as well.
             Defaults to False.
         default_autodelete_days (int | None): Fallback retention for users without
-            an individual policy.
-        batch_size (int | None): Maximum users deleted in each transaction.
-        max_users (int | None): Maximum users deleted during this invocation.
+            an individual policy. ``None`` or a negative value keeps them.
+        batch_size (int): Maximum users deleted in each transaction.
+        max_users (int): Maximum users deleted during this invocation.
 
     Returns:
         list[UserNotificationResponse]: List of deleted users.
     """
     target_status = [UserStatus.expired] if not include_limited_users else [UserStatus.expired, UserStatus.limited]
 
-    fallback_days = (
-        user_cleanup_settings.autodelete_days if default_autodelete_days is None else default_autodelete_days
-    )
-    batch_size = user_cleanup_settings.autodelete_batch_size if batch_size is None else batch_size
-    max_users = user_cleanup_settings.autodelete_max_users_per_run if max_users is None else max_users
+    fallback_days = -1 if default_autodelete_days is None else default_autodelete_days
     if batch_size <= 0 or max_users <= 0:
         raise ValueError("batch_size and max_users must be positive")
     auto_delete = func.coalesce(User.auto_delete_in_days, literal(fallback_days))
@@ -1766,7 +1780,9 @@ async def autodelete_expired_users(
         auto_delete >= 0,  # Negative values prevent auto-deletion
         User.status.in_(target_status),
         User.last_status_change.isnot(None),
-        ElapsedSeconds(func.now(), User.last_status_change) >= auto_delete * 86_400,
+        # Compare with the app's UTC time: stored values are naive UTC, and NOW() on MySQL is the session time zone
+        ElapsedSeconds(literal(datetime.now(UTC).replace(tzinfo=None), DateTime), User.last_status_change)
+        >= auto_delete * 86_400,
     )
     candidate_query = select(User.id).where(*eligibility_conditions).order_by(User.id)
 

@@ -5,15 +5,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import scheduler
 from app.db import GetDB
-from app.db.models import NodeStat, NodeUsage, NodeUserUsage
+from app.db.models import NodeOutboundUsage, NodeStat, NodeUsage, NodeUserUsage
 from app.settings import cleanup_settings
 from app.utils.logger import get_logger
-from config import job_settings, runtime_settings
+from config import runtime_settings
 
 logger = get_logger("cleanup-retention")
 
 RETENTION_DELETE_BATCH_SIZE = 10_000
 RETENTION_MAX_ROWS_PER_TABLE = 1_000_000
+RETENTION_INTERVAL = 3600
 
 
 async def delete_expired_rows_in_batches(
@@ -62,13 +63,14 @@ async def delete_expired_rows_in_batches(
 async def cleanup_retention_data(*, now: datetime | None = None) -> dict[str, int]:
     """Delete data older than each enabled retention policy."""
     retention = await cleanup_settings()
-    now = now or datetime.now(UTC)
+    # Stored timestamps are naive UTC
+    now = (now or datetime.now(UTC)).astimezone(UTC).replace(tzinfo=None)
     deleted: dict[str, int] = {}
 
     targets = []
     if retention.usage_history_retention_days is not None:
         usage_cutoff = now - timedelta(days=retention.usage_history_retention_days)
-        targets.extend(((NodeUserUsage, usage_cutoff), (NodeUsage, usage_cutoff)))
+        targets.extend(((NodeUserUsage, usage_cutoff), (NodeUsage, usage_cutoff), (NodeOutboundUsage, usage_cutoff)))
     if retention.node_stats_retention_days is not None:
         targets.append((NodeStat, now - timedelta(days=retention.node_stats_retention_days)))
 
@@ -91,7 +93,7 @@ if runtime_settings.role.runs_scheduler:
     scheduler.add_job(
         cleanup_retention_data,
         "interval",
-        seconds=job_settings.cleanup_retention_interval,
+        seconds=RETENTION_INTERVAL,
         coalesce=True,
         max_instances=1,
         id="cleanup_retention_data",

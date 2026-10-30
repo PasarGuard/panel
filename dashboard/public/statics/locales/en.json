@@ -608,11 +608,12 @@
         "reset": "Discard changes",
         "expiredUsers": {
           "title": "Expired accounts",
-          "description": "Delete accounts after their expired status has been kept for this many days. Per-account overrides still apply."
+          "description": "Delete accounts after their expired status has been kept for this many days. Per-account overrides still apply.",
+          "includeLimited": "Also delete limited users"
         },
         "usageHistory": {
           "title": "Traffic history",
-          "description": "Retention for both user traffic and node traffic charts."
+          "description": "Retention for user, node and outbound traffic charts."
         },
         "nodeStats": {
           "title": "Node system metrics",
