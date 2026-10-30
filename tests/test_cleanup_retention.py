@@ -269,13 +269,10 @@ async def test_expired_user_cleanup_revalidates_selected_users(retention_db, mon
     await retention_db.commit()
 
     original_scalars = retention_db.scalars
-    select_count = 0
 
     async def scalars_with_status_change(statement, *args, **kwargs):
         """Make the candidate active immediately before eligibility is revalidated."""
-        nonlocal select_count
-        select_count += 1
-        if select_count == 2:
+        if getattr(statement, "_for_update_arg", None) is not None:
             await retention_db.execute(
                 update(User)
                 .where(User.id == user.id)
@@ -437,3 +434,38 @@ def test_elapsed_seconds_binds_are_not_cached():
     assert second in bound and first not in bound
     compiled = statements[1].compile(dialect=postgresql.dialect())
     assert second in compiled.params.values()
+
+
+@pytest.mark.asyncio
+async def test_expired_user_cleanup_locks_subnets_before_users(retention_db, monkeypatch):
+    """Subnet rows are locked before the user rows, the same order as the WireGuard allocation paths."""
+    import app.db.crud.user as user_crud
+
+    peer_settings = {"wireguard": {"peer_ips": ["10.8.0.5/32"]}}
+    retention_db.add(
+        User(
+            username="expired-cleanup-wireguard",
+            status=UserStatus.expired,
+            last_status_change=datetime.now(UTC) - timedelta(days=2),
+            proxy_settings=peer_settings,
+        )
+    )
+    await retention_db.commit()
+
+    calls = []
+
+    async def record_lock(db, settings_list):
+        calls.append(("subnets", list(settings_list)))
+
+    original_remove = user_crud.remove_users
+
+    async def record_remove(db, users):
+        calls.append(("users", [user.username for user in users]))
+        await original_remove(db, users)
+
+    monkeypatch.setattr(user_crud, "lock_users_subnets", record_lock)
+    monkeypatch.setattr(user_crud, "remove_users", record_remove)
+
+    await autodelete_expired_users(retention_db, default_autodelete_days=1)
+
+    assert calls == [("subnets", [peer_settings]), ("users", ["expired-cleanup-wireguard"])]

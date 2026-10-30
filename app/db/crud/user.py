@@ -83,6 +83,7 @@ from .general import (
 )
 from .group import get_groups_by_ids
 from .wireguard import (
+    lock_users_subnets,
     release_allocations_by_user_ids,
     release_users_allocations,
     sync_user_allocations,
@@ -1805,14 +1806,17 @@ async def autodelete_expired_users(
         # 36,500 days in seconds does not fit a 32-bit integer
         >= cast(auto_delete, BigInteger) * 86_400,
     )
-    candidate_query = select(User.id).where(*eligibility_conditions).order_by(User.id)
+    candidate_query = select(User.id, User.proxy_settings).where(*eligibility_conditions).order_by(User.id)
 
     result: list[UserNotificationResponse] = []
     while len(result) < max_users:
         current_batch_size = min(batch_size, max_users - len(result))
-        candidate_ids = (await db.scalars(candidate_query.limit(current_batch_size))).all()
-        if not candidate_ids:
+        candidates = (await db.execute(candidate_query.limit(current_batch_size))).all()
+        if not candidates:
             break
+        candidate_ids = [candidate.id for candidate in candidates]
+        # remove_users releases WireGuard peer IPs, which locks subnet rows: take them before the user rows
+        await lock_users_subnets(db, [candidate.proxy_settings for candidate in candidates])
 
         # Revalidate after candidate selection, then hold row locks until remove_users commits.
         # This prevents a concurrent status or retention-policy update from racing the delete.
