@@ -2,8 +2,12 @@ import asyncio
 import inspect
 from contextlib import asynccontextmanager
 
+from app.utils.logger import get_logger
+
 startup_functions = []
 shutdown_functions = []
+_shutdown_priorities = {}
+logger = get_logger("lifecycle")
 
 
 def on_startup(func):
@@ -12,9 +16,10 @@ def on_startup(func):
     return func
 
 
-def on_shutdown(func):
+def on_shutdown(func, *, priority: int = 0):
     if func not in shutdown_functions:
         shutdown_functions.append(func)
+    _shutdown_priorities[func] = priority
     return func
 
 
@@ -43,9 +48,15 @@ async def _invoke(func, app):
 
 @asynccontextmanager
 async def lifespan(app):
-    for func in startup_functions:
-        await _invoke(func, app)
-    yield
-
-    for func in shutdown_functions:
-        await _invoke(func, app)
+    try:
+        for func in startup_functions:
+            await _invoke(func, app)
+        yield
+    finally:
+        # Jobs release their ownership before dependencies close. A failed
+        # notification flush must not prevent other resources from closing.
+        for func in sorted(shutdown_functions, key=lambda item: _shutdown_priorities.get(item, 0)):
+            try:
+                await _invoke(func, app)
+            except Exception:
+                logger.warning("Shutdown hook failed: %s", getattr(func, "__name__", func), exc_info=True)
