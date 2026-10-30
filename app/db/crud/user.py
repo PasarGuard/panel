@@ -1204,6 +1204,16 @@ async def create_users_bulk(
     return db_users
 
 
+_USER_DEPENDENT_MODELS = (
+    NodeUserUsage,
+    UserUsageResetLogs,
+    UserSubscriptionUpdate,
+    UserHWID,
+    NextPlan,
+    NotificationReminder,
+)
+
+
 async def _delete_user_dependencies(db: AsyncSession, user_ids: list[int]):
     """Remove all rows that reference the given user IDs."""
     if not user_ids:
@@ -1212,6 +1222,13 @@ async def _delete_user_dependencies(db: AsyncSession, user_ids: list[int]):
     await db.execute(
         users_groups_association.delete().where(_explicit_ids(users_groups_association.c.user_id, user_ids))
     )
+
+    # PostgreSQL and MySQL cascade these through the foreign keys. The panel's SQLite connections do not enforce
+    # foreign keys, so the rows would stay, and a new user that gets the same id (SQLite reuses the highest id)
+    # would inherit them.
+    if db.bind.dialect.name == "sqlite":
+        for model in _USER_DEPENDENT_MODELS:
+            await db.execute(delete(model).where(_explicit_ids(model.user_id, user_ids)))
 
 
 async def remove_user(db: AsyncSession, db_user: User) -> User:
