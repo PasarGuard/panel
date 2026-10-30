@@ -1171,6 +1171,9 @@ export interface CleanupSettings {
   include_limited_users?: boolean;
   usage_history_retention_days?: number | null;
   node_stats_retention_days?: number | null;
+  usage_rollup_hourly_after_days?: number | null;
+  usage_rollup_half_day_after_days?: number | null;
+  usage_rollup_daily_after_days?: number | null;
 }
 
 export type ClientTemplateType = typeof ClientTemplateType[keyof typeof ClientTemplateType];

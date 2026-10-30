@@ -621,6 +621,29 @@
           "description": "Retention for CPU, memory and bandwidth-speed samples."
         }
       },
+      "rollup": {
+        "title": "Usage history detail",
+        "description": "Merge older traffic rows into coarser time buckets so the usage tables stop growing at 10-minute detail.",
+        "off": "Keep 10-minute detail",
+        "hourlyStep": {
+          "title": "Hourly",
+          "description": "Rows older than this are merged into one row per hour."
+        },
+        "halfDayStep": {
+          "title": "12-hour",
+          "description": "Rows older than this are merged into one row per 12 hours."
+        },
+        "dailyStep": {
+          "title": "Daily",
+          "description": "Rows older than this are merged into one row per day."
+        },
+        "cutoff": "Whole days older than {{days}} days are merged.",
+        "disabledHint": "This step is off.",
+        "note": "Totals stay exact: only the time detail is reduced, and charts of old data show coarser steps. Buckets are cut in UTC. The merge runs hourly after the retention cleanup, in small batches.",
+        "validation": "Enabled steps need a whole number from 1 to 36,500.",
+        "orderValidation": "Days must increase from hourly to 12-hour to daily.",
+        "save": "Save detail settings"
+      },
       "expiredUsers": {
         "title": "Delete Accounts by Status",
         "description": "Remove accounts matching a specific status, optionally filtered by date",

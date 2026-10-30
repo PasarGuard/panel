@@ -20,7 +20,16 @@ import { DatePicker } from '@/components/common/date-picker'
 import { formatDateByLocale } from '@/utils/datePickerUtils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { useClearUsageData, useDeleteExpiredUsers, useGetAdmins, useGetCurrentAdmin, useResetUsersDataUsage, type AdminDetails, type UsageTable } from '@/service/api'
+import {
+  useClearUsageData,
+  useDeleteExpiredUsers,
+  useGetAdmins,
+  useGetCurrentAdmin,
+  useResetUsersDataUsage,
+  type AdminDetails,
+  type CleanupSettings as CleanupSettingsValue,
+  type UsageTable,
+} from '@/service/api'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { AlertTriangle, Check, ChevronDown, Database, Eye, Loader2, RotateCcw, Server, Trash2, UserCog, UserRound } from 'lucide-react'
 import { endOfDay, startOfDay } from 'date-fns'
@@ -29,6 +38,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { hasScopeAll, isOwner, roleLabel } from '@/utils/rbac'
 import { RetentionSettingsCard } from '@/features/cleanup/components/retention-settings-card'
+import { RollupSettingsCard } from '@/features/cleanup/components/rollup-settings-card'
 import { useSettingsContext } from './_dashboard.settings'
 
 const PAGE_SIZE = 20
@@ -39,6 +49,8 @@ export default function CleanupSettings() {
   const dir = useDirDetection()
   const isPersianLocale = i18n.language === 'fa'
   const { settings, isLoading: isSettingsLoading, error: settingsError, updateSettings, isSaving } = useSettingsContext()
+  // The API replaces the whole section, so each card's save keeps the other card's saved fields
+  const saveCleanup = (cleanup: Partial<CleanupSettingsValue>) => updateSettings({ cleanup: { ...settings?.cleanup, ...cleanup } })
   const [deleteTarget, setDeleteTarget] = useState<CleanupDeleteTarget>('expired')
   const [statusChangedAfter, setStatusChangedAfter] = useState<Date | undefined>()
   const [statusChangedBefore, setStatusChangedBefore] = useState<Date | undefined>()
@@ -317,7 +329,10 @@ export default function CleanupSettings() {
           <AlertDescription>{t('settings.cleanup.loadError')}</AlertDescription>
         </Alert>
       ) : (
-        <RetentionSettingsCard value={settings?.cleanup} isLoading={isSettingsLoading} isSaving={isSaving} onSave={cleanup => updateSettings({ cleanup })} />
+        <>
+          <RetentionSettingsCard value={settings?.cleanup} isLoading={isSettingsLoading} isSaving={isSaving} onSave={saveCleanup} />
+          <RollupSettingsCard value={settings?.cleanup} isLoading={isSettingsLoading} isSaving={isSaving} onSave={saveCleanup} />
+        </>
       )}
 
       {/* Delete Expired Users Section */}

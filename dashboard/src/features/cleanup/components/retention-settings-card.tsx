@@ -25,6 +25,9 @@ const DEFAULT_RETENTION: Required<CleanupSettings> = {
   include_limited_users: false,
   usage_history_retention_days: null,
   node_stats_retention_days: null,
+  usage_rollup_hourly_after_days: null,
+  usage_rollup_half_day_after_days: null,
+  usage_rollup_daily_after_days: null,
 }
 
 const ENABLE_DEFAULTS: Record<RetentionKey, number> = {
@@ -45,15 +48,16 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
   })
   const [validationError, setValidationError] = useState<string | null>(null)
 
-  const savedValue = useMemo(() => {
-    const persistedValue = value ?? DEFAULT_RETENTION
-    return {
-      expired_users_retention_days: persistedValue.expired_users_retention_days ?? null,
-      include_limited_users: persistedValue.include_limited_users ?? false,
-      usage_history_retention_days: persistedValue.usage_history_retention_days ?? null,
-      node_stats_retention_days: persistedValue.node_stats_retention_days ?? null,
-    }
-  }, [value])
+  // Keyed on this card's fields, so saving the rollup card does not reset an unsaved draft here
+  const savedValue = useMemo(
+    () => ({
+      expired_users_retention_days: value?.expired_users_retention_days ?? null,
+      include_limited_users: value?.include_limited_users ?? false,
+      usage_history_retention_days: value?.usage_history_retention_days ?? null,
+      node_stats_retention_days: value?.node_stats_retention_days ?? null,
+    }),
+    [value?.expired_users_retention_days, value?.include_limited_users, value?.usage_history_retention_days, value?.node_stats_retention_days],
+  )
 
   useEffect(() => {
     setDraft(savedValue)
