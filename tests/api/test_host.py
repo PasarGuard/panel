@@ -673,3 +673,36 @@ def test_host_finalmask_header_custom_numeric_rand(access_token):
         for host_id in created_ids:
             client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
         delete_core(access_token, core["id"])
+
+
+def test_host_tag_prefix(access_token):
+    core = create_core(access_token)
+    inbounds = get_inbounds(access_token)
+    headers = {"Authorization": f"Bearer {access_token}"}
+    payload = {
+        "remark": unique_name("test_host_tag_prefix"),
+        "address": ["127.0.0.1"],
+        "port": 443,
+        "inbound_tag": inbounds[0],
+        "priority": 1,
+        "tag_prefix": "de_1",
+    }
+    host_id = None
+    try:
+        response = client.post("/api/host", headers=headers, json=payload)
+        assert response.status_code == status.HTTP_201_CREATED
+        host_id = response.json()["id"]
+        assert response.json()["tag_prefix"] == "de_1"
+
+        # "-" would make one prefix select another group's hosts; the others are tags the builders use
+        for bad_prefix in ("de-1", "x" * 33, "proxy", "Dialer"):
+            response = client.put(f"/api/host/{host_id}", headers=headers, json={**payload, "tag_prefix": bad_prefix})
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+        response = client.put(f"/api/host/{host_id}", headers=headers, json={**payload, "tag_prefix": ""})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["tag_prefix"] is None
+    finally:
+        if host_id is not None:
+            client.delete(f"/api/host/{host_id}", headers=headers)
+        delete_core(access_token, core["id"])

@@ -181,6 +181,7 @@ export interface HostFormValues {
   }
   final_mask_settings?: FinalMask
   cipher_suites?: string
+  tag_prefix?: string
 }
 
 export function mapHostTransportSettingsForApi(settings: HostFormValues['transport_settings']): CreateHost['transport_settings'] {
@@ -580,6 +581,12 @@ export const HostFormSchema = z.object({
     .optional(),
   final_mask_settings: z.custom<FinalMask>().optional(),
   cipher_suites: z.string().optional(),
+  tag_prefix: z
+    .string()
+    .regex(/^[A-Za-z0-9_]*$/, 'Only letters, digits and underscores')
+    .max(32)
+    .refine(value => !['proxy', 'dialer', 'direct', 'block'].includes(value.toLowerCase()), 'Reserved, it is the tag of a built-in outbound')
+    .optional(),
 })
 
 export const hostFormDefaultValues: HostFormValues = {
@@ -613,6 +620,7 @@ export const hostFormDefaultValues: HostFormValues = {
   subscription_templates: undefined,
   final_mask_settings: undefined,
   cipher_suites: undefined,
+  tag_prefix: undefined,
 }
 
 /** Normalize API fragment settings for the host form (accept legacy `delay` as `interval`). */

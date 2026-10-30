@@ -207,7 +207,7 @@ def test_bulk_disable_download_host_keeps_it_in_parent(download_pair):
     pair = download_pair
     response = client.post("/api/hosts/bulk/disable", headers=pair.headers, json={"ids": [pair.download["id"]]})
     assert response.status_code == status.HTTP_200_OK, response.text
-    assert pair.download["id"] not in host_manager._hosts
+    assert host_manager._hosts[pair.download["id"]].is_disabled  # kept for client templates, not served
     assert _download_addresses(pair.user["subscription_url"]) == ["download.example.com"]
 
     response = client.post("/api/hosts/bulk/enable", headers=pair.headers, json={"ids": [pair.download["id"]]})
@@ -225,7 +225,7 @@ def test_disable_download_host_by_edit_keeps_it_in_parent(download_pair):
 
     # A full rebuild must still use its settings without serving it separately
     asyncio.run(_full_host_refresh())
-    assert pair.download["id"] not in host_manager._hosts
+    assert host_manager._hosts[pair.download["id"]].is_disabled  # kept for client templates, not served
     assert _download_addresses(pair.user["subscription_url"]) == ["download.example.com"]
 
 

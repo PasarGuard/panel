@@ -1310,6 +1310,9 @@
   },
   "hostsDialog": {
     "addHost": "Create Host",
+    "tagPrefix": "Tag prefix",
+    "tagPrefixPlaceholder": "e.g. de",
+    "tagPrefixDescription": "Client templates get this host as \"<prefix>-<id>\", even when it is disabled (default prefix: \"out\"). Use it to route or balance to the host. Reserved: proxy, dialer, direct, block.",
     "selectInbound": "Select an inbound",
     "selectStatus": "Select Status",
     "remarkRequired": "Remark is required",

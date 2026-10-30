@@ -25,6 +25,7 @@ from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import hwid_settings, subscription_settings
 from app.subscription import sub_update_buffer as _sub_update_buffer  # noqa: F401  # registers per-worker flush loop
 from app.subscription.share import (
+    TemplateRenderError,
     apply_custom_format_variables,
     encode_title,
     generate_subscription,
@@ -33,6 +34,7 @@ from app.subscription.share import (
     setup_format_variables,
 )
 from app.templates import render_template
+from app.templates.pool import TemplatesBusy
 from app.utils.hwid import resolve_effective_hwid_settings
 from app.utils.performance import phase
 from config import template_settings
@@ -342,15 +344,18 @@ class SubscriptionOperation(BaseOperation):
         randomize_order = sub_settings.randomize_order
 
         # Generate subscription content
-        return (
-            await generate_subscription(
+        try:
+            content = await generate_subscription(
                 user=user,
                 config_format=config.get("config_format", ""),
                 as_base64=config.get("as_base64", ""),
                 randomize_order=randomize_order,
-            ),
-            config["media_type"],
-        )
+            )
+        except TemplatesBusy as exc:
+            await self.raise_error(message=f"{exc}, try again shortly", code=503)
+        except TemplateRenderError as exc:
+            await self.raise_error(message=str(exc), code=500)
+        return content, config["media_type"]
 
     @staticmethod
     def is_hwid_enabled(

@@ -338,6 +338,11 @@ class SubscriptionInboundData(BaseModel):
     finalmask: dict[str, Any] | None = Field(None)
     finalmask_link: str | None = Field(None)
 
+    # Identity for templates: outbound tag is <tag_prefix>-<id>
+    id: int | None = Field(None)
+    tag_prefix: str | None = Field(None)
+    is_disabled: bool = Field(False)
+
     # Priority and status
     priority: int = Field(0)
     status: list[str] | None = Field(None)

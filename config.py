@@ -150,6 +150,14 @@ class TemplateSettings(EnvSettings):
         default="subscription/index.html", validation_alias="SUBSCRIPTION_PAGE_TEMPLATE"
     )
     home_page_template: str = Field(default="home/index.html", validation_alias="HOME_PAGE_TEMPLATE")
+    # Limits for Jinja2 in custom variables, headers and client templates, see app/templates/limits.py
+    render_budget: int = Field(default=1_000_000, validation_alias="TEMPLATE_RENDER_BUDGET")
+    max_value_size: int = Field(default=2_000_000, validation_alias="TEMPLATE_MAX_VALUE_SIZE")
+    max_output_size: int = Field(default=16_000_000, validation_alias="TEMPLATE_MAX_OUTPUT_SIZE")
+    # Threads that render them, how many more renders may wait, and how long a request waits for its render (seconds)
+    render_workers: int = Field(default=4, ge=1, validation_alias="TEMPLATE_RENDER_WORKERS")
+    render_backlog: int = Field(default=256, ge=0, validation_alias="TEMPLATE_RENDER_BACKLOG")
+    render_timeout: float = Field(default=30, gt=0, validation_alias="TEMPLATE_RENDER_TIMEOUT")
 
 
 class UserCleanupSettings(EnvSettings):

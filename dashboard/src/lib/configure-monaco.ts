@@ -2,6 +2,7 @@ import { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
+import { registerJsonJinjaLanguage } from '@/lib/json-jinja-language'
 
 type MonacoInstance = NonNullable<Parameters<typeof loader.config>[0]['monaco']>
 
@@ -34,3 +35,5 @@ if (monacoGlobal && !monacoGlobal.MonacoEnvironment?.getWorker) {
 // Monaco type and the imported Monaco value look different to TypeScript even
 // though they are the same runtime module.
 loader.config({ monaco: monaco as unknown as MonacoInstance })
+
+registerJsonJinjaLanguage(monaco)
