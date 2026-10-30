@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 from collections.abc import AsyncIterator, Awaitable, Callable
+from datetime import UTC, datetime
 from typing import ClassVar
 
 from fastapi import HTTPException
@@ -29,7 +30,7 @@ from app.db.crud.node import (
     reset_node_usage,
     update_node_status,
 )
-from app.db.crud.user import get_user_by_id, get_user_count_metric_stats
+from app.db.crud.user import get_user_by_id, get_user_count_metric_stats, get_users
 from app.db.models import Node, NodeStatus
 from app.models.admin import AdminDetails
 from app.models.core import CoreType
@@ -54,6 +55,10 @@ from app.models.node import (
     UsageTable,
     UserIPList,
     UserIPListAll,
+    UserIPRankingEntry,
+    UserIPRankingList,
+    UserIPRankingQuery,
+    UserOnlineIPsSnapshot,
 )
 from app.models.stats import (
     NodeOutboundsLatencyResponse,
@@ -64,6 +69,7 @@ from app.models.stats import (
     UserCountMetricStatsList,
     validate_user_count_metric_scope,
 )
+from app.models.user import UserListQuery
 from app.nats import needs_shared_bridge_memory
 from app.nats.leader import needs_job_leader
 from app.nats.node_rpc import node_nats_client
@@ -73,6 +79,7 @@ from app.node.heartbeat import heartbeat_interval, keep_alive_too_short, shortes
 from app.node.manager_sync import publish_node_sync
 from app.node.nats_memory import clear_bridge_memory_for_node
 from app.operation import BaseOperation, OperatorType
+from app.operation.permissions import PermissionDenied, enforce_permission, get_scope_admin_id
 from app.utils.logger import get_logger
 from config import runtime_settings
 
@@ -122,6 +129,7 @@ class NodeOperation(BaseOperation):
             self._update_geofiles_impl = self._update_geofiles_local
             self._get_logs_impl = self._get_logs_local
             self._restart_all_impl = self._restart_all_nodes_local
+            self._get_users_ip_ranking_impl = self._get_users_ip_ranking_local
         else:
             self._update_node_impl = self._update_node_remote
             self._remove_node_impl = self._remove_node_remote
@@ -140,6 +148,7 @@ class NodeOperation(BaseOperation):
             self._update_geofiles_impl = self._update_geofiles_remote
             self._get_logs_impl = self._get_logs_remote
             self._restart_all_impl = self._restart_all_nodes_remote
+            self._get_users_ip_ranking_impl = self._get_users_ip_ranking_remote
 
     async def reorder_nodes(self, db: AsyncSession, ordered_ids: list[int], admin: AdminDetails) -> None:
         """Persist a node order requested by an administrator."""
@@ -825,6 +834,20 @@ class NodeOperation(BaseOperation):
     async def get_user_ip_list_all_nodes(self, db: AsyncSession, user_id: int) -> UserIPListAll:
         return await self._get_user_ip_list_all_impl(db, user_id)
 
+    async def get_users_online_ips(self, node_ids: list[int] | None = None) -> tuple[dict[int, dict[str, int]], int]:
+        return await self._get_users_online_ips(node_ids)
+
+    async def get_users_ip_ranking(
+        self, db: AsyncSession, query: UserIPRankingQuery, admin: AdminDetails
+    ) -> UserIPRankingList:
+        # The ranking lists usernames and traffic, so it needs users.read and follows its scope
+        try:
+            enforce_permission(admin, "users", "read")
+        except PermissionDenied as exc:
+            await self.raise_error(message=str(exc), code=403)
+        owner = admin.username if get_scope_admin_id(admin, "users", "read") is not None else None
+        return await self._get_users_ip_ranking_impl(db, query, owner)
+
     async def _get_node_user_ip_list_safe(self, node_id: int, email: str) -> dict[str, int] | None:
         """Wrapper method that returns None instead of raising exceptions"""
         try:
@@ -840,6 +863,29 @@ class NodeOperation(BaseOperation):
         except NodeAPIError as e:
             if e.code != 404:
                 logger.error(f"Error getting IP list for user {email} on node {node_id}: {e}")
+            return None
+
+    async def _get_node_users_ip_list_bulk_safe(self, node_id: int) -> dict[str, dict[str, int]] | None:
+        try:
+            node = await node_manager.get_node(node_id)
+            if node is None:
+                return None
+
+            get_users_online_ip_list = getattr(node, "get_users_online_ip_list", None)
+            if get_users_online_ip_list is None:
+                logger.debug(f"Node {node_id} has no bulk online IP list method, skipping")
+                return None
+
+            response = await get_users_online_ip_list()
+            if response is None:
+                return None
+
+            return {email: dict(stats.ips) for email, stats in response.users.items()}
+        except NodeAPIError as e:
+            if e.code in (404, 501):
+                logger.debug(f"Node {node_id} skipped for bulk online IP list, status {e.code}")
+            else:
+                logger.error(f"Error getting bulk IP list for node {node_id}: {e}")
             return None
 
     async def sync_node_users(self, db: AsyncSession, node_id: int, flush_users: bool = False) -> NodeResponse:
@@ -1285,6 +1331,120 @@ class NodeOperation(BaseOperation):
             return UserIPListAll.model_validate(data)
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
+
+    async def _get_users_online_ips(self, node_ids: list[int] | None = None) -> tuple[dict[int, dict[str, int]], int]:
+        nodes = await node_manager.get_healthy_nodes()
+        if node_ids is not None:
+            wanted = set(node_ids)
+            nodes = [(node_id, node) for node_id, node in nodes if node_id in wanted]
+        ip_tasks = {
+            node_id: asyncio.create_task(self._get_node_users_ip_list_bulk_safe(node_id)) for node_id, _ in nodes
+        }
+        await asyncio.gather(*ip_tasks.values(), return_exceptions=True)
+
+        ips_by_user: dict[int, dict[str, int]] = {}
+        skipped_node_count = 0
+        for node_id, task in ip_tasks.items():
+            if task.exception():
+                logger.error(f"Error getting bulk IP list for node {node_id}: {task.exception()}")
+                skipped_node_count += 1
+                continue
+            node_result = task.result()
+            if node_result is None:
+                skipped_node_count += 1
+                continue
+            for email, ips in node_result.items():
+                try:
+                    user_id = int(email)
+                except ValueError:
+                    continue
+                user_ips = ips_by_user.setdefault(user_id, {})
+                for ip, last_seen in ips.items():
+                    if ip not in user_ips or last_seen > user_ips[ip]:
+                        user_ips[ip] = last_seen
+
+        return ips_by_user, skipped_node_count
+
+    async def _resolve_ip_ranking(
+        self,
+        db: AsyncSession,
+        ips_by_user: dict[int, dict[str, int]],
+        updated_at: datetime,
+        query: UserIPRankingQuery,
+        skipped_node_count: int = 0,
+        owner: str | None = None,
+    ) -> UserIPRankingList:
+        counts = {
+            user_id: len(ips)
+            for user_id, ips in ips_by_user.items()
+            if len(ips) > 0
+            and (query.ip_count_min is None or len(ips) >= query.ip_count_min)
+            and (query.ip_count_max is None or len(ips) <= query.ip_count_max)
+        }
+
+        if not counts:
+            return UserIPRankingList(users=[], updated_at=updated_at, total=0, skipped_node_count=skipped_node_count)
+
+        # An admin limited to their own users sees only those, whatever admin_ids asks for
+        users = await get_users(
+            db,
+            UserListQuery(
+                ids=list(counts),
+                admin_ids=None if owner else query.admin_ids,
+                owner=[owner] if owner else None,
+                group_ids=query.group_ids,
+                status=query.status,
+            ),
+            load_usage_logs=False,
+        )
+        users_by_id = {user.id: user for user in users}
+
+        visible_ids = sorted(
+            (user_id for user_id in counts if user_id in users_by_id),
+            key=lambda user_id: (
+                -counts[user_id],
+                -users_by_id[user_id].used_traffic,
+                users_by_id[user_id].username,
+            ),
+        )
+        offset = query.offset or 0
+        limit = query.limit if query.limit is not None else len(visible_ids)
+        page_ids = visible_ids[offset : offset + limit]
+
+        entries = [
+            UserIPRankingEntry(
+                user_id=user_id,
+                username=users_by_id[user_id].username,
+                ips=ips_by_user[user_id],
+                distinct_ip_count=counts[user_id],
+                used_traffic=users_by_id[user_id].used_traffic,
+            )
+            for user_id in page_ids
+        ]
+
+        return UserIPRankingList(
+            users=entries, updated_at=updated_at, total=len(visible_ids), skipped_node_count=skipped_node_count
+        )
+
+    async def _get_users_ip_ranking_local(
+        self, db: AsyncSession, query: UserIPRankingQuery, owner: str | None = None
+    ) -> UserIPRankingList:
+        ips_by_user, skipped_node_count = await self._get_users_online_ips(query.node_ids)
+        return await self._resolve_ip_ranking(db, ips_by_user, datetime.now(UTC), query, skipped_node_count, owner)
+
+    async def _get_users_ip_ranking_remote(
+        self, db: AsyncSession, query: UserIPRankingQuery, owner: str | None = None
+    ) -> UserIPRankingList:
+        try:
+            data = await node_nats_client.request("get_users_ip_ranking", {"node_ids": query.node_ids})
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
+            return
+
+        snapshot = UserOnlineIPsSnapshot.model_validate(data)
+        return await self._resolve_ip_ranking(
+            db, snapshot.users, snapshot.computed_at, query, snapshot.skipped_node_count, owner
+        )
 
     async def _sync_node_users_local(self, db: AsyncSession, node_id: int, flush_users: bool) -> NodeResponse:
         db_node = await self.get_validated_node(db, node_id=node_id)

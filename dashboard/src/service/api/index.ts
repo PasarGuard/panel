@@ -2448,6 +2448,38 @@ export interface UserIPList {
 
 export type UserIPListAllNodes = {[key: string]: UserIPList | null};
 
+export type UserIPRankingEntryIps = { [key: string]: number }
+
+export interface UserIPRankingEntry {
+  user_id: number
+  username: string
+  ips: UserIPRankingEntryIps
+  distinct_ip_count: number
+  used_traffic: number
+}
+
+export type UserIPRankingListUpdatedAt = string
+
+export interface UserIPRankingList {
+  users: UserIPRankingEntry[]
+  updated_at: UserIPRankingListUpdatedAt
+  total?: number
+  skipped_node_count?: number
+}
+
+export type GetUsersRankedByIpCountParamsStatus = UserStatus | UserStatus[] | null
+
+export type GetUsersRankedByIpCountParams = {
+  offset?: number | null
+  limit?: number | null
+  admin_ids?: number[] | null
+  group?: number[] | null
+  status?: GetUsersRankedByIpCountParamsStatus
+  ip_count_min?: number | null
+  ip_count_max?: number | null
+  node_ids?: number[] | null
+}
+
 /**
  * User IP lists for all nodes
  */
@@ -13646,6 +13678,106 @@ export const getUserOnlineStatsUrl = (nodeId: number,
 
 
   return `/api/node/${nodeId}/online_stats/${userId}`
+}
+
+/**
+ * Rank users by the number of IPs connected right now.
+ *
+ * A snapshot of live connections from healthy nodes (limit with node_ids).
+ * Only users with at least one connected IP at this moment are listed; users
+ * without active connections are omitted. An IP leaves the list when its last
+ * connection closes. Order: distinct IP count (highest first), then used_traffic
+ * (highest first), then username (A to Z). Each entry carries its current IPs
+ * with last-seen timestamps and the stored used_traffic. Nodes that cannot
+ * report IPs are counted in skipped_node_count. Pages and total are recomputed
+ * from live data on every request, so the list can change between requests.
+ * @summary Users Ranked By Ip Count
+ */
+export const getUsersRankedByIpCountUrl = (params?: GetUsersRankedByIpCountParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["admin_ids","group","status","node_ids"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, String(v));
+      });
+      return;
+    }
+
+    if (value !== undefined && value !== null) {
+      normalizedParams.append(key, String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/node/online_stats/ranked_by_ip_count?${stringifiedParams}` : `/api/node/online_stats/ranked_by_ip_count`
+}
+
+export const usersRankedByIpCount = async (params?: GetUsersRankedByIpCountParams, options?: RequestInit): Promise<UserIPRankingList> => {
+  return orvalFetcher<UserIPRankingList>(getUsersRankedByIpCountUrl(params),
+  {
+    ...options,
+    method: 'GET'
+  }
+  );
+}
+
+export const getUsersRankedByIpCountQueryKey = (params?: GetUsersRankedByIpCountParams) => {
+  return [`/api/node/online_stats/ranked_by_ip_count`, ...(params ? [params] : [])] as const
+}
+
+export const getUsersRankedByIpCountQueryOptions = <TData = Awaited<ReturnType<typeof usersRankedByIpCount>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetUsersRankedByIpCountParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof usersRankedByIpCount>>, TError, TData>> },
+) => {
+  const { query: queryOptions } = options ?? {}
+
+  const queryKey = queryOptions?.queryKey ?? getUsersRankedByIpCountQueryKey(params)
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof usersRankedByIpCount>>> = ({ signal }) => usersRankedByIpCount(params, { signal })
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof usersRankedByIpCount>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type UsersRankedByIpCountQueryResult = NonNullable<Awaited<ReturnType<typeof usersRankedByIpCount>>>
+export type UsersRankedByIpCountQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+export function useUsersRankedByIpCount<TData = Awaited<ReturnType<typeof usersRankedByIpCount>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params: undefined | GetUsersRankedByIpCountParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof usersRankedByIpCount>>, TError, TData>> &
+      Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof usersRankedByIpCount>>, TError, TData>, 'initialData'>
+  },
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useUsersRankedByIpCount<TData = Awaited<ReturnType<typeof usersRankedByIpCount>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetUsersRankedByIpCountParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof usersRankedByIpCount>>, TError, TData>> &
+      Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof usersRankedByIpCount>>, TError, TData>, 'initialData'>
+  },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useUsersRankedByIpCount<TData = Awaited<ReturnType<typeof usersRankedByIpCount>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetUsersRankedByIpCountParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof usersRankedByIpCount>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Users Ranked By Ip Count
+ */
+
+export function useUsersRankedByIpCount<TData = Awaited<ReturnType<typeof usersRankedByIpCount>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+  params?: GetUsersRankedByIpCountParams,
+  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof usersRankedByIpCount>>, TError, TData>> },
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getUsersRankedByIpCountQueryOptions(params, options)
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+  query.queryKey = queryOptions.queryKey
+
+  return query
 }
 
 /**
