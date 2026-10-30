@@ -63,6 +63,7 @@
         -   [✨ Features](#-features)
 -   [🚀 Installation guide](#-installation-guide)
 -   [📚 Documentation](#-documentation)
+-   [🧩 Plugins](#-plugins)
 -   [💖 Donation](#-donation)
 
 ---
@@ -214,6 +215,21 @@ pasarguard --help
 </div>
 
 > **Contributing:** Help improve documentation on [GitHub](https://github.com/PasarGuard/PasarGuard.github.io)
+
+---
+
+# 🧩 Plugins
+
+Plugins are small Python packages that you install on the server yourself. A plugin can react to panel
+events, add API endpoints, change subscriptions, run periodic jobs, have settings in the dashboard and show
+its own page there.
+
+> **Plugins are trusted code.** They run inside the panel process with full access to the database, and a
+> plugin page in the dashboard gets the owner's token. Install only plugins you have read.
+
+Put plugin folders into `PLUGINS_DIR` (default `/var/lib/pasarguard/plugins`), list the enabled ones in
+`PLUGINS` (for example `PLUGINS = "expiring-report,sub-banner"`) and restart the panel. With `PLUGINS` empty
+no plugin code is loaded. How to write a plugin: [examples/plugins/README.md](examples/plugins/README.md).
 
 ---
 

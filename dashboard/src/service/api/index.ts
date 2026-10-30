@@ -2063,6 +2063,31 @@ export interface PasskeyRegistrationRequest {
   name?: string;
 }
 
+export type PluginResponseSettingsSchema = { [key: string]: unknown } | null;
+
+export type PluginStatus = typeof PluginStatus[keyof typeof PluginStatus];
+
+
+export const PluginStatus = {
+  loaded: 'loaded',
+  failed: 'failed',
+} as const;
+
+export interface PluginResponse {
+  id: string;
+  name: string;
+  version?: string;
+  description?: string;
+  status: PluginStatus;
+  error?: string | null;
+  has_ui?: boolean;
+  settings_schema?: PluginResponseSettingsSchema;
+}
+
+export interface PluginsResponse {
+  plugins?: PluginResponse[];
+}
+
 export interface VMessSettings {
   id?: string;
 }
@@ -3070,6 +3095,12 @@ search?: string | null;
 sort?: string | null;
 all?: boolean;
 };
+
+export type GetPluginSettings200 = { [key: string]: unknown };
+
+export type ModifyPluginSettingsBody = { [key: string]: unknown };
+
+export type ModifyPluginSettings200 = { [key: string]: unknown };
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -21584,4 +21615,351 @@ export const useAdminPasskeyRegisterVerify = <TError = ErrorType<HTTPValidationE
         TContext
       > => {
       return useMutation(getAdminPasskeyRegisterVerifyMutationOptions(options), queryClient);
+    }
+
+export const getGetPluginsUrl = () => {
+
+
+
+
+  return `/api/plugins`
+}
+
+/**
+ * List enabled plugins (loaded and failed). Empty when the plugin system is off.
+ * @summary Get Plugins
+ */
+export const getPlugins = async ( options?: RequestInit): Promise<PluginsResponse> => {
+
+  return orvalFetcher<PluginsResponse>(getGetPluginsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPluginsQueryKey = () => {
+    return [
+    `/api/plugins`
+    ] as const;
+    }
+
+
+export const getGetPluginsQueryOptions = <TData = Awaited<ReturnType<typeof getPlugins>>, TError = ErrorType<Unauthorized | Forbidden>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlugins>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPluginsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlugins>>> = ({ signal }) => getPlugins({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlugins>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPluginsQueryResult = NonNullable<Awaited<ReturnType<typeof getPlugins>>>
+export type GetPluginsQueryError = ErrorType<Unauthorized | Forbidden>
+
+
+export function useGetPlugins<TData = Awaited<ReturnType<typeof getPlugins>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlugins>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlugins>>,
+          TError,
+          Awaited<ReturnType<typeof getPlugins>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlugins<TData = Awaited<ReturnType<typeof getPlugins>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlugins>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlugins>>,
+          TError,
+          Awaited<ReturnType<typeof getPlugins>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlugins<TData = Awaited<ReturnType<typeof getPlugins>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlugins>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Plugins
+ */
+
+export function useGetPlugins<TData = Awaited<ReturnType<typeof getPlugins>>, TError = ErrorType<Unauthorized | Forbidden>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlugins>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPluginsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPluginSettingsUrl = (pluginId: string,) => {
+
+
+
+
+  return `/api/plugins/${pluginId}/settings`
+}
+
+/**
+ * @summary Get Plugin Settings
+ */
+export const getPluginSettings = async (pluginId: string, options?: RequestInit): Promise<GetPluginSettings200> => {
+
+  return orvalFetcher<GetPluginSettings200>(getGetPluginSettingsUrl(pluginId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPluginSettingsQueryKey = (pluginId: string,) => {
+    return [
+    `/api/plugins/${pluginId}/settings`
+    ] as const;
+    }
+
+
+export const getGetPluginSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getPluginSettings>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(pluginId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPluginSettings>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPluginSettingsQueryKey(pluginId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPluginSettings>>> = ({ signal }) => getPluginSettings(pluginId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: pluginId !== null && pluginId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPluginSettings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPluginSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getPluginSettings>>>
+export type GetPluginSettingsQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+
+export function useGetPluginSettings<TData = Awaited<ReturnType<typeof getPluginSettings>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ pluginId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPluginSettings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPluginSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getPluginSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPluginSettings<TData = Awaited<ReturnType<typeof getPluginSettings>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ pluginId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPluginSettings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPluginSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getPluginSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPluginSettings<TData = Awaited<ReturnType<typeof getPluginSettings>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ pluginId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPluginSettings>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Plugin Settings
+ */
+
+export function useGetPluginSettings<TData = Awaited<ReturnType<typeof getPluginSettings>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ pluginId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPluginSettings>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPluginSettingsQueryOptions(pluginId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getModifyPluginSettingsUrl = (pluginId: string,) => {
+
+
+
+
+  return `/api/plugins/${pluginId}/settings`
+}
+
+/**
+ * @summary Modify Plugin Settings
+ */
+export const modifyPluginSettings = async (pluginId: string,
+    modifyPluginSettingsBody: ModifyPluginSettingsBody, options?: RequestInit): Promise<ModifyPluginSettings200> => {
+
+  return orvalFetcher<ModifyPluginSettings200>(getModifyPluginSettingsUrl(pluginId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(modifyPluginSettingsBody)
+  }
+);}
+
+
+
+
+
+export const getModifyPluginSettingsMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof modifyPluginSettings>>, TError,{pluginId: string;data: BodyType<ModifyPluginSettingsBody>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof modifyPluginSettings>>, TError,{pluginId: string;data: BodyType<ModifyPluginSettingsBody>}, TContext> => {
+
+const mutationKey = ['modifyPluginSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof modifyPluginSettings>>, {pluginId: string;data: BodyType<ModifyPluginSettingsBody>}> = (props) => {
+          const {pluginId,data} = props ?? {};
+
+          return  modifyPluginSettings(pluginId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ModifyPluginSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof modifyPluginSettings>>>
+    export type ModifyPluginSettingsMutationBody = BodyType<ModifyPluginSettingsBody>
+    export type ModifyPluginSettingsMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+    /**
+ * @summary Modify Plugin Settings
+ */
+export const useModifyPluginSettings = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof modifyPluginSettings>>, TError,{pluginId: string;data: BodyType<ModifyPluginSettingsBody>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof modifyPluginSettings>>,
+        TError,
+        {pluginId: string;data: BodyType<ModifyPluginSettingsBody>},
+        TContext
+      > => {
+      return useMutation(getModifyPluginSettingsMutationOptions(options), queryClient);
+    }
+
+export const getCreatePluginUiSessionUrl = (pluginId: string,) => {
+
+
+
+
+  return `/api/plugins/${pluginId}/ui-session`
+}
+
+/**
+ * Set a cookie scoped to this plugin's UI path so the dashboard iframe can load it.
+ * @summary Create Plugin Ui Session
+ */
+export const createPluginUiSession = async (pluginId: string, options?: RequestInit): Promise<void> => {
+
+  return orvalFetcher<void>(getCreatePluginUiSessionUrl(pluginId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreatePluginUiSessionMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPluginUiSession>>, TError,{pluginId: string}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPluginUiSession>>, TError,{pluginId: string}, TContext> => {
+
+const mutationKey = ['createPluginUiSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPluginUiSession>>, {pluginId: string}> = (props) => {
+          const {pluginId} = props ?? {};
+
+          return  createPluginUiSession(pluginId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePluginUiSessionMutationResult = NonNullable<Awaited<ReturnType<typeof createPluginUiSession>>>
+
+    export type CreatePluginUiSessionMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+    /**
+ * @summary Create Plugin Ui Session
+ */
+export const useCreatePluginUiSession = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPluginUiSession>>, TError,{pluginId: string}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createPluginUiSession>>,
+        TError,
+        {pluginId: string},
+        TContext
+      > => {
+      return useMutation(getCreatePluginUiSessionMutationOptions(options), queryClient);
     }

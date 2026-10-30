@@ -12,6 +12,9 @@ from app.db import GetDB
 from app.db.crud.general import get_jwt_secret_key
 from config import jwt_settings
 
+# Lifetime of the plugin UI cookie token; the dashboard renews it while the plugin page is open
+PLUGIN_UI_TOKEN_MINUTES = 30
+
 
 @cached()
 async def get_secret_key():
@@ -46,6 +49,15 @@ async def create_admin_token(admin_id: int | None, username: str, hashed_passwor
 
 async def get_admin_payload(token: str, *, secret_key: str | None = None) -> dict | None:
     """Decode an admin token, optionally reusing a previously loaded signing key."""
+    payload = await _decode_admin_claims(token, ("admin", "sudo"), secret_key=secret_key)
+    if payload:
+        payload.pop("plugin_id")
+    return payload
+
+
+async def _decode_admin_claims(
+    token: str, accepted_access: tuple[str, ...], *, secret_key: str | None = None
+) -> dict | None:
     try:
         if secret_key is None:
             secret_key = await get_secret_key()
@@ -61,7 +73,7 @@ async def get_admin_payload(token: str, *, secret_key: str | None = None) -> dic
                 admin_id = int(admin_id)
             except TypeError, ValueError:
                 return
-        if not username or access not in ("admin", "sudo"):
+        if not username or access not in accepted_access:
             return
         try:
             created_at = datetime.fromtimestamp(payload["iat"], tz=UTC)
@@ -73,9 +85,42 @@ async def get_admin_payload(token: str, *, secret_key: str | None = None) -> dic
             "username": username,
             "created_at": created_at,
             "binding": binding,
+            "plugin_id": payload.get("pid"),
         }
     except jwt.exceptions.PyJWTError:
         return
+
+
+async def create_plugin_ui_token(
+    admin_id: int | None, username: str, hashed_password: str | None, plugin_id: str
+) -> str:
+    """Short-lived token that only loads the UI files of one plugin; ``get_admin_payload`` rejects it."""
+    minutes = PLUGIN_UI_TOKEN_MINUTES
+    if jwt_settings.access_token_expire_minutes > 0:
+        minutes = min(minutes, jwt_settings.access_token_expire_minutes)
+    now = datetime.now(UTC)
+    data = {
+        "sub": username,
+        "access": "plugin_ui",
+        "pid": plugin_id,
+        "iat": now,
+        "exp": now + timedelta(minutes=minutes),
+    }
+    secret_key = await get_secret_key()
+    if admin_id is not None:
+        if not hashed_password:
+            raise ValueError("Database admin tokens require a password hash")
+        data["aid"] = int(admin_id)
+        data["binding"] = _admin_token_binding(hashed_password, secret_key)
+    return jwt.encode(data, secret_key, algorithm="HS256")
+
+
+async def get_plugin_ui_payload(token: str, plugin_id: str, *, secret_key: str | None = None) -> dict | None:
+    """Decode a plugin UI token; ``None`` unless it was issued for ``plugin_id``."""
+    payload = await _decode_admin_claims(token, ("plugin_ui",), secret_key=secret_key)
+    if not payload or payload["plugin_id"] != plugin_id:
+        return None
+    return payload
 
 
 async def create_subscription_token(user_id: int) -> str:

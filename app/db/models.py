@@ -1070,3 +1070,11 @@ class TempKey(Base):
     expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     used_by_ip: Mapped[str | None] = mapped_column(String(45), default=None)
+
+
+class PluginSettings(Base):
+    __tablename__ = "plugin_settings"
+
+    plugin_id: Mapped[str] = mapped_column(String(64), primary_key=True, init=True)
+    data: Mapped[dict] = mapped_column(JSON(), default_factory=dict)
+    updated_at: Mapped[dt] = mapped_column(DateTime(timezone=True), default_factory=lambda: dt.now(UTC))

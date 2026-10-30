@@ -12,6 +12,7 @@ from app.db.models import UserStatus
 from app.models.status_emojis import STATUS_EMOJIS
 from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
+from app.plugins import registry as plugin_registry, subscription as plugin_subscription
 from app.settings import subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
 from app.subscription.config_cache import (
@@ -94,6 +95,8 @@ async def generate_subscription(
     randomize_order: bool = False,
 ) -> str | bytes:
     cache_key = make_sub_config_key(user, config_format, as_base64, randomize_order)
+    plugin_format = f"{config_format}_base64" if as_base64 else config_format
+
     async def render() -> str | bytes:
         client_templates = await subscription_client_templates()
         xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
@@ -113,19 +116,24 @@ async def generate_subscription(
             randomize_order=randomize_order,
             custom_variables=custom_variables,
         )
+        if plugin_registry.active:
+            # Before caching: cached transforms must be deterministic per user + format
+            config = await plugin_subscription.apply_transforms(user, plugin_format, config, cached=True)
         if as_base64 and not isinstance(config, bytes):
             config = base64.b64encode(config.encode()).decode()
         return config
 
     if config_format != "wireguard":
-        cached = get_sub_config(cache_key)
-        if cached is not None:
-            return cached
-        config = await render()
-        put_sub_config(cache_key, config)
-        return config
+        config = get_sub_config(cache_key)
+        if config is None:
+            config = await render()
+            put_sub_config(cache_key, config)
+    else:
+        config = await get_or_create_sub_config(cache_key, render)
 
-    return await get_or_create_sub_config(cache_key, render)
+    if plugin_registry.active:
+        config = await plugin_subscription.apply_uncached_transforms(user, plugin_format, config, as_base64)
+    return config
 
 
 def inject_body_placement(conf: str | bytes, lines: list[str], placement: str, as_base64: bool) -> str | bytes:
@@ -298,6 +306,9 @@ def setup_format_variables(user: UsersResponseWithInbounds, custom_variables: li
             "ADMIN_USERNAME": admin_username,
         },
     )
+
+    if plugin_registry.active:
+        plugin_subscription.merge_variables(user, format_variables)
 
     return apply_custom_format_variables(format_variables, custom_variables)
 

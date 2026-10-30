@@ -1,4 +1,3 @@
-import re
 from datetime import UTC, datetime as dt, timedelta as td
 from enum import IntEnum
 from typing import Any
@@ -26,6 +25,7 @@ from app.models.group import BulkGroup
 from app.models.user import UserCreate, UserModify
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
 from app.operation.permissions import apply_group_access, get_scope_admin_id
+from app.utils.headers import check_response_header
 from app.utils.helpers import ensure_datetime_timezone
 from app.utils.jwt import get_subscription_payload
 
@@ -40,8 +40,6 @@ class OperatorType(IntEnum):
 
 
 class BaseOperation:
-    _HTTP_HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
-
     def __init__(self, operator_type: OperatorType):
         self.operator_type = operator_type
 
@@ -60,25 +58,7 @@ class BaseOperation:
 
             header_name = str(raw_name)
             header_value = str(raw_value)
-
-            if not header_name or header_name != header_name.strip():
-                raise ValueError("Invalid response header name: empty or whitespace wrapped")
-            if not cls._HTTP_HEADER_NAME_PATTERN.fullmatch(header_name):
-                raise ValueError(f'Invalid response header name "{header_name}"')
-
-            if "\r" in header_value or "\n" in header_value or "\x00" in header_value:
-                raise ValueError(
-                    f'Invalid response header "{header_name}": value contains forbidden control characters'
-                )
-
-            try:
-                header_name.encode("latin-1")
-                header_value.encode("latin-1")
-            except UnicodeEncodeError as exc:
-                raise ValueError(
-                    f'Invalid response header "{header_name}": value contains non latin-1 characters'
-                ) from exc
-
+            check_response_header(header_name, header_value)
             cleaned_headers[header_name] = header_value
 
         return cleaned_headers
