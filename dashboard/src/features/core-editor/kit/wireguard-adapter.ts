@@ -9,7 +9,14 @@ import {
 import type { WireGuardCoreConfig, WireGuardCoreDraft, WireGuardValidationIssue } from '@pasarguard/wireguard-config-kit'
 import { validateCoreConfig } from '@pasarguard/core-kit'
 
-const knownConfigKeys = new Set(['interface_name', 'private_key', 'pre_shared_key', 'listen_port', 'address'])
+const knownConfigKeys = new Set(['interface_name', 'private_key', 'pre_shared_key', 'listen_port', 'address', 'peers'])
+
+function validateWireGuardMtu(config: Record<string, unknown>): WireGuardValidationIssue[] {
+  if (!Object.prototype.hasOwnProperty.call(config, 'mtu')) return []
+  const mtu = config.mtu
+  if (typeof mtu === 'number' && Number.isInteger(mtu) && mtu >= 576 && mtu <= 9000) return []
+  return [{ path: '/mtu', code: 'WG_MTU_INVALID', message: 'MTU must be an integer between 576 and 9000.' }]
+}
 
 export function wireGuardConfigToDraft(raw: unknown): { ok: true; draft: WireGuardCoreDraft } | { ok: false; message: string } {
   const result = validateWireGuardCoreConfig(raw)
@@ -17,6 +24,8 @@ export function wireGuardConfigToDraft(raw: unknown): { ok: true; draft: WireGua
     const first = result.issues[0]
     return { ok: false, message: first ? `${first.path}: ${first.message}` : 'Invalid WireGuard config' }
   }
+  const mtuIssues = validateWireGuardMtu(result.config)
+  if (mtuIssues.length > 0) return { ok: false, message: `${mtuIssues[0].path}: ${mtuIssues[0].message}` }
   const c = result.config as WireGuardCoreConfig
   const extra: Record<string, JsonValue> = {}
   for (const [key, value] of Object.entries(c)) {
@@ -42,7 +51,10 @@ export function createNewWireGuardDraft(): WireGuardCoreDraft {
 
 export function draftToPersistedConfig(draft: WireGuardCoreDraft): Record<string, unknown> {
   const json = generateWireGuardCoreConfigJsonFromDraft(draft)
-  return JSON.parse(json) as Record<string, unknown>
+  const config = JSON.parse(json) as Record<string, unknown>
+  // Peer data belongs to the backend, including values from legacy configs or raw JSON.
+  delete config.peers
+  return config
 }
 
 function draftGenerationIssue(error: unknown): WireGuardValidationIssue {
@@ -56,7 +68,7 @@ function draftGenerationIssue(error: unknown): WireGuardValidationIssue {
 }
 
 export function validateWireGuardDraftForSave(draft: WireGuardCoreDraft) {
-  const issues = validateWireGuardCoreDraft(draft)
+  const issues = [...validateWireGuardCoreDraft(draft), ...validateWireGuardMtu(draft.extra)]
   if (issues.length > 0) {
     return { ok: false as const, issues }
   }
@@ -71,7 +83,7 @@ export function validateWireGuardDraftForSave(draft: WireGuardCoreDraft) {
 
 /** Draft issues + core-kit validation in one step for saves. */
 export function getWireGuardPersistConfig(draft: WireGuardCoreDraft) {
-  const issues = validateWireGuardCoreDraft(draft)
+  const issues = [...validateWireGuardCoreDraft(draft), ...validateWireGuardMtu(draft.extra)]
   if (issues.length > 0) {
     return { ok: false as const, draftIssues: issues }
   }

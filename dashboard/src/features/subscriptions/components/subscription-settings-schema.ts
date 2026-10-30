@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { UseFormReturn } from 'react-hook-form'
 
 export const builtInVariableKeys = [
   'SERVER_IP',
@@ -99,6 +100,7 @@ export type SubscriptionApplicationFormData = z.infer<typeof subscriptionApplica
 export const subscriptionSchema = z.object({
   url_prefix: z.string().optional(),
   update_interval: z.number().min(1, 'Update interval must be at least 1 hour').max(168, 'Update interval cannot exceed 168 hours (1 week)').optional(),
+  clients_limit: z.number().int().optional(),
   support_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
   profile_title: z.string().optional(),
   announce: z.string().max(128, 'Announcement must be 128 characters or less').optional(),
@@ -108,6 +110,7 @@ export const subscriptionSchema = z.object({
   randomize_order: z.boolean().optional(),
   custom_variables: customVariablesSchema,
   response_headers: z.record(z.string()).optional(),
+  header_placement: z.enum(['header', 'body_start', 'body_end']).optional(),
   rules: z.array(
     z.object({
       pattern: z.string().min(1, 'Pattern is required'),
@@ -131,6 +134,10 @@ export const subscriptionSchema = z.object({
 })
 
 export type SubscriptionFormData = z.infer<typeof subscriptionSchema>
+export type SubscriptionFormInput = z.input<typeof subscriptionSchema>
+export type SubscriptionSettingsForm = UseFormReturn<SubscriptionFormInput, unknown, SubscriptionFormData>
+// Watched fields are resolver inputs, so defaults may not have been applied yet.
+export const withCustomVariableDefaults = (variables: SubscriptionFormInput['custom_variables']) => (variables ?? []).map(variable => ({ key: variable.key ?? '', value: variable.value ?? '' }))
 export type SubscriptionRuleFormData = SubscriptionFormData['rules'][number]
 export type SubscriptionPlatform = SubscriptionApplicationFormData['platform']
 export type SubscriptionLanguage = NonNullable<SubscriptionApplicationFormData['download_links']>[number]['language']

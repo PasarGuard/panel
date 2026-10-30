@@ -24,7 +24,7 @@ from PasarGuardNodeBridge import Health, NodeAPIError, NodeType, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import User
 from PasarGuardNodeBridge.grpclib import Node as GrpcNode
 from PasarGuardNodeBridge.rest import Node as RestNode
-from PasarGuardNodeBridge.storage import ClaimedUser
+from PasarGuardNodeBridge.storage import ClaimedUser, LifecycleLease, LifecycleStatus
 
 _queued_sync: ContextVar[bool] = ContextVar("queued_node_user_sync", default=False)
 
@@ -54,6 +54,40 @@ def get_refresh_handler() -> RefreshHandler | None:
     return _refresh_handler
 
 
+def _has_wireguard_identity(user: User) -> bool:
+    wireguard = user.proxies.wireguard
+    return bool(wireguard.public_key and wireguard.peer_ips)
+
+
+def _keep_removal_credentials(fresh: User, queued: User) -> User:
+    """Give a removal the queued payload's credentials where its own cannot identify the user.
+
+    Nodes may need them to find what to remove: node v0.5.4's WireGuard
+    backend ignores a removal without a public key and peer IPs. A removal
+    without credentials (its user is gone) takes all of them; one whose stored
+    WireGuard identity is gone or incomplete takes the queued one. Only the
+    credentials are kept; the removal still carries no inbounds.
+    """
+    if fresh.inbounds or not queued.HasField("proxies"):
+        return fresh
+    if not fresh.HasField("proxies"):
+        return User(email=fresh.email, proxies=queued.proxies)
+    if _has_wireguard_identity(fresh) or not _has_wireguard_identity(queued):
+        return fresh
+    kept = User()
+    kept.CopyFrom(fresh)
+    kept.proxies.wireguard.CopyFrom(queued.proxies.wireguard)
+    return kept
+
+
+class FullSyncConflictError(NodeAPIError):
+    """A full snapshot cannot run (or keep its fence) because of other user-sync work.
+
+    Raised before anything reaches the node, so it says nothing about the
+    node's health; callers retry instead of flagging the node.
+    """
+
+
 class FenceHold:
     """Ownership of a node's full-sync fence for the duration of one snapshot."""
 
@@ -66,7 +100,7 @@ class FenceHold:
 
     def check(self) -> None:
         if self.lost.is_set() or time.time() >= self.until:
-            raise NodeAPIError(409, "The full user sync lost its fence lease; nothing was sent or retired")
+            raise FullSyncConflictError(409, "The full user sync lost its fence lease; nothing was sent or retired")
 
     def lose(self) -> None:
         if self.lost.is_set():
@@ -89,6 +123,29 @@ class _QueuedBatchSync:
         resolver = getattr(self._user_sync_store, "refresh_resolver", None)
         if resolver is None and hasattr(self._user_sync_store, "refresh_resolver"):
             self._user_sync_store.refresh_resolver = _resolve_refresh
+
+    async def set_reported_versions(self, node_version: str, core_version: str) -> None:
+        """Refresh versions from Info without restarting the bridge's sync worker."""
+        async with self._version_lock:
+            self._node_version = node_version
+            self._core_version = core_version
+
+    async def _release_lifecycle_lease(
+        self,
+        lease: LifecycleLease,
+        observed: LifecycleStatus | None = None,
+        desired: LifecycleStatus | None = None,
+        node_version: str = "",
+        core_version: str = "",
+    ) -> None:
+        # Bridge 0.9.4 awaits the cancelled heartbeat directly. If it has not
+        # started, its CancelledError masks the RPC error and aborts startup.
+        # Gather consumes the child's cancellation while preserving caller cancellation.
+        heartbeat = self._lifecycle_heartbeat_tasks.pop(lease.token, None)
+        if heartbeat is not None:
+            heartbeat.cancel()
+            await asyncio.gather(heartbeat, return_exceptions=True)
+        await super()._release_lifecycle_lease(lease, observed, desired, node_version, core_version)
 
     # ------------------------------------------------------------------ transport
     def _delivery_budget(self) -> float:
@@ -129,7 +186,7 @@ class _QueuedBatchSync:
         if handler is None:
             return users
         fresh = {user.email: user for user in await handler(self.node_id, [user.email for user in users])}
-        return [fresh.get(user.email, user) for user in users]
+        return [_keep_removal_credentials(fresh[user.email], user) if user.email in fresh else user for user in users]
 
     async def sync_users_chunked(self, users, chunk_size=100, flush_pending=False, timeout=None):
         if not _queued_sync.get() or not users:
@@ -253,7 +310,7 @@ class _QueuedBatchSync:
 
         Yields a hold whose ``check()`` raises once the lease has been lost, so
         the caller can refuse to send or retire anything on a fence it no longer
-        owns. Raises NodeAPIError(409) when another snapshot is already in flight.
+        owns. Raises FullSyncConflictError(409) when another snapshot is already in flight.
         """
         if lease_seconds is None:
             lease_seconds = FULL_SYNC_LEASE_SECONDS
@@ -265,11 +322,11 @@ class _QueuedBatchSync:
             started = time.time()
             token = await begin(self.node_id, self.worker_id, lease_seconds)
             if token is None:
-                raise NodeAPIError(409, "A full user sync is already in progress for this node")
+                raise FullSyncConflictError(409, "A full user sync is already in progress for this node")
             held = FenceHold(asyncio.current_task(), started + lease_seconds)
             renewal = asyncio.create_task(self._renew_full_sync(token, lease_seconds, held))
         elif self._local_full_syncs:
-            raise NodeAPIError(409, "A full user sync is already in progress for this node")
+            raise FullSyncConflictError(409, "A full user sync is already in progress for this node")
         else:
             held = FenceHold(None, float("inf"))
         self._local_full_syncs += 1
@@ -284,7 +341,9 @@ class _QueuedBatchSync:
             current = asyncio.current_task()
             if current is not None:
                 current.uncancel()
-            raise NodeAPIError(409, "The full user sync lost its fence lease; nothing was sent or retired") from None
+            raise FullSyncConflictError(
+                409, "The full user sync lost its fence lease; nothing was sent or retired"
+            ) from None
         finally:
             self._local_full_syncs -= 1
             if renewal is not None:
@@ -319,7 +378,7 @@ class _QueuedBatchSync:
                     # Claim leases expire on their own, so this means the queue
                     # state cannot be trusted right now. Fail closed: nothing is
                     # sent or retired, and the queued work stays where it is.
-                    raise NodeAPIError(
+                    raise FullSyncConflictError(
                         503, f"{active} user delivery claim(s) still in flight after the lease; full sync not started"
                     )
                 await asyncio.sleep(delay)

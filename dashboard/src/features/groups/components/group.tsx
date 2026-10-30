@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { queryClient } from '@/utils/query-client'
 import type { ReactNode } from 'react'
+import { translateHtml } from '@/utils/html-translation'
 
 interface GroupProps {
   group: GroupResponse
@@ -33,7 +34,7 @@ const DeleteAlertDialog = ({ group, isOpen, onClose, onConfirm }: { group: Group
         <AlertDialogHeader>
           <AlertDialogTitle>{t('group.deleteConfirmation')}</AlertDialogTitle>
           <AlertDialogDescription>
-            <span dir={dir} dangerouslySetInnerHTML={{ __html: t('group.deleteConfirm', { name: group.name }) }} />
+            <span dir={dir} dangerouslySetInnerHTML={{ __html: translateHtml(t, 'group.deleteConfirm', { name: group.name }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

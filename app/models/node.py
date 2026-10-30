@@ -24,6 +24,7 @@ SECONDS_IN_YEAR = 31536000  # 365 days
 class UsageTable(str, Enum):
     node_user_usages = "node_user_usages"
     node_usages = "node_usages"
+    node_outbound_usages = "node_outbound_usages"
 
 
 class GeoFilseRegion(str, Enum):
@@ -203,6 +204,7 @@ class NodeModify(NodeCreate):
 
 class NodeResponse(Node):
     id: int
+    sort_order: int = 0
     api_key: str | None
     core_config_id: int | None
     xray_version: str | None
@@ -301,6 +303,13 @@ class NodeUsageQuery(BaseModel):
     end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
 
 
+class NodeOutboundUsageQuery(BaseModel):
+    period: Period = Field(default=Period.hour)
+    node_id: int | None = None
+    start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
+    end: OptionalAwareDatetime = Field(default=None, examples=["2024-01-31T23:59:59+03:30"])
+
+
 class NodeStatsPeriodQuery(BaseModel):
     period: Period = Field(default=Period.hour)
     start: OptionalAwareDatetime = Field(default=None, examples=["2024-01-01T00:00:00+03:30"])
@@ -343,6 +352,14 @@ class UserIPListAll(BaseModel):
 
 class NodeCoreUpdate(BaseModel):
     core_version: str = Field(default="latest", pattern=r"^(latest|v?\d+\.\d+\.\d+)$", examples=["v25.8.31"])
+
+    @field_validator("core_version")
+    @classmethod
+    def add_v_prefix(cls, value: str) -> str:
+        # node-serviced and pg-node look versions up by release tag, which always starts with "v".
+        if value != "latest" and not value.startswith("v"):
+            return f"v{value}"
+        return value
 
 
 class NodeGeoFilesUpdate(BaseModel):

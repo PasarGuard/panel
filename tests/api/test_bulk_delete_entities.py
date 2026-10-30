@@ -9,6 +9,8 @@ from sqlalchemy import func, select, update
 from app.db.crud.node import create_node as db_create_node, remove_node as db_remove_node
 from app.db.models import (
     Admin,
+    AdminNotificationReminder,
+    AdminPasskey,
     AdminUsageLogs,
     APIKey,
     NextPlan,
@@ -17,6 +19,8 @@ from app.db.models import (
     NodeUsage,
     NodeUsageResetLogs,
     NodeUserUsage,
+    PasskeyChallenge,
+    ReminderType,
     User,
     inbounds_groups_association,
     template_group_association,
@@ -86,6 +90,56 @@ def seed_api_key(admin_id: int) -> int:
             return db_key.id
 
     return asyncio.run(_seed())
+
+
+def seed_admin_auth_rows(admin_id: int) -> bytes:
+    """Give an admin a passkey, a pending passkey challenge and a usage reminder; return the credential id."""
+    credential_id = f"cred-{uuid4().hex}".encode()
+
+    async def _seed():
+        async with TestSession() as session:
+            session.add(AdminPasskey(admin_id=admin_id, credential_id=credential_id, public_key=b"public-key"))
+            session.add(
+                PasskeyChallenge(
+                    challenge=uuid4().bytes,
+                    kind="login",
+                    expires_at=datetime.now(UTC) + timedelta(minutes=5),
+                    admin_id=admin_id,
+                )
+            )
+            session.add(AdminNotificationReminder(admin_id=admin_id, type=ReminderType.data_usage, threshold=80))
+            await session.commit()
+
+    asyncio.run(_seed())
+    return credential_id
+
+
+def count_admin_auth_rows(admin_id: int) -> dict[str, int]:
+    async def _count():
+        async with TestSession() as session:
+            counts = {}
+            for name, model in (
+                ("passkeys", AdminPasskey),
+                ("challenges", PasskeyChallenge),
+                ("reminders", AdminNotificationReminder),
+            ):
+                counts[name] = (
+                    await session.execute(select(func.count()).select_from(model).where(model.admin_id == admin_id))
+                ).scalar_one()
+            return counts
+
+    return asyncio.run(_count())
+
+
+def get_passkey_admin_id(credential_id: bytes) -> int | None:
+    async def _get():
+        async with TestSession() as session:
+            result = await session.execute(
+                select(AdminPasskey.admin_id).where(AdminPasskey.credential_id == credential_id)
+            )
+            return result.scalar_one_or_none()
+
+    return asyncio.run(_get())
 
 
 def get_user_admin_id(username: str) -> int | None:
@@ -370,6 +424,46 @@ def test_bulk_delete_admins_clears_owned_users_usage_logs_and_api_keys(access_to
         delete_admin_if_present(access_token, admin["username"])
 
 
+def test_bulk_delete_admins_removes_passkeys_challenges_and_reminders(access_token):
+    admin = create_admin(access_token)
+    credential_id = seed_admin_auth_rows(admin["id"])
+    replacement = None
+    try:
+        response = client.post(
+            "/api/admins/bulk/delete",
+            headers=auth_headers(access_token),
+            json={"ids": [admin["id"]]},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert count_admin_auth_rows(admin["id"]) == {"passkeys": 0, "challenges": 0, "reminders": 0}
+        assert get_passkey_admin_id(credential_id) is None
+
+        # SQLite can hand the freed id to the next admin; it must not inherit the deleted admin's passkey.
+        replacement = create_admin(access_token)
+        assert count_admin_auth_rows(replacement["id"]) == {"passkeys": 0, "challenges": 0, "reminders": 0}
+        listed = client.get(f"/api/admin/passkey/admins/{replacement['id']}", headers=auth_headers(access_token))
+        assert listed.status_code == status.HTTP_200_OK
+        assert listed.json() == []
+    finally:
+        delete_admin_if_present(access_token, admin["username"])
+        if replacement is not None:
+            delete_admin_if_present(access_token, replacement["username"])
+
+
+def test_delete_admin_removes_passkeys_challenges_and_reminders(access_token):
+    admin = create_admin(access_token)
+    credential_id = seed_admin_auth_rows(admin["id"])
+    try:
+        response = client.delete(f"/api/admin/by-id/{admin['id']}", headers=auth_headers(access_token))
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert count_admin_auth_rows(admin["id"]) == {"passkeys": 0, "challenges": 0, "reminders": 0}
+        assert get_passkey_admin_id(credential_id) is None
+    finally:
+        delete_admin_if_present(access_token, admin["username"])
+
+
 def test_bulk_delete_admins_rejects_owner_account(access_token):
     """Bulk deleting the owner admin (role_id=1) should be forbidden."""
     owner = create_owner_admin_row()
@@ -492,23 +586,83 @@ def test_bulk_delete_client_templates_rejects_system_template(access_token):
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
-def test_bulk_delete_cores_clears_node_core_references(access_token):
+def test_delete_core_restarts_only_affected_nodes_with_default_core(access_token, monkeypatch):
+    target_core = create_core(access_token, name=unique_name("single_core"))
+    other_core = create_core(access_token, name=unique_name("other_core"))
+    target_node_id = create_db_node(core_config_id=target_core["id"])
+    other_node_id = create_db_node(core_config_id=other_core["id"])
+    default_node_id = create_db_node(core_config_id=1)
+    restart_nodes = AsyncMock()
+    monkeypatch.setattr("app.routers.core.node_operator.connect_nodes_bulk", restart_nodes)
+    try:
+        response = client.delete(
+            f"/api/core/{target_core['id']}",
+            headers=auth_headers(access_token),
+            params={"restart_nodes": True},
+        )
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert get_node_core_config_id(target_node_id) is None
+        assert get_node_core_config_id(other_node_id) == other_core["id"]
+        assert get_node_core_config_id(default_node_id) == 1
+        restart_nodes.assert_awaited_once()
+        db_nodes = restart_nodes.await_args.args[1]
+        assert [node.id for node in db_nodes] == [target_node_id]
+        assert db_nodes[0].core_config_id is None
+        assert restart_nodes.await_args.kwargs == {"force_start": True}
+    finally:
+        delete_db_node(target_node_id)
+        delete_db_node(other_node_id)
+        delete_db_node(default_node_id)
+        delete_core_if_present(access_token, target_core["id"])
+        delete_core_if_present(access_token, other_core["id"])
+
+
+def test_delete_core_without_restart_clears_node_core_reference(access_token, monkeypatch):
+    target_core = create_core(access_token, name=unique_name("single_core_no_restart"))
+    node_id = create_db_node(core_config_id=target_core["id"])
+    restart_nodes = AsyncMock()
+    monkeypatch.setattr("app.routers.core.node_operator.connect_nodes_bulk", restart_nodes)
+    try:
+        response = client.delete(f"/api/core/{target_core['id']}", headers=auth_headers(access_token))
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert get_node_core_config_id(node_id) is None
+        restart_nodes.assert_not_awaited()
+    finally:
+        delete_db_node(node_id)
+        delete_core_if_present(access_token, target_core["id"])
+
+
+def test_bulk_delete_cores_clears_node_core_references(access_token, monkeypatch):
     seed_core = create_core(access_token, name=unique_name("bulk_core_seed"))
-    target_core = create_core(access_token, name=unique_name("bulk_core"))
-    node_id = create_db_node(core_config_id=target_core["id"], name=unique_name("bulk_core_node"))
+    target_cores = [create_core(access_token, name=unique_name("bulk_core")) for _ in range(2)]
+    node_ids = [create_db_node(core_config_id=core["id"]) for core in target_cores]
+    seed_node_id = create_db_node(core_config_id=seed_core["id"])
+    restart_nodes = AsyncMock()
+    monkeypatch.setattr("app.routers.core.node_operator.connect_nodes_bulk", restart_nodes)
     try:
         response = client.post(
             "/api/cores/bulk/delete",
             headers=auth_headers(access_token),
-            json={"ids": [target_core["id"]]},
+            json={"ids": [core["id"] for core in target_cores]},
         )
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["count"] == 1
-        assert get_node_core_config_id(node_id) is None
+        assert response.json()["count"] == 2
+        assert all(get_node_core_config_id(node_id) is None for node_id in node_ids)
+        assert get_node_core_config_id(seed_node_id) == seed_core["id"]
+        restart_nodes.assert_awaited_once()
+        db_nodes = restart_nodes.await_args.args[1]
+        assert {node.id for node in db_nodes} == set(node_ids)
+        assert all(node.core_config_id is None for node in db_nodes)
+        assert restart_nodes.await_args.kwargs == {"force_start": True}
     finally:
-        delete_db_node(node_id)
-        delete_core_if_present(access_token, target_core["id"])
+        for node_id in node_ids:
+            delete_db_node(node_id)
+        delete_db_node(seed_node_id)
+        for core in target_cores:
+            delete_core_if_present(access_token, core["id"])
         delete_core_if_present(access_token, seed_core["id"])
 
 
@@ -640,7 +794,45 @@ def test_bulk_delete_user_templates_removes_group_links_and_next_plan_refs(acces
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 1
         assert get_template_group_link_count(template["id"]) == 0
-        assert get_next_plan_state(user["id"]) == {"exists": True, "user_template_id": None}
+        # Same as the single delete: a next plan that renews from a deleted template is removed.
+        assert get_next_plan_state(user["id"]) is None
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group_if_present(access_token, group["id"])
+        delete_core_if_present(access_token, core["id"])
+
+
+def test_bulk_delete_user_templates_does_not_turn_template_next_plan_unlimited(access_token):
+    core = create_core(access_token, name=unique_name("bulk_template_plan_core"))
+    group = create_group(access_token, name=unique_name("bulk_template_plan_group"))
+    template = create_user_template(
+        access_token,
+        name=unique_name("bulk_template_plan"),
+        group_ids=[group["id"]],
+        data_limit=5 * 1024**3,
+        expire_duration=30 * 86400,
+    )
+    # A template next plan keeps its limits in the template, not in the plan row.
+    user = create_user(
+        access_token,
+        group_ids=[group["id"]],
+        payload={"username": unique_name("bulk_template_plan_user"), "next_plan": {"user_template_id": template["id"]}},
+    )
+    try:
+        response = client.post(
+            "/api/user_templates/bulk/delete",
+            headers=auth_headers(access_token),
+            json={"ids": [template["id"]]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+
+        response = client.get(f"/api/user/by-id/{user['id']}", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["next_plan"] is None
+
+        # Before the fix the plan survived without a template and renewed to unlimited traffic, no expiry.
+        response = client.post(f"/api/user/by-id/{user['id']}/active_next", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_404_NOT_FOUND, response.json()
     finally:
         delete_user(access_token, user["username"])
         delete_group_if_present(access_token, group["id"])

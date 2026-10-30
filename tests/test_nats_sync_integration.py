@@ -168,7 +168,7 @@ async def test_sync_recovery_preserves_queued_users_and_active_claims(jetstream,
         assert node.requires_hard_reset()
         revision = (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.last_seq
         await node_checker.process_node_health_check(
-            SimpleNamespace(id=91, name="slow-node", status=NodeStatus.connected), node
+            SimpleNamespace(id=91, name="slow-node", status=NodeStatus.connected, default_timeout=10), node
         )
         assert not node.requires_hard_reset()
         assert not worker.done()
@@ -292,7 +292,7 @@ async def test_health_poll_recovers_claim_that_expires_after_startup(jetstream, 
         sync.assert_not_awaited()
         now[0] += 61
         await node_checker.process_node_health_check(
-            SimpleNamespace(id=93, name="restored", status=NodeStatus.connected), node
+            SimpleNamespace(id=93, name="restored", status=NodeStatus.connected, default_timeout=10), node
         )
         await asyncio.wait_for(node._sync_worker_task, timeout=5)
         assert [user.email for user in sync.await_args.args[0]] == ["orphan"]

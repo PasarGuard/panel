@@ -1,19 +1,19 @@
-import type { SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
+import { withCustomVariableDefaults, type SubscriptionSettingsForm } from './subscription-settings-schema'
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { CustomVariablesPopover, VariablesPopover } from '@/components/ui/variables-popover'
-import { Clock, ExternalLink, FileCode2, Globe, HelpCircle, Link, Megaphone, Shuffle, User } from 'lucide-react'
-import { UseFormReturn } from 'react-hook-form'
+import { Clock, ExternalLink, FileCode2, Globe, HelpCircle, History, Link, Megaphone, Shuffle, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 export interface SubscriptionGeneralSettingsSectionProps {
-  form: UseFormReturn<SubscriptionFormData>
+  form: SubscriptionSettingsForm
 }
 
 export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneralSettingsSectionProps) {
   const { t } = useTranslation()
+  const customVariables = withCustomVariableDefaults(form.watch('custom_variables'))
 
   return (
     <div className="space-y-3">
@@ -66,6 +66,31 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
 
         <FormField
           control={form.control}
+          name="clients_limit"
+          render={({ field }) => (
+            <FormItem className="space-y-2">
+              <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
+                <History className="h-4 w-4" />
+                {t('settings.subscriptions.general.clientsLimit')}
+              </FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="1"
+                  {...field}
+                  value={field.value ?? ''}
+                  onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                  className="text-xs sm:text-sm"
+                />
+              </FormControl>
+              <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.general.clientsLimitDescription')}</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
           name="support_url"
           render={({ field }) => (
             <FormItem className="space-y-2">
@@ -92,8 +117,8 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
                   <User className="h-4 w-4" />
                   {t('settings.subscriptions.general.profileTitle')}
                 </FormLabel>
-                <VariablesPopover customVariables={form.watch('custom_variables') || []} />
-                <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} />
+                <VariablesPopover customVariables={customVariables} />
+                <CustomVariablesPopover customVariables={customVariables} />
               </div>
               <FormControl>
                 <Input placeholder={t('settings.subscriptions.general.profileTitlePlaceholder')} {...field} className="text-xs sm:text-sm" />
@@ -114,8 +139,8 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
                   <Megaphone className="h-4 w-4" />
                   {t('settings.subscriptions.general.announce')}
                 </FormLabel>
-                <VariablesPopover customVariables={form.watch('custom_variables') || []} />
-                <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} />
+                <VariablesPopover customVariables={customVariables} />
+                <CustomVariablesPopover customVariables={customVariables} />
               </div>
               <FormControl>
                 <Textarea maxLength={128} placeholder={t('settings.subscriptions.general.announcePlaceholder')} rows={3} className="resize-none text-xs sm:text-sm" {...field} />
@@ -136,8 +161,8 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
                   <ExternalLink className="h-4 w-4" />
                   {t('settings.subscriptions.general.announceUrl')}
                 </FormLabel>
-                <VariablesPopover customVariables={form.watch('custom_variables') || []} />
-                <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} />
+                <VariablesPopover customVariables={customVariables} />
+                <CustomVariablesPopover customVariables={customVariables} />
               </div>
               <FormControl>
                 <Input placeholder={t('settings.subscriptions.general.announceUrlPlaceholder')} {...field} className="font-mono text-xs sm:text-sm" />

@@ -13,15 +13,23 @@ from app.core.manager import core_manager
 from app.db import GetDB
 from app.db.crud.host import get_host_by_id, get_hosts, upsert_inbounds
 from app.db.models import ProxyHostSecurity
-from app.models.host import BaseHost, FinalMask, TransportSettings, WireGuardHostOverrides
+from app.models.host import (
+    BaseHost,
+    FinalMask,
+    TransportSettings,
+    WireGuardHostOverrides,
+    dump_final_mask_for_xray,
+)
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
+    MasqueTransportConfig,
     QUICTransportConfig,
     SubscriptionInboundData,
     TCPTransportConfig,
     TLSConfig,
     WebSocketTransportConfig,
+    XDriveTransportConfig,
     XHTTPTransportConfig,
 )
 from app.nats import is_multi_worker, is_nats_enabled
@@ -49,19 +57,63 @@ def _string_list(value) -> list[str]:
         return [str(value)]
 
 
+# Finalmask layer types that only the server applies. Xray v26.10.21 added "filter" for tcp and udp
+# masks (allowed and blocked source IPs): older clients reject the whole config, and the lists are the admin's.
+_SERVER_ONLY_FINALMASK_TYPES = frozenset({"filter"})
+
+
+def _is_server_only_finalmask_layer(layer) -> bool:
+    if not isinstance(layer, dict):
+        return False
+    layer_type = layer.get("type")
+    return isinstance(layer_type, str) and layer_type.strip().lower() in _SERVER_ONLY_FINALMASK_TYPES
+
+
+def _client_finalmask(finalmask):
+    """Return an inbound finalmask without its server-only layers, for client configs.
+
+    Drop server-only ``tcp`` and ``udp`` layers, and a list that ends up empty. Everything else
+    is kept in order. When nothing usable is left, return None (no finalmask). A finalmask
+    without server-only layers is returned unchanged. The input is never mutated.
+    """
+    if not isinstance(finalmask, dict):
+        return finalmask
+
+    result = None
+    for key in ("tcp", "udp"):
+        layers = finalmask.get(key)
+        if not isinstance(layers, list):
+            continue
+        kept = [layer for layer in layers if not _is_server_only_finalmask_layer(layer)]
+        if len(kept) == len(layers):
+            continue
+        if result is None:
+            result = dict(finalmask)
+        if kept:
+            result[key] = kept
+        else:
+            del result[key]
+
+    if result is None:
+        return finalmask
+    if not any(value not in (None, "", [], {}) for value in result.values()):
+        return None
+    return result
+
+
 def _normalize_finalmask_link(final_mask_settings: FinalMask | dict | str | None) -> str | None:
     if not final_mask_settings:
         return None
     fms = None
-    if isinstance(final_mask_settings, FinalMask):
-        fms = final_mask_settings.model_dump(by_alias=True, exclude_none=True)
-    elif isinstance(final_mask_settings, dict):
-        fms = deepcopy(final_mask_settings)
+    if isinstance(final_mask_settings, (FinalMask, dict)):
+        fms = dump_final_mask_for_xray(final_mask_settings)
     elif isinstance(final_mask_settings, str):
         try:
             fms = json.loads(final_mask_settings)
         except Exception:
             return final_mask_settings
+        if isinstance(fms, dict):
+            fms = dump_final_mask_for_xray(fms)
 
     if isinstance(fms, dict):
         fms = normalize_and_remove_none_values(fms)
@@ -74,11 +126,22 @@ def _normalize_finalmask_link(final_mask_settings: FinalMask | dict | str | None
 async def _prepare_subscription_inbound_data(
     host: BaseHost,
     down_settings: SubscriptionInboundData | None = None,
+    omit_download_settings: bool = False,
 ) -> SubscriptionInboundData:
-    """
-    Prepare host data - creates small config instances ONCE.
-    Merges inbound config with host config.
-    Random selection happens in share.py on every request!
+    """Merge host overrides with inbound defaults for subscription generation.
+
+    Return reusable TLS and transport settings, retaining address and port
+    candidates for selection on each request. ``down_settings`` supplies a
+    prepared download host for an xHTTP host with xHTTP settings.
+    ``omit_download_settings`` serves the host without download settings, not
+    even the inbound's, for a host whose own download host is unusable. For MASQUE,
+    absent or empty host DNS settings fall back to inbound DNS; entries are
+    stripped and blank entries removed. Explicit host HTTP headers, including
+    an empty mapping, override inbound headers for MASQUE and xHTTP.
+
+    Raises:
+        TypeError: The host's inbound tag does not resolve in the core manager.
+        ValueError: A port cannot be parsed or merged settings fail model validation.
     """
     # Get inbound configuration
     inbound_config = await core_manager.get_inbound_by_tag(host.inbound_tag)
@@ -90,8 +153,18 @@ async def _prepare_subscription_inbound_data(
 
     network = inbound_config.get("network", "tcp")
     path = host.path or inbound_config.get("path", "")
+    masque_remote_dns = []
+    if protocol == "masque":
+        host_dns = ts.masque_settings.remote_dns if ts and ts.masque_settings else None
+        masque_remote_dns = [dns.strip() for dns in _string_list(host_dns or inbound_config.get("remote_dns")) if dns.strip()]
 
-    final_mask_settings = host.final_mask_settings if host.final_mask_settings else inbound_config.get("finalmask")
+    # The host FinalMask model only accepts client mask types; the inbound finalmask is the server's config
+    final_mask_settings = (
+        host.final_mask_settings if host.final_mask_settings else _client_finalmask(inbound_config.get("finalmask"))
+    )
+    if isinstance(final_mask_settings, FinalMask):
+        # Dump with aliases once, so builders and the NATS KV copy see Xray field names
+        final_mask_settings = final_mask_settings.model_dump(by_alias=True, exclude_none=True, mode="json")
     finalmask_link = _normalize_finalmask_link(final_mask_settings)
 
     if protocol == "wireguard":
@@ -110,7 +183,7 @@ async def _prepare_subscription_inbound_data(
         if wg_over.keepalive_seconds is not None:
             keepalive = wg_over.keepalive_seconds if wg_over.keepalive_seconds > 0 else None
 
-        reserved = wg_over.reserved.strip() if wg_over.reserved else None
+        reserved = wg_over.reserved.strip() if wg_over.reserved else inbound_config.get("reserved")
 
         dns = list(wg_over.dns) if wg_over.dns else None
 
@@ -129,7 +202,7 @@ async def _prepare_subscription_inbound_data(
             wireguard_local_address=inbound_config.get("address", []) or [],
             wireguard_allowed_ips=allowed_ips,
             wireguard_keepalive=keepalive,
-            wireguard_mtu=wg_over.mtu,
+            wireguard_mtu=wg_over.mtu if wg_over.mtu is not None else inbound_config.get("mtu"),
             wireguard_reserved=reserved,
             wireguard_dns=dns,
             fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
@@ -169,7 +242,7 @@ async def _prepare_subscription_inbound_data(
     sing_box_ech = ech.sing_box if ech else None
     ech_query_strategy = (xray_ech.query_strategy if xray_ech else None) or inbound_config.get("echForceQuery")
     alpn_list = [alpn.value for alpn in host.alpn] if host.alpn else inbound_config.get("alpn", [])
-    fp = host.fingerprint.value if host.fingerprint.value != "none" else inbound_config.get("fp")
+    fp = host.fingerprint.value if host.fingerprint.value not in ("none", "") else inbound_config.get("fp")
     fp = fp or ("chrome" if tls_value == "reality" else "")
 
     ais = host.allowinsecure if host.allowinsecure is not None else inbound_config.get("allowinsecure", False)
@@ -326,7 +399,9 @@ async def _prepare_subscription_inbound_data(
                 else inbound_config.get("uplink_chunk_size")
             ),
             xmux=xs.xmux.model_dump(by_alias=True, exclude_none=True) if xs and xs.xmux else inbound_config.get("xmux"),
-            download_settings=down_settings if xs and down_settings else inbound_config.get("download_settings"),
+            download_settings=None
+            if omit_download_settings
+            else (down_settings if xs and down_settings else inbound_config.get("download_settings")),
             http_headers=host.http_headers if host.http_headers is not None else inbound_config.get("http_headers"),
             random_user_agent=host.random_user_agent,
         )
@@ -378,6 +453,21 @@ async def _prepare_subscription_inbound_data(
             host=host_list,
             header_type=qs.header if qs else inbound_header_type,
         )
+    elif network == "xdrive":
+        transport_config = XDriveTransportConfig(
+            remote_folder=inbound_config.get("xdrive_remote_folder"),
+            service=inbound_config.get("xdrive_service"),
+            secrets=inbound_config.get("xdrive_secrets"),
+            segment_bytes=inbound_config.get("xdrive_segment_bytes"),
+            flush_interval_ms=inbound_config.get("xdrive_flush_interval_ms"),
+            poll_interval_ms=inbound_config.get("xdrive_poll_interval_ms"),
+            max_poll_interval_ms=inbound_config.get("xdrive_max_poll_interval_ms"),
+            session_ttl_seconds=inbound_config.get("xdrive_session_ttl_seconds"),
+            concurrency=inbound_config.get("xdrive_concurrency"),
+            eager_window_ms=inbound_config.get("xdrive_eager_window_ms"),
+            hole_timeout_ms=inbound_config.get("xdrive_hole_timeout_ms"),
+            template=inbound_config.get("xdrive_template"),
+        )
     elif network in ("ws", "websocket", "httpupgrade"):
         ws = ts.websocket_settings if ts else None
         transport_config = WebSocketTransportConfig(
@@ -406,6 +496,14 @@ async def _prepare_subscription_inbound_data(
             http_headers=host.http_headers,
             random_user_agent=host.random_user_agent,
         )
+    elif network == "masque":
+        ms = ts.masque_settings if ts else None
+        transport_config = MasqueTransportConfig(
+            path=path,
+            host=host_list,
+            http_headers=host.http_headers if host.http_headers is not None else inbound_config.get("http_headers"),
+            xmux=ms.xmux.model_dump(by_alias=True, exclude_none=True) if ms and ms.xmux else None,
+        )
     else:
         # Unknown network type, default to TCP
         transport_config = TCPTransportConfig(
@@ -420,6 +518,7 @@ async def _prepare_subscription_inbound_data(
         remark=host.remark,
         inbound_tag=host.inbound_tag,
         protocol=protocol,
+        masque_remote_dns=masque_remote_dns,
         address=address_list,
         port=port_list,  # Store the LIST for random selection!
         network=network,
@@ -447,7 +546,12 @@ async def _prepare_subscription_inbound_data(
 
 
 class HostManager:
-    STATE_CACHE_KEY = "state"
+    # setup() trusts a stored snapshot of prepared hosts over the DB. Bump the key when a release changes
+    # what unchanged hosts prepare to, so NATS installs rebuild instead of serving the old data.
+    # v3: the inbound finalmask no longer carries server-only "filter" layers ("state_v2" is taken by PR #1020).
+    # v4: a disabled, deleted or unserved xHTTP download host is no longer embedded in its parent.
+    # v5: a disabled xHTTP download host can still supply settings to its parent.
+    STATE_CACHE_KEY = "state_v5"
     KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):
@@ -575,25 +679,46 @@ class HostManager:
         await self.get_hosts.cache.clear()
         clear_sub_config_cache()
 
-    @staticmethod
     async def _prepare_host_entry(
-        db: AsyncSession, host: BaseHost, inbounds_list: list[str]
+        self, db: AsyncSession, host: BaseHost, inbounds_list: list[str]
     ) -> tuple[int, SubscriptionInboundData] | None:
         if host.is_disabled or (host.inbound_tag not in inbounds_list):
             return None
 
-        # Handle downstream for xhttp
+        # Handle downstream for xhttp. A disabled host can still supply download settings,
+        # although it is not served as a standalone host. Without an existing, served download host,
+        # clients use this host both ways: the inbound's own downloadSettings only apply to hosts without one.
         downstream_data = None
+        has_download_host = False
         if (
             host.transport_settings
             and host.transport_settings.xhttp_settings
             and (ds_host := host.transport_settings.xhttp_settings.download_settings)
         ):
+            has_download_host = True
             downstream = await get_host_by_id(db, ds_host)
-            if downstream:
-                downstream_base = BaseHost.model_validate(downstream)
-                downstream_data: SubscriptionInboundData = await _prepare_subscription_inbound_data(downstream_base)
-        subscription_data = await _prepare_subscription_inbound_data(host, downstream_data)
+            if downstream is None or downstream.inbound_tag not in inbounds_list:
+                self._logger.warning(
+                    f'Download host "{ds_host}" of host "{host.id}" is missing or its inbound is gone, '
+                    "serving the host without it"
+                )
+            else:
+                try:
+                    downstream_base = BaseHost.model_validate(downstream)
+                    downstream_data = await _prepare_subscription_inbound_data(downstream_base)
+                except Exception as exc:
+                    self._logger.warning(
+                        f'Download host "{ds_host}" of host "{host.id}" is invalid, serving the host without it: {exc!r}'
+                    )
+
+        try:
+            subscription_data = await _prepare_subscription_inbound_data(
+                host, downstream_data, omit_download_settings=has_download_host and downstream_data is None
+            )
+        except Exception as exc:
+            # One broken host must not abort a full refresh or the startup rebuild
+            self._logger.error(f'Skipping host "{host.id}", its subscription settings cannot be prepared: {exc!r}')
+            return None
 
         # Return subscription data directly
         return host.id, subscription_data

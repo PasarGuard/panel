@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, with_expression
 from sqlalchemy.sql.functions import coalesce
 
+from app.db.base import begin_immediate_if_sqlite
 from app.db.compiles_types import DateDiff
 from app.db.models import (
     DataLimitResetStrategy,
     Node,
+    NodeOutboundUsage,
     NodeStat,
     NodeStatus,
     NodeUsage,
@@ -25,7 +27,14 @@ from app.models.node import (
     NodeSimpleSortOption,
     UsageTable,
 )
-from app.models.stats import NodeStats, NodeStatsList, NodeUsageStat, NodeUsageStatsList, Period
+from app.models.stats import (
+    NodeOutboundUsageStatsList,
+    NodeStats,
+    NodeStatsList,
+    NodeUsageStat,
+    NodeUsageStatsList,
+    Period,
+)
 
 from .general import (
     MYSQL_FORMATS,
@@ -150,14 +159,14 @@ async def get_nodes(
     count_query = select(func.count()).select_from(stmt.subquery())
     count = (await db.execute(count_query)).scalar_one()
 
+    # Apply the user-defined order before pagination so every page is stable.
+    stmt = stmt.order_by(Node.sort_order.asc(), Node.id.asc())
+
     # Apply pagination
     if params.offset:
         stmt = stmt.offset(params.offset)
     if params.limit:
         stmt = stmt.limit(params.limit)
-
-    # Order by created_at and id for consistent results
-    stmt = stmt.order_by(Node.created_at.asc(), Node.id.asc())
 
     # Load either full reset history or only the aggregate fields needed by list responses.
     if load_usage_logs:
@@ -201,6 +210,8 @@ async def get_nodes_simple(
 
     if query.sort:
         stmt = stmt.order_by(*[_build_node_simple_sort_clause(sort_option) for sort_option in query.sort])
+    else:
+        stmt = stmt.order_by(Node.sort_order.asc(), Node.id.asc())
 
     # Get count BEFORE pagination (always)
     count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -241,6 +252,32 @@ async def get_limited_nodes(db: AsyncSession) -> list[Node]:
     )
     nodes = (await db.execute(query)).unique().scalars().all()
     return nodes
+
+
+def _exclude_partial_first_bucket(stmt, trunc_expr, start: datetime, period: Period, dialect: str):
+    """Add a HAVING clause that drops the partial first bucket of a timezone-aware range."""
+    # Only needed if start has timezone (which means we did timezone-aware grouping)
+    if not start.tzinfo:
+        return stmt
+
+    # Get the first COMPLETE bucket boundary
+    # Example: if start is 14:02:37, first_complete_bucket is 15:00:00
+    first_complete_bucket = _get_next_period_boundary(start, period)
+
+    # Convert to naive for comparison (represents wall-clock time in target timezone)
+    boundary_value = first_complete_bucket.replace(tzinfo=None)
+
+    # Add HAVING clause with appropriate comparison based on dialect
+    if dialect == "postgresql":
+        # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
+        return stmt.having(trunc_expr >= boundary_value)
+    if dialect in ("mysql", "sqlite"):
+        # MySQL/SQLite: Use the alias 'period_start' in HAVING
+        # The column is already formatted as a string in the SELECT list
+        format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
+        boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))
+        return stmt.having(literal_column("period_start") >= boundary_str)
+    return stmt
 
 
 async def get_nodes_usage(
@@ -310,26 +347,7 @@ async def get_nodes_usage(
             .order_by(trunc_expr)
         )
 
-    # HAVING clause to exclude partial first bucket
-    # Only needed if start has timezone (which means we did timezone-aware grouping)
-    if start.tzinfo:
-        # Get the first COMPLETE bucket boundary
-        # Example: if start is 14:02:37, first_complete_bucket is 15:00:00
-        first_complete_bucket = _get_next_period_boundary(start, period)
-
-        # Convert to naive for comparison (represents wall-clock time in target timezone)
-        boundary_value = first_complete_bucket.replace(tzinfo=None)
-
-        # Add HAVING clause with appropriate comparison based on dialect
-        if dialect == "postgresql":
-            # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
-            stmt = stmt.having(trunc_expr >= boundary_value)
-        elif dialect in ("mysql", "sqlite"):
-            # MySQL/SQLite: Use the alias 'period_start' in HAVING
-            # The column is already formatted as a string in the SELECT list
-            format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
-            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))
-            stmt = stmt.having(literal_column("period_start") >= boundary_str)
+    stmt = _exclude_partial_first_bucket(stmt, trunc_expr, start, period, dialect)
 
     result = await db.execute(stmt)
 
@@ -346,6 +364,47 @@ async def get_nodes_usage(
         stats[node_id_val].append(NodeUsageStat(**row_dict))
 
     return NodeUsageStatsList(period=period, start=start, end=end, stats=stats)
+
+
+async def get_nodes_outbound_usage(
+    db: AsyncSession,
+    start: datetime,
+    end: datetime,
+    period: Period,
+    node_id: int | None = None,
+) -> NodeOutboundUsageStatsList:
+    """Usage per outbound tag, summed over all nodes or one, in complete period buckets."""
+    dialect = db.bind.dialect.name
+    trunc_expr = _build_trunc_expression(db, period, NodeOutboundUsage.created_at, start)
+
+    conditions = [
+        NodeOutboundUsage.created_at >= to_utc_for_filter(start),
+        NodeOutboundUsage.created_at < to_utc_for_filter(end),
+    ]
+    if node_id is not None:
+        conditions.append(NodeOutboundUsage.node_id == node_id)
+
+    stmt = (
+        select(
+            trunc_expr.label("period_start"),
+            NodeOutboundUsage.outbound_tag,
+            func.sum(NodeOutboundUsage.downlink).label("downlink"),
+            func.sum(NodeOutboundUsage.uplink).label("uplink"),
+        )
+        .where(and_(*conditions))
+        .group_by(trunc_expr, NodeOutboundUsage.outbound_tag)
+        .order_by(trunc_expr, NodeOutboundUsage.outbound_tag)
+    )
+    stmt = _exclude_partial_first_bucket(stmt, trunc_expr, start, period, dialect)
+
+    stats: dict[str, list[NodeUsageStat]] = {}
+    for row in (await db.execute(stmt)).mappings():
+        row_dict = dict(row)
+        tag = row_dict.pop("outbound_tag")
+        attach_timezone_to_period_start(row_dict, start.tzinfo, dialect)
+        stats.setdefault(tag, []).append(NodeUsageStat(**row_dict))
+
+    return NodeOutboundUsageStatsList(period=period, start=start, end=end, stats=stats)
 
 
 async def get_node_stats(
@@ -422,13 +481,41 @@ async def create_node(db: AsyncSession, node: NodeCreate) -> Node:
     Returns:
         Node: The newly created Node object.
     """
-    db_node = Node(**node.model_dump())
+    await begin_immediate_if_sqlite(db)
+    next_sort_order = (await db.execute(select(coalesce(func.max(Node.sort_order), -1) + 1))).scalar_one()
+    db_node = Node(**node.model_dump(), sort_order=next_sort_order)
 
     db.add(db_node)
     await db.commit()
     await db.refresh(db_node)
     await load_node_attrs(db_node)
     return db_node
+
+
+async def reorder_nodes(db: AsyncSession, ordered_ids: list[int]) -> bool:
+    """Reorder a page-sized subset while preserving every other node's position."""
+    await begin_immediate_if_sqlite(db)
+    locked_ids = list(
+        (
+            await db.execute(select(Node.id).where(Node.id.in_(ordered_ids)).order_by(Node.id.asc()).with_for_update())
+        ).scalars()
+    )
+    if len(locked_ids) != len(ordered_ids):
+        return False
+
+    current_sort_orders = list(
+        (
+            await db.execute(
+                select(Node.id, Node.sort_order)
+                .where(Node.id.in_(ordered_ids))
+                .order_by(Node.sort_order.asc(), Node.id.asc())
+            )
+        ).all()
+    )
+    ordering = dict(zip(ordered_ids, (sort_order for _, sort_order in current_sort_orders), strict=True))
+    await db.execute(update(Node).where(Node.id.in_(ordered_ids)).values(sort_order=case(ordering, value=Node.id)))
+    await db.commit()
+    return True
 
 
 async def remove_node(db: AsyncSession, db_node: Node) -> None:
@@ -444,6 +531,7 @@ async def remove_node(db: AsyncSession, db_node: Node) -> None:
     # Remove dependent rows explicitly to avoid ORM cascading overhead on large tables.
     await db.execute(delete(NodeUserUsage).where(NodeUserUsage.node_id == node_id))
     await db.execute(delete(NodeUsage).where(NodeUsage.node_id == node_id))
+    await db.execute(delete(NodeOutboundUsage).where(NodeOutboundUsage.node_id == node_id))
     await db.execute(delete(NodeUsageResetLogs).where(NodeUsageResetLogs.node_id == node_id))
     await db.execute(delete(NodeStat).where(NodeStat.node_id == node_id))
     await db.execute(delete(Node).where(Node.id == node_id))
@@ -493,7 +581,8 @@ async def update_node_status(
     message: str = "",
     xray_version: str = "",
     node_version: str = "",
-) -> Node:
+    expected_status: NodeStatus | None = None,
+) -> Node | None:
     """
     Updates the status of a node.
 
@@ -505,7 +594,7 @@ async def update_node_status(
         version (str, optional): The version of the node software.
 
     Returns:
-        Node: The updated Node object.
+        Node: The updated node, or None if a guarded transition was superseded.
     """
     stmt = (
         update(Node)
@@ -518,8 +607,12 @@ async def update_node_status(
             last_status_change=datetime.now(UTC),
         )
     )
-    await db.execute(stmt)
+    if expected_status is not None:
+        stmt = stmt.where(Node.status == expected_status)
+    result = await db.execute(stmt)
     await db.commit()
+    if expected_status is not None and result.rowcount == 0:
+        return None
 
     try:
         # Prefer refreshing the existing instance to keep relationships loaded
@@ -536,6 +629,8 @@ def _table_model(table: UsageTable):
         return NodeUserUsage
     if table == UsageTable.node_usages:
         return NodeUsage
+    if table == UsageTable.node_outbound_usages:
+        return NodeOutboundUsage
     raise ValueError("Invalid table enum")
 
 
@@ -849,6 +944,7 @@ async def remove_nodes(db: AsyncSession, node_ids: list[int]) -> None:
 
     await db.execute(delete(NodeUserUsage).where(NodeUserUsage.node_id.in_(node_ids)))
     await db.execute(delete(NodeUsage).where(NodeUsage.node_id.in_(node_ids)))
+    await db.execute(delete(NodeOutboundUsage).where(NodeOutboundUsage.node_id.in_(node_ids)))
     await db.execute(delete(NodeUsageResetLogs).where(NodeUsageResetLogs.node_id.in_(node_ids)))
     await db.execute(delete(NodeStat).where(NodeStat.node_id.in_(node_ids)))
     await db.execute(delete(Node).where(Node.id.in_(node_ids)))

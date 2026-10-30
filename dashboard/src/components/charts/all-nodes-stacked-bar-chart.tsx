@@ -23,6 +23,7 @@ import {
   useGetUsersUsage,
 } from '@/service/api'
 import { formatBytes, formatGigabytes } from '@/utils/formatByte'
+import { getChartSeriesColor } from '@/utils/chart-colors'
 import { Skeleton } from '@/components/ui/skeleton'
 import ChartBrush from './chart-brush'
 import DenseChartAreaHint from './dense-chart-area-hint'
@@ -33,6 +34,7 @@ import NodeStatsModal from '@/features/nodes/dialogs/node-stats-modal'
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAdmin } from '@/hooks/use-admin'
+import { useChartPeriodLimit } from '@/hooks/use-chart-period-limit'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 import PeriodSelector from './period-selector'
@@ -48,6 +50,7 @@ import {
   resolvePeriodOverride,
   toStatsRecord,
   TrafficShortcutKey,
+  USAGE_RECORD_BUCKET_MINUTES,
 } from '@/utils/chart-period-utils'
 import { getChartBrushWindow, getChartRenderFlags } from '@/utils/chart-performance'
 
@@ -272,9 +275,12 @@ export function AllNodesStackedBarChart() {
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null)
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
-  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
+  const [selectedPeriodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
+  const { allowedPeriods, periodOverride } = useChartPeriodLimit({ shortcut: selectedTime, customRange: showCustomRange ? customRange : undefined }, selectedPeriodOverride, setPeriodOverride, {
+    recordBucketMinutes: USAGE_RECORD_BUCKET_MINUTES,
+  })
   const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedData, setSelectedData] = useState<NodeChartDataPoint | null>(null)
@@ -301,16 +307,6 @@ export function AllNodesStackedBarChart() {
     () => (coresResponse?.cores || []).filter((core: CoreSimple) => nodeList.some(node => node.core_config_id === core.id)),
     [coresResponse, nodeList],
   )
-
-  const generateDistinctColor = useCallback((index: number, isDark: boolean): string => {
-    const distinctHues = [0, 30, 60, 120, 180, 210, 240, 270, 300, 330, 15, 45, 75, 150, 200, 225, 255, 285, 315, 345]
-    const saturationVariations = [65, 75, 85, 70, 80, 60, 90, 55, 95, 50]
-    const lightnessVariations = isDark ? [45, 55, 35, 50, 40, 60, 30, 65, 25, 70] : [40, 50, 30, 45, 35, 55, 25, 60, 20, 65]
-    const hue = distinctHues[index % distinctHues.length]
-    const saturation = saturationVariations[index % saturationVariations.length]
-    const lightness = lightnessVariations[index % lightnessVariations.length]
-    return `hsl(${hue}, ${saturation}%, ${lightness}%)`
-  }, [])
 
   const activeQueryRange = useMemo(() => {
     const periodOptions = { minuteForOneHour: true, periodOverride: resolvePeriodOverride(periodOverride) }
@@ -472,20 +468,10 @@ export function AllNodesStackedBarChart() {
         return
       }
 
-      if (index === 0) {
-        config[series.name] = { label: series.name, color: 'hsl(var(--primary))' }
-        return
-      }
-
-      if (index < 5) {
-        config[series.name] = { label: series.name, color: `hsl(var(--chart-${index + 1}))` }
-        return
-      }
-
-      config[series.name] = { label: series.name, color: generateDistinctColor(index, isDark) }
+      config[series.name] = { label: series.name, color: getChartSeriesColor(index, isDark) }
     })
     return config
-  }, [generateDistinctColor, seriesList, resolvedTheme])
+  }, [seriesList, resolvedTheme])
 
   const labelRangeHint = useMemo(
     () => ({
@@ -763,7 +749,7 @@ export function AllNodesStackedBarChart() {
               <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full sm:w-fit" />
                 <div className="flex w-full items-center gap-2 sm:w-auto">
-                  <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
+                  <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} allowedPeriods={allowedPeriods} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
                   <button
                     type="button"
                     aria-label="Custom Range"

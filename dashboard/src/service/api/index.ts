@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 5.4.1
+ * OpenAPI spec version: 5.5.1
  */
 import {
   useMutation,
@@ -623,6 +623,8 @@ export interface Application {
 
 export type BaseHostHttpHeaders = {[key: string]: string} | null;
 
+export type BaseHostFinalMaskSettings = { [key: string]: unknown } | null;
+
 export type ProxyHostSecurity = typeof ProxyHostSecurity[keyof typeof ProxyHostSecurity];
 
 
@@ -755,12 +757,18 @@ export interface WebSocketSettings {
   heartbeatPeriod?: number | null;
 }
 
+export interface MasqueHostSettings {
+  remote_dns?: string[] | null;
+  xmux?: XMuxSettings | null;
+}
+
 export interface TransportSettings {
   xhttp_settings?: XHttpSettings | null;
   grpc_settings?: GRPCSettings | null;
   kcp_settings?: KCPSettings | null;
   tcp_settings?: TcpSettings | null;
   websocket_settings?: WebSocketSettings | null;
+  masque_settings?: MasqueHostSettings | null;
 }
 
 export type MultiplexProtocol = typeof MultiplexProtocol[keyof typeof MultiplexProtocol];
@@ -920,206 +928,6 @@ export interface SubscriptionTemplates {
   xray?: number | null;
 }
 
-export type FinalMaskTcpType = typeof FinalMaskTcpType[keyof typeof FinalMaskTcpType];
-
-
-export const FinalMaskTcpType = {
-  'header-custom': 'header-custom',
-  fragment: 'fragment',
-  sudoku: 'sudoku',
-  xmc: 'xmc',
-} as const;
-
-/**
- * Packet camouflage item used by FinalMask. Unlike Freedom noise, this has no apply_to.
- */
-export interface FinalMaskNoiseItem {
-  type?: string | null;
-  packet?: string | number[] | null;
-  delay?: string | number | null;
-  rand?: number | string | null;
-  randRange?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskTcpHeaderCustomSettings {
-  clients?: FinalMaskNoiseItem[][] | null;
-  servers?: FinalMaskNoiseItem[][] | null;
-  errors?: FinalMaskNoiseItem[][] | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskFragmentSettings {
-  packets?: string | null;
-  lengths?: (string | number)[] | null;
-  delays?: (string | number)[] | null;
-  maxSplit?: string | number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskSudokuSettings {
-  password?: string | null;
-  ascii?: string | null;
-  customTable?: string | null;
-  customTables?: string[] | null;
-  paddingMin?: number | null;
-  paddingMax?: number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXmcProfile {
-  username: string;
-  uuid: string;
-  texturesValue: string;
-  texturesSignature: string;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXmcSettings {
-  hostname?: string | null;
-  password?: string | null;
-  profiles?: FinalMaskXmcProfile[] | null;
-  usernames?: string[] | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskTcpLayerSettings = FinalMaskTcpHeaderCustomSettings | FinalMaskFragmentSettings | FinalMaskSudokuSettings | FinalMaskXmcSettings | { [key: string]: unknown };
-
-export interface FinalMaskTcpLayer {
-  type: FinalMaskTcpType;
-  settings?: FinalMaskTcpLayerSettings;
-  [key: string]: unknown;
- }
-
-export type FinalMaskUdpType = typeof FinalMaskUdpType[keyof typeof FinalMaskUdpType];
-
-
-export const FinalMaskUdpType = {
-  'header-custom': 'header-custom',
-  'mkcp-legacy': 'mkcp-legacy',
-  noise: 'noise',
-  salamander: 'salamander',
-  sudoku: 'sudoku',
-  xdns: 'xdns',
-  xicmp: 'xicmp',
-  realm: 'realm',
-  'header-dns': 'header-dns',
-  'header-dtls': 'header-dtls',
-  'header-srtp': 'header-srtp',
-  'header-utp': 'header-utp',
-  'header-wechat': 'header-wechat',
-  'header-wireguard': 'header-wireguard',
-  'mkcp-original': 'mkcp-original',
-  'mkcp-aes128gcm': 'mkcp-aes128gcm',
-} as const;
-
-export interface FinalMaskUdpHeaderCustomSettings {
-  client?: FinalMaskNoiseItem[] | null;
-  server?: FinalMaskNoiseItem[] | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskPasswordSettings {
-  password?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskDomainSettings {
-  domain?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXdnsSettings {
-  domains?: string[] | null;
-  resolvers?: string[] | null;
-  domain?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXicmpSettings {
-  dgram?: boolean | null;
-  ips?: string[] | null;
-  listenIp?: string | null;
-  id?: number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskNoiseSettings {
-  reset?: string | number | null;
-  noise?: FinalMaskNoiseItem[] | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskSalamanderSettings {
-  password?: string | null;
-  packetSize?: unknown | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskRealmSettingsTlsConfig = { [key: string]: unknown } | null;
-
-export interface FinalMaskRealmSettings {
-  url?: string | null;
-  stunServers?: string[] | null;
-  tlsConfig?: FinalMaskRealmSettingsTlsConfig;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskMkcpLegacySettings {
-  header?: string | null;
-  value?: string | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskUdpLayerSettings = FinalMaskUdpHeaderCustomSettings | FinalMaskPasswordSettings | FinalMaskSudokuSettings | FinalMaskDomainSettings | FinalMaskXdnsSettings | FinalMaskXicmpSettings | FinalMaskNoiseSettings | FinalMaskSalamanderSettings | FinalMaskRealmSettings | FinalMaskMkcpLegacySettings | { [key: string]: unknown };
-
-export interface FinalMaskUdpLayer {
-  type: FinalMaskUdpType;
-  settings?: FinalMaskUdpLayerSettings;
-  [key: string]: unknown;
- }
-
-export type FinalMaskQuicCongestion = typeof FinalMaskQuicCongestion[keyof typeof FinalMaskQuicCongestion];
-
-
-export const FinalMaskQuicCongestion = {
-  reno: 'reno',
-  bbr: 'bbr',
-  brutal: 'brutal',
-  'force-brutal': 'force-brutal',
-} as const;
-
-export interface FinalMaskUdpHop {
-  ports?: string | null;
-  interval?: string | number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskQuicParams {
-  congestion?: FinalMaskQuicCongestion | null;
-  debug?: boolean | null;
-  bbrProfile?: string | null;
-  brutalUp?: string | number | null;
-  brutalDown?: string | number | null;
-  udpHop?: FinalMaskUdpHop | null;
-  initStreamReceiveWindow?: number | null;
-  maxStreamReceiveWindow?: number | null;
-  initConnectionReceiveWindow?: number | null;
-  maxConnectionReceiveWindow?: number | null;
-  maxIdleTimeout?: number | null;
-  keepAlivePeriod?: number | null;
-  disablePathMTUDiscovery?: boolean | null;
-  maxIncomingStreams?: number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMask {
-  tcp?: FinalMaskTcpLayer[] | null;
-  udp?: FinalMaskUdpLayer[] | null;
-  quicParams?: FinalMaskQuicParams | null;
-  [key: string]: unknown;
- }
-
 export interface BaseHost {
   id?: number | null;
   remark: string;
@@ -1149,7 +957,7 @@ export interface BaseHost {
   verify_peer_cert_by_name?: string[] | null;
   wireguard_overrides?: WireGuardHostOverrides | null;
   subscription_templates?: SubscriptionTemplates | null;
-  final_mask_settings?: FinalMask | null;
+  final_mask_settings?: BaseHostFinalMaskSettings;
   cipher_suites?: string | null;
 }
 
@@ -1232,7 +1040,7 @@ export interface BulkGroupsActionResponse {
  * Model for bulk host selection by IDs
  */
 export interface BulkHostSelection {
-  ids?: number[];
+  ids: number[];
 }
 
 /**
@@ -1454,6 +1262,7 @@ export interface CoreResponse {
   exclude_inbound_tags: string[];
   fallbacks_inbound_tags: string[];
   id: number;
+  sort_order?: number;
   created_at: string;
 }
 
@@ -1493,6 +1302,252 @@ export interface MuxSettingsInput {
   clash?: ClashMuxSettings | null;
   xray?: XrayMuxSettingsInput | null;
 }
+
+export type FinalMaskTcpType = typeof FinalMaskTcpType[keyof typeof FinalMaskTcpType];
+
+
+export const FinalMaskTcpType = {
+  'header-custom': 'header-custom',
+  fragment: 'fragment',
+  sudoku: 'sudoku',
+  xmc: 'xmc',
+} as const;
+
+export interface FinalMaskTcpHeaderCustomItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  rand?: number | null;
+  randRange?: string | null;
+  delay?: number | string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskTcpHeaderCustomSettings {
+  clients?: FinalMaskTcpHeaderCustomItem[][] | null;
+  servers?: FinalMaskTcpHeaderCustomItem[][] | null;
+  errors?: FinalMaskTcpHeaderCustomItem[][] | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskFragmentSettings {
+  packets?: string | null;
+  lengths?: (string | number)[] | null;
+  delays?: (string | number)[] | null;
+  maxSplit?: string | number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskSudokuSettings {
+  password?: string | null;
+  ascii?: string | null;
+  customTable?: string | null;
+  customTables?: string[] | null;
+  paddingMin?: number | null;
+  paddingMax?: number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXmcProfile {
+  username: string;
+  uuid: string;
+  texturesValue: string;
+  texturesSignature: string;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXmcSettings {
+  hostname?: string | null;
+  password?: string | null;
+  profiles?: FinalMaskXmcProfile[] | null;
+  usernames?: string[] | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskTcpLayerSettings = FinalMaskTcpHeaderCustomSettings | FinalMaskFragmentSettings | FinalMaskSudokuSettings | FinalMaskXmcSettings | { [key: string]: unknown };
+
+export interface FinalMaskTcpLayer {
+  type: FinalMaskTcpType;
+  settings?: FinalMaskTcpLayerSettings;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskUdpType = typeof FinalMaskUdpType[keyof typeof FinalMaskUdpType];
+
+
+export const FinalMaskUdpType = {
+  'header-custom': 'header-custom',
+  'mkcp-legacy': 'mkcp-legacy',
+  noise: 'noise',
+  salamander: 'salamander',
+  sudoku: 'sudoku',
+  xdns: 'xdns',
+  xicmp: 'xicmp',
+  realm: 'realm',
+  udphop: 'udphop',
+  'header-dns': 'header-dns',
+  'header-dtls': 'header-dtls',
+  'header-srtp': 'header-srtp',
+  'header-utp': 'header-utp',
+  'header-wechat': 'header-wechat',
+  'header-wireguard': 'header-wireguard',
+  'mkcp-original': 'mkcp-original',
+  'mkcp-aes128gcm': 'mkcp-aes128gcm',
+} as const;
+
+export interface FinalMaskUdpHeaderCustomItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  rand?: number | null;
+  randRange?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskUdpHeaderCustomSettings {
+  client?: FinalMaskUdpHeaderCustomItem[] | null;
+  server?: FinalMaskUdpHeaderCustomItem[] | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskPasswordSettings {
+  password?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskDomainSettings {
+  domain?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXdnsDomain {
+  names?: string[];
+  lenLimit?: number | null;
+  labelLimit?: number | null;
+  types?: number[] | null;
+  edns0?: number | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskXdnsResolverTlsConfig = { [key: string]: unknown } | null;
+
+export type FinalMaskXdnsResolverQuicConfig = { [key: string]: unknown } | null;
+
+export interface FinalMaskXdnsResolver {
+  addrs?: string[];
+  worker?: number | null;
+  tlsConfig?: FinalMaskXdnsResolverTlsConfig;
+  quicConfig?: FinalMaskXdnsResolverQuicConfig;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXdnsSettings {
+  domains?: FinalMaskXdnsDomain[] | null;
+  resolvers?: FinalMaskXdnsResolver[] | null;
+  extraPoll?: number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXicmpSettings {
+  dgram?: boolean | null;
+  ips?: string[] | null;
+  [key: string]: unknown;
+ }
+
+/**
+ * Packet item of the UDP noise mask. Unlike header-custom items, it also accepts exp, a packet template.
+ */
+export interface FinalMaskNoiseMaskItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  delay?: string | number | null;
+  rand?: number | string | null;
+  randRange?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskNoiseSettings {
+  reset?: string | number | null;
+  noise?: FinalMaskNoiseMaskItem[] | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskSalamanderSettings {
+  password?: string | null;
+  packetSize?: unknown | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskRealmSettingsTlsConfig = { [key: string]: unknown } | null;
+
+export interface FinalMaskRealmSettings {
+  url?: string | null;
+  stunServers?: string[] | null;
+  tlsConfig?: FinalMaskRealmSettingsTlsConfig;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskUdpHopSettings {
+  /** @pattern ^(?i:intervalLocal|intervalRemote|perConnRemote)(,(?i:intervalLocal|intervalRemote|perConnRemote))*$ */
+  mode: string;
+  interval?: string | null;
+  remoteIPs?: string[] | null;
+  remotePorts?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskMkcpLegacySettings {
+  header?: string | null;
+  value?: string | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskUdpLayerSettings = FinalMaskUdpHeaderCustomSettings | FinalMaskPasswordSettings | FinalMaskSudokuSettings | FinalMaskDomainSettings | FinalMaskXdnsSettings | FinalMaskXicmpSettings | FinalMaskNoiseSettings | FinalMaskSalamanderSettings | FinalMaskRealmSettings | FinalMaskUdpHopSettings | FinalMaskMkcpLegacySettings | { [key: string]: unknown };
+
+export interface FinalMaskUdpLayer {
+  type: FinalMaskUdpType;
+  settings?: FinalMaskUdpLayerSettings;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskQuicCongestion = typeof FinalMaskQuicCongestion[keyof typeof FinalMaskQuicCongestion];
+
+
+export const FinalMaskQuicCongestion = {
+  reno: 'reno',
+  bbr: 'bbr',
+  brutal: 'brutal',
+  'force-brutal': 'force-brutal',
+} as const;
+
+export interface FinalMaskUdpHop {
+  ports?: string | null;
+  interval?: string | number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskQuicParams {
+  congestion?: FinalMaskQuicCongestion | null;
+  debug?: boolean | null;
+  bbrProfile?: string | null;
+  brutalUp?: string | number | null;
+  brutalDown?: string | number | null;
+  udpHop?: FinalMaskUdpHop | null;
+  initStreamReceiveWindow?: number | null;
+  maxStreamReceiveWindow?: number | null;
+  initConnectionReceiveWindow?: number | null;
+  maxConnectionReceiveWindow?: number | null;
+  maxIdleTimeout?: number | null;
+  keepAlivePeriod?: number | null;
+  disablePathMTUDiscovery?: boolean | null;
+  maxIncomingStreams?: number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMask {
+  tcp?: FinalMaskTcpLayer[] | null;
+  udp?: FinalMaskUdpLayer[] | null;
+  quicParams?: FinalMaskQuicParams | null;
+  [key: string]: unknown;
+ }
 
 export interface CreateHost {
   id?: number | null;
@@ -1561,10 +1616,31 @@ export const OnHoldTimeoutAction = {
   delete: 'delete',
 } as const;
 
+export interface UsageSettings {
+  record_node_usage?: boolean;
+  record_node_stats?: boolean;
+  reset_usage_clean_chart_data?: boolean;
+  record_outbound_usage?: boolean;
+}
+
+export interface NodeHealthSettings {
+  /** @minimum 1 */
+  fail_threshold?: number;
+  /** @minimum 1 */
+  recover_threshold?: number;
+  /** @minimum 1 */
+  probe_timeout?: number;
+  /** @minimum 0 */
+  max_backoff?: number;
+}
+
 export interface General {
   default_method?: ShadowsocksMethods;
   on_hold_timeout_action?: OnHoldTimeoutAction;
   custom_variables?: CustomVariable[] | null;
+  usage?: UsageSettings;
+  node_health?: NodeHealthSettings;
+  stop_nodes_on_shutdown?: boolean;
 }
 
 export type GeoFilseRegion = typeof GeoFilseRegion[keyof typeof GeoFilseRegion];
@@ -1656,6 +1732,15 @@ export interface HWIDSettings {
   max_limit?: number | null;
 }
 
+export type HeaderPlacement = typeof HeaderPlacement[keyof typeof HeaderPlacement];
+
+
+export const HeaderPlacement = {
+  header: 'header',
+  body_start: 'body_start',
+  body_end: 'body_end',
+} as const;
+
 export interface HostNotificationEnable {
   create?: boolean;
   modify?: boolean;
@@ -1672,6 +1757,13 @@ export interface InboundSummary {
   tag: string;
   protocol: string;
   network?: string | null;
+  security?: string | null;
+  fingerprint?: string | null;
+}
+
+export interface MasqueSettings {
+  /** @minLength 1 */
+  password?: string;
 }
 
 export interface ModifyUserByTemplate {
@@ -1780,6 +1872,34 @@ export interface NodeOutboundLatency {
   source: string;
 }
 
+export interface NodeUsageStat {
+  period_start: string;
+  uplink: number;
+  downlink: number;
+}
+
+export type NodeOutboundUsageStatsListStats = {[key: string]: NodeUsageStat[]};
+
+export type Period = typeof Period[keyof typeof Period];
+
+
+export const Period = {
+  minute: 'minute',
+  hour: 'hour',
+  day: 'day',
+  month: 'month',
+} as const;
+
+/**
+ * Usage per outbound tag; the key is the tag.
+ */
+export interface NodeOutboundUsageStatsList {
+  period?: Period | null;
+  start: string;
+  end: string;
+  stats: NodeOutboundUsageStatsListStats;
+}
+
 export interface NodeOutboundsLatencyResponse {
   latencies: NodeOutboundLatency[];
 }
@@ -1818,6 +1938,7 @@ export interface NodeResponse {
   internal_timeout?: number;
   proxy_url?: string | null;
   id: number;
+  sort_order?: number;
   xray_version: string | null;
   node_version: string | null;
   status: NodeStatus;
@@ -1851,27 +1972,11 @@ export interface NodeStats {
   outgoing_bandwidth_speed: number;
 }
 
-export type Period = typeof Period[keyof typeof Period];
-
-
-export const Period = {
-  minute: 'minute',
-  hour: 'hour',
-  day: 'day',
-  month: 'month',
-} as const;
-
 export interface NodeStatsList {
   period?: Period | null;
   start: string;
   end: string;
   stats: NodeStats[];
-}
-
-export interface NodeUsageStat {
-  period_start: string;
-  uplink: number;
-  downlink: number;
 }
 
 export type NodeUsageStatsListStats = {[key: string]: NodeUsageStat[]};
@@ -1967,6 +2072,30 @@ export interface OwnerUpgradeRequest {
   username: string;
 }
 
+export type PasskeyAuthenticationRequestCredential = { [key: string]: unknown };
+
+export interface PasskeyAuthenticationRequest {
+  username?: string | null;
+  credential: PasskeyAuthenticationRequestCredential;
+}
+
+export interface PasskeyInfo {
+  id: number;
+  name: string;
+}
+
+export interface PasskeyOptionsRequest {
+  username?: string | null;
+}
+
+export type PasskeyRegistrationRequestCredential = { [key: string]: unknown };
+
+export interface PasskeyRegistrationRequest {
+  credential: PasskeyRegistrationRequestCredential;
+  /** @maxLength 128 */
+  name?: string;
+}
+
 export interface VMessSettings {
   id?: string;
 }
@@ -1998,6 +2127,7 @@ export interface ProxyTable {
   shadowsocks?: ShadowsocksSettings;
   wireguard?: WireGuardSettings;
   hysteria?: HysteriaSettings;
+  masque?: MasqueSettings;
 }
 
 export interface RealityScanRequest {
@@ -2105,6 +2235,14 @@ export interface RemoveUsersResponse {
   count: number;
 }
 
+export interface ReorderRequest {
+  /**
+     * @minItems 2
+     * @maxItems 10000
+     */
+  ordered_ids: number[];
+}
+
 export type RunMethod = typeof RunMethod[keyof typeof RunMethod];
 
 
@@ -2172,6 +2310,7 @@ export interface Subscription {
   announce?: string;
   announce_url?: string;
   response_headers?: SubscriptionResponseHeaders;
+  header_placement?: HeaderPlacement;
   rules: SubRule[];
   manual_sub_request?: SubFormatEnable;
   applications?: Application[];
@@ -2179,6 +2318,7 @@ export interface Subscription {
   disable_sub_template?: boolean;
   randomize_order?: boolean;
   custom_variables?: CustomVariable[];
+  clients_limit?: number;
 }
 
 /** Automatic retention periods. null keeps the corresponding data indefinitely. */
@@ -2200,7 +2340,6 @@ export interface SettingsSchema {
 }
 
 export interface SubscriptionUserResponse {
-  proxy_settings?: ProxyTable;
   expire?: string | number | null;
   /** data_limit can be 0 or greater */
   data_limit?: number | null;
@@ -2280,6 +2419,7 @@ export type UsageTable = typeof UsageTable[keyof typeof UsageTable];
 export const UsageTable = {
   node_user_usages: 'node_user_usages',
   node_usages: 'node_usages',
+  node_outbound_usages: 'node_outbound_usages',
 } as const;
 
 export type UserCountMetric = typeof UserCountMetric[keyof typeof UserCountMetric];
@@ -2356,6 +2496,33 @@ export type UserIPListAllNodes = {[key: string]: UserIPList | null};
  */
 export interface UserIPListAll {
   nodes: UserIPListAllNodes;
+}
+
+export interface UserListItem {
+  proxy_settings?: ProxyTable;
+  expire?: string | number | null;
+  /** data_limit can be 0 or greater */
+  data_limit?: number | null;
+  data_limit_reset_strategy?: DataLimitResetStrategy | null;
+  note?: string | null;
+  /** on_hold_expire_duration can be 0 or greater in seconds */
+  on_hold_expire_duration?: number | null;
+  on_hold_timeout?: string | number | null;
+  group_ids?: number[] | null;
+  auto_delete_in_days?: number | null;
+  hwid_limit?: number | null;
+  next_plan?: NextPlanModel | null;
+  id: number;
+  username: string;
+  status: UserStatus;
+  used_traffic: number;
+  lifetime_used_traffic?: number;
+  created_at: string;
+  edit_at?: string | null;
+  online_at?: string | null;
+  subscription_url?: string;
+  admin?: AdminBase | null;
+  hwid_count?: number | null;
 }
 
 export interface UserModify {
@@ -2540,7 +2707,7 @@ export interface UserUsageStatsList {
 }
 
 export interface UsersResponse {
-  users: UserResponse[];
+  users: UserListItem[];
   total: number;
 }
 
@@ -2712,6 +2879,13 @@ export type GetUsageParams = {
 period?: Period;
 node_id?: number | null;
 group_by_node?: boolean;
+start?: string | null;
+end?: string | null;
+};
+
+export type GetOutboundUsageParams = {
+period?: Period;
+node_id?: number | null;
 start?: string | null;
 end?: string | null;
 };
@@ -2904,6 +3078,7 @@ export const GetExpiredUsersTarget = {
   limited: 'limited',
   on_hold: 'on_hold',
   disabled: 'disabled',
+  inactive: 'inactive',
 } as const;
 
 export type DeleteExpiredUsersParams = {
@@ -2922,6 +3097,7 @@ export const DeleteExpiredUsersTarget = {
   limited: 'limited',
   on_hold: 'on_hold',
   disabled: 'disabled',
+  inactive: 'inactive',
 } as const;
 
 export type GetSubUserUsageParams = {
@@ -2964,18 +3140,6 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export type baseResponse200 = {
-  data: string
-  status: 200
-}
-
-export type baseResponseSuccess = (baseResponse200) & {
-  headers: Headers;
-};
-;
-
-export type baseResponse = (baseResponseSuccess)
-
 export const getBaseUrl = () => {
 
 
@@ -2987,9 +3151,9 @@ export const getBaseUrl = () => {
 /**
  * @summary Base
  */
-export const base = async ( options?: RequestInit): Promise<baseResponse> => {
+export const base = async ( options?: RequestInit): Promise<string> => {
 
-  return orvalFetcher<baseResponse>(getBaseUrl(),
+  return orvalFetcher<string>(getBaseUrl(),
   {
     ...options,
     method: 'GET'
@@ -3077,18 +3241,6 @@ export function useBase<TData = Awaited<ReturnType<typeof base>>, TError = Error
 
 
 
-export type healthResponse200 = {
-  data: Health200
-  status: 200
-}
-
-export type healthResponseSuccess = (healthResponse200) & {
-  headers: Headers;
-};
-;
-
-export type healthResponse = (healthResponseSuccess)
-
 export const getHealthUrl = () => {
 
 
@@ -3100,9 +3252,9 @@ export const getHealthUrl = () => {
 /**
  * @summary Health
  */
-export const health = async ( options?: RequestInit): Promise<healthResponse> => {
+export const health = async ( options?: RequestInit): Promise<Health200> => {
 
-  return orvalFetcher<healthResponse>(getHealthUrl(),
+  return orvalFetcher<Health200>(getHealthUrl(),
   {
     ...options,
     method: 'GET'
@@ -3190,35 +3342,6 @@ export function useHealth<TData = Awaited<ReturnType<typeof health>>, TError = E
 
 
 
-export type adminTokenResponse200 = {
-  data: Token
-  status: 200
-}
-
-export type adminTokenResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type adminTokenResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type adminTokenResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type adminTokenResponseSuccess = (adminTokenResponse200) & {
-  headers: Headers;
-};
-export type adminTokenResponseError = (adminTokenResponse401 | adminTokenResponse403 | adminTokenResponse422) & {
-  headers: Headers;
-};
-
-export type adminTokenResponse = (adminTokenResponseSuccess | adminTokenResponseError)
-
 export const getAdminTokenUrl = () => {
 
 
@@ -3231,7 +3354,7 @@ export const getAdminTokenUrl = () => {
  * Authenticate an admin and issue a token.
  * @summary Admin Token
  */
-export const adminToken = async (bodyAdminToken: BodyAdminToken, options?: RequestInit): Promise<adminTokenResponse> => {
+export const adminToken = async (bodyAdminToken: BodyAdminToken, options?: RequestInit): Promise<Token> => {
     const formUrlEncoded = new URLSearchParams();
 if(bodyAdminToken.grant_type !== undefined && bodyAdminToken.grant_type !== null) {
  formUrlEncoded.append(`grant_type`, bodyAdminToken.grant_type);
@@ -3248,7 +3371,7 @@ if(bodyAdminToken.client_secret !== undefined && bodyAdminToken.client_secret !=
  formUrlEncoded.append(`client_secret`, bodyAdminToken.client_secret);
  }
 
-  return orvalFetcher<adminTokenResponse>(getAdminTokenUrl(),
+  return orvalFetcher<Token>(getAdminTokenUrl(),
   {
     ...options,
     method: 'POST',
@@ -3306,40 +3429,6 @@ export const useAdminToken = <TError = ErrorType<Unauthorized | Forbidden | HTTP
       return useMutation(getAdminTokenMutationOptions(options), queryClient);
     }
 
-export type adminMiniAppTokenResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type adminMiniAppTokenResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type adminMiniAppTokenResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type adminMiniAppTokenResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type adminMiniAppTokenResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type adminMiniAppTokenResponseSuccess = (adminMiniAppTokenResponse200) & {
-  headers: Headers;
-};
-export type adminMiniAppTokenResponseError = (adminMiniAppTokenResponse401 | adminMiniAppTokenResponse403 | adminMiniAppTokenResponse409 | adminMiniAppTokenResponse422) & {
-  headers: Headers;
-};
-
-export type adminMiniAppTokenResponse = (adminMiniAppTokenResponseSuccess | adminMiniAppTokenResponseError)
-
 export const getAdminMiniAppTokenUrl = () => {
 
 
@@ -3352,9 +3441,9 @@ export const getAdminMiniAppTokenUrl = () => {
  * Authenticate an admin via Telegram MiniApp and issue a token.
  * @summary Admin Mini App Token
  */
-export const adminMiniAppToken = async ( options?: RequestInit): Promise<adminMiniAppTokenResponse> => {
+export const adminMiniAppToken = async ( options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<adminMiniAppTokenResponse>(getAdminMiniAppTokenUrl(),
+  return orvalFetcher<unknown>(getAdminMiniAppTokenUrl(),
   {
     ...options,
     method: 'POST'
@@ -3412,30 +3501,6 @@ export const useAdminMiniAppToken = <TError = ErrorType<Unauthorized | Forbidden
       return useMutation(getAdminMiniAppTokenMutationOptions(options), queryClient);
     }
 
-export type getCurrentAdminResponse200 = {
-  data: AdminDetails
-  status: 200
-}
-
-export type getCurrentAdminResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getCurrentAdminResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getCurrentAdminResponseSuccess = (getCurrentAdminResponse200) & {
-  headers: Headers;
-};
-export type getCurrentAdminResponseError = (getCurrentAdminResponse401 | getCurrentAdminResponse403) & {
-  headers: Headers;
-};
-
-export type getCurrentAdminResponse = (getCurrentAdminResponseSuccess | getCurrentAdminResponseError)
-
 export const getGetCurrentAdminUrl = () => {
 
 
@@ -3448,9 +3513,9 @@ export const getGetCurrentAdminUrl = () => {
  * Retrieve the current authenticated admin.
  * @summary Get Current Admin
  */
-export const getCurrentAdmin = async ( options?: RequestInit): Promise<getCurrentAdminResponse> => {
+export const getCurrentAdmin = async ( options?: RequestInit): Promise<AdminDetails> => {
 
-  return orvalFetcher<getCurrentAdminResponse>(getGetCurrentAdminUrl(),
+  return orvalFetcher<AdminDetails>(getGetCurrentAdminUrl(),
   {
     ...options,
     method: 'GET'
@@ -3538,40 +3603,6 @@ export function useGetCurrentAdmin<TData = Awaited<ReturnType<typeof getCurrentA
 
 
 
-export type createAdminResponse201 = {
-  data: AdminDetails
-  status: 201
-}
-
-export type createAdminResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type createAdminResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type createAdminResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type createAdminResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createAdminResponseSuccess = (createAdminResponse201) & {
-  headers: Headers;
-};
-export type createAdminResponseError = (createAdminResponse401 | createAdminResponse403 | createAdminResponse409 | createAdminResponse422) & {
-  headers: Headers;
-};
-
-export type createAdminResponse = (createAdminResponseSuccess | createAdminResponseError)
-
 export const getCreateAdminUrl = () => {
 
 
@@ -3584,9 +3615,9 @@ export const getCreateAdminUrl = () => {
  * Create a new admin.
  * @summary Create Admin
  */
-export const createAdmin = async (adminCreate: AdminCreate, options?: RequestInit): Promise<createAdminResponse> => {
+export const createAdmin = async (adminCreate: AdminCreate, options?: RequestInit): Promise<AdminDetails> => {
 
-  return orvalFetcher<createAdminResponse>(getCreateAdminUrl(),
+  return orvalFetcher<AdminDetails>(getCreateAdminUrl(),
   {
     ...options,
     method: 'POST',
@@ -3644,45 +3675,6 @@ export const useCreateAdmin = <TError = ErrorType<Unauthorized | Forbidden | Con
       return useMutation(getCreateAdminMutationOptions(options), queryClient);
     }
 
-export type modifyAdminResponse200 = {
-  data: AdminDetails
-  status: 200
-}
-
-export type modifyAdminResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyAdminResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyAdminResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type modifyAdminResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type modifyAdminResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyAdminResponseSuccess = (modifyAdminResponse200) & {
-  headers: Headers;
-};
-export type modifyAdminResponseError = (modifyAdminResponse401 | modifyAdminResponse403 | modifyAdminResponse404 | modifyAdminResponse409 | modifyAdminResponse422) & {
-  headers: Headers;
-};
-
-export type modifyAdminResponse = (modifyAdminResponseSuccess | modifyAdminResponseError)
-
 export const getModifyAdminUrl = (username: string,) => {
 
 
@@ -3696,9 +3688,9 @@ export const getModifyAdminUrl = (username: string,) => {
  * @summary Modify Admin
  */
 export const modifyAdmin = async (username: string,
-    adminModify: AdminModify, options?: RequestInit): Promise<modifyAdminResponse> => {
+    adminModify: AdminModify, options?: RequestInit): Promise<AdminDetails> => {
 
-  return orvalFetcher<modifyAdminResponse>(getModifyAdminUrl(username),
+  return orvalFetcher<AdminDetails>(getModifyAdminUrl(username),
   {
     ...options,
     method: 'PUT',
@@ -3756,35 +3748,6 @@ export const useModifyAdmin = <TError = ErrorType<Unauthorized | Forbidden | Not
       return useMutation(getModifyAdminMutationOptions(options), queryClient);
     }
 
-export type removeAdminResponse204 = {
-  data: void
-  status: 204
-}
-
-export type removeAdminResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeAdminResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeAdminResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeAdminResponseSuccess = (removeAdminResponse204) & {
-  headers: Headers;
-};
-export type removeAdminResponseError = (removeAdminResponse401 | removeAdminResponse403 | removeAdminResponse422) & {
-  headers: Headers;
-};
-
-export type removeAdminResponse = (removeAdminResponseSuccess | removeAdminResponseError)
-
 export const getRemoveAdminUrl = (username: string,) => {
 
 
@@ -3797,9 +3760,9 @@ export const getRemoveAdminUrl = (username: string,) => {
  * Remove an admin from the database.
  * @summary Remove Admin
  */
-export const removeAdmin = async (username: string, options?: RequestInit): Promise<removeAdminResponse> => {
+export const removeAdmin = async (username: string, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<removeAdminResponse>(getRemoveAdminUrl(username),
+  return orvalFetcher<void>(getRemoveAdminUrl(username),
   {
     ...options,
     method: 'DELETE'
@@ -3857,45 +3820,6 @@ export const useRemoveAdmin = <TError = ErrorType<Unauthorized | Forbidden | HTT
       return useMutation(getRemoveAdminMutationOptions(options), queryClient);
     }
 
-export type modifyAdminByUsernameResponse200 = {
-  data: AdminDetails
-  status: 200
-}
-
-export type modifyAdminByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyAdminByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyAdminByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type modifyAdminByUsernameResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type modifyAdminByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyAdminByUsernameResponseSuccess = (modifyAdminByUsernameResponse200) & {
-  headers: Headers;
-};
-export type modifyAdminByUsernameResponseError = (modifyAdminByUsernameResponse401 | modifyAdminByUsernameResponse403 | modifyAdminByUsernameResponse404 | modifyAdminByUsernameResponse409 | modifyAdminByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type modifyAdminByUsernameResponse = (modifyAdminByUsernameResponseSuccess | modifyAdminByUsernameResponseError)
-
 export const getModifyAdminByUsernameUrl = (username: string,) => {
 
 
@@ -3908,9 +3832,9 @@ export const getModifyAdminByUsernameUrl = (username: string,) => {
  * @summary Modify Admin By Username
  */
 export const modifyAdminByUsername = async (username: string,
-    adminModify: AdminModify, options?: RequestInit): Promise<modifyAdminByUsernameResponse> => {
+    adminModify: AdminModify, options?: RequestInit): Promise<AdminDetails> => {
 
-  return orvalFetcher<modifyAdminByUsernameResponse>(getModifyAdminByUsernameUrl(username),
+  return orvalFetcher<AdminDetails>(getModifyAdminByUsernameUrl(username),
   {
     ...options,
     method: 'PUT',
@@ -3968,35 +3892,6 @@ export const useModifyAdminByUsername = <TError = ErrorType<Unauthorized | Forbi
       return useMutation(getModifyAdminByUsernameMutationOptions(options), queryClient);
     }
 
-export type removeAdminByUsernameResponse204 = {
-  data: void
-  status: 204
-}
-
-export type removeAdminByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeAdminByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeAdminByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeAdminByUsernameResponseSuccess = (removeAdminByUsernameResponse204) & {
-  headers: Headers;
-};
-export type removeAdminByUsernameResponseError = (removeAdminByUsernameResponse401 | removeAdminByUsernameResponse403 | removeAdminByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type removeAdminByUsernameResponse = (removeAdminByUsernameResponseSuccess | removeAdminByUsernameResponseError)
-
 export const getRemoveAdminByUsernameUrl = (username: string,) => {
 
 
@@ -4008,9 +3903,9 @@ export const getRemoveAdminByUsernameUrl = (username: string,) => {
 /**
  * @summary Remove Admin By Username
  */
-export const removeAdminByUsername = async (username: string, options?: RequestInit): Promise<removeAdminByUsernameResponse> => {
+export const removeAdminByUsername = async (username: string, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<removeAdminByUsernameResponse>(getRemoveAdminByUsernameUrl(username),
+  return orvalFetcher<void>(getRemoveAdminByUsernameUrl(username),
   {
     ...options,
     method: 'DELETE'
@@ -4068,45 +3963,6 @@ export const useRemoveAdminByUsername = <TError = ErrorType<Unauthorized | Forbi
       return useMutation(getRemoveAdminByUsernameMutationOptions(options), queryClient);
     }
 
-export type modifyAdminByIdResponse200 = {
-  data: AdminDetails
-  status: 200
-}
-
-export type modifyAdminByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyAdminByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyAdminByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type modifyAdminByIdResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type modifyAdminByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyAdminByIdResponseSuccess = (modifyAdminByIdResponse200) & {
-  headers: Headers;
-};
-export type modifyAdminByIdResponseError = (modifyAdminByIdResponse401 | modifyAdminByIdResponse403 | modifyAdminByIdResponse404 | modifyAdminByIdResponse409 | modifyAdminByIdResponse422) & {
-  headers: Headers;
-};
-
-export type modifyAdminByIdResponse = (modifyAdminByIdResponseSuccess | modifyAdminByIdResponseError)
-
 export const getModifyAdminByIdUrl = (adminId: number,) => {
 
 
@@ -4119,9 +3975,9 @@ export const getModifyAdminByIdUrl = (adminId: number,) => {
  * @summary Modify Admin By Id
  */
 export const modifyAdminById = async (adminId: number,
-    adminModify: AdminModify, options?: RequestInit): Promise<modifyAdminByIdResponse> => {
+    adminModify: AdminModify, options?: RequestInit): Promise<AdminDetails> => {
 
-  return orvalFetcher<modifyAdminByIdResponse>(getModifyAdminByIdUrl(adminId),
+  return orvalFetcher<AdminDetails>(getModifyAdminByIdUrl(adminId),
   {
     ...options,
     method: 'PUT',
@@ -4179,35 +4035,6 @@ export const useModifyAdminById = <TError = ErrorType<Unauthorized | Forbidden |
       return useMutation(getModifyAdminByIdMutationOptions(options), queryClient);
     }
 
-export type removeAdminByIdResponse204 = {
-  data: void
-  status: 204
-}
-
-export type removeAdminByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeAdminByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeAdminByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeAdminByIdResponseSuccess = (removeAdminByIdResponse204) & {
-  headers: Headers;
-};
-export type removeAdminByIdResponseError = (removeAdminByIdResponse401 | removeAdminByIdResponse403 | removeAdminByIdResponse422) & {
-  headers: Headers;
-};
-
-export type removeAdminByIdResponse = (removeAdminByIdResponseSuccess | removeAdminByIdResponseError)
-
 export const getRemoveAdminByIdUrl = (adminId: number,) => {
 
 
@@ -4219,9 +4046,9 @@ export const getRemoveAdminByIdUrl = (adminId: number,) => {
 /**
  * @summary Remove Admin By Id
  */
-export const removeAdminById = async (adminId: number, options?: RequestInit): Promise<removeAdminByIdResponse> => {
+export const removeAdminById = async (adminId: number, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<removeAdminByIdResponse>(getRemoveAdminByIdUrl(adminId),
+  return orvalFetcher<void>(getRemoveAdminByIdUrl(adminId),
   {
     ...options,
     method: 'DELETE'
@@ -4279,35 +4106,6 @@ export const useRemoveAdminById = <TError = ErrorType<Unauthorized | Forbidden |
       return useMutation(getRemoveAdminByIdMutationOptions(options), queryClient);
     }
 
-export type getAdminsResponse200 = {
-  data: AdminsResponse
-  status: 200
-}
-
-export type getAdminsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getAdminsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getAdminsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getAdminsResponseSuccess = (getAdminsResponse200) & {
-  headers: Headers;
-};
-export type getAdminsResponseError = (getAdminsResponse401 | getAdminsResponse403 | getAdminsResponse422) & {
-  headers: Headers;
-};
-
-export type getAdminsResponse = (getAdminsResponseSuccess | getAdminsResponseError)
-
 export const getGetAdminsUrl = (params?: GetAdminsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4335,9 +4133,9 @@ export const getGetAdminsUrl = (params?: GetAdminsParams,) => {
  * Fetch a list of admins with optional filters for pagination and username.
  * @summary Get Admins
  */
-export const getAdmins = async (params?: GetAdminsParams, options?: RequestInit): Promise<getAdminsResponse> => {
+export const getAdmins = async (params?: GetAdminsParams, options?: RequestInit): Promise<AdminsResponse> => {
 
-  return orvalFetcher<getAdminsResponse>(getGetAdminsUrl(params),
+  return orvalFetcher<AdminsResponse>(getGetAdminsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -4425,35 +4223,6 @@ export function useGetAdmins<TData = Awaited<ReturnType<typeof getAdmins>>, TErr
 
 
 
-export type getAdminsSimpleResponse200 = {
-  data: AdminsSimpleResponse
-  status: 200
-}
-
-export type getAdminsSimpleResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getAdminsSimpleResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getAdminsSimpleResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getAdminsSimpleResponseSuccess = (getAdminsSimpleResponse200) & {
-  headers: Headers;
-};
-export type getAdminsSimpleResponseError = (getAdminsSimpleResponse401 | getAdminsSimpleResponse403 | getAdminsSimpleResponse422) & {
-  headers: Headers;
-};
-
-export type getAdminsSimpleResponse = (getAdminsSimpleResponseSuccess | getAdminsSimpleResponseError)
-
 export const getGetAdminsSimpleUrl = (params?: GetAdminsSimpleParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -4481,9 +4250,9 @@ export const getGetAdminsSimpleUrl = (params?: GetAdminsSimpleParams,) => {
  * Returns only id and username for admins. Optimized for dropdowns and autocomplete.
  * @summary Get lightweight admin list
  */
-export const getAdminsSimple = async (params?: GetAdminsSimpleParams, options?: RequestInit): Promise<getAdminsSimpleResponse> => {
+export const getAdminsSimple = async (params?: GetAdminsSimpleParams, options?: RequestInit): Promise<AdminsSimpleResponse> => {
 
-  return orvalFetcher<getAdminsSimpleResponse>(getGetAdminsSimpleUrl(params),
+  return orvalFetcher<AdminsSimpleResponse>(getGetAdminsSimpleUrl(params),
   {
     ...options,
     method: 'GET'
@@ -4571,40 +4340,6 @@ export function useGetAdminsSimple<TData = Awaited<ReturnType<typeof getAdminsSi
 
 
 
-export type getAdminUsageResponse200 = {
-  data: UserUsageStatsList
-  status: 200
-}
-
-export type getAdminUsageResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getAdminUsageResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getAdminUsageResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getAdminUsageResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getAdminUsageResponseSuccess = (getAdminUsageResponse200) & {
-  headers: Headers;
-};
-export type getAdminUsageResponseError = (getAdminUsageResponse401 | getAdminUsageResponse403 | getAdminUsageResponse404 | getAdminUsageResponse422) & {
-  headers: Headers;
-};
-
-export type getAdminUsageResponse = (getAdminUsageResponseSuccess | getAdminUsageResponseError)
-
 export const getGetAdminUsageUrl = (username: string,
     params?: GetAdminUsageParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -4626,9 +4361,9 @@ export const getGetAdminUsageUrl = (username: string,
  * @summary Get Admin Usage
  */
 export const getAdminUsage = async (username: string,
-    params?: GetAdminUsageParams, options?: RequestInit): Promise<getAdminUsageResponse> => {
+    params?: GetAdminUsageParams, options?: RequestInit): Promise<UserUsageStatsList> => {
 
-  return orvalFetcher<getAdminUsageResponse>(getGetAdminUsageUrl(username,params),
+  return orvalFetcher<UserUsageStatsList>(getGetAdminUsageUrl(username,params),
   {
     ...options,
     method: 'GET'
@@ -4722,40 +4457,6 @@ export function useGetAdminUsage<TData = Awaited<ReturnType<typeof getAdminUsage
 
 
 
-export type getAdminUsageByUsernameResponse200 = {
-  data: UserUsageStatsList
-  status: 200
-}
-
-export type getAdminUsageByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getAdminUsageByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getAdminUsageByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getAdminUsageByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getAdminUsageByUsernameResponseSuccess = (getAdminUsageByUsernameResponse200) & {
-  headers: Headers;
-};
-export type getAdminUsageByUsernameResponseError = (getAdminUsageByUsernameResponse401 | getAdminUsageByUsernameResponse403 | getAdminUsageByUsernameResponse404 | getAdminUsageByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type getAdminUsageByUsernameResponse = (getAdminUsageByUsernameResponseSuccess | getAdminUsageByUsernameResponseError)
-
 export const getGetAdminUsageByUsernameUrl = (username: string,
     params?: GetAdminUsageByUsernameParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -4776,9 +4477,9 @@ export const getGetAdminUsageByUsernameUrl = (username: string,
  * @summary Get Admin Usage By Username
  */
 export const getAdminUsageByUsername = async (username: string,
-    params?: GetAdminUsageByUsernameParams, options?: RequestInit): Promise<getAdminUsageByUsernameResponse> => {
+    params?: GetAdminUsageByUsernameParams, options?: RequestInit): Promise<UserUsageStatsList> => {
 
-  return orvalFetcher<getAdminUsageByUsernameResponse>(getGetAdminUsageByUsernameUrl(username,params),
+  return orvalFetcher<UserUsageStatsList>(getGetAdminUsageByUsernameUrl(username,params),
   {
     ...options,
     method: 'GET'
@@ -4872,40 +4573,6 @@ export function useGetAdminUsageByUsername<TData = Awaited<ReturnType<typeof get
 
 
 
-export type getAdminUsageByIdResponse200 = {
-  data: UserUsageStatsList
-  status: 200
-}
-
-export type getAdminUsageByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getAdminUsageByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getAdminUsageByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getAdminUsageByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getAdminUsageByIdResponseSuccess = (getAdminUsageByIdResponse200) & {
-  headers: Headers;
-};
-export type getAdminUsageByIdResponseError = (getAdminUsageByIdResponse401 | getAdminUsageByIdResponse403 | getAdminUsageByIdResponse404 | getAdminUsageByIdResponse422) & {
-  headers: Headers;
-};
-
-export type getAdminUsageByIdResponse = (getAdminUsageByIdResponseSuccess | getAdminUsageByIdResponseError)
-
 export const getGetAdminUsageByIdUrl = (adminId: number,
     params?: GetAdminUsageByIdParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -4926,9 +4593,9 @@ export const getGetAdminUsageByIdUrl = (adminId: number,
  * @summary Get Admin Usage By Id
  */
 export const getAdminUsageById = async (adminId: number,
-    params?: GetAdminUsageByIdParams, options?: RequestInit): Promise<getAdminUsageByIdResponse> => {
+    params?: GetAdminUsageByIdParams, options?: RequestInit): Promise<UserUsageStatsList> => {
 
-  return orvalFetcher<getAdminUsageByIdResponse>(getGetAdminUsageByIdUrl(adminId,params),
+  return orvalFetcher<UserUsageStatsList>(getGetAdminUsageByIdUrl(adminId,params),
   {
     ...options,
     method: 'GET'
@@ -5022,40 +4689,6 @@ export function useGetAdminUsageById<TData = Awaited<ReturnType<typeof getAdminU
 
 
 
-export type disableAllActiveUsersResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type disableAllActiveUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type disableAllActiveUsersResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type disableAllActiveUsersResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type disableAllActiveUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type disableAllActiveUsersResponseSuccess = (disableAllActiveUsersResponse200) & {
-  headers: Headers;
-};
-export type disableAllActiveUsersResponseError = (disableAllActiveUsersResponse401 | disableAllActiveUsersResponse403 | disableAllActiveUsersResponse404 | disableAllActiveUsersResponse422) & {
-  headers: Headers;
-};
-
-export type disableAllActiveUsersResponse = (disableAllActiveUsersResponseSuccess | disableAllActiveUsersResponseError)
-
 export const getDisableAllActiveUsersUrl = (username: string,) => {
 
 
@@ -5068,9 +4701,9 @@ export const getDisableAllActiveUsersUrl = (username: string,) => {
  * Disable all active users under a specific admin.
  * @summary Disable All Active Users
  */
-export const disableAllActiveUsers = async (username: string, options?: RequestInit): Promise<disableAllActiveUsersResponse> => {
+export const disableAllActiveUsers = async (username: string, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<disableAllActiveUsersResponse>(getDisableAllActiveUsersUrl(username),
+  return orvalFetcher<unknown>(getDisableAllActiveUsersUrl(username),
   {
     ...options,
     method: 'POST'
@@ -5128,40 +4761,6 @@ export const useDisableAllActiveUsers = <TError = ErrorType<Unauthorized | Forbi
       return useMutation(getDisableAllActiveUsersMutationOptions(options), queryClient);
     }
 
-export type disableAllActiveUsersByUsernameResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type disableAllActiveUsersByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type disableAllActiveUsersByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type disableAllActiveUsersByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type disableAllActiveUsersByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type disableAllActiveUsersByUsernameResponseSuccess = (disableAllActiveUsersByUsernameResponse200) & {
-  headers: Headers;
-};
-export type disableAllActiveUsersByUsernameResponseError = (disableAllActiveUsersByUsernameResponse401 | disableAllActiveUsersByUsernameResponse403 | disableAllActiveUsersByUsernameResponse404 | disableAllActiveUsersByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type disableAllActiveUsersByUsernameResponse = (disableAllActiveUsersByUsernameResponseSuccess | disableAllActiveUsersByUsernameResponseError)
-
 export const getDisableAllActiveUsersByUsernameUrl = (username: string,) => {
 
 
@@ -5173,9 +4772,9 @@ export const getDisableAllActiveUsersByUsernameUrl = (username: string,) => {
 /**
  * @summary Disable All Active Users By Username
  */
-export const disableAllActiveUsersByUsername = async (username: string, options?: RequestInit): Promise<disableAllActiveUsersByUsernameResponse> => {
+export const disableAllActiveUsersByUsername = async (username: string, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<disableAllActiveUsersByUsernameResponse>(getDisableAllActiveUsersByUsernameUrl(username),
+  return orvalFetcher<unknown>(getDisableAllActiveUsersByUsernameUrl(username),
   {
     ...options,
     method: 'POST'
@@ -5233,40 +4832,6 @@ export const useDisableAllActiveUsersByUsername = <TError = ErrorType<Unauthoriz
       return useMutation(getDisableAllActiveUsersByUsernameMutationOptions(options), queryClient);
     }
 
-export type disableAllActiveUsersByIdResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type disableAllActiveUsersByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type disableAllActiveUsersByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type disableAllActiveUsersByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type disableAllActiveUsersByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type disableAllActiveUsersByIdResponseSuccess = (disableAllActiveUsersByIdResponse200) & {
-  headers: Headers;
-};
-export type disableAllActiveUsersByIdResponseError = (disableAllActiveUsersByIdResponse401 | disableAllActiveUsersByIdResponse403 | disableAllActiveUsersByIdResponse404 | disableAllActiveUsersByIdResponse422) & {
-  headers: Headers;
-};
-
-export type disableAllActiveUsersByIdResponse = (disableAllActiveUsersByIdResponseSuccess | disableAllActiveUsersByIdResponseError)
-
 export const getDisableAllActiveUsersByIdUrl = (adminId: number,) => {
 
 
@@ -5278,9 +4843,9 @@ export const getDisableAllActiveUsersByIdUrl = (adminId: number,) => {
 /**
  * @summary Disable All Active Users By Id
  */
-export const disableAllActiveUsersById = async (adminId: number, options?: RequestInit): Promise<disableAllActiveUsersByIdResponse> => {
+export const disableAllActiveUsersById = async (adminId: number, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<disableAllActiveUsersByIdResponse>(getDisableAllActiveUsersByIdUrl(adminId),
+  return orvalFetcher<unknown>(getDisableAllActiveUsersByIdUrl(adminId),
   {
     ...options,
     method: 'POST'
@@ -5338,40 +4903,6 @@ export const useDisableAllActiveUsersById = <TError = ErrorType<Unauthorized | F
       return useMutation(getDisableAllActiveUsersByIdMutationOptions(options), queryClient);
     }
 
-export type activateAllDisabledUsersResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type activateAllDisabledUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type activateAllDisabledUsersResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type activateAllDisabledUsersResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type activateAllDisabledUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type activateAllDisabledUsersResponseSuccess = (activateAllDisabledUsersResponse200) & {
-  headers: Headers;
-};
-export type activateAllDisabledUsersResponseError = (activateAllDisabledUsersResponse401 | activateAllDisabledUsersResponse403 | activateAllDisabledUsersResponse404 | activateAllDisabledUsersResponse422) & {
-  headers: Headers;
-};
-
-export type activateAllDisabledUsersResponse = (activateAllDisabledUsersResponseSuccess | activateAllDisabledUsersResponseError)
-
 export const getActivateAllDisabledUsersUrl = (username: string,) => {
 
 
@@ -5384,9 +4915,9 @@ export const getActivateAllDisabledUsersUrl = (username: string,) => {
  * Activate all disabled users under a specific admin.
  * @summary Activate All Disabled Users
  */
-export const activateAllDisabledUsers = async (username: string, options?: RequestInit): Promise<activateAllDisabledUsersResponse> => {
+export const activateAllDisabledUsers = async (username: string, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<activateAllDisabledUsersResponse>(getActivateAllDisabledUsersUrl(username),
+  return orvalFetcher<unknown>(getActivateAllDisabledUsersUrl(username),
   {
     ...options,
     method: 'POST'
@@ -5444,40 +4975,6 @@ export const useActivateAllDisabledUsers = <TError = ErrorType<Unauthorized | Fo
       return useMutation(getActivateAllDisabledUsersMutationOptions(options), queryClient);
     }
 
-export type activateAllDisabledUsersByUsernameResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type activateAllDisabledUsersByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type activateAllDisabledUsersByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type activateAllDisabledUsersByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type activateAllDisabledUsersByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type activateAllDisabledUsersByUsernameResponseSuccess = (activateAllDisabledUsersByUsernameResponse200) & {
-  headers: Headers;
-};
-export type activateAllDisabledUsersByUsernameResponseError = (activateAllDisabledUsersByUsernameResponse401 | activateAllDisabledUsersByUsernameResponse403 | activateAllDisabledUsersByUsernameResponse404 | activateAllDisabledUsersByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type activateAllDisabledUsersByUsernameResponse = (activateAllDisabledUsersByUsernameResponseSuccess | activateAllDisabledUsersByUsernameResponseError)
-
 export const getActivateAllDisabledUsersByUsernameUrl = (username: string,) => {
 
 
@@ -5489,9 +4986,9 @@ export const getActivateAllDisabledUsersByUsernameUrl = (username: string,) => {
 /**
  * @summary Activate All Disabled Users By Username
  */
-export const activateAllDisabledUsersByUsername = async (username: string, options?: RequestInit): Promise<activateAllDisabledUsersByUsernameResponse> => {
+export const activateAllDisabledUsersByUsername = async (username: string, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<activateAllDisabledUsersByUsernameResponse>(getActivateAllDisabledUsersByUsernameUrl(username),
+  return orvalFetcher<unknown>(getActivateAllDisabledUsersByUsernameUrl(username),
   {
     ...options,
     method: 'POST'
@@ -5549,40 +5046,6 @@ export const useActivateAllDisabledUsersByUsername = <TError = ErrorType<Unautho
       return useMutation(getActivateAllDisabledUsersByUsernameMutationOptions(options), queryClient);
     }
 
-export type activateAllDisabledUsersByIdResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type activateAllDisabledUsersByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type activateAllDisabledUsersByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type activateAllDisabledUsersByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type activateAllDisabledUsersByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type activateAllDisabledUsersByIdResponseSuccess = (activateAllDisabledUsersByIdResponse200) & {
-  headers: Headers;
-};
-export type activateAllDisabledUsersByIdResponseError = (activateAllDisabledUsersByIdResponse401 | activateAllDisabledUsersByIdResponse403 | activateAllDisabledUsersByIdResponse404 | activateAllDisabledUsersByIdResponse422) & {
-  headers: Headers;
-};
-
-export type activateAllDisabledUsersByIdResponse = (activateAllDisabledUsersByIdResponseSuccess | activateAllDisabledUsersByIdResponseError)
-
 export const getActivateAllDisabledUsersByIdUrl = (adminId: number,) => {
 
 
@@ -5594,9 +5057,9 @@ export const getActivateAllDisabledUsersByIdUrl = (adminId: number,) => {
 /**
  * @summary Activate All Disabled Users By Id
  */
-export const activateAllDisabledUsersById = async (adminId: number, options?: RequestInit): Promise<activateAllDisabledUsersByIdResponse> => {
+export const activateAllDisabledUsersById = async (adminId: number, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<activateAllDisabledUsersByIdResponse>(getActivateAllDisabledUsersByIdUrl(adminId),
+  return orvalFetcher<unknown>(getActivateAllDisabledUsersByIdUrl(adminId),
   {
     ...options,
     method: 'POST'
@@ -5654,40 +5117,6 @@ export const useActivateAllDisabledUsersById = <TError = ErrorType<Unauthorized 
       return useMutation(getActivateAllDisabledUsersByIdMutationOptions(options), queryClient);
     }
 
-export type removeAllUsersResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type removeAllUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeAllUsersResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeAllUsersResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type removeAllUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeAllUsersResponseSuccess = (removeAllUsersResponse200) & {
-  headers: Headers;
-};
-export type removeAllUsersResponseError = (removeAllUsersResponse401 | removeAllUsersResponse403 | removeAllUsersResponse404 | removeAllUsersResponse422) & {
-  headers: Headers;
-};
-
-export type removeAllUsersResponse = (removeAllUsersResponseSuccess | removeAllUsersResponseError)
-
 export const getRemoveAllUsersUrl = (username: string,) => {
 
 
@@ -5700,9 +5129,9 @@ export const getRemoveAllUsersUrl = (username: string,) => {
  * Remove all users under a specific admin.
  * @summary Remove All Users
  */
-export const removeAllUsers = async (username: string, options?: RequestInit): Promise<removeAllUsersResponse> => {
+export const removeAllUsers = async (username: string, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<removeAllUsersResponse>(getRemoveAllUsersUrl(username),
+  return orvalFetcher<unknown>(getRemoveAllUsersUrl(username),
   {
     ...options,
     method: 'DELETE'
@@ -5760,40 +5189,6 @@ export const useRemoveAllUsers = <TError = ErrorType<Unauthorized | Forbidden | 
       return useMutation(getRemoveAllUsersMutationOptions(options), queryClient);
     }
 
-export type removeAllUsersByUsernameResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type removeAllUsersByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeAllUsersByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeAllUsersByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type removeAllUsersByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeAllUsersByUsernameResponseSuccess = (removeAllUsersByUsernameResponse200) & {
-  headers: Headers;
-};
-export type removeAllUsersByUsernameResponseError = (removeAllUsersByUsernameResponse401 | removeAllUsersByUsernameResponse403 | removeAllUsersByUsernameResponse404 | removeAllUsersByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type removeAllUsersByUsernameResponse = (removeAllUsersByUsernameResponseSuccess | removeAllUsersByUsernameResponseError)
-
 export const getRemoveAllUsersByUsernameUrl = (username: string,) => {
 
 
@@ -5805,9 +5200,9 @@ export const getRemoveAllUsersByUsernameUrl = (username: string,) => {
 /**
  * @summary Remove All Users By Username
  */
-export const removeAllUsersByUsername = async (username: string, options?: RequestInit): Promise<removeAllUsersByUsernameResponse> => {
+export const removeAllUsersByUsername = async (username: string, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<removeAllUsersByUsernameResponse>(getRemoveAllUsersByUsernameUrl(username),
+  return orvalFetcher<unknown>(getRemoveAllUsersByUsernameUrl(username),
   {
     ...options,
     method: 'DELETE'
@@ -5865,40 +5260,6 @@ export const useRemoveAllUsersByUsername = <TError = ErrorType<Unauthorized | Fo
       return useMutation(getRemoveAllUsersByUsernameMutationOptions(options), queryClient);
     }
 
-export type removeAllUsersByIdResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type removeAllUsersByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeAllUsersByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeAllUsersByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type removeAllUsersByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeAllUsersByIdResponseSuccess = (removeAllUsersByIdResponse200) & {
-  headers: Headers;
-};
-export type removeAllUsersByIdResponseError = (removeAllUsersByIdResponse401 | removeAllUsersByIdResponse403 | removeAllUsersByIdResponse404 | removeAllUsersByIdResponse422) & {
-  headers: Headers;
-};
-
-export type removeAllUsersByIdResponse = (removeAllUsersByIdResponseSuccess | removeAllUsersByIdResponseError)
-
 export const getRemoveAllUsersByIdUrl = (adminId: number,) => {
 
 
@@ -5910,9 +5271,9 @@ export const getRemoveAllUsersByIdUrl = (adminId: number,) => {
 /**
  * @summary Remove All Users By Id
  */
-export const removeAllUsersById = async (adminId: number, options?: RequestInit): Promise<removeAllUsersByIdResponse> => {
+export const removeAllUsersById = async (adminId: number, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<removeAllUsersByIdResponse>(getRemoveAllUsersByIdUrl(adminId),
+  return orvalFetcher<unknown>(getRemoveAllUsersByIdUrl(adminId),
   {
     ...options,
     method: 'DELETE'
@@ -5970,40 +5331,6 @@ export const useRemoveAllUsersById = <TError = ErrorType<Unauthorized | Forbidde
       return useMutation(getRemoveAllUsersByIdMutationOptions(options), queryClient);
     }
 
-export type resetAdminUsageResponse200 = {
-  data: AdminDetails
-  status: 200
-}
-
-export type resetAdminUsageResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type resetAdminUsageResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type resetAdminUsageResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type resetAdminUsageResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type resetAdminUsageResponseSuccess = (resetAdminUsageResponse200) & {
-  headers: Headers;
-};
-export type resetAdminUsageResponseError = (resetAdminUsageResponse401 | resetAdminUsageResponse403 | resetAdminUsageResponse404 | resetAdminUsageResponse422) & {
-  headers: Headers;
-};
-
-export type resetAdminUsageResponse = (resetAdminUsageResponseSuccess | resetAdminUsageResponseError)
-
 export const getResetAdminUsageUrl = (username: string,) => {
 
 
@@ -6016,9 +5343,9 @@ export const getResetAdminUsageUrl = (username: string,) => {
  * Resets usage of admin.
  * @summary Reset Admin Usage
  */
-export const resetAdminUsage = async (username: string, options?: RequestInit): Promise<resetAdminUsageResponse> => {
+export const resetAdminUsage = async (username: string, options?: RequestInit): Promise<AdminDetails> => {
 
-  return orvalFetcher<resetAdminUsageResponse>(getResetAdminUsageUrl(username),
+  return orvalFetcher<AdminDetails>(getResetAdminUsageUrl(username),
   {
     ...options,
     method: 'POST'
@@ -6076,40 +5403,6 @@ export const useResetAdminUsage = <TError = ErrorType<Unauthorized | Forbidden |
       return useMutation(getResetAdminUsageMutationOptions(options), queryClient);
     }
 
-export type resetAdminUsageByUsernameResponse200 = {
-  data: AdminDetails
-  status: 200
-}
-
-export type resetAdminUsageByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type resetAdminUsageByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type resetAdminUsageByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type resetAdminUsageByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type resetAdminUsageByUsernameResponseSuccess = (resetAdminUsageByUsernameResponse200) & {
-  headers: Headers;
-};
-export type resetAdminUsageByUsernameResponseError = (resetAdminUsageByUsernameResponse401 | resetAdminUsageByUsernameResponse403 | resetAdminUsageByUsernameResponse404 | resetAdminUsageByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type resetAdminUsageByUsernameResponse = (resetAdminUsageByUsernameResponseSuccess | resetAdminUsageByUsernameResponseError)
-
 export const getResetAdminUsageByUsernameUrl = (username: string,) => {
 
 
@@ -6121,9 +5414,9 @@ export const getResetAdminUsageByUsernameUrl = (username: string,) => {
 /**
  * @summary Reset Admin Usage By Username
  */
-export const resetAdminUsageByUsername = async (username: string, options?: RequestInit): Promise<resetAdminUsageByUsernameResponse> => {
+export const resetAdminUsageByUsername = async (username: string, options?: RequestInit): Promise<AdminDetails> => {
 
-  return orvalFetcher<resetAdminUsageByUsernameResponse>(getResetAdminUsageByUsernameUrl(username),
+  return orvalFetcher<AdminDetails>(getResetAdminUsageByUsernameUrl(username),
   {
     ...options,
     method: 'POST'
@@ -6181,40 +5474,6 @@ export const useResetAdminUsageByUsername = <TError = ErrorType<Unauthorized | F
       return useMutation(getResetAdminUsageByUsernameMutationOptions(options), queryClient);
     }
 
-export type resetAdminUsageByIdResponse200 = {
-  data: AdminDetails
-  status: 200
-}
-
-export type resetAdminUsageByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type resetAdminUsageByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type resetAdminUsageByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type resetAdminUsageByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type resetAdminUsageByIdResponseSuccess = (resetAdminUsageByIdResponse200) & {
-  headers: Headers;
-};
-export type resetAdminUsageByIdResponseError = (resetAdminUsageByIdResponse401 | resetAdminUsageByIdResponse403 | resetAdminUsageByIdResponse404 | resetAdminUsageByIdResponse422) & {
-  headers: Headers;
-};
-
-export type resetAdminUsageByIdResponse = (resetAdminUsageByIdResponseSuccess | resetAdminUsageByIdResponseError)
-
 export const getResetAdminUsageByIdUrl = (adminId: number,) => {
 
 
@@ -6226,9 +5485,9 @@ export const getResetAdminUsageByIdUrl = (adminId: number,) => {
 /**
  * @summary Reset Admin Usage By Id
  */
-export const resetAdminUsageById = async (adminId: number, options?: RequestInit): Promise<resetAdminUsageByIdResponse> => {
+export const resetAdminUsageById = async (adminId: number, options?: RequestInit): Promise<AdminDetails> => {
 
-  return orvalFetcher<resetAdminUsageByIdResponse>(getResetAdminUsageByIdUrl(adminId),
+  return orvalFetcher<AdminDetails>(getResetAdminUsageByIdUrl(adminId),
   {
     ...options,
     method: 'POST'
@@ -6286,45 +5545,6 @@ export const useResetAdminUsageById = <TError = ErrorType<Unauthorized | Forbidd
       return useMutation(getResetAdminUsageByIdMutationOptions(options), queryClient);
     }
 
-export type bulkDeleteAdminsResponse200 = {
-  data: RemoveAdminsResponse
-  status: 200
-}
-
-export type bulkDeleteAdminsResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDeleteAdminsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDeleteAdminsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDeleteAdminsResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDeleteAdminsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDeleteAdminsResponseSuccess = (bulkDeleteAdminsResponse200) & {
-  headers: Headers;
-};
-export type bulkDeleteAdminsResponseError = (bulkDeleteAdminsResponse400 | bulkDeleteAdminsResponse401 | bulkDeleteAdminsResponse403 | bulkDeleteAdminsResponse404 | bulkDeleteAdminsResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDeleteAdminsResponse = (bulkDeleteAdminsResponseSuccess | bulkDeleteAdminsResponseError)
-
 export const getBulkDeleteAdminsUrl = () => {
 
 
@@ -6337,9 +5557,9 @@ export const getBulkDeleteAdminsUrl = () => {
  * Delete selected admins by ID.
  * @summary Bulk Delete Admins
  */
-export const bulkDeleteAdmins = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<bulkDeleteAdminsResponse> => {
+export const bulkDeleteAdmins = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<RemoveAdminsResponse> => {
 
-  return orvalFetcher<bulkDeleteAdminsResponse>(getBulkDeleteAdminsUrl(),
+  return orvalFetcher<RemoveAdminsResponse>(getBulkDeleteAdminsUrl(),
   {
     ...options,
     method: 'POST',
@@ -6397,45 +5617,6 @@ export const useBulkDeleteAdmins = <TError = ErrorType<HTTPException | Unauthori
       return useMutation(getBulkDeleteAdminsMutationOptions(options), queryClient);
     }
 
-export type bulkResetAdminsUsageResponse200 = {
-  data: BulkAdminsActionResponse
-  status: 200
-}
-
-export type bulkResetAdminsUsageResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkResetAdminsUsageResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkResetAdminsUsageResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkResetAdminsUsageResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkResetAdminsUsageResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkResetAdminsUsageResponseSuccess = (bulkResetAdminsUsageResponse200) & {
-  headers: Headers;
-};
-export type bulkResetAdminsUsageResponseError = (bulkResetAdminsUsageResponse400 | bulkResetAdminsUsageResponse401 | bulkResetAdminsUsageResponse403 | bulkResetAdminsUsageResponse404 | bulkResetAdminsUsageResponse422) & {
-  headers: Headers;
-};
-
-export type bulkResetAdminsUsageResponse = (bulkResetAdminsUsageResponseSuccess | bulkResetAdminsUsageResponseError)
-
 export const getBulkResetAdminsUsageUrl = () => {
 
 
@@ -6448,9 +5629,9 @@ export const getBulkResetAdminsUsageUrl = () => {
  * Reset usage for selected admins by ID.
  * @summary Bulk Reset Admins Usage
  */
-export const bulkResetAdminsUsage = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<bulkResetAdminsUsageResponse> => {
+export const bulkResetAdminsUsage = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<BulkAdminsActionResponse> => {
 
-  return orvalFetcher<bulkResetAdminsUsageResponse>(getBulkResetAdminsUsageUrl(),
+  return orvalFetcher<BulkAdminsActionResponse>(getBulkResetAdminsUsageUrl(),
   {
     ...options,
     method: 'POST',
@@ -6508,45 +5689,6 @@ export const useBulkResetAdminsUsage = <TError = ErrorType<HTTPException | Unaut
       return useMutation(getBulkResetAdminsUsageMutationOptions(options), queryClient);
     }
 
-export type bulkDisableAdminsResponse200 = {
-  data: BulkAdminsActionResponse
-  status: 200
-}
-
-export type bulkDisableAdminsResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDisableAdminsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDisableAdminsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDisableAdminsResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDisableAdminsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDisableAdminsResponseSuccess = (bulkDisableAdminsResponse200) & {
-  headers: Headers;
-};
-export type bulkDisableAdminsResponseError = (bulkDisableAdminsResponse400 | bulkDisableAdminsResponse401 | bulkDisableAdminsResponse403 | bulkDisableAdminsResponse404 | bulkDisableAdminsResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDisableAdminsResponse = (bulkDisableAdminsResponseSuccess | bulkDisableAdminsResponseError)
-
 export const getBulkDisableAdminsUrl = () => {
 
 
@@ -6559,9 +5701,9 @@ export const getBulkDisableAdminsUrl = () => {
  * Disable selected admins by ID.
  * @summary Bulk Disable Admins
  */
-export const bulkDisableAdmins = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<bulkDisableAdminsResponse> => {
+export const bulkDisableAdmins = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<BulkAdminsActionResponse> => {
 
-  return orvalFetcher<bulkDisableAdminsResponse>(getBulkDisableAdminsUrl(),
+  return orvalFetcher<BulkAdminsActionResponse>(getBulkDisableAdminsUrl(),
   {
     ...options,
     method: 'POST',
@@ -6619,45 +5761,6 @@ export const useBulkDisableAdmins = <TError = ErrorType<HTTPException | Unauthor
       return useMutation(getBulkDisableAdminsMutationOptions(options), queryClient);
     }
 
-export type bulkEnableAdminsResponse200 = {
-  data: BulkAdminsActionResponse
-  status: 200
-}
-
-export type bulkEnableAdminsResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkEnableAdminsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkEnableAdminsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkEnableAdminsResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkEnableAdminsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkEnableAdminsResponseSuccess = (bulkEnableAdminsResponse200) & {
-  headers: Headers;
-};
-export type bulkEnableAdminsResponseError = (bulkEnableAdminsResponse400 | bulkEnableAdminsResponse401 | bulkEnableAdminsResponse403 | bulkEnableAdminsResponse404 | bulkEnableAdminsResponse422) & {
-  headers: Headers;
-};
-
-export type bulkEnableAdminsResponse = (bulkEnableAdminsResponseSuccess | bulkEnableAdminsResponseError)
-
 export const getBulkEnableAdminsUrl = () => {
 
 
@@ -6670,9 +5773,9 @@ export const getBulkEnableAdminsUrl = () => {
  * Enable selected admins by ID.
  * @summary Bulk Enable Admins
  */
-export const bulkEnableAdmins = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<bulkEnableAdminsResponse> => {
+export const bulkEnableAdmins = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<BulkAdminsActionResponse> => {
 
-  return orvalFetcher<bulkEnableAdminsResponse>(getBulkEnableAdminsUrl(),
+  return orvalFetcher<BulkAdminsActionResponse>(getBulkEnableAdminsUrl(),
   {
     ...options,
     method: 'POST',
@@ -6730,45 +5833,6 @@ export const useBulkEnableAdmins = <TError = ErrorType<HTTPException | Unauthori
       return useMutation(getBulkEnableAdminsMutationOptions(options), queryClient);
     }
 
-export type bulkDisableAllActiveUsersResponse200 = {
-  data: BulkAdminsActionResponse
-  status: 200
-}
-
-export type bulkDisableAllActiveUsersResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDisableAllActiveUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDisableAllActiveUsersResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDisableAllActiveUsersResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDisableAllActiveUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDisableAllActiveUsersResponseSuccess = (bulkDisableAllActiveUsersResponse200) & {
-  headers: Headers;
-};
-export type bulkDisableAllActiveUsersResponseError = (bulkDisableAllActiveUsersResponse400 | bulkDisableAllActiveUsersResponse401 | bulkDisableAllActiveUsersResponse403 | bulkDisableAllActiveUsersResponse404 | bulkDisableAllActiveUsersResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDisableAllActiveUsersResponse = (bulkDisableAllActiveUsersResponseSuccess | bulkDisableAllActiveUsersResponseError)
-
 export const getBulkDisableAllActiveUsersUrl = () => {
 
 
@@ -6781,9 +5845,9 @@ export const getBulkDisableAllActiveUsersUrl = () => {
  * Disable all active users under selected admins.
  * @summary Bulk Disable All Active Users
  */
-export const bulkDisableAllActiveUsers = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<bulkDisableAllActiveUsersResponse> => {
+export const bulkDisableAllActiveUsers = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<BulkAdminsActionResponse> => {
 
-  return orvalFetcher<bulkDisableAllActiveUsersResponse>(getBulkDisableAllActiveUsersUrl(),
+  return orvalFetcher<BulkAdminsActionResponse>(getBulkDisableAllActiveUsersUrl(),
   {
     ...options,
     method: 'POST',
@@ -6841,45 +5905,6 @@ export const useBulkDisableAllActiveUsers = <TError = ErrorType<HTTPException | 
       return useMutation(getBulkDisableAllActiveUsersMutationOptions(options), queryClient);
     }
 
-export type bulkActivateAllDisabledUsersResponse200 = {
-  data: BulkAdminsActionResponse
-  status: 200
-}
-
-export type bulkActivateAllDisabledUsersResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkActivateAllDisabledUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkActivateAllDisabledUsersResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkActivateAllDisabledUsersResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkActivateAllDisabledUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkActivateAllDisabledUsersResponseSuccess = (bulkActivateAllDisabledUsersResponse200) & {
-  headers: Headers;
-};
-export type bulkActivateAllDisabledUsersResponseError = (bulkActivateAllDisabledUsersResponse400 | bulkActivateAllDisabledUsersResponse401 | bulkActivateAllDisabledUsersResponse403 | bulkActivateAllDisabledUsersResponse404 | bulkActivateAllDisabledUsersResponse422) & {
-  headers: Headers;
-};
-
-export type bulkActivateAllDisabledUsersResponse = (bulkActivateAllDisabledUsersResponseSuccess | bulkActivateAllDisabledUsersResponseError)
-
 export const getBulkActivateAllDisabledUsersUrl = () => {
 
 
@@ -6892,9 +5917,9 @@ export const getBulkActivateAllDisabledUsersUrl = () => {
  * Activate all disabled users under selected admins.
  * @summary Bulk Activate All Disabled Users
  */
-export const bulkActivateAllDisabledUsers = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<bulkActivateAllDisabledUsersResponse> => {
+export const bulkActivateAllDisabledUsers = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<BulkAdminsActionResponse> => {
 
-  return orvalFetcher<bulkActivateAllDisabledUsersResponse>(getBulkActivateAllDisabledUsersUrl(),
+  return orvalFetcher<BulkAdminsActionResponse>(getBulkActivateAllDisabledUsersUrl(),
   {
     ...options,
     method: 'POST',
@@ -6952,45 +5977,6 @@ export const useBulkActivateAllDisabledUsers = <TError = ErrorType<HTTPException
       return useMutation(getBulkActivateAllDisabledUsersMutationOptions(options), queryClient);
     }
 
-export type bulkRemoveAllUsersResponse200 = {
-  data: BulkAdminsActionResponse
-  status: 200
-}
-
-export type bulkRemoveAllUsersResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkRemoveAllUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkRemoveAllUsersResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkRemoveAllUsersResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkRemoveAllUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkRemoveAllUsersResponseSuccess = (bulkRemoveAllUsersResponse200) & {
-  headers: Headers;
-};
-export type bulkRemoveAllUsersResponseError = (bulkRemoveAllUsersResponse400 | bulkRemoveAllUsersResponse401 | bulkRemoveAllUsersResponse403 | bulkRemoveAllUsersResponse404 | bulkRemoveAllUsersResponse422) & {
-  headers: Headers;
-};
-
-export type bulkRemoveAllUsersResponse = (bulkRemoveAllUsersResponseSuccess | bulkRemoveAllUsersResponseError)
-
 export const getBulkRemoveAllUsersUrl = () => {
 
 
@@ -7003,9 +5989,9 @@ export const getBulkRemoveAllUsersUrl = () => {
  * Remove all users under selected admins.
  * @summary Bulk Remove All Users
  */
-export const bulkRemoveAllUsers = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<bulkRemoveAllUsersResponse> => {
+export const bulkRemoveAllUsers = async (bulkAdminSelection: BulkAdminSelection, options?: RequestInit): Promise<BulkAdminsActionResponse> => {
 
-  return orvalFetcher<bulkRemoveAllUsersResponse>(getBulkRemoveAllUsersUrl(),
+  return orvalFetcher<BulkAdminsActionResponse>(getBulkRemoveAllUsersUrl(),
   {
     ...options,
     method: 'DELETE',
@@ -7063,40 +6049,6 @@ export const useBulkRemoveAllUsers = <TError = ErrorType<HTTPException | Unautho
       return useMutation(getBulkRemoveAllUsersMutationOptions(options), queryClient);
     }
 
-export type createApiKeyResponse201 = {
-  data: APIKeyCreateResponse
-  status: 201
-}
-
-export type createApiKeyResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type createApiKeyResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type createApiKeyResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type createApiKeyResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createApiKeyResponseSuccess = (createApiKeyResponse201) & {
-  headers: Headers;
-};
-export type createApiKeyResponseError = (createApiKeyResponse401 | createApiKeyResponse403 | createApiKeyResponse409 | createApiKeyResponse422) & {
-  headers: Headers;
-};
-
-export type createApiKeyResponse = (createApiKeyResponseSuccess | createApiKeyResponseError)
-
 export const getCreateApiKeyUrl = () => {
 
 
@@ -7108,9 +6060,9 @@ export const getCreateApiKeyUrl = () => {
 /**
  * @summary Create Api Key
  */
-export const createApiKey = async (aPIKeyCreate: APIKeyCreate, options?: RequestInit): Promise<createApiKeyResponse> => {
+export const createApiKey = async (aPIKeyCreate: APIKeyCreate, options?: RequestInit): Promise<APIKeyCreateResponse> => {
 
-  return orvalFetcher<createApiKeyResponse>(getCreateApiKeyUrl(),
+  return orvalFetcher<APIKeyCreateResponse>(getCreateApiKeyUrl(),
   {
     ...options,
     method: 'POST',
@@ -7168,35 +6120,6 @@ export const useCreateApiKey = <TError = ErrorType<Unauthorized | Forbidden | Co
       return useMutation(getCreateApiKeyMutationOptions(options), queryClient);
     }
 
-export type listApiKeysResponse200 = {
-  data: APIKeysResponse
-  status: 200
-}
-
-export type listApiKeysResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type listApiKeysResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type listApiKeysResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type listApiKeysResponseSuccess = (listApiKeysResponse200) & {
-  headers: Headers;
-};
-export type listApiKeysResponseError = (listApiKeysResponse401 | listApiKeysResponse403 | listApiKeysResponse422) & {
-  headers: Headers;
-};
-
-export type listApiKeysResponse = (listApiKeysResponseSuccess | listApiKeysResponseError)
-
 export const getListApiKeysUrl = (params?: ListApiKeysParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -7215,9 +6138,9 @@ export const getListApiKeysUrl = (params?: ListApiKeysParams,) => {
 /**
  * @summary List Api Keys
  */
-export const listApiKeys = async (params?: ListApiKeysParams, options?: RequestInit): Promise<listApiKeysResponse> => {
+export const listApiKeys = async (params?: ListApiKeysParams, options?: RequestInit): Promise<APIKeysResponse> => {
 
-  return orvalFetcher<listApiKeysResponse>(getListApiKeysUrl(params),
+  return orvalFetcher<APIKeysResponse>(getListApiKeysUrl(params),
   {
     ...options,
     method: 'GET'
@@ -7305,45 +6228,6 @@ export function useListApiKeys<TData = Awaited<ReturnType<typeof listApiKeys>>, 
 
 
 
-export type bulkDeleteApiKeysResponse200 = {
-  data: RemoveAPIKeysResponse
-  status: 200
-}
-
-export type bulkDeleteApiKeysResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDeleteApiKeysResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDeleteApiKeysResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDeleteApiKeysResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDeleteApiKeysResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDeleteApiKeysResponseSuccess = (bulkDeleteApiKeysResponse200) & {
-  headers: Headers;
-};
-export type bulkDeleteApiKeysResponseError = (bulkDeleteApiKeysResponse400 | bulkDeleteApiKeysResponse401 | bulkDeleteApiKeysResponse403 | bulkDeleteApiKeysResponse404 | bulkDeleteApiKeysResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDeleteApiKeysResponse = (bulkDeleteApiKeysResponseSuccess | bulkDeleteApiKeysResponseError)
-
 export const getBulkDeleteApiKeysUrl = () => {
 
 
@@ -7355,9 +6239,9 @@ export const getBulkDeleteApiKeysUrl = () => {
 /**
  * @summary Bulk Delete Api Keys
  */
-export const bulkDeleteApiKeys = async (bulkAPIKeySelection: BulkAPIKeySelection, options?: RequestInit): Promise<bulkDeleteApiKeysResponse> => {
+export const bulkDeleteApiKeys = async (bulkAPIKeySelection: BulkAPIKeySelection, options?: RequestInit): Promise<RemoveAPIKeysResponse> => {
 
-  return orvalFetcher<bulkDeleteApiKeysResponse>(getBulkDeleteApiKeysUrl(),
+  return orvalFetcher<RemoveAPIKeysResponse>(getBulkDeleteApiKeysUrl(),
   {
     ...options,
     method: 'POST',
@@ -7415,45 +6299,6 @@ export const useBulkDeleteApiKeys = <TError = ErrorType<HTTPException | Unauthor
       return useMutation(getBulkDeleteApiKeysMutationOptions(options), queryClient);
     }
 
-export type modifyApiKeyResponse200 = {
-  data: APIKeyResponse
-  status: 200
-}
-
-export type modifyApiKeyResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyApiKeyResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyApiKeyResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type modifyApiKeyResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type modifyApiKeyResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyApiKeyResponseSuccess = (modifyApiKeyResponse200) & {
-  headers: Headers;
-};
-export type modifyApiKeyResponseError = (modifyApiKeyResponse401 | modifyApiKeyResponse403 | modifyApiKeyResponse404 | modifyApiKeyResponse409 | modifyApiKeyResponse422) & {
-  headers: Headers;
-};
-
-export type modifyApiKeyResponse = (modifyApiKeyResponseSuccess | modifyApiKeyResponseError)
-
 export const getModifyApiKeyUrl = (keyId: number,) => {
 
 
@@ -7466,9 +6311,9 @@ export const getModifyApiKeyUrl = (keyId: number,) => {
  * @summary Modify Api Key
  */
 export const modifyApiKey = async (keyId: number,
-    aPIKeyUpdate: APIKeyUpdate, options?: RequestInit): Promise<modifyApiKeyResponse> => {
+    aPIKeyUpdate: APIKeyUpdate, options?: RequestInit): Promise<APIKeyResponse> => {
 
-  return orvalFetcher<modifyApiKeyResponse>(getModifyApiKeyUrl(keyId),
+  return orvalFetcher<APIKeyResponse>(getModifyApiKeyUrl(keyId),
   {
     ...options,
     method: 'PATCH',
@@ -7526,40 +6371,6 @@ export const useModifyApiKey = <TError = ErrorType<Unauthorized | Forbidden | No
       return useMutation(getModifyApiKeyMutationOptions(options), queryClient);
     }
 
-export type getApiKeyResponse200 = {
-  data: APIKeyResponse
-  status: 200
-}
-
-export type getApiKeyResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getApiKeyResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getApiKeyResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getApiKeyResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getApiKeyResponseSuccess = (getApiKeyResponse200) & {
-  headers: Headers;
-};
-export type getApiKeyResponseError = (getApiKeyResponse401 | getApiKeyResponse403 | getApiKeyResponse404 | getApiKeyResponse422) & {
-  headers: Headers;
-};
-
-export type getApiKeyResponse = (getApiKeyResponseSuccess | getApiKeyResponseError)
-
 export const getGetApiKeyUrl = (keyId: number,) => {
 
 
@@ -7571,9 +6382,9 @@ export const getGetApiKeyUrl = (keyId: number,) => {
 /**
  * @summary Get Api Key
  */
-export const getApiKey = async (keyId: number, options?: RequestInit): Promise<getApiKeyResponse> => {
+export const getApiKey = async (keyId: number, options?: RequestInit): Promise<APIKeyResponse> => {
 
-  return orvalFetcher<getApiKeyResponse>(getGetApiKeyUrl(keyId),
+  return orvalFetcher<APIKeyResponse>(getGetApiKeyUrl(keyId),
   {
     ...options,
     method: 'GET'
@@ -7661,40 +6472,6 @@ export function useGetApiKey<TData = Awaited<ReturnType<typeof getApiKey>>, TErr
 
 
 
-export type removeApiKeyResponse204 = {
-  data: void
-  status: 204
-}
-
-export type removeApiKeyResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeApiKeyResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeApiKeyResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type removeApiKeyResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeApiKeyResponseSuccess = (removeApiKeyResponse204) & {
-  headers: Headers;
-};
-export type removeApiKeyResponseError = (removeApiKeyResponse401 | removeApiKeyResponse403 | removeApiKeyResponse404 | removeApiKeyResponse422) & {
-  headers: Headers;
-};
-
-export type removeApiKeyResponse = (removeApiKeyResponseSuccess | removeApiKeyResponseError)
-
 export const getRemoveApiKeyUrl = (keyId: number,) => {
 
 
@@ -7706,9 +6483,9 @@ export const getRemoveApiKeyUrl = (keyId: number,) => {
 /**
  * @summary Remove Api Key
  */
-export const removeApiKey = async (keyId: number, options?: RequestInit): Promise<removeApiKeyResponse> => {
+export const removeApiKey = async (keyId: number, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<removeApiKeyResponse>(getRemoveApiKeyUrl(keyId),
+  return orvalFetcher<void>(getRemoveApiKeyUrl(keyId),
   {
     ...options,
     method: 'DELETE'
@@ -7766,40 +6543,6 @@ export const useRemoveApiKey = <TError = ErrorType<Unauthorized | Forbidden | No
       return useMutation(getRemoveApiKeyMutationOptions(options), queryClient);
     }
 
-export type revokeApiKeyResponse200 = {
-  data: APIKeyCreateResponse
-  status: 200
-}
-
-export type revokeApiKeyResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type revokeApiKeyResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type revokeApiKeyResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type revokeApiKeyResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type revokeApiKeyResponseSuccess = (revokeApiKeyResponse200) & {
-  headers: Headers;
-};
-export type revokeApiKeyResponseError = (revokeApiKeyResponse401 | revokeApiKeyResponse403 | revokeApiKeyResponse404 | revokeApiKeyResponse422) & {
-  headers: Headers;
-};
-
-export type revokeApiKeyResponse = (revokeApiKeyResponseSuccess | revokeApiKeyResponseError)
-
 export const getRevokeApiKeyUrl = (keyId: number,) => {
 
 
@@ -7811,9 +6554,9 @@ export const getRevokeApiKeyUrl = (keyId: number,) => {
 /**
  * @summary Revoke Api Key
  */
-export const revokeApiKey = async (keyId: number, options?: RequestInit): Promise<revokeApiKeyResponse> => {
+export const revokeApiKey = async (keyId: number, options?: RequestInit): Promise<APIKeyCreateResponse> => {
 
-  return orvalFetcher<revokeApiKeyResponse>(getRevokeApiKeyUrl(keyId),
+  return orvalFetcher<APIKeyCreateResponse>(getRevokeApiKeyUrl(keyId),
   {
     ...options,
     method: 'POST'
@@ -7871,35 +6614,6 @@ export const useRevokeApiKey = <TError = ErrorType<Unauthorized | Forbidden | No
       return useMutation(getRevokeApiKeyMutationOptions(options), queryClient);
     }
 
-export type getRolesResponse200 = {
-  data: AdminRolesResponse
-  status: 200
-}
-
-export type getRolesResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getRolesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getRolesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getRolesResponseSuccess = (getRolesResponse200) & {
-  headers: Headers;
-};
-export type getRolesResponseError = (getRolesResponse401 | getRolesResponse403 | getRolesResponse422) & {
-  headers: Headers;
-};
-
-export type getRolesResponse = (getRolesResponseSuccess | getRolesResponseError)
-
 export const getGetRolesUrl = (params?: GetRolesParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -7919,9 +6633,9 @@ export const getGetRolesUrl = (params?: GetRolesParams,) => {
  * List all roles.
  * @summary Get Roles
  */
-export const getRoles = async (params?: GetRolesParams, options?: RequestInit): Promise<getRolesResponse> => {
+export const getRoles = async (params?: GetRolesParams, options?: RequestInit): Promise<AdminRolesResponse> => {
 
-  return orvalFetcher<getRolesResponse>(getGetRolesUrl(params),
+  return orvalFetcher<AdminRolesResponse>(getGetRolesUrl(params),
   {
     ...options,
     method: 'GET'
@@ -8009,30 +6723,6 @@ export function useGetRoles<TData = Awaited<ReturnType<typeof getRoles>>, TError
 
 
 
-export type getRolesSimpleResponse200 = {
-  data: AdminRolesSimpleResponse
-  status: 200
-}
-
-export type getRolesSimpleResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getRolesSimpleResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getRolesSimpleResponseSuccess = (getRolesSimpleResponse200) & {
-  headers: Headers;
-};
-export type getRolesSimpleResponseError = (getRolesSimpleResponse401 | getRolesSimpleResponse403) & {
-  headers: Headers;
-};
-
-export type getRolesSimpleResponse = (getRolesSimpleResponseSuccess | getRolesSimpleResponseError)
-
 export const getGetRolesSimpleUrl = () => {
 
 
@@ -8045,9 +6735,9 @@ export const getGetRolesSimpleUrl = () => {
  * List all roles as lightweight id/name/is_owner tuples.
  * @summary Get Roles Simple
  */
-export const getRolesSimple = async ( options?: RequestInit): Promise<getRolesSimpleResponse> => {
+export const getRolesSimple = async ( options?: RequestInit): Promise<AdminRolesSimpleResponse> => {
 
-  return orvalFetcher<getRolesSimpleResponse>(getGetRolesSimpleUrl(),
+  return orvalFetcher<AdminRolesSimpleResponse>(getGetRolesSimpleUrl(),
   {
     ...options,
     method: 'GET'
@@ -8135,40 +6825,6 @@ export function useGetRolesSimple<TData = Awaited<ReturnType<typeof getRolesSimp
 
 
 
-export type getRoleResponse200 = {
-  data: AdminRoleResponse
-  status: 200
-}
-
-export type getRoleResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getRoleResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getRoleResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getRoleResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getRoleResponseSuccess = (getRoleResponse200) & {
-  headers: Headers;
-};
-export type getRoleResponseError = (getRoleResponse401 | getRoleResponse403 | getRoleResponse404 | getRoleResponse422) & {
-  headers: Headers;
-};
-
-export type getRoleResponse = (getRoleResponseSuccess | getRoleResponseError)
-
 export const getGetRoleUrl = (roleId: number,) => {
 
 
@@ -8181,9 +6837,9 @@ export const getGetRoleUrl = (roleId: number,) => {
  * Get a role by ID.
  * @summary Get Role
  */
-export const getRole = async (roleId: number, options?: RequestInit): Promise<getRoleResponse> => {
+export const getRole = async (roleId: number, options?: RequestInit): Promise<AdminRoleResponse> => {
 
-  return orvalFetcher<getRoleResponse>(getGetRoleUrl(roleId),
+  return orvalFetcher<AdminRoleResponse>(getGetRoleUrl(roleId),
   {
     ...options,
     method: 'GET'
@@ -8271,45 +6927,6 @@ export function useGetRole<TData = Awaited<ReturnType<typeof getRole>>, TError =
 
 
 
-export type modifyRoleResponse200 = {
-  data: AdminRoleResponse
-  status: 200
-}
-
-export type modifyRoleResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyRoleResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyRoleResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type modifyRoleResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type modifyRoleResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyRoleResponseSuccess = (modifyRoleResponse200) & {
-  headers: Headers;
-};
-export type modifyRoleResponseError = (modifyRoleResponse401 | modifyRoleResponse403 | modifyRoleResponse404 | modifyRoleResponse409 | modifyRoleResponse422) & {
-  headers: Headers;
-};
-
-export type modifyRoleResponse = (modifyRoleResponseSuccess | modifyRoleResponseError)
-
 export const getModifyRoleUrl = (roleId: number,) => {
 
 
@@ -8323,9 +6940,9 @@ export const getModifyRoleUrl = (roleId: number,) => {
  * @summary Modify Role
  */
 export const modifyRole = async (roleId: number,
-    adminRoleModify: AdminRoleModify, options?: RequestInit): Promise<modifyRoleResponse> => {
+    adminRoleModify: AdminRoleModify, options?: RequestInit): Promise<AdminRoleResponse> => {
 
-  return orvalFetcher<modifyRoleResponse>(getModifyRoleUrl(roleId),
+  return orvalFetcher<AdminRoleResponse>(getModifyRoleUrl(roleId),
   {
     ...options,
     method: 'PUT',
@@ -8383,45 +7000,6 @@ export const useModifyRole = <TError = ErrorType<Unauthorized | Forbidden | NotF
       return useMutation(getModifyRoleMutationOptions(options), queryClient);
     }
 
-export type deleteRoleResponse204 = {
-  data: void
-  status: 204
-}
-
-export type deleteRoleResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type deleteRoleResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type deleteRoleResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type deleteRoleResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type deleteRoleResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteRoleResponseSuccess = (deleteRoleResponse204) & {
-  headers: Headers;
-};
-export type deleteRoleResponseError = (deleteRoleResponse401 | deleteRoleResponse403 | deleteRoleResponse404 | deleteRoleResponse409 | deleteRoleResponse422) & {
-  headers: Headers;
-};
-
-export type deleteRoleResponse = (deleteRoleResponseSuccess | deleteRoleResponseError)
-
 export const getDeleteRoleUrl = (roleId: number,) => {
 
 
@@ -8434,9 +7012,9 @@ export const getDeleteRoleUrl = (roleId: number,) => {
  * Delete a role. Owner only. Built-in roles and in-use roles cannot be deleted.
  * @summary Delete Role
  */
-export const deleteRole = async (roleId: number, options?: RequestInit): Promise<deleteRoleResponse> => {
+export const deleteRole = async (roleId: number, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<deleteRoleResponse>(getDeleteRoleUrl(roleId),
+  return orvalFetcher<void>(getDeleteRoleUrl(roleId),
   {
     ...options,
     method: 'DELETE'
@@ -8494,40 +7072,6 @@ export const useDeleteRole = <TError = ErrorType<Unauthorized | Forbidden | NotF
       return useMutation(getDeleteRoleMutationOptions(options), queryClient);
     }
 
-export type createRoleResponse201 = {
-  data: AdminRoleResponse
-  status: 201
-}
-
-export type createRoleResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type createRoleResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type createRoleResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type createRoleResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createRoleResponseSuccess = (createRoleResponse201) & {
-  headers: Headers;
-};
-export type createRoleResponseError = (createRoleResponse401 | createRoleResponse403 | createRoleResponse409 | createRoleResponse422) & {
-  headers: Headers;
-};
-
-export type createRoleResponse = (createRoleResponseSuccess | createRoleResponseError)
-
 export const getCreateRoleUrl = () => {
 
 
@@ -8540,9 +7084,9 @@ export const getCreateRoleUrl = () => {
  * Create a new role. Owner only.
  * @summary Create Role
  */
-export const createRole = async (adminRoleCreate: AdminRoleCreate, options?: RequestInit): Promise<createRoleResponse> => {
+export const createRole = async (adminRoleCreate: AdminRoleCreate, options?: RequestInit): Promise<AdminRoleResponse> => {
 
-  return orvalFetcher<createRoleResponse>(getCreateRoleUrl(),
+  return orvalFetcher<AdminRoleResponse>(getCreateRoleUrl(),
   {
     ...options,
     method: 'POST',
@@ -8600,40 +7144,6 @@ export const useCreateRole = <TError = ErrorType<Unauthorized | Forbidden | Conf
       return useMutation(getCreateRoleMutationOptions(options), queryClient);
     }
 
-export type createOwnerResponse201 = {
-  data: AdminDetails
-  status: 201
-}
-
-export type createOwnerResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type createOwnerResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type createOwnerResponse410 = {
-  data: void
-  status: 410
-}
-
-export type createOwnerResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createOwnerResponseSuccess = (createOwnerResponse201) & {
-  headers: Headers;
-};
-export type createOwnerResponseError = (createOwnerResponse400 | createOwnerResponse409 | createOwnerResponse410 | createOwnerResponse422) & {
-  headers: Headers;
-};
-
-export type createOwnerResponse = (createOwnerResponseSuccess | createOwnerResponseError)
-
 export const getCreateOwnerUrl = () => {
 
 
@@ -8646,9 +7156,9 @@ export const getCreateOwnerUrl = () => {
  * Create the owner admin using a one-time temp key.
  * @summary Create Owner
  */
-export const createOwner = async (ownerCreateRequest: OwnerCreateRequest, options?: RequestInit): Promise<createOwnerResponse> => {
+export const createOwner = async (ownerCreateRequest: OwnerCreateRequest, options?: RequestInit): Promise<AdminDetails> => {
 
-  return orvalFetcher<createOwnerResponse>(getCreateOwnerUrl(),
+  return orvalFetcher<AdminDetails>(getCreateOwnerUrl(),
   {
     ...options,
     method: 'POST',
@@ -8706,40 +7216,6 @@ export const useCreateOwner = <TError = ErrorType<HTTPException | Conflict | voi
       return useMutation(getCreateOwnerMutationOptions(options), queryClient);
     }
 
-export type resetOwnerPasswordResponse200 = {
-  data: AdminDetails
-  status: 200
-}
-
-export type resetOwnerPasswordResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type resetOwnerPasswordResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type resetOwnerPasswordResponse410 = {
-  data: void
-  status: 410
-}
-
-export type resetOwnerPasswordResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type resetOwnerPasswordResponseSuccess = (resetOwnerPasswordResponse200) & {
-  headers: Headers;
-};
-export type resetOwnerPasswordResponseError = (resetOwnerPasswordResponse400 | resetOwnerPasswordResponse404 | resetOwnerPasswordResponse410 | resetOwnerPasswordResponse422) & {
-  headers: Headers;
-};
-
-export type resetOwnerPasswordResponse = (resetOwnerPasswordResponseSuccess | resetOwnerPasswordResponseError)
-
 export const getResetOwnerPasswordUrl = () => {
 
 
@@ -8752,9 +7228,9 @@ export const getResetOwnerPasswordUrl = () => {
  * Reset the owner admin's password using a one-time temp key.
  * @summary Reset Owner Password
  */
-export const resetOwnerPassword = async (ownerResetRequest: OwnerResetRequest, options?: RequestInit): Promise<resetOwnerPasswordResponse> => {
+export const resetOwnerPassword = async (ownerResetRequest: OwnerResetRequest, options?: RequestInit): Promise<AdminDetails> => {
 
-  return orvalFetcher<resetOwnerPasswordResponse>(getResetOwnerPasswordUrl(),
+  return orvalFetcher<AdminDetails>(getResetOwnerPasswordUrl(),
   {
     ...options,
     method: 'PATCH',
@@ -8812,40 +7288,6 @@ export const useResetOwnerPassword = <TError = ErrorType<HTTPException | NotFoun
       return useMutation(getResetOwnerPasswordMutationOptions(options), queryClient);
     }
 
-export type deleteOwnerResponse204 = {
-  data: void
-  status: 204
-}
-
-export type deleteOwnerResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type deleteOwnerResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type deleteOwnerResponse410 = {
-  data: void
-  status: 410
-}
-
-export type deleteOwnerResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteOwnerResponseSuccess = (deleteOwnerResponse204) & {
-  headers: Headers;
-};
-export type deleteOwnerResponseError = (deleteOwnerResponse400 | deleteOwnerResponse404 | deleteOwnerResponse410 | deleteOwnerResponse422) & {
-  headers: Headers;
-};
-
-export type deleteOwnerResponse = (deleteOwnerResponseSuccess | deleteOwnerResponseError)
-
 export const getDeleteOwnerUrl = (params: DeleteOwnerParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -8865,9 +7307,9 @@ export const getDeleteOwnerUrl = (params: DeleteOwnerParams,) => {
  * Delete the owner admin using a one-time temp key.
  * @summary Delete Owner
  */
-export const deleteOwner = async (params: DeleteOwnerParams, options?: RequestInit): Promise<deleteOwnerResponse> => {
+export const deleteOwner = async (params: DeleteOwnerParams, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<deleteOwnerResponse>(getDeleteOwnerUrl(params),
+  return orvalFetcher<void>(getDeleteOwnerUrl(params),
   {
     ...options,
     method: 'DELETE'
@@ -8925,45 +7367,6 @@ export const useDeleteOwner = <TError = ErrorType<HTTPException | NotFound | voi
       return useMutation(getDeleteOwnerMutationOptions(options), queryClient);
     }
 
-export type upgradeOwnerResponse200 = {
-  data: AdminDetails
-  status: 200
-}
-
-export type upgradeOwnerResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type upgradeOwnerResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type upgradeOwnerResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type upgradeOwnerResponse410 = {
-  data: void
-  status: 410
-}
-
-export type upgradeOwnerResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type upgradeOwnerResponseSuccess = (upgradeOwnerResponse200) & {
-  headers: Headers;
-};
-export type upgradeOwnerResponseError = (upgradeOwnerResponse400 | upgradeOwnerResponse404 | upgradeOwnerResponse409 | upgradeOwnerResponse410 | upgradeOwnerResponse422) & {
-  headers: Headers;
-};
-
-export type upgradeOwnerResponse = (upgradeOwnerResponseSuccess | upgradeOwnerResponseError)
-
 export const getUpgradeOwnerUrl = () => {
 
 
@@ -8976,9 +7379,9 @@ export const getUpgradeOwnerUrl = () => {
  * Upgrade an existing admin to owner using a one-time temp key.
  * @summary Upgrade Owner
  */
-export const upgradeOwner = async (ownerUpgradeRequest: OwnerUpgradeRequest, options?: RequestInit): Promise<upgradeOwnerResponse> => {
+export const upgradeOwner = async (ownerUpgradeRequest: OwnerUpgradeRequest, options?: RequestInit): Promise<AdminDetails> => {
 
-  return orvalFetcher<upgradeOwnerResponse>(getUpgradeOwnerUrl(),
+  return orvalFetcher<AdminDetails>(getUpgradeOwnerUrl(),
   {
     ...options,
     method: 'POST',
@@ -9036,30 +7439,6 @@ export const useUpgradeOwner = <TError = ErrorType<HTTPException | NotFound | Co
       return useMutation(getUpgradeOwnerMutationOptions(options), queryClient);
     }
 
-export type getSystemStatsResponse200 = {
-  data: SystemStats
-  status: 200
-}
-
-export type getSystemStatsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getSystemStatsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getSystemStatsResponseSuccess = (getSystemStatsResponse200) & {
-  headers: Headers;
-};
-export type getSystemStatsResponseError = (getSystemStatsResponse401 | getSystemStatsResponse422) & {
-  headers: Headers;
-};
-
-export type getSystemStatsResponse = (getSystemStatsResponseSuccess | getSystemStatsResponseError)
-
 export const getGetSystemStatsUrl = (params?: GetSystemStatsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9079,9 +7458,9 @@ export const getGetSystemStatsUrl = (params?: GetSystemStatsParams,) => {
  * Fetch system stats including memory, CPU, disk, and user metrics.
  * @summary Get System Stats
  */
-export const getSystemStats = async (params?: GetSystemStatsParams, options?: RequestInit): Promise<getSystemStatsResponse> => {
+export const getSystemStats = async (params?: GetSystemStatsParams, options?: RequestInit): Promise<SystemStats> => {
 
-  return orvalFetcher<getSystemStatsResponse>(getGetSystemStatsUrl(params),
+  return orvalFetcher<SystemStats>(getGetSystemStatsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -9169,25 +7548,6 @@ export function useGetSystemStats<TData = Awaited<ReturnType<typeof getSystemSta
 
 
 
-export type getSystemResourceStatsResponse200 = {
-  data: SystemResourceStats
-  status: 200
-}
-
-export type getSystemResourceStatsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getSystemResourceStatsResponseSuccess = (getSystemResourceStatsResponse200) & {
-  headers: Headers;
-};
-export type getSystemResourceStatsResponseError = (getSystemResourceStatsResponse401) & {
-  headers: Headers;
-};
-
-export type getSystemResourceStatsResponse = (getSystemResourceStatsResponseSuccess | getSystemResourceStatsResponseError)
-
 export const getGetSystemResourceStatsUrl = () => {
 
 
@@ -9200,9 +7560,9 @@ export const getGetSystemResourceStatsUrl = () => {
  * Fetch system resource stats without user metrics.
  * @summary Get System Resource Stats
  */
-export const getSystemResourceStats = async ( options?: RequestInit): Promise<getSystemResourceStatsResponse> => {
+export const getSystemResourceStats = async ( options?: RequestInit): Promise<SystemResourceStats> => {
 
-  return orvalFetcher<getSystemResourceStatsResponse>(getGetSystemResourceStatsUrl(),
+  return orvalFetcher<SystemResourceStats>(getGetSystemResourceStatsUrl(),
   {
     ...options,
     method: 'GET'
@@ -9290,30 +7650,6 @@ export function useGetSystemResourceStats<TData = Awaited<ReturnType<typeof getS
 
 
 
-export type getSystemUsersStatsResponse200 = {
-  data: SystemUsersStats
-  status: 200
-}
-
-export type getSystemUsersStatsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getSystemUsersStatsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getSystemUsersStatsResponseSuccess = (getSystemUsersStatsResponse200) & {
-  headers: Headers;
-};
-export type getSystemUsersStatsResponseError = (getSystemUsersStatsResponse401 | getSystemUsersStatsResponse422) & {
-  headers: Headers;
-};
-
-export type getSystemUsersStatsResponse = (getSystemUsersStatsResponseSuccess | getSystemUsersStatsResponseError)
-
 export const getGetSystemUsersStatsUrl = (params?: GetSystemUsersStatsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9333,9 +7669,9 @@ export const getGetSystemUsersStatsUrl = (params?: GetSystemUsersStatsParams,) =
  * Fetch user stats and traffic metrics without system resource stats.
  * @summary Get System Users Stats
  */
-export const getSystemUsersStats = async (params?: GetSystemUsersStatsParams, options?: RequestInit): Promise<getSystemUsersStatsResponse> => {
+export const getSystemUsersStats = async (params?: GetSystemUsersStatsParams, options?: RequestInit): Promise<SystemUsersStats> => {
 
-  return orvalFetcher<getSystemUsersStatsResponse>(getGetSystemUsersStatsUrl(params),
+  return orvalFetcher<SystemUsersStats>(getGetSystemUsersStatsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -9423,25 +7759,6 @@ export function useGetSystemUsersStats<TData = Awaited<ReturnType<typeof getSyst
 
 
 
-export type getInboundsResponse200 = {
-  data: string[]
-  status: 200
-}
-
-export type getInboundsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getInboundsResponseSuccess = (getInboundsResponse200) & {
-  headers: Headers;
-};
-export type getInboundsResponseError = (getInboundsResponse401) & {
-  headers: Headers;
-};
-
-export type getInboundsResponse = (getInboundsResponseSuccess | getInboundsResponseError)
-
 export const getGetInboundsUrl = () => {
 
 
@@ -9454,9 +7771,9 @@ export const getGetInboundsUrl = () => {
  * Retrieve inbound configurations grouped by protocol.
  * @summary Get Inbounds
  */
-export const getInbounds = async ( options?: RequestInit): Promise<getInboundsResponse> => {
+export const getInbounds = async ( options?: RequestInit): Promise<string[]> => {
 
-  return orvalFetcher<getInboundsResponse>(getGetInboundsUrl(),
+  return orvalFetcher<string[]>(getGetInboundsUrl(),
   {
     ...options,
     method: 'GET'
@@ -9544,25 +7861,6 @@ export function useGetInbounds<TData = Awaited<ReturnType<typeof getInbounds>>, 
 
 
 
-export type getInboundDetailsResponse200 = {
-  data: InboundSummary[]
-  status: 200
-}
-
-export type getInboundDetailsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getInboundDetailsResponseSuccess = (getInboundDetailsResponse200) & {
-  headers: Headers;
-};
-export type getInboundDetailsResponseError = (getInboundDetailsResponse401) & {
-  headers: Headers;
-};
-
-export type getInboundDetailsResponse = (getInboundDetailsResponseSuccess | getInboundDetailsResponseError)
-
 export const getGetInboundDetailsUrl = () => {
 
 
@@ -9575,9 +7873,9 @@ export const getGetInboundDetailsUrl = () => {
  * Retrieve lightweight inbound metadata for dashboard forms.
  * @summary Get Inbound Details
  */
-export const getInboundDetails = async ( options?: RequestInit): Promise<getInboundDetailsResponse> => {
+export const getInboundDetails = async ( options?: RequestInit): Promise<InboundSummary[]> => {
 
-  return orvalFetcher<getInboundDetailsResponse>(getGetInboundDetailsUrl(),
+  return orvalFetcher<InboundSummary[]>(getGetInboundDetailsUrl(),
   {
     ...options,
     method: 'GET'
@@ -9665,25 +7963,6 @@ export function useGetInboundDetails<TData = Awaited<ReturnType<typeof getInboun
 
 
 
-export type getWireguardSubnetsResponse200 = {
-  data: WireGuardSubnetUsage[]
-  status: 200
-}
-
-export type getWireguardSubnetsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getWireguardSubnetsResponseSuccess = (getWireguardSubnetsResponse200) & {
-  headers: Headers;
-};
-export type getWireguardSubnetsResponseError = (getWireguardSubnetsResponse401) & {
-  headers: Headers;
-};
-
-export type getWireguardSubnetsResponse = (getWireguardSubnetsResponseSuccess | getWireguardSubnetsResponseError)
-
 export const getGetWireguardSubnetsUrl = () => {
 
 
@@ -9696,9 +7975,9 @@ export const getGetWireguardSubnetsUrl = () => {
  * Per-subnet WireGuard address usage: capacity, used/free counts and the first free IPs.
  * @summary Get Wireguard Subnets
  */
-export const getWireguardSubnets = async ( options?: RequestInit): Promise<getWireguardSubnetsResponse> => {
+export const getWireguardSubnets = async ( options?: RequestInit): Promise<WireGuardSubnetUsage[]> => {
 
-  return orvalFetcher<getWireguardSubnetsResponse>(getGetWireguardSubnetsUrl(),
+  return orvalFetcher<WireGuardSubnetUsage[]>(getGetWireguardSubnetsUrl(),
   {
     ...options,
     method: 'GET'
@@ -9786,25 +8065,6 @@ export function useGetWireguardSubnets<TData = Awaited<ReturnType<typeof getWire
 
 
 
-export type getWorkersHealthResponse200 = {
-  data: WorkersHealth
-  status: 200
-}
-
-export type getWorkersHealthResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getWorkersHealthResponseSuccess = (getWorkersHealthResponse200) & {
-  headers: Headers;
-};
-export type getWorkersHealthResponseError = (getWorkersHealthResponse401) & {
-  headers: Headers;
-};
-
-export type getWorkersHealthResponse = (getWorkersHealthResponseSuccess | getWorkersHealthResponseError)
-
 export const getGetWorkersHealthUrl = () => {
 
 
@@ -9816,9 +8076,9 @@ export const getGetWorkersHealthUrl = () => {
 /**
  * @summary Get Workers Health
  */
-export const getWorkersHealth = async ( options?: RequestInit): Promise<getWorkersHealthResponse> => {
+export const getWorkersHealth = async ( options?: RequestInit): Promise<WorkersHealth> => {
 
-  return orvalFetcher<getWorkersHealthResponse>(getGetWorkersHealthUrl(),
+  return orvalFetcher<WorkersHealth>(getGetWorkersHealthUrl(),
   {
     ...options,
     method: 'GET'
@@ -9906,30 +8166,6 @@ export function useGetWorkersHealth<TData = Awaited<ReturnType<typeof getWorkers
 
 
 
-export type getSettingsResponse200 = {
-  data: SettingsSchema
-  status: 200
-}
-
-export type getSettingsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getSettingsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getSettingsResponseSuccess = (getSettingsResponse200) & {
-  headers: Headers;
-};
-export type getSettingsResponseError = (getSettingsResponse401 | getSettingsResponse403) & {
-  headers: Headers;
-};
-
-export type getSettingsResponse = (getSettingsResponseSuccess | getSettingsResponseError)
-
 export const getGetSettingsUrl = () => {
 
 
@@ -9941,9 +8177,9 @@ export const getGetSettingsUrl = () => {
 /**
  * @summary Get Settings
  */
-export const getSettings = async ( options?: RequestInit): Promise<getSettingsResponse> => {
+export const getSettings = async ( options?: RequestInit): Promise<SettingsSchema> => {
 
-  return orvalFetcher<getSettingsResponse>(getGetSettingsUrl(),
+  return orvalFetcher<SettingsSchema>(getGetSettingsUrl(),
   {
     ...options,
     method: 'GET'
@@ -10031,35 +8267,6 @@ export function useGetSettings<TData = Awaited<ReturnType<typeof getSettings>>, 
 
 
 
-export type modifySettingsResponse200 = {
-  data: SettingsSchema
-  status: 200
-}
-
-export type modifySettingsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifySettingsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifySettingsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifySettingsResponseSuccess = (modifySettingsResponse200) & {
-  headers: Headers;
-};
-export type modifySettingsResponseError = (modifySettingsResponse401 | modifySettingsResponse403 | modifySettingsResponse422) & {
-  headers: Headers;
-};
-
-export type modifySettingsResponse = (modifySettingsResponseSuccess | modifySettingsResponseError)
-
 export const getModifySettingsUrl = () => {
 
 
@@ -10071,9 +8278,9 @@ export const getModifySettingsUrl = () => {
 /**
  * @summary Modify Settings
  */
-export const modifySettings = async (settingsSchema: SettingsSchema, options?: RequestInit): Promise<modifySettingsResponse> => {
+export const modifySettings = async (settingsSchema: SettingsSchema, options?: RequestInit): Promise<SettingsSchema> => {
 
-  return orvalFetcher<modifySettingsResponse>(getModifySettingsUrl(),
+  return orvalFetcher<SettingsSchema>(getModifySettingsUrl(),
   {
     ...options,
     method: 'PUT',
@@ -10131,30 +8338,6 @@ export const useModifySettings = <TError = ErrorType<Unauthorized | Forbidden | 
       return useMutation(getModifySettingsMutationOptions(options), queryClient);
     }
 
-export type getGeneralSettingsResponse200 = {
-  data: General
-  status: 200
-}
-
-export type getGeneralSettingsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getGeneralSettingsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getGeneralSettingsResponseSuccess = (getGeneralSettingsResponse200) & {
-  headers: Headers;
-};
-export type getGeneralSettingsResponseError = (getGeneralSettingsResponse401 | getGeneralSettingsResponse403) & {
-  headers: Headers;
-};
-
-export type getGeneralSettingsResponse = (getGeneralSettingsResponseSuccess | getGeneralSettingsResponseError)
-
 export const getGetGeneralSettingsUrl = () => {
 
 
@@ -10166,9 +8349,9 @@ export const getGetGeneralSettingsUrl = () => {
 /**
  * @summary Get General Settings
  */
-export const getGeneralSettings = async ( options?: RequestInit): Promise<getGeneralSettingsResponse> => {
+export const getGeneralSettings = async ( options?: RequestInit): Promise<General> => {
 
-  return orvalFetcher<getGeneralSettingsResponse>(getGetGeneralSettingsUrl(),
+  return orvalFetcher<General>(getGetGeneralSettingsUrl(),
   {
     ...options,
     method: 'GET'
@@ -10256,35 +8439,6 @@ export function useGetGeneralSettings<TData = Awaited<ReturnType<typeof getGener
 
 
 
-export type createGroupResponse201 = {
-  data: GroupResponse
-  status: 201
-}
-
-export type createGroupResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type createGroupResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type createGroupResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createGroupResponseSuccess = (createGroupResponse201) & {
-  headers: Headers;
-};
-export type createGroupResponseError = (createGroupResponse401 | createGroupResponse403 | createGroupResponse422) & {
-  headers: Headers;
-};
-
-export type createGroupResponse = (createGroupResponseSuccess | createGroupResponseError)
-
 export const getCreateGroupUrl = () => {
 
 
@@ -10297,9 +8451,9 @@ export const getCreateGroupUrl = () => {
  * Creates a new group in the system. Only authorized administrators can create groups.
  * @summary Create a new group
  */
-export const createGroup = async (groupCreate: GroupCreate, options?: RequestInit): Promise<createGroupResponse> => {
+export const createGroup = async (groupCreate: GroupCreate, options?: RequestInit): Promise<GroupResponse> => {
 
-  return orvalFetcher<createGroupResponse>(getCreateGroupUrl(),
+  return orvalFetcher<GroupResponse>(getCreateGroupUrl(),
   {
     ...options,
     method: 'POST',
@@ -10357,35 +8511,6 @@ export const useCreateGroup = <TError = ErrorType<Unauthorized | Forbidden | HTT
       return useMutation(getCreateGroupMutationOptions(options), queryClient);
     }
 
-export type getAllGroupsResponse200 = {
-  data: GroupsResponse
-  status: 200
-}
-
-export type getAllGroupsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getAllGroupsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getAllGroupsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getAllGroupsResponseSuccess = (getAllGroupsResponse200) & {
-  headers: Headers;
-};
-export type getAllGroupsResponseError = (getAllGroupsResponse401 | getAllGroupsResponse403 | getAllGroupsResponse422) & {
-  headers: Headers;
-};
-
-export type getAllGroupsResponse = (getAllGroupsResponseSuccess | getAllGroupsResponseError)
-
 export const getGetAllGroupsUrl = (params?: GetAllGroupsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -10413,9 +8538,9 @@ export const getGetAllGroupsUrl = (params?: GetAllGroupsParams,) => {
  * Retrieves a paginated list of all groups in the system. Requires admin authentication.
  * @summary List all groups
  */
-export const getAllGroups = async (params?: GetAllGroupsParams, options?: RequestInit): Promise<getAllGroupsResponse> => {
+export const getAllGroups = async (params?: GetAllGroupsParams, options?: RequestInit): Promise<GroupsResponse> => {
 
-  return orvalFetcher<getAllGroupsResponse>(getGetAllGroupsUrl(params),
+  return orvalFetcher<GroupsResponse>(getGetAllGroupsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -10503,35 +8628,6 @@ export function useGetAllGroups<TData = Awaited<ReturnType<typeof getAllGroups>>
 
 
 
-export type getGroupsSimpleResponse200 = {
-  data: GroupsSimpleResponse
-  status: 200
-}
-
-export type getGroupsSimpleResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getGroupsSimpleResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getGroupsSimpleResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getGroupsSimpleResponseSuccess = (getGroupsSimpleResponse200) & {
-  headers: Headers;
-};
-export type getGroupsSimpleResponseError = (getGroupsSimpleResponse401 | getGroupsSimpleResponse403 | getGroupsSimpleResponse422) & {
-  headers: Headers;
-};
-
-export type getGroupsSimpleResponse = (getGroupsSimpleResponseSuccess | getGroupsSimpleResponseError)
-
 export const getGetGroupsSimpleUrl = (params?: GetGroupsSimpleParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -10559,9 +8655,9 @@ export const getGetGroupsSimpleUrl = (params?: GetGroupsSimpleParams,) => {
  * Returns only id and name for groups. Optimized for dropdowns and autocomplete.
  * @summary Get lightweight group list
  */
-export const getGroupsSimple = async (params?: GetGroupsSimpleParams, options?: RequestInit): Promise<getGroupsSimpleResponse> => {
+export const getGroupsSimple = async (params?: GetGroupsSimpleParams, options?: RequestInit): Promise<GroupsSimpleResponse> => {
 
-  return orvalFetcher<getGroupsSimpleResponse>(getGetGroupsSimpleUrl(params),
+  return orvalFetcher<GroupsSimpleResponse>(getGetGroupsSimpleUrl(params),
   {
     ...options,
     method: 'GET'
@@ -10649,40 +8745,6 @@ export function useGetGroupsSimple<TData = Awaited<ReturnType<typeof getGroupsSi
 
 
 
-export type getGroupResponse200 = {
-  data: GroupResponse
-  status: 200
-}
-
-export type getGroupResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getGroupResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getGroupResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getGroupResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getGroupResponseSuccess = (getGroupResponse200) & {
-  headers: Headers;
-};
-export type getGroupResponseError = (getGroupResponse401 | getGroupResponse403 | getGroupResponse404 | getGroupResponse422) & {
-  headers: Headers;
-};
-
-export type getGroupResponse = (getGroupResponseSuccess | getGroupResponseError)
-
 export const getGetGroupUrl = (groupId: number,) => {
 
 
@@ -10695,9 +8757,9 @@ export const getGetGroupUrl = (groupId: number,) => {
  * Retrieves detailed information about a specific group by its ID.
  * @summary Get group details
  */
-export const getGroup = async (groupId: number, options?: RequestInit): Promise<getGroupResponse> => {
+export const getGroup = async (groupId: number, options?: RequestInit): Promise<GroupResponse> => {
 
-  return orvalFetcher<getGroupResponse>(getGetGroupUrl(groupId),
+  return orvalFetcher<GroupResponse>(getGetGroupUrl(groupId),
   {
     ...options,
     method: 'GET'
@@ -10785,40 +8847,6 @@ export function useGetGroup<TData = Awaited<ReturnType<typeof getGroup>>, TError
 
 
 
-export type modifyGroupResponse200 = {
-  data: GroupResponse
-  status: 200
-}
-
-export type modifyGroupResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyGroupResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyGroupResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type modifyGroupResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyGroupResponseSuccess = (modifyGroupResponse200) & {
-  headers: Headers;
-};
-export type modifyGroupResponseError = (modifyGroupResponse401 | modifyGroupResponse403 | modifyGroupResponse404 | modifyGroupResponse422) & {
-  headers: Headers;
-};
-
-export type modifyGroupResponse = (modifyGroupResponseSuccess | modifyGroupResponseError)
-
 export const getModifyGroupUrl = (groupId: number,) => {
 
 
@@ -10832,9 +8860,9 @@ export const getModifyGroupUrl = (groupId: number,) => {
  * @summary Modify group
  */
 export const modifyGroup = async (groupId: number,
-    groupModify: GroupModify, options?: RequestInit): Promise<modifyGroupResponse> => {
+    groupModify: GroupModify, options?: RequestInit): Promise<GroupResponse> => {
 
-  return orvalFetcher<modifyGroupResponse>(getModifyGroupUrl(groupId),
+  return orvalFetcher<GroupResponse>(getModifyGroupUrl(groupId),
   {
     ...options,
     method: 'PUT',
@@ -10892,40 +8920,6 @@ export const useModifyGroup = <TError = ErrorType<Unauthorized | Forbidden | Not
       return useMutation(getModifyGroupMutationOptions(options), queryClient);
     }
 
-export type removeGroupResponse204 = {
-  data: void
-  status: 204
-}
-
-export type removeGroupResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeGroupResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeGroupResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type removeGroupResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeGroupResponseSuccess = (removeGroupResponse204) & {
-  headers: Headers;
-};
-export type removeGroupResponseError = (removeGroupResponse401 | removeGroupResponse403 | removeGroupResponse404 | removeGroupResponse422) & {
-  headers: Headers;
-};
-
-export type removeGroupResponse = (removeGroupResponseSuccess | removeGroupResponseError)
-
 export const getRemoveGroupUrl = (groupId: number,) => {
 
 
@@ -10938,9 +8932,9 @@ export const getRemoveGroupUrl = (groupId: number,) => {
  * Deletes a group from the system. Only authorized administrators can delete groups.
  * @summary Remove group
  */
-export const removeGroup = async (groupId: number, options?: RequestInit): Promise<removeGroupResponse> => {
+export const removeGroup = async (groupId: number, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<removeGroupResponse>(getRemoveGroupUrl(groupId),
+  return orvalFetcher<void>(getRemoveGroupUrl(groupId),
   {
     ...options,
     method: 'DELETE'
@@ -10998,35 +8992,6 @@ export const useRemoveGroup = <TError = ErrorType<Unauthorized | Forbidden | Not
       return useMutation(getRemoveGroupMutationOptions(options), queryClient);
     }
 
-export type bulkAddGroupsToUsersResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type bulkAddGroupsToUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkAddGroupsToUsersResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkAddGroupsToUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkAddGroupsToUsersResponseSuccess = (bulkAddGroupsToUsersResponse200) & {
-  headers: Headers;
-};
-export type bulkAddGroupsToUsersResponseError = (bulkAddGroupsToUsersResponse401 | bulkAddGroupsToUsersResponse403 | bulkAddGroupsToUsersResponse422) & {
-  headers: Headers;
-};
-
-export type bulkAddGroupsToUsersResponse = (bulkAddGroupsToUsersResponseSuccess | bulkAddGroupsToUsersResponseError)
-
 export const getBulkAddGroupsToUsersUrl = () => {
 
 
@@ -11048,9 +9013,9 @@ export const getBulkAddGroupsToUsersUrl = () => {
  * - Returns list of affected users (those who received new group associations)
  * @summary Bulk add groups to users
  */
-export const bulkAddGroupsToUsers = async (bulkGroup: BulkGroup, options?: RequestInit): Promise<bulkAddGroupsToUsersResponse> => {
+export const bulkAddGroupsToUsers = async (bulkGroup: BulkGroup, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<bulkAddGroupsToUsersResponse>(getBulkAddGroupsToUsersUrl(),
+  return orvalFetcher<unknown>(getBulkAddGroupsToUsersUrl(),
   {
     ...options,
     method: 'POST',
@@ -11108,35 +9073,6 @@ export const useBulkAddGroupsToUsers = <TError = ErrorType<Unauthorized | Forbid
       return useMutation(getBulkAddGroupsToUsersMutationOptions(options), queryClient);
     }
 
-export type bulkRemoveUsersFromGroupsResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type bulkRemoveUsersFromGroupsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkRemoveUsersFromGroupsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkRemoveUsersFromGroupsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkRemoveUsersFromGroupsResponseSuccess = (bulkRemoveUsersFromGroupsResponse200) & {
-  headers: Headers;
-};
-export type bulkRemoveUsersFromGroupsResponseError = (bulkRemoveUsersFromGroupsResponse401 | bulkRemoveUsersFromGroupsResponse403 | bulkRemoveUsersFromGroupsResponse422) & {
-  headers: Headers;
-};
-
-export type bulkRemoveUsersFromGroupsResponse = (bulkRemoveUsersFromGroupsResponseSuccess | bulkRemoveUsersFromGroupsResponseError)
-
 export const getBulkRemoveUsersFromGroupsUrl = () => {
 
 
@@ -11158,9 +9094,9 @@ export const getBulkRemoveUsersFromGroupsUrl = () => {
  * - Returns list of affected users (those who had groups removed)
  * @summary Bulk remove groups from users
  */
-export const bulkRemoveUsersFromGroups = async (bulkGroup: BulkGroup, options?: RequestInit): Promise<bulkRemoveUsersFromGroupsResponse> => {
+export const bulkRemoveUsersFromGroups = async (bulkGroup: BulkGroup, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<bulkRemoveUsersFromGroupsResponse>(getBulkRemoveUsersFromGroupsUrl(),
+  return orvalFetcher<unknown>(getBulkRemoveUsersFromGroupsUrl(),
   {
     ...options,
     method: 'POST',
@@ -11218,45 +9154,6 @@ export const useBulkRemoveUsersFromGroups = <TError = ErrorType<Unauthorized | F
       return useMutation(getBulkRemoveUsersFromGroupsMutationOptions(options), queryClient);
     }
 
-export type bulkDeleteGroupsResponse200 = {
-  data: RemoveGroupsResponse
-  status: 200
-}
-
-export type bulkDeleteGroupsResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDeleteGroupsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDeleteGroupsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDeleteGroupsResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDeleteGroupsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDeleteGroupsResponseSuccess = (bulkDeleteGroupsResponse200) & {
-  headers: Headers;
-};
-export type bulkDeleteGroupsResponseError = (bulkDeleteGroupsResponse400 | bulkDeleteGroupsResponse401 | bulkDeleteGroupsResponse403 | bulkDeleteGroupsResponse404 | bulkDeleteGroupsResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDeleteGroupsResponse = (bulkDeleteGroupsResponseSuccess | bulkDeleteGroupsResponseError)
-
 export const getBulkDeleteGroupsUrl = () => {
 
 
@@ -11269,9 +9166,9 @@ export const getBulkDeleteGroupsUrl = () => {
  * Delete selected groups by ID.
  * @summary Bulk Delete Groups
  */
-export const bulkDeleteGroups = async (bulkGroupSelection: BulkGroupSelection, options?: RequestInit): Promise<bulkDeleteGroupsResponse> => {
+export const bulkDeleteGroups = async (bulkGroupSelection: BulkGroupSelection, options?: RequestInit): Promise<RemoveGroupsResponse> => {
 
-  return orvalFetcher<bulkDeleteGroupsResponse>(getBulkDeleteGroupsUrl(),
+  return orvalFetcher<RemoveGroupsResponse>(getBulkDeleteGroupsUrl(),
   {
     ...options,
     method: 'POST',
@@ -11329,45 +9226,6 @@ export const useBulkDeleteGroups = <TError = ErrorType<HTTPException | Unauthori
       return useMutation(getBulkDeleteGroupsMutationOptions(options), queryClient);
     }
 
-export type bulkDisableGroupsResponse200 = {
-  data: BulkGroupsActionResponse
-  status: 200
-}
-
-export type bulkDisableGroupsResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDisableGroupsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDisableGroupsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDisableGroupsResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDisableGroupsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDisableGroupsResponseSuccess = (bulkDisableGroupsResponse200) & {
-  headers: Headers;
-};
-export type bulkDisableGroupsResponseError = (bulkDisableGroupsResponse400 | bulkDisableGroupsResponse401 | bulkDisableGroupsResponse403 | bulkDisableGroupsResponse404 | bulkDisableGroupsResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDisableGroupsResponse = (bulkDisableGroupsResponseSuccess | bulkDisableGroupsResponseError)
-
 export const getBulkDisableGroupsUrl = () => {
 
 
@@ -11380,9 +9238,9 @@ export const getBulkDisableGroupsUrl = () => {
  * Disable selected groups by ID.
  * @summary Bulk Disable Groups
  */
-export const bulkDisableGroups = async (bulkGroupSelection: BulkGroupSelection, options?: RequestInit): Promise<bulkDisableGroupsResponse> => {
+export const bulkDisableGroups = async (bulkGroupSelection: BulkGroupSelection, options?: RequestInit): Promise<BulkGroupsActionResponse> => {
 
-  return orvalFetcher<bulkDisableGroupsResponse>(getBulkDisableGroupsUrl(),
+  return orvalFetcher<BulkGroupsActionResponse>(getBulkDisableGroupsUrl(),
   {
     ...options,
     method: 'POST',
@@ -11440,45 +9298,6 @@ export const useBulkDisableGroups = <TError = ErrorType<HTTPException | Unauthor
       return useMutation(getBulkDisableGroupsMutationOptions(options), queryClient);
     }
 
-export type bulkEnableGroupsResponse200 = {
-  data: BulkGroupsActionResponse
-  status: 200
-}
-
-export type bulkEnableGroupsResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkEnableGroupsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkEnableGroupsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkEnableGroupsResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkEnableGroupsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkEnableGroupsResponseSuccess = (bulkEnableGroupsResponse200) & {
-  headers: Headers;
-};
-export type bulkEnableGroupsResponseError = (bulkEnableGroupsResponse400 | bulkEnableGroupsResponse401 | bulkEnableGroupsResponse403 | bulkEnableGroupsResponse404 | bulkEnableGroupsResponse422) & {
-  headers: Headers;
-};
-
-export type bulkEnableGroupsResponse = (bulkEnableGroupsResponseSuccess | bulkEnableGroupsResponseError)
-
 export const getBulkEnableGroupsUrl = () => {
 
 
@@ -11491,9 +9310,9 @@ export const getBulkEnableGroupsUrl = () => {
  * Enable selected groups by ID.
  * @summary Bulk Enable Groups
  */
-export const bulkEnableGroups = async (bulkGroupSelection: BulkGroupSelection, options?: RequestInit): Promise<bulkEnableGroupsResponse> => {
+export const bulkEnableGroups = async (bulkGroupSelection: BulkGroupSelection, options?: RequestInit): Promise<BulkGroupsActionResponse> => {
 
-  return orvalFetcher<bulkEnableGroupsResponse>(getBulkEnableGroupsUrl(),
+  return orvalFetcher<BulkGroupsActionResponse>(getBulkEnableGroupsUrl(),
   {
     ...options,
     method: 'POST',
@@ -11551,35 +9370,6 @@ export const useBulkEnableGroups = <TError = ErrorType<HTTPException | Unauthori
       return useMutation(getBulkEnableGroupsMutationOptions(options), queryClient);
     }
 
-export type createCoreConfigResponse201 = {
-  data: CoreResponse
-  status: 201
-}
-
-export type createCoreConfigResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type createCoreConfigResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type createCoreConfigResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createCoreConfigResponseSuccess = (createCoreConfigResponse201) & {
-  headers: Headers;
-};
-export type createCoreConfigResponseError = (createCoreConfigResponse401 | createCoreConfigResponse403 | createCoreConfigResponse422) & {
-  headers: Headers;
-};
-
-export type createCoreConfigResponse = (createCoreConfigResponseSuccess | createCoreConfigResponseError)
-
 export const getCreateCoreConfigUrl = () => {
 
 
@@ -11592,9 +9382,9 @@ export const getCreateCoreConfigUrl = () => {
  * Create a new core configuration.
  * @summary Create Core Config
  */
-export const createCoreConfig = async (coreCreate: CoreCreate, options?: RequestInit): Promise<createCoreConfigResponse> => {
+export const createCoreConfig = async (coreCreate: CoreCreate, options?: RequestInit): Promise<CoreResponse> => {
 
-  return orvalFetcher<createCoreConfigResponse>(getCreateCoreConfigUrl(),
+  return orvalFetcher<CoreResponse>(getCreateCoreConfigUrl(),
   {
     ...options,
     method: 'POST',
@@ -11652,35 +9442,6 @@ export const useCreateCoreConfig = <TError = ErrorType<Unauthorized | Forbidden 
       return useMutation(getCreateCoreConfigMutationOptions(options), queryClient);
     }
 
-export type scanRealityTargetResponse200 = {
-  data: RealityScanResult
-  status: 200
-}
-
-export type scanRealityTargetResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type scanRealityTargetResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type scanRealityTargetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type scanRealityTargetResponseSuccess = (scanRealityTargetResponse200) & {
-  headers: Headers;
-};
-export type scanRealityTargetResponseError = (scanRealityTargetResponse401 | scanRealityTargetResponse403 | scanRealityTargetResponse422) & {
-  headers: Headers;
-};
-
-export type scanRealityTargetResponse = (scanRealityTargetResponseSuccess | scanRealityTargetResponseError)
-
 export const getScanRealityTargetUrl = () => {
 
 
@@ -11692,9 +9453,9 @@ export const getScanRealityTargetUrl = () => {
 /**
  * @summary Scan Reality Target
  */
-export const scanRealityTarget = async (realityScanRequest: RealityScanRequest, options?: RequestInit): Promise<scanRealityTargetResponse> => {
+export const scanRealityTarget = async (realityScanRequest: RealityScanRequest, options?: RequestInit): Promise<RealityScanResult> => {
 
-  return orvalFetcher<scanRealityTargetResponse>(getScanRealityTargetUrl(),
+  return orvalFetcher<RealityScanResult>(getScanRealityTargetUrl(),
   {
     ...options,
     method: 'POST',
@@ -11752,34 +9513,77 @@ export const useScanRealityTarget = <TError = ErrorType<Unauthorized | Forbidden
       return useMutation(getScanRealityTargetMutationOptions(options), queryClient);
     }
 
-export type getCoreConfigResponse200 = {
-  data: CoreResponse
-  status: 200
+export const getReorderCoreConfigsUrl = () => {
+
+
+
+
+  return `/api/cores/order`
 }
 
-export type getCoreConfigResponse401 = {
-  data: Unauthorized
-  status: 401
-}
+/**
+ * Persist the display order of core configurations.
+ * @summary Reorder Core Configs
+ */
+export const reorderCoreConfigs = async (reorderRequest: ReorderRequest, options?: RequestInit): Promise<void> => {
 
-export type getCoreConfigResponse403 = {
-  data: Forbidden
-  status: 403
-}
+  return orvalFetcher<void>(getReorderCoreConfigsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reorderRequest)
+  }
+);}
 
-export type getCoreConfigResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
 
-export type getCoreConfigResponseSuccess = (getCoreConfigResponse200) & {
-  headers: Headers;
-};
-export type getCoreConfigResponseError = (getCoreConfigResponse401 | getCoreConfigResponse403 | getCoreConfigResponse422) & {
-  headers: Headers;
-};
 
-export type getCoreConfigResponse = (getCoreConfigResponseSuccess | getCoreConfigResponseError)
+
+
+export const getReorderCoreConfigsMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderCoreConfigs>>, TError,{data: BodyType<ReorderRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof reorderCoreConfigs>>, TError,{data: BodyType<ReorderRequest>}, TContext> => {
+
+const mutationKey = ['reorderCoreConfigs'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderCoreConfigs>>, {data: BodyType<ReorderRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  reorderCoreConfigs(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReorderCoreConfigsMutationResult = NonNullable<Awaited<ReturnType<typeof reorderCoreConfigs>>>
+    export type ReorderCoreConfigsMutationBody = BodyType<ReorderRequest>
+    export type ReorderCoreConfigsMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+    /**
+ * @summary Reorder Core Configs
+ */
+export const useReorderCoreConfigs = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderCoreConfigs>>, TError,{data: BodyType<ReorderRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reorderCoreConfigs>>,
+        TError,
+        {data: BodyType<ReorderRequest>},
+        TContext
+      > => {
+      return useMutation(getReorderCoreConfigsMutationOptions(options), queryClient);
+    }
 
 export const getGetCoreConfigUrl = (coreId: number,) => {
 
@@ -11793,9 +9597,9 @@ export const getGetCoreConfigUrl = (coreId: number,) => {
  * Get a core configuration by its ID.
  * @summary Get Core Config
  */
-export const getCoreConfig = async (coreId: number, options?: RequestInit): Promise<getCoreConfigResponse> => {
+export const getCoreConfig = async (coreId: number, options?: RequestInit): Promise<CoreResponse> => {
 
-  return orvalFetcher<getCoreConfigResponse>(getGetCoreConfigUrl(coreId),
+  return orvalFetcher<CoreResponse>(getGetCoreConfigUrl(coreId),
   {
     ...options,
     method: 'GET'
@@ -11883,35 +9687,6 @@ export function useGetCoreConfig<TData = Awaited<ReturnType<typeof getCoreConfig
 
 
 
-export type modifyCoreConfigResponse200 = {
-  data: CoreResponse
-  status: 200
-}
-
-export type modifyCoreConfigResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyCoreConfigResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyCoreConfigResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyCoreConfigResponseSuccess = (modifyCoreConfigResponse200) & {
-  headers: Headers;
-};
-export type modifyCoreConfigResponseError = (modifyCoreConfigResponse401 | modifyCoreConfigResponse403 | modifyCoreConfigResponse422) & {
-  headers: Headers;
-};
-
-export type modifyCoreConfigResponse = (modifyCoreConfigResponseSuccess | modifyCoreConfigResponseError)
-
 export const getModifyCoreConfigUrl = (coreId: number,
     params: ModifyCoreConfigParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -11934,9 +9709,9 @@ export const getModifyCoreConfigUrl = (coreId: number,
  */
 export const modifyCoreConfig = async (coreId: number,
     coreCreate: CoreCreate,
-    params: ModifyCoreConfigParams, options?: RequestInit): Promise<modifyCoreConfigResponse> => {
+    params: ModifyCoreConfigParams, options?: RequestInit): Promise<CoreResponse> => {
 
-  return orvalFetcher<modifyCoreConfigResponse>(getModifyCoreConfigUrl(coreId,params),
+  return orvalFetcher<CoreResponse>(getModifyCoreConfigUrl(coreId,params),
   {
     ...options,
     method: 'PUT',
@@ -11994,35 +9769,6 @@ export const useModifyCoreConfig = <TError = ErrorType<Unauthorized | Forbidden 
       return useMutation(getModifyCoreConfigMutationOptions(options), queryClient);
     }
 
-export type deleteCoreConfigResponse204 = {
-  data: void
-  status: 204
-}
-
-export type deleteCoreConfigResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type deleteCoreConfigResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type deleteCoreConfigResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteCoreConfigResponseSuccess = (deleteCoreConfigResponse204) & {
-  headers: Headers;
-};
-export type deleteCoreConfigResponseError = (deleteCoreConfigResponse401 | deleteCoreConfigResponse403 | deleteCoreConfigResponse422) & {
-  headers: Headers;
-};
-
-export type deleteCoreConfigResponse = (deleteCoreConfigResponseSuccess | deleteCoreConfigResponseError)
-
 export const getDeleteCoreConfigUrl = (coreId: number,
     params?: DeleteCoreConfigParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -12044,9 +9790,9 @@ export const getDeleteCoreConfigUrl = (coreId: number,
  * @summary Delete Core Config
  */
 export const deleteCoreConfig = async (coreId: number,
-    params?: DeleteCoreConfigParams, options?: RequestInit): Promise<deleteCoreConfigResponse> => {
+    params?: DeleteCoreConfigParams, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<deleteCoreConfigResponse>(getDeleteCoreConfigUrl(coreId,params),
+  return orvalFetcher<void>(getDeleteCoreConfigUrl(coreId,params),
   {
     ...options,
     method: 'DELETE'
@@ -12104,35 +9850,6 @@ export const useDeleteCoreConfig = <TError = ErrorType<Unauthorized | Forbidden 
       return useMutation(getDeleteCoreConfigMutationOptions(options), queryClient);
     }
 
-export type getAllCoresResponse200 = {
-  data: CoreResponseList
-  status: 200
-}
-
-export type getAllCoresResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getAllCoresResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getAllCoresResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getAllCoresResponseSuccess = (getAllCoresResponse200) & {
-  headers: Headers;
-};
-export type getAllCoresResponseError = (getAllCoresResponse401 | getAllCoresResponse403 | getAllCoresResponse422) & {
-  headers: Headers;
-};
-
-export type getAllCoresResponse = (getAllCoresResponseSuccess | getAllCoresResponseError)
-
 export const getGetAllCoresUrl = (params?: GetAllCoresParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -12160,9 +9877,9 @@ export const getGetAllCoresUrl = (params?: GetAllCoresParams,) => {
  * Get a list of all core configurations.
  * @summary Get All Cores
  */
-export const getAllCores = async (params?: GetAllCoresParams, options?: RequestInit): Promise<getAllCoresResponse> => {
+export const getAllCores = async (params?: GetAllCoresParams, options?: RequestInit): Promise<CoreResponseList> => {
 
-  return orvalFetcher<getAllCoresResponse>(getGetAllCoresUrl(params),
+  return orvalFetcher<CoreResponseList>(getGetAllCoresUrl(params),
   {
     ...options,
     method: 'GET'
@@ -12250,35 +9967,6 @@ export function useGetAllCores<TData = Awaited<ReturnType<typeof getAllCores>>, 
 
 
 
-export type getCoresSimpleResponse200 = {
-  data: CoresSimpleResponse
-  status: 200
-}
-
-export type getCoresSimpleResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getCoresSimpleResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getCoresSimpleResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getCoresSimpleResponseSuccess = (getCoresSimpleResponse200) & {
-  headers: Headers;
-};
-export type getCoresSimpleResponseError = (getCoresSimpleResponse401 | getCoresSimpleResponse403 | getCoresSimpleResponse422) & {
-  headers: Headers;
-};
-
-export type getCoresSimpleResponse = (getCoresSimpleResponseSuccess | getCoresSimpleResponseError)
-
 export const getGetCoresSimpleUrl = (params?: GetCoresSimpleParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -12306,9 +9994,9 @@ export const getGetCoresSimpleUrl = (params?: GetCoresSimpleParams,) => {
  * Returns only id and name for cores. Optimized for dropdowns and autocomplete.
  * @summary Get lightweight core list
  */
-export const getCoresSimple = async (params?: GetCoresSimpleParams, options?: RequestInit): Promise<getCoresSimpleResponse> => {
+export const getCoresSimple = async (params?: GetCoresSimpleParams, options?: RequestInit): Promise<CoresSimpleResponse> => {
 
-  return orvalFetcher<getCoresSimpleResponse>(getGetCoresSimpleUrl(params),
+  return orvalFetcher<CoresSimpleResponse>(getGetCoresSimpleUrl(params),
   {
     ...options,
     method: 'GET'
@@ -12396,35 +10084,6 @@ export function useGetCoresSimple<TData = Awaited<ReturnType<typeof getCoresSimp
 
 
 
-export type restartCoreResponse204 = {
-  data: void
-  status: 204
-}
-
-export type restartCoreResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type restartCoreResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type restartCoreResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type restartCoreResponseSuccess = (restartCoreResponse204) & {
-  headers: Headers;
-};
-export type restartCoreResponseError = (restartCoreResponse401 | restartCoreResponse403 | restartCoreResponse422) & {
-  headers: Headers;
-};
-
-export type restartCoreResponse = (restartCoreResponseSuccess | restartCoreResponseError)
-
 export const getRestartCoreUrl = (coreId: number,) => {
 
 
@@ -12437,9 +10096,9 @@ export const getRestartCoreUrl = (coreId: number,) => {
  * restart nodes related to the core config
  * @summary Restart Core
  */
-export const restartCore = async (coreId: number, options?: RequestInit): Promise<restartCoreResponse> => {
+export const restartCore = async (coreId: number, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<restartCoreResponse>(getRestartCoreUrl(coreId),
+  return orvalFetcher<void>(getRestartCoreUrl(coreId),
   {
     ...options,
     method: 'POST'
@@ -12497,45 +10156,6 @@ export const useRestartCore = <TError = ErrorType<Unauthorized | Forbidden | HTT
       return useMutation(getRestartCoreMutationOptions(options), queryClient);
     }
 
-export type bulkDeleteCoresResponse200 = {
-  data: RemoveCoresResponse
-  status: 200
-}
-
-export type bulkDeleteCoresResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDeleteCoresResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDeleteCoresResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDeleteCoresResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDeleteCoresResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDeleteCoresResponseSuccess = (bulkDeleteCoresResponse200) & {
-  headers: Headers;
-};
-export type bulkDeleteCoresResponseError = (bulkDeleteCoresResponse400 | bulkDeleteCoresResponse401 | bulkDeleteCoresResponse403 | bulkDeleteCoresResponse404 | bulkDeleteCoresResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDeleteCoresResponse = (bulkDeleteCoresResponseSuccess | bulkDeleteCoresResponseError)
-
 export const getBulkDeleteCoresUrl = () => {
 
 
@@ -12548,9 +10168,9 @@ export const getBulkDeleteCoresUrl = () => {
  * Delete selected cores by ID.
  * @summary Bulk Delete Cores
  */
-export const bulkDeleteCores = async (bulkCoreSelection: BulkCoreSelection, options?: RequestInit): Promise<bulkDeleteCoresResponse> => {
+export const bulkDeleteCores = async (bulkCoreSelection: BulkCoreSelection, options?: RequestInit): Promise<RemoveCoresResponse> => {
 
-  return orvalFetcher<bulkDeleteCoresResponse>(getBulkDeleteCoresUrl(),
+  return orvalFetcher<RemoveCoresResponse>(getBulkDeleteCoresUrl(),
   {
     ...options,
     method: 'POST',
@@ -12608,35 +10228,6 @@ export const useBulkDeleteCores = <TError = ErrorType<HTTPException | Unauthoriz
       return useMutation(getBulkDeleteCoresMutationOptions(options), queryClient);
     }
 
-export type createClientTemplateResponse201 = {
-  data: ClientTemplateResponse
-  status: 201
-}
-
-export type createClientTemplateResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type createClientTemplateResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type createClientTemplateResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createClientTemplateResponseSuccess = (createClientTemplateResponse201) & {
-  headers: Headers;
-};
-export type createClientTemplateResponseError = (createClientTemplateResponse401 | createClientTemplateResponse403 | createClientTemplateResponse422) & {
-  headers: Headers;
-};
-
-export type createClientTemplateResponse = (createClientTemplateResponseSuccess | createClientTemplateResponseError)
-
 export const getCreateClientTemplateUrl = () => {
 
 
@@ -12648,9 +10239,9 @@ export const getCreateClientTemplateUrl = () => {
 /**
  * @summary Create Client Template
  */
-export const createClientTemplate = async (clientTemplateCreate: ClientTemplateCreate, options?: RequestInit): Promise<createClientTemplateResponse> => {
+export const createClientTemplate = async (clientTemplateCreate: ClientTemplateCreate, options?: RequestInit): Promise<ClientTemplateResponse> => {
 
-  return orvalFetcher<createClientTemplateResponse>(getCreateClientTemplateUrl(),
+  return orvalFetcher<ClientTemplateResponse>(getCreateClientTemplateUrl(),
   {
     ...options,
     method: 'POST',
@@ -12708,35 +10299,6 @@ export const useCreateClientTemplate = <TError = ErrorType<Unauthorized | Forbid
       return useMutation(getCreateClientTemplateMutationOptions(options), queryClient);
     }
 
-export type getClientTemplateResponse200 = {
-  data: ClientTemplateResponse
-  status: 200
-}
-
-export type getClientTemplateResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getClientTemplateResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getClientTemplateResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getClientTemplateResponseSuccess = (getClientTemplateResponse200) & {
-  headers: Headers;
-};
-export type getClientTemplateResponseError = (getClientTemplateResponse401 | getClientTemplateResponse403 | getClientTemplateResponse422) & {
-  headers: Headers;
-};
-
-export type getClientTemplateResponse = (getClientTemplateResponseSuccess | getClientTemplateResponseError)
-
 export const getGetClientTemplateUrl = (templateId: number,) => {
 
 
@@ -12748,9 +10310,9 @@ export const getGetClientTemplateUrl = (templateId: number,) => {
 /**
  * @summary Get Client Template
  */
-export const getClientTemplate = async (templateId: number, options?: RequestInit): Promise<getClientTemplateResponse> => {
+export const getClientTemplate = async (templateId: number, options?: RequestInit): Promise<ClientTemplateResponse> => {
 
-  return orvalFetcher<getClientTemplateResponse>(getGetClientTemplateUrl(templateId),
+  return orvalFetcher<ClientTemplateResponse>(getGetClientTemplateUrl(templateId),
   {
     ...options,
     method: 'GET'
@@ -12838,35 +10400,6 @@ export function useGetClientTemplate<TData = Awaited<ReturnType<typeof getClient
 
 
 
-export type modifyClientTemplateResponse200 = {
-  data: ClientTemplateResponse
-  status: 200
-}
-
-export type modifyClientTemplateResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyClientTemplateResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyClientTemplateResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyClientTemplateResponseSuccess = (modifyClientTemplateResponse200) & {
-  headers: Headers;
-};
-export type modifyClientTemplateResponseError = (modifyClientTemplateResponse401 | modifyClientTemplateResponse403 | modifyClientTemplateResponse422) & {
-  headers: Headers;
-};
-
-export type modifyClientTemplateResponse = (modifyClientTemplateResponseSuccess | modifyClientTemplateResponseError)
-
 export const getModifyClientTemplateUrl = (templateId: number,) => {
 
 
@@ -12879,9 +10412,9 @@ export const getModifyClientTemplateUrl = (templateId: number,) => {
  * @summary Modify Client Template
  */
 export const modifyClientTemplate = async (templateId: number,
-    clientTemplateModify: ClientTemplateModify, options?: RequestInit): Promise<modifyClientTemplateResponse> => {
+    clientTemplateModify: ClientTemplateModify, options?: RequestInit): Promise<ClientTemplateResponse> => {
 
-  return orvalFetcher<modifyClientTemplateResponse>(getModifyClientTemplateUrl(templateId),
+  return orvalFetcher<ClientTemplateResponse>(getModifyClientTemplateUrl(templateId),
   {
     ...options,
     method: 'PUT',
@@ -12939,35 +10472,6 @@ export const useModifyClientTemplate = <TError = ErrorType<Unauthorized | Forbid
       return useMutation(getModifyClientTemplateMutationOptions(options), queryClient);
     }
 
-export type removeClientTemplateResponse204 = {
-  data: void
-  status: 204
-}
-
-export type removeClientTemplateResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeClientTemplateResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeClientTemplateResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeClientTemplateResponseSuccess = (removeClientTemplateResponse204) & {
-  headers: Headers;
-};
-export type removeClientTemplateResponseError = (removeClientTemplateResponse401 | removeClientTemplateResponse403 | removeClientTemplateResponse422) & {
-  headers: Headers;
-};
-
-export type removeClientTemplateResponse = (removeClientTemplateResponseSuccess | removeClientTemplateResponseError)
-
 export const getRemoveClientTemplateUrl = (templateId: number,) => {
 
 
@@ -12979,9 +10483,9 @@ export const getRemoveClientTemplateUrl = (templateId: number,) => {
 /**
  * @summary Remove Client Template
  */
-export const removeClientTemplate = async (templateId: number, options?: RequestInit): Promise<removeClientTemplateResponse> => {
+export const removeClientTemplate = async (templateId: number, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<removeClientTemplateResponse>(getRemoveClientTemplateUrl(templateId),
+  return orvalFetcher<void>(getRemoveClientTemplateUrl(templateId),
   {
     ...options,
     method: 'DELETE'
@@ -13039,35 +10543,6 @@ export const useRemoveClientTemplate = <TError = ErrorType<Unauthorized | Forbid
       return useMutation(getRemoveClientTemplateMutationOptions(options), queryClient);
     }
 
-export type getClientTemplatesResponse200 = {
-  data: ClientTemplateResponseList
-  status: 200
-}
-
-export type getClientTemplatesResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getClientTemplatesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getClientTemplatesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getClientTemplatesResponseSuccess = (getClientTemplatesResponse200) & {
-  headers: Headers;
-};
-export type getClientTemplatesResponseError = (getClientTemplatesResponse401 | getClientTemplatesResponse403 | getClientTemplatesResponse422) & {
-  headers: Headers;
-};
-
-export type getClientTemplatesResponse = (getClientTemplatesResponseSuccess | getClientTemplatesResponseError)
-
 export const getGetClientTemplatesUrl = (params?: GetClientTemplatesParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -13094,9 +10569,9 @@ export const getGetClientTemplatesUrl = (params?: GetClientTemplatesParams,) => 
 /**
  * @summary Get Client Templates
  */
-export const getClientTemplates = async (params?: GetClientTemplatesParams, options?: RequestInit): Promise<getClientTemplatesResponse> => {
+export const getClientTemplates = async (params?: GetClientTemplatesParams, options?: RequestInit): Promise<ClientTemplateResponseList> => {
 
-  return orvalFetcher<getClientTemplatesResponse>(getGetClientTemplatesUrl(params),
+  return orvalFetcher<ClientTemplateResponseList>(getGetClientTemplatesUrl(params),
   {
     ...options,
     method: 'GET'
@@ -13184,35 +10659,6 @@ export function useGetClientTemplates<TData = Awaited<ReturnType<typeof getClien
 
 
 
-export type getClientTemplatesSimpleResponse200 = {
-  data: ClientTemplatesSimpleResponse
-  status: 200
-}
-
-export type getClientTemplatesSimpleResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getClientTemplatesSimpleResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getClientTemplatesSimpleResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getClientTemplatesSimpleResponseSuccess = (getClientTemplatesSimpleResponse200) & {
-  headers: Headers;
-};
-export type getClientTemplatesSimpleResponseError = (getClientTemplatesSimpleResponse401 | getClientTemplatesSimpleResponse403 | getClientTemplatesSimpleResponse422) & {
-  headers: Headers;
-};
-
-export type getClientTemplatesSimpleResponse = (getClientTemplatesSimpleResponseSuccess | getClientTemplatesSimpleResponseError)
-
 export const getGetClientTemplatesSimpleUrl = (params?: GetClientTemplatesSimpleParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -13239,9 +10685,9 @@ export const getGetClientTemplatesSimpleUrl = (params?: GetClientTemplatesSimple
 /**
  * @summary Get Client Templates Simple
  */
-export const getClientTemplatesSimple = async (params?: GetClientTemplatesSimpleParams, options?: RequestInit): Promise<getClientTemplatesSimpleResponse> => {
+export const getClientTemplatesSimple = async (params?: GetClientTemplatesSimpleParams, options?: RequestInit): Promise<ClientTemplatesSimpleResponse> => {
 
-  return orvalFetcher<getClientTemplatesSimpleResponse>(getGetClientTemplatesSimpleUrl(params),
+  return orvalFetcher<ClientTemplatesSimpleResponse>(getGetClientTemplatesSimpleUrl(params),
   {
     ...options,
     method: 'GET'
@@ -13329,45 +10775,6 @@ export function useGetClientTemplatesSimple<TData = Awaited<ReturnType<typeof ge
 
 
 
-export type bulkDeleteClientTemplatesResponse200 = {
-  data: RemoveClientTemplatesResponse
-  status: 200
-}
-
-export type bulkDeleteClientTemplatesResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDeleteClientTemplatesResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDeleteClientTemplatesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDeleteClientTemplatesResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDeleteClientTemplatesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDeleteClientTemplatesResponseSuccess = (bulkDeleteClientTemplatesResponse200) & {
-  headers: Headers;
-};
-export type bulkDeleteClientTemplatesResponseError = (bulkDeleteClientTemplatesResponse400 | bulkDeleteClientTemplatesResponse401 | bulkDeleteClientTemplatesResponse403 | bulkDeleteClientTemplatesResponse404 | bulkDeleteClientTemplatesResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDeleteClientTemplatesResponse = (bulkDeleteClientTemplatesResponseSuccess | bulkDeleteClientTemplatesResponseError)
-
 export const getBulkDeleteClientTemplatesUrl = () => {
 
 
@@ -13380,9 +10787,9 @@ export const getBulkDeleteClientTemplatesUrl = () => {
  * Delete selected client templates by ID.
  * @summary Bulk Delete Client Templates
  */
-export const bulkDeleteClientTemplates = async (bulkClientTemplateSelection: BulkClientTemplateSelection, options?: RequestInit): Promise<bulkDeleteClientTemplatesResponse> => {
+export const bulkDeleteClientTemplates = async (bulkClientTemplateSelection: BulkClientTemplateSelection, options?: RequestInit): Promise<RemoveClientTemplatesResponse> => {
 
-  return orvalFetcher<bulkDeleteClientTemplatesResponse>(getBulkDeleteClientTemplatesUrl(),
+  return orvalFetcher<RemoveClientTemplatesResponse>(getBulkDeleteClientTemplatesUrl(),
   {
     ...options,
     method: 'POST',
@@ -13440,35 +10847,6 @@ export const useBulkDeleteClientTemplates = <TError = ErrorType<HTTPException | 
       return useMutation(getBulkDeleteClientTemplatesMutationOptions(options), queryClient);
     }
 
-export type getHostResponse200 = {
-  data: BaseHost
-  status: 200
-}
-
-export type getHostResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getHostResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getHostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getHostResponseSuccess = (getHostResponse200) & {
-  headers: Headers;
-};
-export type getHostResponseError = (getHostResponse401 | getHostResponse403 | getHostResponse422) & {
-  headers: Headers;
-};
-
-export type getHostResponse = (getHostResponseSuccess | getHostResponseError)
-
 export const getGetHostUrl = (hostId: number,) => {
 
 
@@ -13481,9 +10859,9 @@ export const getGetHostUrl = (hostId: number,) => {
  * get host by **id**
  * @summary Get Host
  */
-export const getHost = async (hostId: number, options?: RequestInit): Promise<getHostResponse> => {
+export const getHost = async (hostId: number, options?: RequestInit): Promise<BaseHost> => {
 
-  return orvalFetcher<getHostResponse>(getGetHostUrl(hostId),
+  return orvalFetcher<BaseHost>(getGetHostUrl(hostId),
   {
     ...options,
     method: 'GET'
@@ -13571,40 +10949,6 @@ export function useGetHost<TData = Awaited<ReturnType<typeof getHost>>, TError =
 
 
 
-export type modifyHostResponse200 = {
-  data: BaseHost
-  status: 200
-}
-
-export type modifyHostResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyHostResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyHostResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type modifyHostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyHostResponseSuccess = (modifyHostResponse200) & {
-  headers: Headers;
-};
-export type modifyHostResponseError = (modifyHostResponse401 | modifyHostResponse403 | modifyHostResponse404 | modifyHostResponse422) & {
-  headers: Headers;
-};
-
-export type modifyHostResponse = (modifyHostResponseSuccess | modifyHostResponseError)
-
 export const getModifyHostUrl = (hostId: number,) => {
 
 
@@ -13620,9 +10964,9 @@ export const getModifyHostUrl = (hostId: number,) => {
  * @summary Modify Host
  */
 export const modifyHost = async (hostId: number,
-    createHost: CreateHost, options?: RequestInit): Promise<modifyHostResponse> => {
+    createHost: CreateHost, options?: RequestInit): Promise<BaseHost> => {
 
-  return orvalFetcher<modifyHostResponse>(getModifyHostUrl(hostId),
+  return orvalFetcher<BaseHost>(getModifyHostUrl(hostId),
   {
     ...options,
     method: 'PUT',
@@ -13680,40 +11024,6 @@ export const useModifyHost = <TError = ErrorType<Unauthorized | Forbidden | NotF
       return useMutation(getModifyHostMutationOptions(options), queryClient);
     }
 
-export type removeHostResponse204 = {
-  data: void
-  status: 204
-}
-
-export type removeHostResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeHostResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeHostResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type removeHostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeHostResponseSuccess = (removeHostResponse204) & {
-  headers: Headers;
-};
-export type removeHostResponseError = (removeHostResponse401 | removeHostResponse403 | removeHostResponse404 | removeHostResponse422) & {
-  headers: Headers;
-};
-
-export type removeHostResponse = (removeHostResponseSuccess | removeHostResponseError)
-
 export const getRemoveHostUrl = (hostId: number,) => {
 
 
@@ -13726,9 +11036,9 @@ export const getRemoveHostUrl = (hostId: number,) => {
  * remove host by **id**
  * @summary Remove Host
  */
-export const removeHost = async (hostId: number, options?: RequestInit): Promise<removeHostResponse> => {
+export const removeHost = async (hostId: number, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<removeHostResponse>(getRemoveHostUrl(hostId),
+  return orvalFetcher<void>(getRemoveHostUrl(hostId),
   {
     ...options,
     method: 'DELETE'
@@ -13741,7 +11051,7 @@ export const removeHost = async (hostId: number, options?: RequestInit): Promise
 
 
 
-export const getRemoveHostMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const getRemoveHostMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeHost>>, TError,{hostId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof removeHost>>, TError,{hostId: number}, TContext> => {
 
@@ -13770,12 +11080,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type RemoveHostMutationResult = NonNullable<Awaited<ReturnType<typeof removeHost>>>
 
-    export type RemoveHostMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+    export type RemoveHostMutationError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
 
     /**
  * @summary Remove Host
  */
-export const useRemoveHost = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const useRemoveHost = <TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeHost>>, TError,{hostId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof removeHost>>,
@@ -13785,35 +11095,6 @@ export const useRemoveHost = <TError = ErrorType<Unauthorized | Forbidden | NotF
       > => {
       return useMutation(getRemoveHostMutationOptions(options), queryClient);
     }
-
-export type getHostsResponse200 = {
-  data: BaseHost[]
-  status: 200
-}
-
-export type getHostsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getHostsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getHostsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getHostsResponseSuccess = (getHostsResponse200) & {
-  headers: Headers;
-};
-export type getHostsResponseError = (getHostsResponse401 | getHostsResponse403 | getHostsResponse422) & {
-  headers: Headers;
-};
-
-export type getHostsResponse = (getHostsResponseSuccess | getHostsResponseError)
 
 export const getGetHostsUrl = (params?: GetHostsParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -13842,9 +11123,9 @@ export const getGetHostsUrl = (params?: GetHostsParams,) => {
  * Get proxy hosts.
  * @summary Get Hosts
  */
-export const getHosts = async (params?: GetHostsParams, options?: RequestInit): Promise<getHostsResponse> => {
+export const getHosts = async (params?: GetHostsParams, options?: RequestInit): Promise<BaseHost[]> => {
 
-  return orvalFetcher<getHostsResponse>(getGetHostsUrl(params),
+  return orvalFetcher<BaseHost[]>(getGetHostsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -13932,35 +11213,6 @@ export function useGetHosts<TData = Awaited<ReturnType<typeof getHosts>>, TError
 
 
 
-export type modifyHostsResponse200 = {
-  data: BaseHost[]
-  status: 200
-}
-
-export type modifyHostsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyHostsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyHostsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyHostsResponseSuccess = (modifyHostsResponse200) & {
-  headers: Headers;
-};
-export type modifyHostsResponseError = (modifyHostsResponse401 | modifyHostsResponse403 | modifyHostsResponse422) & {
-  headers: Headers;
-};
-
-export type modifyHostsResponse = (modifyHostsResponseSuccess | modifyHostsResponseError)
-
 export const getModifyHostsUrl = () => {
 
 
@@ -13973,9 +11225,9 @@ export const getModifyHostsUrl = () => {
  * Modify proxy hosts and update the configuration.
  * @summary Modify Hosts
  */
-export const modifyHosts = async (createHost: CreateHost[], options?: RequestInit): Promise<modifyHostsResponse> => {
+export const modifyHosts = async (createHost: CreateHost[], options?: RequestInit): Promise<BaseHost[]> => {
 
-  return orvalFetcher<modifyHostsResponse>(getModifyHostsUrl(),
+  return orvalFetcher<BaseHost[]>(getModifyHostsUrl(),
   {
     ...options,
     method: 'PUT',
@@ -14033,35 +11285,6 @@ export const useModifyHosts = <TError = ErrorType<Unauthorized | Forbidden | HTT
       return useMutation(getModifyHostsMutationOptions(options), queryClient);
     }
 
-export type createHostResponse201 = {
-  data: BaseHost
-  status: 201
-}
-
-export type createHostResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type createHostResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type createHostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createHostResponseSuccess = (createHostResponse201) & {
-  headers: Headers;
-};
-export type createHostResponseError = (createHostResponse401 | createHostResponse403 | createHostResponse422) & {
-  headers: Headers;
-};
-
-export type createHostResponse = (createHostResponseSuccess | createHostResponseError)
-
 export const getCreateHostUrl = () => {
 
 
@@ -14076,9 +11299,9 @@ export const getCreateHostUrl = () => {
  * **inbound_tag** must be available in one of the configured cores
  * @summary Create Host
  */
-export const createHost = async (createHost: CreateHost, options?: RequestInit): Promise<createHostResponse> => {
+export const createHost = async (createHost: CreateHost, options?: RequestInit): Promise<BaseHost> => {
 
-  return orvalFetcher<createHostResponse>(getCreateHostUrl(),
+  return orvalFetcher<BaseHost>(getCreateHostUrl(),
   {
     ...options,
     method: 'POST',
@@ -14136,45 +11359,6 @@ export const useCreateHost = <TError = ErrorType<Unauthorized | Forbidden | HTTP
       return useMutation(getCreateHostMutationOptions(options), queryClient);
     }
 
-export type bulkDeleteHostsResponse200 = {
-  data: RemoveHostsResponse
-  status: 200
-}
-
-export type bulkDeleteHostsResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDeleteHostsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDeleteHostsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDeleteHostsResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDeleteHostsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDeleteHostsResponseSuccess = (bulkDeleteHostsResponse200) & {
-  headers: Headers;
-};
-export type bulkDeleteHostsResponseError = (bulkDeleteHostsResponse400 | bulkDeleteHostsResponse401 | bulkDeleteHostsResponse403 | bulkDeleteHostsResponse404 | bulkDeleteHostsResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDeleteHostsResponse = (bulkDeleteHostsResponseSuccess | bulkDeleteHostsResponseError)
-
 export const getBulkDeleteHostsUrl = () => {
 
 
@@ -14187,9 +11371,9 @@ export const getBulkDeleteHostsUrl = () => {
  * Delete selected hosts by ID.
  * @summary Bulk Delete Hosts
  */
-export const bulkDeleteHosts = async (bulkHostSelection: BulkHostSelection, options?: RequestInit): Promise<bulkDeleteHostsResponse> => {
+export const bulkDeleteHosts = async (bulkHostSelection: BulkHostSelection, options?: RequestInit): Promise<RemoveHostsResponse> => {
 
-  return orvalFetcher<bulkDeleteHostsResponse>(getBulkDeleteHostsUrl(),
+  return orvalFetcher<RemoveHostsResponse>(getBulkDeleteHostsUrl(),
   {
     ...options,
     method: 'POST',
@@ -14202,7 +11386,7 @@ export const bulkDeleteHosts = async (bulkHostSelection: BulkHostSelection, opti
 
 
 
-export const getBulkDeleteHostsMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const getBulkDeleteHostsMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteHosts>>, TError,{data: BodyType<BulkHostSelection>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteHosts>>, TError,{data: BodyType<BulkHostSelection>}, TContext> => {
 
@@ -14231,12 +11415,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type BulkDeleteHostsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteHosts>>>
     export type BulkDeleteHostsMutationBody = BodyType<BulkHostSelection>
-    export type BulkDeleteHostsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+    export type BulkDeleteHostsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
 
     /**
  * @summary Bulk Delete Hosts
  */
-export const useBulkDeleteHosts = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const useBulkDeleteHosts = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteHosts>>, TError,{data: BodyType<BulkHostSelection>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof bulkDeleteHosts>>,
@@ -14246,45 +11430,6 @@ export const useBulkDeleteHosts = <TError = ErrorType<HTTPException | Unauthoriz
       > => {
       return useMutation(getBulkDeleteHostsMutationOptions(options), queryClient);
     }
-
-export type bulkDisableHostsResponse200 = {
-  data: BulkHostsActionResponse
-  status: 200
-}
-
-export type bulkDisableHostsResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDisableHostsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDisableHostsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDisableHostsResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDisableHostsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDisableHostsResponseSuccess = (bulkDisableHostsResponse200) & {
-  headers: Headers;
-};
-export type bulkDisableHostsResponseError = (bulkDisableHostsResponse400 | bulkDisableHostsResponse401 | bulkDisableHostsResponse403 | bulkDisableHostsResponse404 | bulkDisableHostsResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDisableHostsResponse = (bulkDisableHostsResponseSuccess | bulkDisableHostsResponseError)
 
 export const getBulkDisableHostsUrl = () => {
 
@@ -14298,9 +11443,9 @@ export const getBulkDisableHostsUrl = () => {
  * Disable selected hosts by ID.
  * @summary Bulk Disable Hosts
  */
-export const bulkDisableHosts = async (bulkHostSelection: BulkHostSelection, options?: RequestInit): Promise<bulkDisableHostsResponse> => {
+export const bulkDisableHosts = async (bulkHostSelection: BulkHostSelection, options?: RequestInit): Promise<BulkHostsActionResponse> => {
 
-  return orvalFetcher<bulkDisableHostsResponse>(getBulkDisableHostsUrl(),
+  return orvalFetcher<BulkHostsActionResponse>(getBulkDisableHostsUrl(),
   {
     ...options,
     method: 'POST',
@@ -14358,45 +11503,6 @@ export const useBulkDisableHosts = <TError = ErrorType<HTTPException | Unauthori
       return useMutation(getBulkDisableHostsMutationOptions(options), queryClient);
     }
 
-export type bulkEnableHostsResponse200 = {
-  data: BulkHostsActionResponse
-  status: 200
-}
-
-export type bulkEnableHostsResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkEnableHostsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkEnableHostsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkEnableHostsResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkEnableHostsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkEnableHostsResponseSuccess = (bulkEnableHostsResponse200) & {
-  headers: Headers;
-};
-export type bulkEnableHostsResponseError = (bulkEnableHostsResponse400 | bulkEnableHostsResponse401 | bulkEnableHostsResponse403 | bulkEnableHostsResponse404 | bulkEnableHostsResponse422) & {
-  headers: Headers;
-};
-
-export type bulkEnableHostsResponse = (bulkEnableHostsResponseSuccess | bulkEnableHostsResponseError)
-
 export const getBulkEnableHostsUrl = () => {
 
 
@@ -14409,9 +11515,9 @@ export const getBulkEnableHostsUrl = () => {
  * Enable selected hosts by ID.
  * @summary Bulk Enable Hosts
  */
-export const bulkEnableHosts = async (bulkHostSelection: BulkHostSelection, options?: RequestInit): Promise<bulkEnableHostsResponse> => {
+export const bulkEnableHosts = async (bulkHostSelection: BulkHostSelection, options?: RequestInit): Promise<BulkHostsActionResponse> => {
 
-  return orvalFetcher<bulkEnableHostsResponse>(getBulkEnableHostsUrl(),
+  return orvalFetcher<BulkHostsActionResponse>(getBulkEnableHostsUrl(),
   {
     ...options,
     method: 'POST',
@@ -14469,30 +11575,6 @@ export const useBulkEnableHosts = <TError = ErrorType<HTTPException | Unauthoriz
       return useMutation(getBulkEnableHostsMutationOptions(options), queryClient);
     }
 
-export type getNodeSettingsResponse200 = {
-  data: NodeSettings
-  status: 200
-}
-
-export type getNodeSettingsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getNodeSettingsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getNodeSettingsResponseSuccess = (getNodeSettingsResponse200) & {
-  headers: Headers;
-};
-export type getNodeSettingsResponseError = (getNodeSettingsResponse401 | getNodeSettingsResponse403) & {
-  headers: Headers;
-};
-
-export type getNodeSettingsResponse = (getNodeSettingsResponseSuccess | getNodeSettingsResponseError)
-
 export const getGetNodeSettingsUrl = () => {
 
 
@@ -14505,9 +11587,9 @@ export const getGetNodeSettingsUrl = () => {
  * Retrieve the current node settings.
  * @summary Get Node Settings
  */
-export const getNodeSettings = async ( options?: RequestInit): Promise<getNodeSettingsResponse> => {
+export const getNodeSettings = async ( options?: RequestInit): Promise<NodeSettings> => {
 
-  return orvalFetcher<getNodeSettingsResponse>(getGetNodeSettingsUrl(),
+  return orvalFetcher<NodeSettings>(getGetNodeSettingsUrl(),
   {
     ...options,
     method: 'GET'
@@ -14595,35 +11677,6 @@ export function useGetNodeSettings<TData = Awaited<ReturnType<typeof getNodeSett
 
 
 
-export type getUsageResponse200 = {
-  data: NodeUsageStatsList
-  status: 200
-}
-
-export type getUsageResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUsageResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUsageResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUsageResponseSuccess = (getUsageResponse200) & {
-  headers: Headers;
-};
-export type getUsageResponseError = (getUsageResponse401 | getUsageResponse403 | getUsageResponse422) & {
-  headers: Headers;
-};
-
-export type getUsageResponse = (getUsageResponseSuccess | getUsageResponseError)
-
 export const getGetUsageUrl = (params?: GetUsageParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -14643,9 +11696,9 @@ export const getGetUsageUrl = (params?: GetUsageParams,) => {
  * Retrieve usage statistics for nodes within a specified date range.
  * @summary Get Usage
  */
-export const getUsage = async (params?: GetUsageParams, options?: RequestInit): Promise<getUsageResponse> => {
+export const getUsage = async (params?: GetUsageParams, options?: RequestInit): Promise<NodeUsageStatsList> => {
 
-  return orvalFetcher<getUsageResponse>(getGetUsageUrl(params),
+  return orvalFetcher<NodeUsageStatsList>(getGetUsageUrl(params),
   {
     ...options,
     method: 'GET'
@@ -14733,34 +11786,114 @@ export function useGetUsage<TData = Awaited<ReturnType<typeof getUsage>>, TError
 
 
 
-export type getUserCountMetricResponse200 = {
-  data: UserCountMetricStatsList
-  status: 200
+export const getGetOutboundUsageUrl = (params?: GetOutboundUsageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/node/usage/outbounds?${stringifiedParams}` : `/api/node/usage/outbounds`
 }
 
-export type getUserCountMetricResponse401 = {
-  data: Unauthorized
-  status: 401
+/**
+ * Retrieve usage per outbound tag, over all nodes or one, within a date range.
+ * @summary Get Outbound Usage
+ */
+export const getOutboundUsage = async (params?: GetOutboundUsageParams, options?: RequestInit): Promise<NodeOutboundUsageStatsList> => {
+
+  return orvalFetcher<NodeOutboundUsageStatsList>(getGetOutboundUsageUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOutboundUsageQueryKey = (params?: GetOutboundUsageParams,) => {
+    return [
+    `/api/node/usage/outbounds`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOutboundUsageQueryOptions = <TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOutboundUsageQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOutboundUsage>>> = ({ signal }) => getOutboundUsage(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type getUserCountMetricResponse403 = {
-  data: Forbidden
-  status: 403
+export type GetOutboundUsageQueryResult = NonNullable<Awaited<ReturnType<typeof getOutboundUsage>>>
+export type GetOutboundUsageQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params: undefined |  GetOutboundUsageParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOutboundUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getOutboundUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOutboundUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getOutboundUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Outbound Usage
+ */
+
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetOutboundUsageQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
 }
 
-export type getUserCountMetricResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
 
-export type getUserCountMetricResponseSuccess = (getUserCountMetricResponse200) & {
-  headers: Headers;
-};
-export type getUserCountMetricResponseError = (getUserCountMetricResponse401 | getUserCountMetricResponse403 | getUserCountMetricResponse422) & {
-  headers: Headers;
-};
 
-export type getUserCountMetricResponse = (getUserCountMetricResponseSuccess | getUserCountMetricResponseError)
+
+
+
 
 export const getGetUserCountMetricUrl = (metric: UserCountMetric,
     params?: GetUserCountMetricParams,) => {
@@ -14783,9 +11916,9 @@ export const getGetUserCountMetricUrl = (metric: UserCountMetric,
  * @summary Get User Count Metric
  */
 export const getUserCountMetric = async (metric: UserCountMetric,
-    params?: GetUserCountMetricParams, options?: RequestInit): Promise<getUserCountMetricResponse> => {
+    params?: GetUserCountMetricParams, options?: RequestInit): Promise<UserCountMetricStatsList> => {
 
-  return orvalFetcher<getUserCountMetricResponse>(getGetUserCountMetricUrl(metric,params),
+  return orvalFetcher<UserCountMetricStatsList>(getGetUserCountMetricUrl(metric,params),
   {
     ...options,
     method: 'GET'
@@ -14879,35 +12012,6 @@ export function useGetUserCountMetric<TData = Awaited<ReturnType<typeof getUserC
 
 
 
-export type getNodesResponse200 = {
-  data: NodesResponse
-  status: 200
-}
-
-export type getNodesResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getNodesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getNodesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getNodesResponseSuccess = (getNodesResponse200) & {
-  headers: Headers;
-};
-export type getNodesResponseError = (getNodesResponse401 | getNodesResponse403 | getNodesResponse422) & {
-  headers: Headers;
-};
-
-export type getNodesResponse = (getNodesResponseSuccess | getNodesResponseError)
-
 export const getGetNodesUrl = (params?: GetNodesParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -14935,9 +12039,9 @@ export const getGetNodesUrl = (params?: GetNodesParams,) => {
  * Retrieve a list of all nodes. Accessible only to authorized admins.
  * @summary Get Nodes
  */
-export const getNodes = async (params?: GetNodesParams, options?: RequestInit): Promise<getNodesResponse> => {
+export const getNodes = async (params?: GetNodesParams, options?: RequestInit): Promise<NodesResponse> => {
 
-  return orvalFetcher<getNodesResponse>(getGetNodesUrl(params),
+  return orvalFetcher<NodesResponse>(getGetNodesUrl(params),
   {
     ...options,
     method: 'GET'
@@ -15025,35 +12129,6 @@ export function useGetNodes<TData = Awaited<ReturnType<typeof getNodes>>, TError
 
 
 
-export type getNodesSimpleResponse200 = {
-  data: NodesSimpleResponse
-  status: 200
-}
-
-export type getNodesSimpleResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getNodesSimpleResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getNodesSimpleResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getNodesSimpleResponseSuccess = (getNodesSimpleResponse200) & {
-  headers: Headers;
-};
-export type getNodesSimpleResponseError = (getNodesSimpleResponse401 | getNodesSimpleResponse403 | getNodesSimpleResponse422) & {
-  headers: Headers;
-};
-
-export type getNodesSimpleResponse = (getNodesSimpleResponseSuccess | getNodesSimpleResponseError)
-
 export const getGetNodesSimpleUrl = (params?: GetNodesSimpleParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -15081,9 +12156,9 @@ export const getGetNodesSimpleUrl = (params?: GetNodesSimpleParams,) => {
  * Returns only id and name for nodes. Optimized for dropdowns and autocomplete.
  * @summary Get lightweight node list
  */
-export const getNodesSimple = async (params?: GetNodesSimpleParams, options?: RequestInit): Promise<getNodesSimpleResponse> => {
+export const getNodesSimple = async (params?: GetNodesSimpleParams, options?: RequestInit): Promise<NodesSimpleResponse> => {
 
-  return orvalFetcher<getNodesSimpleResponse>(getGetNodesSimpleUrl(params),
+  return orvalFetcher<NodesSimpleResponse>(getGetNodesSimpleUrl(params),
   {
     ...options,
     method: 'GET'
@@ -15171,35 +12246,6 @@ export function useGetNodesSimple<TData = Awaited<ReturnType<typeof getNodesSimp
 
 
 
-export type reconnectAllNodeResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type reconnectAllNodeResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type reconnectAllNodeResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type reconnectAllNodeResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type reconnectAllNodeResponseSuccess = (reconnectAllNodeResponse200) & {
-  headers: Headers;
-};
-export type reconnectAllNodeResponseError = (reconnectAllNodeResponse401 | reconnectAllNodeResponse403 | reconnectAllNodeResponse422) & {
-  headers: Headers;
-};
-
-export type reconnectAllNodeResponse = (reconnectAllNodeResponseSuccess | reconnectAllNodeResponseError)
-
 export const getReconnectAllNodeUrl = (params?: ReconnectAllNodeParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -15219,9 +12265,9 @@ export const getReconnectAllNodeUrl = (params?: ReconnectAllNodeParams,) => {
  * Trigger reconnection for all nodes or a specific core.
  * @summary Reconnect All Node
  */
-export const reconnectAllNode = async (params?: ReconnectAllNodeParams, options?: RequestInit): Promise<reconnectAllNodeResponse> => {
+export const reconnectAllNode = async (params?: ReconnectAllNodeParams, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<reconnectAllNodeResponse>(getReconnectAllNodeUrl(params),
+  return orvalFetcher<unknown>(getReconnectAllNodeUrl(params),
   {
     ...options,
     method: 'POST'
@@ -15279,39 +12325,77 @@ export const useReconnectAllNode = <TError = ErrorType<Unauthorized | Forbidden 
       return useMutation(getReconnectAllNodeMutationOptions(options), queryClient);
     }
 
-export type createNodeResponse201 = {
-  data: NodeResponse
-  status: 201
+export const getReorderNodesUrl = () => {
+
+
+
+
+  return `/api/nodes/order`
 }
 
-export type createNodeResponse401 = {
-  data: Unauthorized
-  status: 401
-}
+/**
+ * Persist the display order of nodes.
+ * @summary Reorder Nodes
+ */
+export const reorderNodes = async (reorderRequest: ReorderRequest, options?: RequestInit): Promise<void> => {
 
-export type createNodeResponse403 = {
-  data: Forbidden
-  status: 403
-}
+  return orvalFetcher<void>(getReorderNodesUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reorderRequest)
+  }
+);}
 
-export type createNodeResponse409 = {
-  data: Conflict
-  status: 409
-}
 
-export type createNodeResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
 
-export type createNodeResponseSuccess = (createNodeResponse201) & {
-  headers: Headers;
-};
-export type createNodeResponseError = (createNodeResponse401 | createNodeResponse403 | createNodeResponse409 | createNodeResponse422) & {
-  headers: Headers;
-};
 
-export type createNodeResponse = (createNodeResponseSuccess | createNodeResponseError)
+
+export const getReorderNodesMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderNodes>>, TError,{data: BodyType<ReorderRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof reorderNodes>>, TError,{data: BodyType<ReorderRequest>}, TContext> => {
+
+const mutationKey = ['reorderNodes'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderNodes>>, {data: BodyType<ReorderRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  reorderNodes(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReorderNodesMutationResult = NonNullable<Awaited<ReturnType<typeof reorderNodes>>>
+    export type ReorderNodesMutationBody = BodyType<ReorderRequest>
+    export type ReorderNodesMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+    /**
+ * @summary Reorder Nodes
+ */
+export const useReorderNodes = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderNodes>>, TError,{data: BodyType<ReorderRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reorderNodes>>,
+        TError,
+        {data: BodyType<ReorderRequest>},
+        TContext
+      > => {
+      return useMutation(getReorderNodesMutationOptions(options), queryClient);
+    }
 
 export const getCreateNodeUrl = () => {
 
@@ -15325,9 +12409,9 @@ export const getCreateNodeUrl = () => {
  * Create a new node to the database.
  * @summary Create Node
  */
-export const createNode = async (nodeCreate: NodeCreate, options?: RequestInit): Promise<createNodeResponse> => {
+export const createNode = async (nodeCreate: NodeCreate, options?: RequestInit): Promise<NodeResponse> => {
 
-  return orvalFetcher<createNodeResponse>(getCreateNodeUrl(),
+  return orvalFetcher<NodeResponse>(getCreateNodeUrl(),
   {
     ...options,
     method: 'POST',
@@ -15385,35 +12469,6 @@ export const useCreateNode = <TError = ErrorType<Unauthorized | Forbidden | Conf
       return useMutation(getCreateNodeMutationOptions(options), queryClient);
     }
 
-export type getNodeResponse200 = {
-  data: NodeResponse
-  status: 200
-}
-
-export type getNodeResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getNodeResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getNodeResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getNodeResponseSuccess = (getNodeResponse200) & {
-  headers: Headers;
-};
-export type getNodeResponseError = (getNodeResponse401 | getNodeResponse403 | getNodeResponse422) & {
-  headers: Headers;
-};
-
-export type getNodeResponse = (getNodeResponseSuccess | getNodeResponseError)
-
 export const getGetNodeUrl = (nodeId: number,) => {
 
 
@@ -15426,9 +12481,9 @@ export const getGetNodeUrl = (nodeId: number,) => {
  * Retrieve details of a specific node by its ID.
  * @summary Get Node
  */
-export const getNode = async (nodeId: number, options?: RequestInit): Promise<getNodeResponse> => {
+export const getNode = async (nodeId: number, options?: RequestInit): Promise<NodeResponse> => {
 
-  return orvalFetcher<getNodeResponse>(getGetNodeUrl(nodeId),
+  return orvalFetcher<NodeResponse>(getGetNodeUrl(nodeId),
   {
     ...options,
     method: 'GET'
@@ -15516,35 +12571,6 @@ export function useGetNode<TData = Awaited<ReturnType<typeof getNode>>, TError =
 
 
 
-export type modifyNodeResponse200 = {
-  data: NodeResponse
-  status: 200
-}
-
-export type modifyNodeResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyNodeResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyNodeResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyNodeResponseSuccess = (modifyNodeResponse200) & {
-  headers: Headers;
-};
-export type modifyNodeResponseError = (modifyNodeResponse401 | modifyNodeResponse403 | modifyNodeResponse422) & {
-  headers: Headers;
-};
-
-export type modifyNodeResponse = (modifyNodeResponseSuccess | modifyNodeResponseError)
-
 export const getModifyNodeUrl = (nodeId: number,) => {
 
 
@@ -15558,9 +12584,9 @@ export const getModifyNodeUrl = (nodeId: number,) => {
  * @summary Modify Node
  */
 export const modifyNode = async (nodeId: number,
-    nodeModify: NodeModify, options?: RequestInit): Promise<modifyNodeResponse> => {
+    nodeModify: NodeModify, options?: RequestInit): Promise<NodeResponse> => {
 
-  return orvalFetcher<modifyNodeResponse>(getModifyNodeUrl(nodeId),
+  return orvalFetcher<NodeResponse>(getModifyNodeUrl(nodeId),
   {
     ...options,
     method: 'PUT',
@@ -15618,35 +12644,6 @@ export const useModifyNode = <TError = ErrorType<Unauthorized | Forbidden | HTTP
       return useMutation(getModifyNodeMutationOptions(options), queryClient);
     }
 
-export type removeNodeResponse204 = {
-  data: void
-  status: 204
-}
-
-export type removeNodeResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeNodeResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeNodeResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeNodeResponseSuccess = (removeNodeResponse204) & {
-  headers: Headers;
-};
-export type removeNodeResponseError = (removeNodeResponse401 | removeNodeResponse403 | removeNodeResponse422) & {
-  headers: Headers;
-};
-
-export type removeNodeResponse = (removeNodeResponseSuccess | removeNodeResponseError)
-
 export const getRemoveNodeUrl = (nodeId: number,) => {
 
 
@@ -15659,9 +12656,9 @@ export const getRemoveNodeUrl = (nodeId: number,) => {
  * Remove a node and remove it from xray in the background.
  * @summary Remove Node
  */
-export const removeNode = async (nodeId: number, options?: RequestInit): Promise<removeNodeResponse> => {
+export const removeNode = async (nodeId: number, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<removeNodeResponse>(getRemoveNodeUrl(nodeId),
+  return orvalFetcher<void>(getRemoveNodeUrl(nodeId),
   {
     ...options,
     method: 'DELETE'
@@ -15719,35 +12716,6 @@ export const useRemoveNode = <TError = ErrorType<Unauthorized | Forbidden | HTTP
       return useMutation(getRemoveNodeMutationOptions(options), queryClient);
     }
 
-export type updateNodeResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type updateNodeResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type updateNodeResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type updateNodeResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type updateNodeResponseSuccess = (updateNodeResponse200) & {
-  headers: Headers;
-};
-export type updateNodeResponseError = (updateNodeResponse401 | updateNodeResponse403 | updateNodeResponse422) & {
-  headers: Headers;
-};
-
-export type updateNodeResponse = (updateNodeResponseSuccess | updateNodeResponseError)
-
 export const getUpdateNodeUrl = (nodeId: number,) => {
 
 
@@ -15759,9 +12727,9 @@ export const getUpdateNodeUrl = (nodeId: number,) => {
 /**
  * @summary Update Node
  */
-export const updateNode = async (nodeId: number, options?: RequestInit): Promise<updateNodeResponse> => {
+export const updateNode = async (nodeId: number, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<updateNodeResponse>(getUpdateNodeUrl(nodeId),
+  return orvalFetcher<unknown>(getUpdateNodeUrl(nodeId),
   {
     ...options,
     method: 'POST'
@@ -15819,35 +12787,6 @@ export const useUpdateNode = <TError = ErrorType<Unauthorized | Forbidden | HTTP
       return useMutation(getUpdateNodeMutationOptions(options), queryClient);
     }
 
-export type updateCoreResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type updateCoreResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type updateCoreResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type updateCoreResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type updateCoreResponseSuccess = (updateCoreResponse200) & {
-  headers: Headers;
-};
-export type updateCoreResponseError = (updateCoreResponse401 | updateCoreResponse403 | updateCoreResponse422) & {
-  headers: Headers;
-};
-
-export type updateCoreResponse = (updateCoreResponseSuccess | updateCoreResponseError)
-
 export const getUpdateCoreUrl = (nodeId: number,) => {
 
 
@@ -15860,9 +12799,9 @@ export const getUpdateCoreUrl = (nodeId: number,) => {
  * @summary Update Core
  */
 export const updateCore = async (nodeId: number,
-    nodeCoreUpdate: NodeCoreUpdate, options?: RequestInit): Promise<updateCoreResponse> => {
+    nodeCoreUpdate: NodeCoreUpdate, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<updateCoreResponse>(getUpdateCoreUrl(nodeId),
+  return orvalFetcher<unknown>(getUpdateCoreUrl(nodeId),
   {
     ...options,
     method: 'POST',
@@ -15920,35 +12859,6 @@ export const useUpdateCore = <TError = ErrorType<Unauthorized | Forbidden | HTTP
       return useMutation(getUpdateCoreMutationOptions(options), queryClient);
     }
 
-export type updateGeofilesResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type updateGeofilesResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type updateGeofilesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type updateGeofilesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type updateGeofilesResponseSuccess = (updateGeofilesResponse200) & {
-  headers: Headers;
-};
-export type updateGeofilesResponseError = (updateGeofilesResponse401 | updateGeofilesResponse403 | updateGeofilesResponse422) & {
-  headers: Headers;
-};
-
-export type updateGeofilesResponse = (updateGeofilesResponseSuccess | updateGeofilesResponseError)
-
 export const getUpdateGeofilesUrl = (nodeId: number,) => {
 
 
@@ -15961,9 +12871,9 @@ export const getUpdateGeofilesUrl = (nodeId: number,) => {
  * @summary Update Geofiles
  */
 export const updateGeofiles = async (nodeId: number,
-    nodeGeoFilesUpdate: NodeGeoFilesUpdate, options?: RequestInit): Promise<updateGeofilesResponse> => {
+    nodeGeoFilesUpdate: NodeGeoFilesUpdate, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<updateGeofilesResponse>(getUpdateGeofilesUrl(nodeId),
+  return orvalFetcher<unknown>(getUpdateGeofilesUrl(nodeId),
   {
     ...options,
     method: 'POST',
@@ -16021,35 +12931,6 @@ export const useUpdateGeofiles = <TError = ErrorType<Unauthorized | Forbidden | 
       return useMutation(getUpdateGeofilesMutationOptions(options), queryClient);
     }
 
-export type resetNodeUsageResponse200 = {
-  data: NodeResponse
-  status: 200
-}
-
-export type resetNodeUsageResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type resetNodeUsageResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type resetNodeUsageResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type resetNodeUsageResponseSuccess = (resetNodeUsageResponse200) & {
-  headers: Headers;
-};
-export type resetNodeUsageResponseError = (resetNodeUsageResponse401 | resetNodeUsageResponse403 | resetNodeUsageResponse422) & {
-  headers: Headers;
-};
-
-export type resetNodeUsageResponse = (resetNodeUsageResponseSuccess | resetNodeUsageResponseError)
-
 export const getResetNodeUsageUrl = (nodeId: number,) => {
 
 
@@ -16064,9 +12945,9 @@ export const getResetNodeUsageUrl = (nodeId: number,) => {
  * Only accessible to authorized admins.
  * @summary Reset Node Usage
  */
-export const resetNodeUsage = async (nodeId: number, options?: RequestInit): Promise<resetNodeUsageResponse> => {
+export const resetNodeUsage = async (nodeId: number, options?: RequestInit): Promise<NodeResponse> => {
 
-  return orvalFetcher<resetNodeUsageResponse>(getResetNodeUsageUrl(nodeId),
+  return orvalFetcher<NodeResponse>(getResetNodeUsageUrl(nodeId),
   {
     ...options,
     method: 'POST'
@@ -16124,35 +13005,6 @@ export const useResetNodeUsage = <TError = ErrorType<Unauthorized | Forbidden | 
       return useMutation(getResetNodeUsageMutationOptions(options), queryClient);
     }
 
-export type reconnectNodeResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type reconnectNodeResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type reconnectNodeResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type reconnectNodeResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type reconnectNodeResponseSuccess = (reconnectNodeResponse200) & {
-  headers: Headers;
-};
-export type reconnectNodeResponseError = (reconnectNodeResponse401 | reconnectNodeResponse403 | reconnectNodeResponse422) & {
-  headers: Headers;
-};
-
-export type reconnectNodeResponse = (reconnectNodeResponseSuccess | reconnectNodeResponseError)
-
 export const getReconnectNodeUrl = (nodeId: number,) => {
 
 
@@ -16165,9 +13017,9 @@ export const getReconnectNodeUrl = (nodeId: number,) => {
  * Trigger a reconnection for the specified node. Only accessible to authorized admins.
  * @summary Reconnect Node
  */
-export const reconnectNode = async (nodeId: number, options?: RequestInit): Promise<reconnectNodeResponse> => {
+export const reconnectNode = async (nodeId: number, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<reconnectNodeResponse>(getReconnectNodeUrl(nodeId),
+  return orvalFetcher<unknown>(getReconnectNodeUrl(nodeId),
   {
     ...options,
     method: 'POST'
@@ -16225,35 +13077,6 @@ export const useReconnectNode = <TError = ErrorType<Unauthorized | Forbidden | H
       return useMutation(getReconnectNodeMutationOptions(options), queryClient);
     }
 
-export type syncNodeResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type syncNodeResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type syncNodeResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type syncNodeResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type syncNodeResponseSuccess = (syncNodeResponse200) & {
-  headers: Headers;
-};
-export type syncNodeResponseError = (syncNodeResponse401 | syncNodeResponse403 | syncNodeResponse422) & {
-  headers: Headers;
-};
-
-export type syncNodeResponse = (syncNodeResponseSuccess | syncNodeResponseError)
-
 export const getSyncNodeUrl = (nodeId: number,
     params?: SyncNodeParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -16274,9 +13097,9 @@ export const getSyncNodeUrl = (nodeId: number,
  * @summary Sync Node
  */
 export const syncNode = async (nodeId: number,
-    params?: SyncNodeParams, options?: RequestInit): Promise<syncNodeResponse> => {
+    params?: SyncNodeParams, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<syncNodeResponse>(getSyncNodeUrl(nodeId,params),
+  return orvalFetcher<unknown>(getSyncNodeUrl(nodeId,params),
   {
     ...options,
     method: 'PUT'
@@ -16334,35 +13157,6 @@ export const useSyncNode = <TError = ErrorType<Unauthorized | Forbidden | HTTPVa
       return useMutation(getSyncNodeMutationOptions(options), queryClient);
     }
 
-export type nodeLogsResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type nodeLogsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type nodeLogsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type nodeLogsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type nodeLogsResponseSuccess = (nodeLogsResponse200) & {
-  headers: Headers;
-};
-export type nodeLogsResponseError = (nodeLogsResponse401 | nodeLogsResponse403 | nodeLogsResponse422) & {
-  headers: Headers;
-};
-
-export type nodeLogsResponse = (nodeLogsResponseSuccess | nodeLogsResponseError)
-
 export const getNodeLogsUrl = (nodeId: number,) => {
 
 
@@ -16375,9 +13169,9 @@ export const getNodeLogsUrl = (nodeId: number,) => {
  * Stream logs for a specific node as Server-Sent Events.
  * @summary Node Logs
  */
-export const nodeLogs = async (nodeId: number, options?: RequestInit): Promise<nodeLogsResponse> => {
+export const nodeLogs = async (nodeId: number, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<nodeLogsResponse>(getNodeLogsUrl(nodeId),
+  return orvalFetcher<unknown>(getNodeLogsUrl(nodeId),
   {
     ...options,
     method: 'GET'
@@ -16465,35 +13259,6 @@ export function useNodeLogs<TData = Awaited<ReturnType<typeof nodeLogs>>, TError
 
 
 
-export type getNodeStatsPeriodicResponse200 = {
-  data: NodeStatsList
-  status: 200
-}
-
-export type getNodeStatsPeriodicResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getNodeStatsPeriodicResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getNodeStatsPeriodicResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getNodeStatsPeriodicResponseSuccess = (getNodeStatsPeriodicResponse200) & {
-  headers: Headers;
-};
-export type getNodeStatsPeriodicResponseError = (getNodeStatsPeriodicResponse401 | getNodeStatsPeriodicResponse403 | getNodeStatsPeriodicResponse422) & {
-  headers: Headers;
-};
-
-export type getNodeStatsPeriodicResponse = (getNodeStatsPeriodicResponseSuccess | getNodeStatsPeriodicResponseError)
-
 export const getGetNodeStatsPeriodicUrl = (nodeId: number,
     params?: GetNodeStatsPeriodicParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -16514,9 +13279,9 @@ export const getGetNodeStatsPeriodicUrl = (nodeId: number,
  * @summary Get Node Stats Periodic
  */
 export const getNodeStatsPeriodic = async (nodeId: number,
-    params?: GetNodeStatsPeriodicParams, options?: RequestInit): Promise<getNodeStatsPeriodicResponse> => {
+    params?: GetNodeStatsPeriodicParams, options?: RequestInit): Promise<NodeStatsList> => {
 
-  return orvalFetcher<getNodeStatsPeriodicResponse>(getGetNodeStatsPeriodicUrl(nodeId,params),
+  return orvalFetcher<NodeStatsList>(getGetNodeStatsPeriodicUrl(nodeId,params),
   {
     ...options,
     method: 'GET'
@@ -16610,35 +13375,6 @@ export function useGetNodeStatsPeriodic<TData = Awaited<ReturnType<typeof getNod
 
 
 
-export type realtimeNodeStatsResponse200 = {
-  data: NodeRealtimeStats
-  status: 200
-}
-
-export type realtimeNodeStatsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type realtimeNodeStatsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type realtimeNodeStatsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type realtimeNodeStatsResponseSuccess = (realtimeNodeStatsResponse200) & {
-  headers: Headers;
-};
-export type realtimeNodeStatsResponseError = (realtimeNodeStatsResponse401 | realtimeNodeStatsResponse403 | realtimeNodeStatsResponse422) & {
-  headers: Headers;
-};
-
-export type realtimeNodeStatsResponse = (realtimeNodeStatsResponseSuccess | realtimeNodeStatsResponseError)
-
 export const getRealtimeNodeStatsUrl = (nodeId: number,) => {
 
 
@@ -16651,9 +13387,9 @@ export const getRealtimeNodeStatsUrl = (nodeId: number,) => {
  * Retrieve node real-time statistics.
  * @summary Realtime Node Stats
  */
-export const realtimeNodeStats = async (nodeId: number, options?: RequestInit): Promise<realtimeNodeStatsResponse> => {
+export const realtimeNodeStats = async (nodeId: number, options?: RequestInit): Promise<NodeRealtimeStats> => {
 
-  return orvalFetcher<realtimeNodeStatsResponse>(getRealtimeNodeStatsUrl(nodeId),
+  return orvalFetcher<NodeRealtimeStats>(getRealtimeNodeStatsUrl(nodeId),
   {
     ...options,
     method: 'GET'
@@ -16741,35 +13477,6 @@ export function useRealtimeNodeStats<TData = Awaited<ReturnType<typeof realtimeN
 
 
 
-export type nodeOutboundsLatencyResponse200 = {
-  data: NodeOutboundsLatencyResponse
-  status: 200
-}
-
-export type nodeOutboundsLatencyResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type nodeOutboundsLatencyResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type nodeOutboundsLatencyResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type nodeOutboundsLatencyResponseSuccess = (nodeOutboundsLatencyResponse200) & {
-  headers: Headers;
-};
-export type nodeOutboundsLatencyResponseError = (nodeOutboundsLatencyResponse401 | nodeOutboundsLatencyResponse403 | nodeOutboundsLatencyResponse422) & {
-  headers: Headers;
-};
-
-export type nodeOutboundsLatencyResponse = (nodeOutboundsLatencyResponseSuccess | nodeOutboundsLatencyResponseError)
-
 export const getNodeOutboundsLatencyUrl = (nodeId: number,
     params?: NodeOutboundsLatencyParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -16791,9 +13498,9 @@ export const getNodeOutboundsLatencyUrl = (nodeId: number,
  * @summary Node Outbounds Latency
  */
 export const nodeOutboundsLatency = async (nodeId: number,
-    params?: NodeOutboundsLatencyParams, options?: RequestInit): Promise<nodeOutboundsLatencyResponse> => {
+    params?: NodeOutboundsLatencyParams, options?: RequestInit): Promise<NodeOutboundsLatencyResponse> => {
 
-  return orvalFetcher<nodeOutboundsLatencyResponse>(getNodeOutboundsLatencyUrl(nodeId,params),
+  return orvalFetcher<NodeOutboundsLatencyResponse>(getNodeOutboundsLatencyUrl(nodeId,params),
   {
     ...options,
     method: 'GET'
@@ -16887,30 +13594,6 @@ export function useNodeOutboundsLatency<TData = Awaited<ReturnType<typeof nodeOu
 
 
 
-export type realtimeNodesStatsResponse200 = {
-  data: RealtimeNodesStats200
-  status: 200
-}
-
-export type realtimeNodesStatsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type realtimeNodesStatsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type realtimeNodesStatsResponseSuccess = (realtimeNodesStatsResponse200) & {
-  headers: Headers;
-};
-export type realtimeNodesStatsResponseError = (realtimeNodesStatsResponse401 | realtimeNodesStatsResponse403) & {
-  headers: Headers;
-};
-
-export type realtimeNodesStatsResponse = (realtimeNodesStatsResponseSuccess | realtimeNodesStatsResponseError)
-
 export const getRealtimeNodesStatsUrl = () => {
 
 
@@ -16923,9 +13606,9 @@ export const getRealtimeNodesStatsUrl = () => {
  * Retrieve nodes real-time statistics.
  * @summary Realtime Nodes Stats
  */
-export const realtimeNodesStats = async ( options?: RequestInit): Promise<realtimeNodesStatsResponse> => {
+export const realtimeNodesStats = async ( options?: RequestInit): Promise<RealtimeNodesStats200> => {
 
-  return orvalFetcher<realtimeNodesStatsResponse>(getRealtimeNodesStatsUrl(),
+  return orvalFetcher<RealtimeNodesStats200>(getRealtimeNodesStatsUrl(),
   {
     ...options,
     method: 'GET'
@@ -17013,35 +13696,6 @@ export function useRealtimeNodesStats<TData = Awaited<ReturnType<typeof realtime
 
 
 
-export type userOnlineIpListAllNodesResponse200 = {
-  data: UserIPListAll
-  status: 200
-}
-
-export type userOnlineIpListAllNodesResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type userOnlineIpListAllNodesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type userOnlineIpListAllNodesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type userOnlineIpListAllNodesResponseSuccess = (userOnlineIpListAllNodesResponse200) & {
-  headers: Headers;
-};
-export type userOnlineIpListAllNodesResponseError = (userOnlineIpListAllNodesResponse401 | userOnlineIpListAllNodesResponse403 | userOnlineIpListAllNodesResponse422) & {
-  headers: Headers;
-};
-
-export type userOnlineIpListAllNodesResponse = (userOnlineIpListAllNodesResponseSuccess | userOnlineIpListAllNodesResponseError)
-
 export const getUserOnlineIpListAllNodesUrl = (userId: number,) => {
 
 
@@ -17054,9 +13708,9 @@ export const getUserOnlineIpListAllNodesUrl = (userId: number,) => {
  * Retrieve user ips from all nodes.
  * @summary User Online Ip List All Nodes
  */
-export const userOnlineIpListAllNodes = async (userId: number, options?: RequestInit): Promise<userOnlineIpListAllNodesResponse> => {
+export const userOnlineIpListAllNodes = async (userId: number, options?: RequestInit): Promise<UserIPListAll> => {
 
-  return orvalFetcher<userOnlineIpListAllNodesResponse>(getUserOnlineIpListAllNodesUrl(userId),
+  return orvalFetcher<UserIPListAll>(getUserOnlineIpListAllNodesUrl(userId),
   {
     ...options,
     method: 'GET'
@@ -17144,35 +13798,6 @@ export function useUserOnlineIpListAllNodes<TData = Awaited<ReturnType<typeof us
 
 
 
-export type userOnlineStatsResponse200 = {
-  data: UserOnlineStats200
-  status: 200
-}
-
-export type userOnlineStatsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type userOnlineStatsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type userOnlineStatsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type userOnlineStatsResponseSuccess = (userOnlineStatsResponse200) & {
-  headers: Headers;
-};
-export type userOnlineStatsResponseError = (userOnlineStatsResponse401 | userOnlineStatsResponse403 | userOnlineStatsResponse422) & {
-  headers: Headers;
-};
-
-export type userOnlineStatsResponse = (userOnlineStatsResponseSuccess | userOnlineStatsResponseError)
-
 export const getUserOnlineStatsUrl = (nodeId: number,
     userId: number,) => {
 
@@ -17187,9 +13812,9 @@ export const getUserOnlineStatsUrl = (nodeId: number,
  * @summary User Online Stats
  */
 export const userOnlineStats = async (nodeId: number,
-    userId: number, options?: RequestInit): Promise<userOnlineStatsResponse> => {
+    userId: number, options?: RequestInit): Promise<UserOnlineStats200> => {
 
-  return orvalFetcher<userOnlineStatsResponse>(getUserOnlineStatsUrl(nodeId,userId),
+  return orvalFetcher<UserOnlineStats200>(getUserOnlineStatsUrl(nodeId,userId),
   {
     ...options,
     method: 'GET'
@@ -17283,35 +13908,6 @@ export function useUserOnlineStats<TData = Awaited<ReturnType<typeof userOnlineS
 
 
 
-export type userOnlineIpListResponse200 = {
-  data: UserIPList
-  status: 200
-}
-
-export type userOnlineIpListResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type userOnlineIpListResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type userOnlineIpListResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type userOnlineIpListResponseSuccess = (userOnlineIpListResponse200) & {
-  headers: Headers;
-};
-export type userOnlineIpListResponseError = (userOnlineIpListResponse401 | userOnlineIpListResponse403 | userOnlineIpListResponse422) & {
-  headers: Headers;
-};
-
-export type userOnlineIpListResponse = (userOnlineIpListResponseSuccess | userOnlineIpListResponseError)
-
 export const getUserOnlineIpListUrl = (nodeId: number,
     userId: number,) => {
 
@@ -17326,9 +13922,9 @@ export const getUserOnlineIpListUrl = (nodeId: number,
  * @summary User Online Ip List
  */
 export const userOnlineIpList = async (nodeId: number,
-    userId: number, options?: RequestInit): Promise<userOnlineIpListResponse> => {
+    userId: number, options?: RequestInit): Promise<UserIPList> => {
 
-  return orvalFetcher<userOnlineIpListResponse>(getUserOnlineIpListUrl(nodeId,userId),
+  return orvalFetcher<UserIPList>(getUserOnlineIpListUrl(nodeId,userId),
   {
     ...options,
     method: 'GET'
@@ -17422,35 +14018,6 @@ export function useUserOnlineIpList<TData = Awaited<ReturnType<typeof userOnline
 
 
 
-export type clearUsageDataResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type clearUsageDataResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type clearUsageDataResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type clearUsageDataResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type clearUsageDataResponseSuccess = (clearUsageDataResponse200) & {
-  headers: Headers;
-};
-export type clearUsageDataResponseError = (clearUsageDataResponse401 | clearUsageDataResponse403 | clearUsageDataResponse422) & {
-  headers: Headers;
-};
-
-export type clearUsageDataResponse = (clearUsageDataResponseSuccess | clearUsageDataResponseError)
-
 export const getClearUsageDataUrl = (table: UsageTable,
     params?: ClearUsageDataParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -17482,9 +14049,9 @@ export const getClearUsageDataUrl = (table: UsageTable,
  * @summary Clear usage data from a specified table
  */
 export const clearUsageData = async (table: UsageTable,
-    params?: ClearUsageDataParams, options?: RequestInit): Promise<clearUsageDataResponse> => {
+    params?: ClearUsageDataParams, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<clearUsageDataResponse>(getClearUsageDataUrl(table,params),
+  return orvalFetcher<unknown>(getClearUsageDataUrl(table,params),
   {
     ...options,
     method: 'DELETE'
@@ -17542,45 +14109,6 @@ export const useClearUsageData = <TError = ErrorType<Unauthorized | Forbidden | 
       return useMutation(getClearUsageDataMutationOptions(options), queryClient);
     }
 
-export type bulkDeleteNodesResponse200 = {
-  data: RemoveNodesResponse
-  status: 200
-}
-
-export type bulkDeleteNodesResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDeleteNodesResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDeleteNodesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDeleteNodesResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDeleteNodesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDeleteNodesResponseSuccess = (bulkDeleteNodesResponse200) & {
-  headers: Headers;
-};
-export type bulkDeleteNodesResponseError = (bulkDeleteNodesResponse400 | bulkDeleteNodesResponse401 | bulkDeleteNodesResponse403 | bulkDeleteNodesResponse404 | bulkDeleteNodesResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDeleteNodesResponse = (bulkDeleteNodesResponseSuccess | bulkDeleteNodesResponseError)
-
 export const getBulkDeleteNodesUrl = () => {
 
 
@@ -17593,9 +14121,9 @@ export const getBulkDeleteNodesUrl = () => {
  * Delete selected nodes by ID.
  * @summary Bulk Delete Nodes
  */
-export const bulkDeleteNodes = async (bulkNodeSelection: BulkNodeSelection, options?: RequestInit): Promise<bulkDeleteNodesResponse> => {
+export const bulkDeleteNodes = async (bulkNodeSelection: BulkNodeSelection, options?: RequestInit): Promise<RemoveNodesResponse> => {
 
-  return orvalFetcher<bulkDeleteNodesResponse>(getBulkDeleteNodesUrl(),
+  return orvalFetcher<RemoveNodesResponse>(getBulkDeleteNodesUrl(),
   {
     ...options,
     method: 'POST',
@@ -17653,45 +14181,6 @@ export const useBulkDeleteNodes = <TError = ErrorType<HTTPException | Unauthoriz
       return useMutation(getBulkDeleteNodesMutationOptions(options), queryClient);
     }
 
-export type bulkDisableNodesResponse200 = {
-  data: BulkNodesActionResponse
-  status: 200
-}
-
-export type bulkDisableNodesResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDisableNodesResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDisableNodesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDisableNodesResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDisableNodesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDisableNodesResponseSuccess = (bulkDisableNodesResponse200) & {
-  headers: Headers;
-};
-export type bulkDisableNodesResponseError = (bulkDisableNodesResponse400 | bulkDisableNodesResponse401 | bulkDisableNodesResponse403 | bulkDisableNodesResponse404 | bulkDisableNodesResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDisableNodesResponse = (bulkDisableNodesResponseSuccess | bulkDisableNodesResponseError)
-
 export const getBulkDisableNodesUrl = () => {
 
 
@@ -17704,9 +14193,9 @@ export const getBulkDisableNodesUrl = () => {
  * Disable selected nodes by ID.
  * @summary Bulk Disable Nodes
  */
-export const bulkDisableNodes = async (bulkNodeSelection: BulkNodeSelection, options?: RequestInit): Promise<bulkDisableNodesResponse> => {
+export const bulkDisableNodes = async (bulkNodeSelection: BulkNodeSelection, options?: RequestInit): Promise<BulkNodesActionResponse> => {
 
-  return orvalFetcher<bulkDisableNodesResponse>(getBulkDisableNodesUrl(),
+  return orvalFetcher<BulkNodesActionResponse>(getBulkDisableNodesUrl(),
   {
     ...options,
     method: 'POST',
@@ -17764,45 +14253,6 @@ export const useBulkDisableNodes = <TError = ErrorType<HTTPException | Unauthori
       return useMutation(getBulkDisableNodesMutationOptions(options), queryClient);
     }
 
-export type bulkEnableNodesResponse200 = {
-  data: BulkNodesActionResponse
-  status: 200
-}
-
-export type bulkEnableNodesResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkEnableNodesResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkEnableNodesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkEnableNodesResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkEnableNodesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkEnableNodesResponseSuccess = (bulkEnableNodesResponse200) & {
-  headers: Headers;
-};
-export type bulkEnableNodesResponseError = (bulkEnableNodesResponse400 | bulkEnableNodesResponse401 | bulkEnableNodesResponse403 | bulkEnableNodesResponse404 | bulkEnableNodesResponse422) & {
-  headers: Headers;
-};
-
-export type bulkEnableNodesResponse = (bulkEnableNodesResponseSuccess | bulkEnableNodesResponseError)
-
 export const getBulkEnableNodesUrl = () => {
 
 
@@ -17815,9 +14265,9 @@ export const getBulkEnableNodesUrl = () => {
  * Enable selected nodes by ID.
  * @summary Bulk Enable Nodes
  */
-export const bulkEnableNodes = async (bulkNodeSelection: BulkNodeSelection, options?: RequestInit): Promise<bulkEnableNodesResponse> => {
+export const bulkEnableNodes = async (bulkNodeSelection: BulkNodeSelection, options?: RequestInit): Promise<BulkNodesActionResponse> => {
 
-  return orvalFetcher<bulkEnableNodesResponse>(getBulkEnableNodesUrl(),
+  return orvalFetcher<BulkNodesActionResponse>(getBulkEnableNodesUrl(),
   {
     ...options,
     method: 'POST',
@@ -17875,45 +14325,6 @@ export const useBulkEnableNodes = <TError = ErrorType<HTTPException | Unauthoriz
       return useMutation(getBulkEnableNodesMutationOptions(options), queryClient);
     }
 
-export type bulkResetNodesUsageResponse200 = {
-  data: BulkNodesActionResponse
-  status: 200
-}
-
-export type bulkResetNodesUsageResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkResetNodesUsageResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkResetNodesUsageResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkResetNodesUsageResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkResetNodesUsageResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkResetNodesUsageResponseSuccess = (bulkResetNodesUsageResponse200) & {
-  headers: Headers;
-};
-export type bulkResetNodesUsageResponseError = (bulkResetNodesUsageResponse400 | bulkResetNodesUsageResponse401 | bulkResetNodesUsageResponse403 | bulkResetNodesUsageResponse404 | bulkResetNodesUsageResponse422) & {
-  headers: Headers;
-};
-
-export type bulkResetNodesUsageResponse = (bulkResetNodesUsageResponseSuccess | bulkResetNodesUsageResponseError)
-
 export const getBulkResetNodesUsageUrl = () => {
 
 
@@ -17926,9 +14337,9 @@ export const getBulkResetNodesUsageUrl = () => {
  * Reset usage for selected nodes by ID.
  * @summary Bulk Reset Nodes Usage
  */
-export const bulkResetNodesUsage = async (bulkNodeSelection: BulkNodeSelection, options?: RequestInit): Promise<bulkResetNodesUsageResponse> => {
+export const bulkResetNodesUsage = async (bulkNodeSelection: BulkNodeSelection, options?: RequestInit): Promise<BulkNodesActionResponse> => {
 
-  return orvalFetcher<bulkResetNodesUsageResponse>(getBulkResetNodesUsageUrl(),
+  return orvalFetcher<BulkNodesActionResponse>(getBulkResetNodesUsageUrl(),
   {
     ...options,
     method: 'POST',
@@ -17986,45 +14397,6 @@ export const useBulkResetNodesUsage = <TError = ErrorType<HTTPException | Unauth
       return useMutation(getBulkResetNodesUsageMutationOptions(options), queryClient);
     }
 
-export type bulkReconnectNodesResponse200 = {
-  data: BulkNodesActionResponse
-  status: 200
-}
-
-export type bulkReconnectNodesResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkReconnectNodesResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkReconnectNodesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkReconnectNodesResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkReconnectNodesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkReconnectNodesResponseSuccess = (bulkReconnectNodesResponse200) & {
-  headers: Headers;
-};
-export type bulkReconnectNodesResponseError = (bulkReconnectNodesResponse400 | bulkReconnectNodesResponse401 | bulkReconnectNodesResponse403 | bulkReconnectNodesResponse404 | bulkReconnectNodesResponse422) & {
-  headers: Headers;
-};
-
-export type bulkReconnectNodesResponse = (bulkReconnectNodesResponseSuccess | bulkReconnectNodesResponseError)
-
 export const getBulkReconnectNodesUrl = () => {
 
 
@@ -18037,9 +14409,9 @@ export const getBulkReconnectNodesUrl = () => {
  * Reconnect selected nodes by ID.
  * @summary Bulk Reconnect Nodes
  */
-export const bulkReconnectNodes = async (bulkNodeSelection: BulkNodeSelection, options?: RequestInit): Promise<bulkReconnectNodesResponse> => {
+export const bulkReconnectNodes = async (bulkNodeSelection: BulkNodeSelection, options?: RequestInit): Promise<BulkNodesActionResponse> => {
 
-  return orvalFetcher<bulkReconnectNodesResponse>(getBulkReconnectNodesUrl(),
+  return orvalFetcher<BulkNodesActionResponse>(getBulkReconnectNodesUrl(),
   {
     ...options,
     method: 'POST',
@@ -18097,45 +14469,6 @@ export const useBulkReconnectNodes = <TError = ErrorType<HTTPException | Unautho
       return useMutation(getBulkReconnectNodesMutationOptions(options), queryClient);
     }
 
-export type bulkUpdateNodesResponse200 = {
-  data: BulkNodesActionResponse
-  status: 200
-}
-
-export type bulkUpdateNodesResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkUpdateNodesResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkUpdateNodesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkUpdateNodesResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkUpdateNodesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkUpdateNodesResponseSuccess = (bulkUpdateNodesResponse200) & {
-  headers: Headers;
-};
-export type bulkUpdateNodesResponseError = (bulkUpdateNodesResponse400 | bulkUpdateNodesResponse401 | bulkUpdateNodesResponse403 | bulkUpdateNodesResponse404 | bulkUpdateNodesResponse422) & {
-  headers: Headers;
-};
-
-export type bulkUpdateNodesResponse = (bulkUpdateNodesResponseSuccess | bulkUpdateNodesResponseError)
-
 export const getBulkUpdateNodesUrl = () => {
 
 
@@ -18148,9 +14481,9 @@ export const getBulkUpdateNodesUrl = () => {
  * Update selected nodes by ID.
  * @summary Bulk Update Nodes
  */
-export const bulkUpdateNodes = async (bulkNodeSelection: BulkNodeSelection, options?: RequestInit): Promise<bulkUpdateNodesResponse> => {
+export const bulkUpdateNodes = async (bulkNodeSelection: BulkNodeSelection, options?: RequestInit): Promise<BulkNodesActionResponse> => {
 
-  return orvalFetcher<bulkUpdateNodesResponse>(getBulkUpdateNodesUrl(),
+  return orvalFetcher<BulkNodesActionResponse>(getBulkUpdateNodesUrl(),
   {
     ...options,
     method: 'POST',
@@ -18208,40 +14541,6 @@ export const useBulkUpdateNodes = <TError = ErrorType<HTTPException | Unauthoriz
       return useMutation(getBulkUpdateNodesMutationOptions(options), queryClient);
     }
 
-export type createUserResponse201 = {
-  data: UserResponse
-  status: 201
-}
-
-export type createUserResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type createUserResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type createUserResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type createUserResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createUserResponseSuccess = (createUserResponse201) & {
-  headers: Headers;
-};
-export type createUserResponseError = (createUserResponse400 | createUserResponse401 | createUserResponse409 | createUserResponse422) & {
-  headers: Headers;
-};
-
-export type createUserResponse = (createUserResponseSuccess | createUserResponseError)
-
 export const getCreateUserUrl = () => {
 
 
@@ -18266,9 +14565,9 @@ export const getCreateUserUrl = () => {
  * - **next_plan**: Next user plan (resets after use).
  * @summary Create User
  */
-export const createUser = async (userCreate: UserCreate, options?: RequestInit): Promise<createUserResponse> => {
+export const createUser = async (userCreate: UserCreate, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<createUserResponse>(getCreateUserUrl(),
+  return orvalFetcher<UserResponse>(getCreateUserUrl(),
   {
     ...options,
     method: 'POST',
@@ -18326,45 +14625,6 @@ export const useCreateUser = <TError = ErrorType<HTTPException | Unauthorized | 
       return useMutation(getCreateUserMutationOptions(options), queryClient);
     }
 
-export type modifyUserResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type modifyUserResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type modifyUserResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyUserResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyUserResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type modifyUserResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyUserResponseSuccess = (modifyUserResponse200) & {
-  headers: Headers;
-};
-export type modifyUserResponseError = (modifyUserResponse400 | modifyUserResponse401 | modifyUserResponse403 | modifyUserResponse404 | modifyUserResponse422) & {
-  headers: Headers;
-};
-
-export type modifyUserResponse = (modifyUserResponseSuccess | modifyUserResponseError)
-
 export const getModifyUserUrl = (username: string,) => {
 
 
@@ -18392,9 +14652,9 @@ export const getModifyUserUrl = (username: string,) => {
  * @summary Modify User
  */
 export const modifyUser = async (username: string,
-    userModify: UserModify, options?: RequestInit): Promise<modifyUserResponse> => {
+    userModify: UserModify, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<modifyUserResponse>(getModifyUserUrl(username),
+  return orvalFetcher<UserResponse>(getModifyUserUrl(username),
   {
     ...options,
     method: 'PUT',
@@ -18452,40 +14712,6 @@ export const useModifyUser = <TError = ErrorType<HTTPException | Unauthorized | 
       return useMutation(getModifyUserMutationOptions(options), queryClient);
     }
 
-export type removeUserResponse204 = {
-  data: void
-  status: 204
-}
-
-export type removeUserResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeUserResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeUserResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type removeUserResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeUserResponseSuccess = (removeUserResponse204) & {
-  headers: Headers;
-};
-export type removeUserResponseError = (removeUserResponse401 | removeUserResponse403 | removeUserResponse404 | removeUserResponse422) & {
-  headers: Headers;
-};
-
-export type removeUserResponse = (removeUserResponseSuccess | removeUserResponseError)
-
 export const getRemoveUserUrl = (username: string,) => {
 
 
@@ -18498,9 +14724,9 @@ export const getRemoveUserUrl = (username: string,) => {
  * Remove a user
  * @summary Remove User
  */
-export const removeUser = async (username: string, options?: RequestInit): Promise<removeUserResponse> => {
+export const removeUser = async (username: string, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<removeUserResponse>(getRemoveUserUrl(username),
+  return orvalFetcher<void>(getRemoveUserUrl(username),
   {
     ...options,
     method: 'DELETE'
@@ -18558,40 +14784,6 @@ export const useRemoveUser = <TError = ErrorType<Unauthorized | Forbidden | NotF
       return useMutation(getRemoveUserMutationOptions(options), queryClient);
     }
 
-export type getUserResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type getUserResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUserResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUserResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUserResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserResponseSuccess = (getUserResponse200) & {
-  headers: Headers;
-};
-export type getUserResponseError = (getUserResponse401 | getUserResponse403 | getUserResponse404 | getUserResponse422) & {
-  headers: Headers;
-};
-
-export type getUserResponse = (getUserResponseSuccess | getUserResponseError)
-
 export const getGetUserUrl = (username: string,) => {
 
 
@@ -18604,9 +14796,9 @@ export const getGetUserUrl = (username: string,) => {
  * Get user information
  * @summary Get User
  */
-export const getUser = async (username: string, options?: RequestInit): Promise<getUserResponse> => {
+export const getUser = async (username: string, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<getUserResponse>(getGetUserUrl(username),
+  return orvalFetcher<UserResponse>(getGetUserUrl(username),
   {
     ...options,
     method: 'GET'
@@ -18694,45 +14886,6 @@ export function useGetUser<TData = Awaited<ReturnType<typeof getUser>>, TError =
 
 
 
-export type modifyUserByUsernameResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type modifyUserByUsernameResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type modifyUserByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyUserByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyUserByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type modifyUserByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyUserByUsernameResponseSuccess = (modifyUserByUsernameResponse200) & {
-  headers: Headers;
-};
-export type modifyUserByUsernameResponseError = (modifyUserByUsernameResponse400 | modifyUserByUsernameResponse401 | modifyUserByUsernameResponse403 | modifyUserByUsernameResponse404 | modifyUserByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type modifyUserByUsernameResponse = (modifyUserByUsernameResponseSuccess | modifyUserByUsernameResponseError)
-
 export const getModifyUserByUsernameUrl = (username: string,) => {
 
 
@@ -18745,9 +14898,9 @@ export const getModifyUserByUsernameUrl = (username: string,) => {
  * @summary Modify User By Username
  */
 export const modifyUserByUsername = async (username: string,
-    userModify: UserModify, options?: RequestInit): Promise<modifyUserByUsernameResponse> => {
+    userModify: UserModify, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<modifyUserByUsernameResponse>(getModifyUserByUsernameUrl(username),
+  return orvalFetcher<UserResponse>(getModifyUserByUsernameUrl(username),
   {
     ...options,
     method: 'PUT',
@@ -18805,40 +14958,6 @@ export const useModifyUserByUsername = <TError = ErrorType<HTTPException | Unaut
       return useMutation(getModifyUserByUsernameMutationOptions(options), queryClient);
     }
 
-export type removeUserByUsernameResponse204 = {
-  data: void
-  status: 204
-}
-
-export type removeUserByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeUserByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeUserByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type removeUserByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeUserByUsernameResponseSuccess = (removeUserByUsernameResponse204) & {
-  headers: Headers;
-};
-export type removeUserByUsernameResponseError = (removeUserByUsernameResponse401 | removeUserByUsernameResponse403 | removeUserByUsernameResponse404 | removeUserByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type removeUserByUsernameResponse = (removeUserByUsernameResponseSuccess | removeUserByUsernameResponseError)
-
 export const getRemoveUserByUsernameUrl = (username: string,) => {
 
 
@@ -18850,9 +14969,9 @@ export const getRemoveUserByUsernameUrl = (username: string,) => {
 /**
  * @summary Remove User By Username
  */
-export const removeUserByUsername = async (username: string, options?: RequestInit): Promise<removeUserByUsernameResponse> => {
+export const removeUserByUsername = async (username: string, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<removeUserByUsernameResponse>(getRemoveUserByUsernameUrl(username),
+  return orvalFetcher<void>(getRemoveUserByUsernameUrl(username),
   {
     ...options,
     method: 'DELETE'
@@ -18910,40 +15029,6 @@ export const useRemoveUserByUsername = <TError = ErrorType<Unauthorized | Forbid
       return useMutation(getRemoveUserByUsernameMutationOptions(options), queryClient);
     }
 
-export type getUserByUsernameResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type getUserByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUserByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUserByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUserByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserByUsernameResponseSuccess = (getUserByUsernameResponse200) & {
-  headers: Headers;
-};
-export type getUserByUsernameResponseError = (getUserByUsernameResponse401 | getUserByUsernameResponse403 | getUserByUsernameResponse404 | getUserByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type getUserByUsernameResponse = (getUserByUsernameResponseSuccess | getUserByUsernameResponseError)
-
 export const getGetUserByUsernameUrl = (username: string,) => {
 
 
@@ -18955,9 +15040,9 @@ export const getGetUserByUsernameUrl = (username: string,) => {
 /**
  * @summary Get User By Username
  */
-export const getUserByUsername = async (username: string, options?: RequestInit): Promise<getUserByUsernameResponse> => {
+export const getUserByUsername = async (username: string, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<getUserByUsernameResponse>(getGetUserByUsernameUrl(username),
+  return orvalFetcher<UserResponse>(getGetUserByUsernameUrl(username),
   {
     ...options,
     method: 'GET'
@@ -19045,45 +15130,6 @@ export function useGetUserByUsername<TData = Awaited<ReturnType<typeof getUserBy
 
 
 
-export type modifyUserByIdResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type modifyUserByIdResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type modifyUserByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyUserByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyUserByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type modifyUserByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyUserByIdResponseSuccess = (modifyUserByIdResponse200) & {
-  headers: Headers;
-};
-export type modifyUserByIdResponseError = (modifyUserByIdResponse400 | modifyUserByIdResponse401 | modifyUserByIdResponse403 | modifyUserByIdResponse404 | modifyUserByIdResponse422) & {
-  headers: Headers;
-};
-
-export type modifyUserByIdResponse = (modifyUserByIdResponseSuccess | modifyUserByIdResponseError)
-
 export const getModifyUserByIdUrl = (userId: number,) => {
 
 
@@ -19096,9 +15142,9 @@ export const getModifyUserByIdUrl = (userId: number,) => {
  * @summary Modify User By Id
  */
 export const modifyUserById = async (userId: number,
-    userModify: UserModify, options?: RequestInit): Promise<modifyUserByIdResponse> => {
+    userModify: UserModify, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<modifyUserByIdResponse>(getModifyUserByIdUrl(userId),
+  return orvalFetcher<UserResponse>(getModifyUserByIdUrl(userId),
   {
     ...options,
     method: 'PUT',
@@ -19156,40 +15202,6 @@ export const useModifyUserById = <TError = ErrorType<HTTPException | Unauthorize
       return useMutation(getModifyUserByIdMutationOptions(options), queryClient);
     }
 
-export type removeUserByIdResponse204 = {
-  data: void
-  status: 204
-}
-
-export type removeUserByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type removeUserByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeUserByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type removeUserByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeUserByIdResponseSuccess = (removeUserByIdResponse204) & {
-  headers: Headers;
-};
-export type removeUserByIdResponseError = (removeUserByIdResponse401 | removeUserByIdResponse403 | removeUserByIdResponse404 | removeUserByIdResponse422) & {
-  headers: Headers;
-};
-
-export type removeUserByIdResponse = (removeUserByIdResponseSuccess | removeUserByIdResponseError)
-
 export const getRemoveUserByIdUrl = (userId: number,) => {
 
 
@@ -19201,9 +15213,9 @@ export const getRemoveUserByIdUrl = (userId: number,) => {
 /**
  * @summary Remove User By Id
  */
-export const removeUserById = async (userId: number, options?: RequestInit): Promise<removeUserByIdResponse> => {
+export const removeUserById = async (userId: number, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<removeUserByIdResponse>(getRemoveUserByIdUrl(userId),
+  return orvalFetcher<void>(getRemoveUserByIdUrl(userId),
   {
     ...options,
     method: 'DELETE'
@@ -19261,40 +15273,6 @@ export const useRemoveUserById = <TError = ErrorType<Unauthorized | Forbidden | 
       return useMutation(getRemoveUserByIdMutationOptions(options), queryClient);
     }
 
-export type getUserByIdResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type getUserByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUserByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUserByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUserByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserByIdResponseSuccess = (getUserByIdResponse200) & {
-  headers: Headers;
-};
-export type getUserByIdResponseError = (getUserByIdResponse401 | getUserByIdResponse403 | getUserByIdResponse404 | getUserByIdResponse422) & {
-  headers: Headers;
-};
-
-export type getUserByIdResponse = (getUserByIdResponseSuccess | getUserByIdResponseError)
-
 export const getGetUserByIdUrl = (userId: number,) => {
 
 
@@ -19306,9 +15284,9 @@ export const getGetUserByIdUrl = (userId: number,) => {
 /**
  * @summary Get User By Id
  */
-export const getUserById = async (userId: number, options?: RequestInit): Promise<getUserByIdResponse> => {
+export const getUserById = async (userId: number, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<getUserByIdResponse>(getGetUserByIdUrl(userId),
+  return orvalFetcher<UserResponse>(getGetUserByIdUrl(userId),
   {
     ...options,
     method: 'GET'
@@ -19396,45 +15374,6 @@ export function useGetUserById<TData = Awaited<ReturnType<typeof getUserById>>, 
 
 
 
-export type setUserDisabledResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type setUserDisabledResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type setUserDisabledResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type setUserDisabledResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type setUserDisabledResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type setUserDisabledResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type setUserDisabledResponseSuccess = (setUserDisabledResponse200) & {
-  headers: Headers;
-};
-export type setUserDisabledResponseError = (setUserDisabledResponse400 | setUserDisabledResponse401 | setUserDisabledResponse403 | setUserDisabledResponse404 | setUserDisabledResponse422) & {
-  headers: Headers;
-};
-
-export type setUserDisabledResponse = (setUserDisabledResponseSuccess | setUserDisabledResponseError)
-
 export const getSetUserDisabledUrl = (username: string,) => {
 
 
@@ -19447,9 +15386,9 @@ export const getSetUserDisabledUrl = (username: string,) => {
  * @summary Set User Disabled
  */
 export const setUserDisabled = async (username: string,
-    userStatusToggle: UserStatusToggle, options?: RequestInit): Promise<setUserDisabledResponse> => {
+    userStatusToggle: UserStatusToggle, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<setUserDisabledResponse>(getSetUserDisabledUrl(username),
+  return orvalFetcher<UserResponse>(getSetUserDisabledUrl(username),
   {
     ...options,
     method: 'PUT',
@@ -19507,45 +15446,6 @@ export const useSetUserDisabled = <TError = ErrorType<HTTPException | Unauthoriz
       return useMutation(getSetUserDisabledMutationOptions(options), queryClient);
     }
 
-export type setUserDisabledByUsernameResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type setUserDisabledByUsernameResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type setUserDisabledByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type setUserDisabledByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type setUserDisabledByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type setUserDisabledByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type setUserDisabledByUsernameResponseSuccess = (setUserDisabledByUsernameResponse200) & {
-  headers: Headers;
-};
-export type setUserDisabledByUsernameResponseError = (setUserDisabledByUsernameResponse400 | setUserDisabledByUsernameResponse401 | setUserDisabledByUsernameResponse403 | setUserDisabledByUsernameResponse404 | setUserDisabledByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type setUserDisabledByUsernameResponse = (setUserDisabledByUsernameResponseSuccess | setUserDisabledByUsernameResponseError)
-
 export const getSetUserDisabledByUsernameUrl = (username: string,) => {
 
 
@@ -19558,9 +15458,9 @@ export const getSetUserDisabledByUsernameUrl = (username: string,) => {
  * @summary Set User Disabled By Username
  */
 export const setUserDisabledByUsername = async (username: string,
-    userStatusToggle: UserStatusToggle, options?: RequestInit): Promise<setUserDisabledByUsernameResponse> => {
+    userStatusToggle: UserStatusToggle, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<setUserDisabledByUsernameResponse>(getSetUserDisabledByUsernameUrl(username),
+  return orvalFetcher<UserResponse>(getSetUserDisabledByUsernameUrl(username),
   {
     ...options,
     method: 'PUT',
@@ -19618,45 +15518,6 @@ export const useSetUserDisabledByUsername = <TError = ErrorType<HTTPException | 
       return useMutation(getSetUserDisabledByUsernameMutationOptions(options), queryClient);
     }
 
-export type setUserDisabledByIdResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type setUserDisabledByIdResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type setUserDisabledByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type setUserDisabledByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type setUserDisabledByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type setUserDisabledByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type setUserDisabledByIdResponseSuccess = (setUserDisabledByIdResponse200) & {
-  headers: Headers;
-};
-export type setUserDisabledByIdResponseError = (setUserDisabledByIdResponse400 | setUserDisabledByIdResponse401 | setUserDisabledByIdResponse403 | setUserDisabledByIdResponse404 | setUserDisabledByIdResponse422) & {
-  headers: Headers;
-};
-
-export type setUserDisabledByIdResponse = (setUserDisabledByIdResponseSuccess | setUserDisabledByIdResponseError)
-
 export const getSetUserDisabledByIdUrl = (userId: number,) => {
 
 
@@ -19669,9 +15530,9 @@ export const getSetUserDisabledByIdUrl = (userId: number,) => {
  * @summary Set User Disabled By Id
  */
 export const setUserDisabledById = async (userId: number,
-    userStatusToggle: UserStatusToggle, options?: RequestInit): Promise<setUserDisabledByIdResponse> => {
+    userStatusToggle: UserStatusToggle, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<setUserDisabledByIdResponse>(getSetUserDisabledByIdUrl(userId),
+  return orvalFetcher<UserResponse>(getSetUserDisabledByIdUrl(userId),
   {
     ...options,
     method: 'PUT',
@@ -19729,40 +15590,6 @@ export const useSetUserDisabledById = <TError = ErrorType<HTTPException | Unauth
       return useMutation(getSetUserDisabledByIdMutationOptions(options), queryClient);
     }
 
-export type resetUserDataUsageResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type resetUserDataUsageResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type resetUserDataUsageResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type resetUserDataUsageResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type resetUserDataUsageResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type resetUserDataUsageResponseSuccess = (resetUserDataUsageResponse200) & {
-  headers: Headers;
-};
-export type resetUserDataUsageResponseError = (resetUserDataUsageResponse401 | resetUserDataUsageResponse403 | resetUserDataUsageResponse404 | resetUserDataUsageResponse422) & {
-  headers: Headers;
-};
-
-export type resetUserDataUsageResponse = (resetUserDataUsageResponseSuccess | resetUserDataUsageResponseError)
-
 export const getResetUserDataUsageUrl = (username: string,) => {
 
 
@@ -19775,9 +15602,9 @@ export const getResetUserDataUsageUrl = (username: string,) => {
  * Reset user data usage
  * @summary Reset User Data Usage
  */
-export const resetUserDataUsage = async (username: string, options?: RequestInit): Promise<resetUserDataUsageResponse> => {
+export const resetUserDataUsage = async (username: string, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<resetUserDataUsageResponse>(getResetUserDataUsageUrl(username),
+  return orvalFetcher<UserResponse>(getResetUserDataUsageUrl(username),
   {
     ...options,
     method: 'POST'
@@ -19835,40 +15662,6 @@ export const useResetUserDataUsage = <TError = ErrorType<Unauthorized | Forbidde
       return useMutation(getResetUserDataUsageMutationOptions(options), queryClient);
     }
 
-export type resetUserDataUsageByUsernameResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type resetUserDataUsageByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type resetUserDataUsageByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type resetUserDataUsageByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type resetUserDataUsageByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type resetUserDataUsageByUsernameResponseSuccess = (resetUserDataUsageByUsernameResponse200) & {
-  headers: Headers;
-};
-export type resetUserDataUsageByUsernameResponseError = (resetUserDataUsageByUsernameResponse401 | resetUserDataUsageByUsernameResponse403 | resetUserDataUsageByUsernameResponse404 | resetUserDataUsageByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type resetUserDataUsageByUsernameResponse = (resetUserDataUsageByUsernameResponseSuccess | resetUserDataUsageByUsernameResponseError)
-
 export const getResetUserDataUsageByUsernameUrl = (username: string,) => {
 
 
@@ -19880,9 +15673,9 @@ export const getResetUserDataUsageByUsernameUrl = (username: string,) => {
 /**
  * @summary Reset User Data Usage By Username
  */
-export const resetUserDataUsageByUsername = async (username: string, options?: RequestInit): Promise<resetUserDataUsageByUsernameResponse> => {
+export const resetUserDataUsageByUsername = async (username: string, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<resetUserDataUsageByUsernameResponse>(getResetUserDataUsageByUsernameUrl(username),
+  return orvalFetcher<UserResponse>(getResetUserDataUsageByUsernameUrl(username),
   {
     ...options,
     method: 'POST'
@@ -19940,40 +15733,6 @@ export const useResetUserDataUsageByUsername = <TError = ErrorType<Unauthorized 
       return useMutation(getResetUserDataUsageByUsernameMutationOptions(options), queryClient);
     }
 
-export type resetUserDataUsageByIdResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type resetUserDataUsageByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type resetUserDataUsageByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type resetUserDataUsageByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type resetUserDataUsageByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type resetUserDataUsageByIdResponseSuccess = (resetUserDataUsageByIdResponse200) & {
-  headers: Headers;
-};
-export type resetUserDataUsageByIdResponseError = (resetUserDataUsageByIdResponse401 | resetUserDataUsageByIdResponse403 | resetUserDataUsageByIdResponse404 | resetUserDataUsageByIdResponse422) & {
-  headers: Headers;
-};
-
-export type resetUserDataUsageByIdResponse = (resetUserDataUsageByIdResponseSuccess | resetUserDataUsageByIdResponseError)
-
 export const getResetUserDataUsageByIdUrl = (userId: number,) => {
 
 
@@ -19985,9 +15744,9 @@ export const getResetUserDataUsageByIdUrl = (userId: number,) => {
 /**
  * @summary Reset User Data Usage By Id
  */
-export const resetUserDataUsageById = async (userId: number, options?: RequestInit): Promise<resetUserDataUsageByIdResponse> => {
+export const resetUserDataUsageById = async (userId: number, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<resetUserDataUsageByIdResponse>(getResetUserDataUsageByIdUrl(userId),
+  return orvalFetcher<UserResponse>(getResetUserDataUsageByIdUrl(userId),
   {
     ...options,
     method: 'POST'
@@ -20045,40 +15804,6 @@ export const useResetUserDataUsageById = <TError = ErrorType<Unauthorized | Forb
       return useMutation(getResetUserDataUsageByIdMutationOptions(options), queryClient);
     }
 
-export type revokeUserSubscriptionResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type revokeUserSubscriptionResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type revokeUserSubscriptionResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type revokeUserSubscriptionResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type revokeUserSubscriptionResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type revokeUserSubscriptionResponseSuccess = (revokeUserSubscriptionResponse200) & {
-  headers: Headers;
-};
-export type revokeUserSubscriptionResponseError = (revokeUserSubscriptionResponse401 | revokeUserSubscriptionResponse403 | revokeUserSubscriptionResponse404 | revokeUserSubscriptionResponse422) & {
-  headers: Headers;
-};
-
-export type revokeUserSubscriptionResponse = (revokeUserSubscriptionResponseSuccess | revokeUserSubscriptionResponseError)
-
 export const getRevokeUserSubscriptionUrl = (username: string,) => {
 
 
@@ -20091,9 +15816,9 @@ export const getRevokeUserSubscriptionUrl = (username: string,) => {
  * Revoke users subscription (Subscription link and proxies)
  * @summary Revoke User Subscription
  */
-export const revokeUserSubscription = async (username: string, options?: RequestInit): Promise<revokeUserSubscriptionResponse> => {
+export const revokeUserSubscription = async (username: string, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<revokeUserSubscriptionResponse>(getRevokeUserSubscriptionUrl(username),
+  return orvalFetcher<UserResponse>(getRevokeUserSubscriptionUrl(username),
   {
     ...options,
     method: 'POST'
@@ -20151,40 +15876,6 @@ export const useRevokeUserSubscription = <TError = ErrorType<Unauthorized | Forb
       return useMutation(getRevokeUserSubscriptionMutationOptions(options), queryClient);
     }
 
-export type revokeUserSubscriptionByUsernameResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type revokeUserSubscriptionByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type revokeUserSubscriptionByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type revokeUserSubscriptionByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type revokeUserSubscriptionByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type revokeUserSubscriptionByUsernameResponseSuccess = (revokeUserSubscriptionByUsernameResponse200) & {
-  headers: Headers;
-};
-export type revokeUserSubscriptionByUsernameResponseError = (revokeUserSubscriptionByUsernameResponse401 | revokeUserSubscriptionByUsernameResponse403 | revokeUserSubscriptionByUsernameResponse404 | revokeUserSubscriptionByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type revokeUserSubscriptionByUsernameResponse = (revokeUserSubscriptionByUsernameResponseSuccess | revokeUserSubscriptionByUsernameResponseError)
-
 export const getRevokeUserSubscriptionByUsernameUrl = (username: string,) => {
 
 
@@ -20196,9 +15887,9 @@ export const getRevokeUserSubscriptionByUsernameUrl = (username: string,) => {
 /**
  * @summary Revoke User Subscription By Username
  */
-export const revokeUserSubscriptionByUsername = async (username: string, options?: RequestInit): Promise<revokeUserSubscriptionByUsernameResponse> => {
+export const revokeUserSubscriptionByUsername = async (username: string, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<revokeUserSubscriptionByUsernameResponse>(getRevokeUserSubscriptionByUsernameUrl(username),
+  return orvalFetcher<UserResponse>(getRevokeUserSubscriptionByUsernameUrl(username),
   {
     ...options,
     method: 'POST'
@@ -20256,40 +15947,6 @@ export const useRevokeUserSubscriptionByUsername = <TError = ErrorType<Unauthori
       return useMutation(getRevokeUserSubscriptionByUsernameMutationOptions(options), queryClient);
     }
 
-export type revokeUserSubscriptionByIdResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type revokeUserSubscriptionByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type revokeUserSubscriptionByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type revokeUserSubscriptionByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type revokeUserSubscriptionByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type revokeUserSubscriptionByIdResponseSuccess = (revokeUserSubscriptionByIdResponse200) & {
-  headers: Headers;
-};
-export type revokeUserSubscriptionByIdResponseError = (revokeUserSubscriptionByIdResponse401 | revokeUserSubscriptionByIdResponse403 | revokeUserSubscriptionByIdResponse404 | revokeUserSubscriptionByIdResponse422) & {
-  headers: Headers;
-};
-
-export type revokeUserSubscriptionByIdResponse = (revokeUserSubscriptionByIdResponseSuccess | revokeUserSubscriptionByIdResponseError)
-
 export const getRevokeUserSubscriptionByIdUrl = (userId: number,) => {
 
 
@@ -20301,9 +15958,9 @@ export const getRevokeUserSubscriptionByIdUrl = (userId: number,) => {
 /**
  * @summary Revoke User Subscription By Id
  */
-export const revokeUserSubscriptionById = async (userId: number, options?: RequestInit): Promise<revokeUserSubscriptionByIdResponse> => {
+export const revokeUserSubscriptionById = async (userId: number, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<revokeUserSubscriptionByIdResponse>(getRevokeUserSubscriptionByIdUrl(userId),
+  return orvalFetcher<UserResponse>(getRevokeUserSubscriptionByIdUrl(userId),
   {
     ...options,
     method: 'POST'
@@ -20361,35 +16018,6 @@ export const useRevokeUserSubscriptionById = <TError = ErrorType<Unauthorized | 
       return useMutation(getRevokeUserSubscriptionByIdMutationOptions(options), queryClient);
     }
 
-export type resetUsersDataUsageResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type resetUsersDataUsageResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type resetUsersDataUsageResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type resetUsersDataUsageResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type resetUsersDataUsageResponseSuccess = (resetUsersDataUsageResponse200) & {
-  headers: Headers;
-};
-export type resetUsersDataUsageResponseError = (resetUsersDataUsageResponse401 | resetUsersDataUsageResponse403 | resetUsersDataUsageResponse404) & {
-  headers: Headers;
-};
-
-export type resetUsersDataUsageResponse = (resetUsersDataUsageResponseSuccess | resetUsersDataUsageResponseError)
-
 export const getResetUsersDataUsageUrl = () => {
 
 
@@ -20402,9 +16030,9 @@ export const getResetUsersDataUsageUrl = () => {
  * Reset all users data usage
  * @summary Reset Users Data Usage
  */
-export const resetUsersDataUsage = async ( options?: RequestInit): Promise<resetUsersDataUsageResponse> => {
+export const resetUsersDataUsage = async ( options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<resetUsersDataUsageResponse>(getResetUsersDataUsageUrl(),
+  return orvalFetcher<unknown>(getResetUsersDataUsageUrl(),
   {
     ...options,
     method: 'POST'
@@ -20462,40 +16090,6 @@ export const useResetUsersDataUsage = <TError = ErrorType<Unauthorized | Forbidd
       return useMutation(getResetUsersDataUsageMutationOptions(options), queryClient);
     }
 
-export type getUsersSubUpdateChartResponse200 = {
-  data: UserSubscriptionUpdateChart
-  status: 200
-}
-
-export type getUsersSubUpdateChartResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUsersSubUpdateChartResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUsersSubUpdateChartResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUsersSubUpdateChartResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUsersSubUpdateChartResponseSuccess = (getUsersSubUpdateChartResponse200) & {
-  headers: Headers;
-};
-export type getUsersSubUpdateChartResponseError = (getUsersSubUpdateChartResponse401 | getUsersSubUpdateChartResponse403 | getUsersSubUpdateChartResponse404 | getUsersSubUpdateChartResponse422) & {
-  headers: Headers;
-};
-
-export type getUsersSubUpdateChartResponse = (getUsersSubUpdateChartResponseSuccess | getUsersSubUpdateChartResponseError)
-
 export const getGetUsersSubUpdateChartUrl = (params?: GetUsersSubUpdateChartParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -20515,9 +16109,9 @@ export const getGetUsersSubUpdateChartUrl = (params?: GetUsersSubUpdateChartPara
  * Get subscription agent distribution over a period (optionally filtered by user_id/username).
  * @summary Get Users Sub Update Chart
  */
-export const getUsersSubUpdateChart = async (params?: GetUsersSubUpdateChartParams, options?: RequestInit): Promise<getUsersSubUpdateChartResponse> => {
+export const getUsersSubUpdateChart = async (params?: GetUsersSubUpdateChartParams, options?: RequestInit): Promise<UserSubscriptionUpdateChart> => {
 
-  return orvalFetcher<getUsersSubUpdateChartResponse>(getGetUsersSubUpdateChartUrl(params),
+  return orvalFetcher<UserSubscriptionUpdateChart>(getGetUsersSubUpdateChartUrl(params),
   {
     ...options,
     method: 'GET'
@@ -20605,35 +16199,6 @@ export function useGetUsersSubUpdateChart<TData = Awaited<ReturnType<typeof getU
 
 
 
-export type setOwnerResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type setOwnerResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type setOwnerResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type setOwnerResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type setOwnerResponseSuccess = (setOwnerResponse200) & {
-  headers: Headers;
-};
-export type setOwnerResponseError = (setOwnerResponse401 | setOwnerResponse403 | setOwnerResponse422) & {
-  headers: Headers;
-};
-
-export type setOwnerResponse = (setOwnerResponseSuccess | setOwnerResponseError)
-
 export const getSetOwnerUrl = (username: string,
     params: SetOwnerParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -20655,9 +16220,9 @@ export const getSetOwnerUrl = (username: string,
  * @summary Set Owner
  */
 export const setOwner = async (username: string,
-    params: SetOwnerParams, options?: RequestInit): Promise<setOwnerResponse> => {
+    params: SetOwnerParams, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<setOwnerResponse>(getSetOwnerUrl(username,params),
+  return orvalFetcher<UserResponse>(getSetOwnerUrl(username,params),
   {
     ...options,
     method: 'PUT'
@@ -20715,35 +16280,6 @@ export const useSetOwner = <TError = ErrorType<Unauthorized | Forbidden | HTTPVa
       return useMutation(getSetOwnerMutationOptions(options), queryClient);
     }
 
-export type setOwnerByUsernameResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type setOwnerByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type setOwnerByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type setOwnerByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type setOwnerByUsernameResponseSuccess = (setOwnerByUsernameResponse200) & {
-  headers: Headers;
-};
-export type setOwnerByUsernameResponseError = (setOwnerByUsernameResponse401 | setOwnerByUsernameResponse403 | setOwnerByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type setOwnerByUsernameResponse = (setOwnerByUsernameResponseSuccess | setOwnerByUsernameResponseError)
-
 export const getSetOwnerByUsernameUrl = (username: string,
     params: SetOwnerByUsernameParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -20764,9 +16300,9 @@ export const getSetOwnerByUsernameUrl = (username: string,
  * @summary Set Owner By Username
  */
 export const setOwnerByUsername = async (username: string,
-    params: SetOwnerByUsernameParams, options?: RequestInit): Promise<setOwnerByUsernameResponse> => {
+    params: SetOwnerByUsernameParams, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<setOwnerByUsernameResponse>(getSetOwnerByUsernameUrl(username,params),
+  return orvalFetcher<UserResponse>(getSetOwnerByUsernameUrl(username,params),
   {
     ...options,
     method: 'PUT'
@@ -20824,35 +16360,6 @@ export const useSetOwnerByUsername = <TError = ErrorType<Unauthorized | Forbidde
       return useMutation(getSetOwnerByUsernameMutationOptions(options), queryClient);
     }
 
-export type setOwnerByIdResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type setOwnerByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type setOwnerByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type setOwnerByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type setOwnerByIdResponseSuccess = (setOwnerByIdResponse200) & {
-  headers: Headers;
-};
-export type setOwnerByIdResponseError = (setOwnerByIdResponse401 | setOwnerByIdResponse403 | setOwnerByIdResponse422) & {
-  headers: Headers;
-};
-
-export type setOwnerByIdResponse = (setOwnerByIdResponseSuccess | setOwnerByIdResponseError)
-
 export const getSetOwnerByIdUrl = (userId: number,
     params: SetOwnerByIdParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -20873,9 +16380,9 @@ export const getSetOwnerByIdUrl = (userId: number,
  * @summary Set Owner By Id
  */
 export const setOwnerById = async (userId: number,
-    params: SetOwnerByIdParams, options?: RequestInit): Promise<setOwnerByIdResponse> => {
+    params: SetOwnerByIdParams, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<setOwnerByIdResponse>(getSetOwnerByIdUrl(userId,params),
+  return orvalFetcher<UserResponse>(getSetOwnerByIdUrl(userId,params),
   {
     ...options,
     method: 'PUT'
@@ -20933,40 +16440,6 @@ export const useSetOwnerById = <TError = ErrorType<Unauthorized | Forbidden | HT
       return useMutation(getSetOwnerByIdMutationOptions(options), queryClient);
     }
 
-export type activeNextPlanResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type activeNextPlanResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type activeNextPlanResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type activeNextPlanResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type activeNextPlanResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type activeNextPlanResponseSuccess = (activeNextPlanResponse200) & {
-  headers: Headers;
-};
-export type activeNextPlanResponseError = (activeNextPlanResponse401 | activeNextPlanResponse403 | activeNextPlanResponse404 | activeNextPlanResponse422) & {
-  headers: Headers;
-};
-
-export type activeNextPlanResponse = (activeNextPlanResponseSuccess | activeNextPlanResponseError)
-
 export const getActiveNextPlanUrl = (username: string,) => {
 
 
@@ -20979,9 +16452,9 @@ export const getActiveNextPlanUrl = (username: string,) => {
  * Reset user by next plan
  * @summary Active Next Plan
  */
-export const activeNextPlan = async (username: string, options?: RequestInit): Promise<activeNextPlanResponse> => {
+export const activeNextPlan = async (username: string, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<activeNextPlanResponse>(getActiveNextPlanUrl(username),
+  return orvalFetcher<UserResponse>(getActiveNextPlanUrl(username),
   {
     ...options,
     method: 'POST'
@@ -21039,40 +16512,6 @@ export const useActiveNextPlan = <TError = ErrorType<Unauthorized | Forbidden | 
       return useMutation(getActiveNextPlanMutationOptions(options), queryClient);
     }
 
-export type activeNextPlanByUsernameResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type activeNextPlanByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type activeNextPlanByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type activeNextPlanByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type activeNextPlanByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type activeNextPlanByUsernameResponseSuccess = (activeNextPlanByUsernameResponse200) & {
-  headers: Headers;
-};
-export type activeNextPlanByUsernameResponseError = (activeNextPlanByUsernameResponse401 | activeNextPlanByUsernameResponse403 | activeNextPlanByUsernameResponse404 | activeNextPlanByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type activeNextPlanByUsernameResponse = (activeNextPlanByUsernameResponseSuccess | activeNextPlanByUsernameResponseError)
-
 export const getActiveNextPlanByUsernameUrl = (username: string,) => {
 
 
@@ -21084,9 +16523,9 @@ export const getActiveNextPlanByUsernameUrl = (username: string,) => {
 /**
  * @summary Active Next Plan By Username
  */
-export const activeNextPlanByUsername = async (username: string, options?: RequestInit): Promise<activeNextPlanByUsernameResponse> => {
+export const activeNextPlanByUsername = async (username: string, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<activeNextPlanByUsernameResponse>(getActiveNextPlanByUsernameUrl(username),
+  return orvalFetcher<UserResponse>(getActiveNextPlanByUsernameUrl(username),
   {
     ...options,
     method: 'POST'
@@ -21144,40 +16583,6 @@ export const useActiveNextPlanByUsername = <TError = ErrorType<Unauthorized | Fo
       return useMutation(getActiveNextPlanByUsernameMutationOptions(options), queryClient);
     }
 
-export type activeNextPlanByIdResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type activeNextPlanByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type activeNextPlanByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type activeNextPlanByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type activeNextPlanByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type activeNextPlanByIdResponseSuccess = (activeNextPlanByIdResponse200) & {
-  headers: Headers;
-};
-export type activeNextPlanByIdResponseError = (activeNextPlanByIdResponse401 | activeNextPlanByIdResponse403 | activeNextPlanByIdResponse404 | activeNextPlanByIdResponse422) & {
-  headers: Headers;
-};
-
-export type activeNextPlanByIdResponse = (activeNextPlanByIdResponseSuccess | activeNextPlanByIdResponseError)
-
 export const getActiveNextPlanByIdUrl = (userId: number,) => {
 
 
@@ -21189,9 +16594,9 @@ export const getActiveNextPlanByIdUrl = (userId: number,) => {
 /**
  * @summary Active Next Plan By Id
  */
-export const activeNextPlanById = async (userId: number, options?: RequestInit): Promise<activeNextPlanByIdResponse> => {
+export const activeNextPlanById = async (userId: number, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<activeNextPlanByIdResponse>(getActiveNextPlanByIdUrl(userId),
+  return orvalFetcher<UserResponse>(getActiveNextPlanByIdUrl(userId),
   {
     ...options,
     method: 'POST'
@@ -21249,40 +16654,6 @@ export const useActiveNextPlanById = <TError = ErrorType<Unauthorized | Forbidde
       return useMutation(getActiveNextPlanByIdMutationOptions(options), queryClient);
     }
 
-export type getUserSubscriptionByIdResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type getUserSubscriptionByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUserSubscriptionByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUserSubscriptionByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUserSubscriptionByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserSubscriptionByIdResponseSuccess = (getUserSubscriptionByIdResponse200) & {
-  headers: Headers;
-};
-export type getUserSubscriptionByIdResponseError = (getUserSubscriptionByIdResponse401 | getUserSubscriptionByIdResponse403 | getUserSubscriptionByIdResponse404 | getUserSubscriptionByIdResponse422) & {
-  headers: Headers;
-};
-
-export type getUserSubscriptionByIdResponse = (getUserSubscriptionByIdResponseSuccess | getUserSubscriptionByIdResponseError)
-
 export const getGetUserSubscriptionByIdUrl = (userId: number,
     clientType: ConfigFormat,) => {
 
@@ -21297,9 +16668,9 @@ export const getGetUserSubscriptionByIdUrl = (userId: number,
  * @summary Get User Subscription By Id
  */
 export const getUserSubscriptionById = async (userId: number,
-    clientType: ConfigFormat, options?: RequestInit): Promise<getUserSubscriptionByIdResponse> => {
+    clientType: ConfigFormat, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<getUserSubscriptionByIdResponse>(getGetUserSubscriptionByIdUrl(userId,clientType),
+  return orvalFetcher<unknown>(getGetUserSubscriptionByIdUrl(userId,clientType),
   {
     ...options,
     method: 'GET'
@@ -21393,40 +16764,6 @@ export function useGetUserSubscriptionById<TData = Awaited<ReturnType<typeof get
 
 
 
-export type getUserSubUpdateListResponse200 = {
-  data: UserSubscriptionUpdateList
-  status: 200
-}
-
-export type getUserSubUpdateListResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUserSubUpdateListResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUserSubUpdateListResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUserSubUpdateListResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserSubUpdateListResponseSuccess = (getUserSubUpdateListResponse200) & {
-  headers: Headers;
-};
-export type getUserSubUpdateListResponseError = (getUserSubUpdateListResponse401 | getUserSubUpdateListResponse403 | getUserSubUpdateListResponse404 | getUserSubUpdateListResponse422) & {
-  headers: Headers;
-};
-
-export type getUserSubUpdateListResponse = (getUserSubUpdateListResponseSuccess | getUserSubUpdateListResponseError)
-
 export const getGetUserSubUpdateListUrl = (username: string,
     params?: GetUserSubUpdateListParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -21448,9 +16785,9 @@ export const getGetUserSubUpdateListUrl = (username: string,
  * @summary Get User Sub Update List
  */
 export const getUserSubUpdateList = async (username: string,
-    params?: GetUserSubUpdateListParams, options?: RequestInit): Promise<getUserSubUpdateListResponse> => {
+    params?: GetUserSubUpdateListParams, options?: RequestInit): Promise<UserSubscriptionUpdateList> => {
 
-  return orvalFetcher<getUserSubUpdateListResponse>(getGetUserSubUpdateListUrl(username,params),
+  return orvalFetcher<UserSubscriptionUpdateList>(getGetUserSubUpdateListUrl(username,params),
   {
     ...options,
     method: 'GET'
@@ -21544,40 +16881,6 @@ export function useGetUserSubUpdateList<TData = Awaited<ReturnType<typeof getUse
 
 
 
-export type getUserSubUpdateListByUsernameResponse200 = {
-  data: UserSubscriptionUpdateList
-  status: 200
-}
-
-export type getUserSubUpdateListByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUserSubUpdateListByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUserSubUpdateListByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUserSubUpdateListByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserSubUpdateListByUsernameResponseSuccess = (getUserSubUpdateListByUsernameResponse200) & {
-  headers: Headers;
-};
-export type getUserSubUpdateListByUsernameResponseError = (getUserSubUpdateListByUsernameResponse401 | getUserSubUpdateListByUsernameResponse403 | getUserSubUpdateListByUsernameResponse404 | getUserSubUpdateListByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type getUserSubUpdateListByUsernameResponse = (getUserSubUpdateListByUsernameResponseSuccess | getUserSubUpdateListByUsernameResponseError)
-
 export const getGetUserSubUpdateListByUsernameUrl = (username: string,
     params?: GetUserSubUpdateListByUsernameParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -21598,9 +16901,9 @@ export const getGetUserSubUpdateListByUsernameUrl = (username: string,
  * @summary Get User Sub Update List By Username
  */
 export const getUserSubUpdateListByUsername = async (username: string,
-    params?: GetUserSubUpdateListByUsernameParams, options?: RequestInit): Promise<getUserSubUpdateListByUsernameResponse> => {
+    params?: GetUserSubUpdateListByUsernameParams, options?: RequestInit): Promise<UserSubscriptionUpdateList> => {
 
-  return orvalFetcher<getUserSubUpdateListByUsernameResponse>(getGetUserSubUpdateListByUsernameUrl(username,params),
+  return orvalFetcher<UserSubscriptionUpdateList>(getGetUserSubUpdateListByUsernameUrl(username,params),
   {
     ...options,
     method: 'GET'
@@ -21694,40 +16997,6 @@ export function useGetUserSubUpdateListByUsername<TData = Awaited<ReturnType<typ
 
 
 
-export type getUserSubUpdateListByIdResponse200 = {
-  data: UserSubscriptionUpdateList
-  status: 200
-}
-
-export type getUserSubUpdateListByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUserSubUpdateListByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUserSubUpdateListByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUserSubUpdateListByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserSubUpdateListByIdResponseSuccess = (getUserSubUpdateListByIdResponse200) & {
-  headers: Headers;
-};
-export type getUserSubUpdateListByIdResponseError = (getUserSubUpdateListByIdResponse401 | getUserSubUpdateListByIdResponse403 | getUserSubUpdateListByIdResponse404 | getUserSubUpdateListByIdResponse422) & {
-  headers: Headers;
-};
-
-export type getUserSubUpdateListByIdResponse = (getUserSubUpdateListByIdResponseSuccess | getUserSubUpdateListByIdResponseError)
-
 export const getGetUserSubUpdateListByIdUrl = (userId: number,
     params?: GetUserSubUpdateListByIdParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -21748,9 +17017,9 @@ export const getGetUserSubUpdateListByIdUrl = (userId: number,
  * @summary Get User Sub Update List By Id
  */
 export const getUserSubUpdateListById = async (userId: number,
-    params?: GetUserSubUpdateListByIdParams, options?: RequestInit): Promise<getUserSubUpdateListByIdResponse> => {
+    params?: GetUserSubUpdateListByIdParams, options?: RequestInit): Promise<UserSubscriptionUpdateList> => {
 
-  return orvalFetcher<getUserSubUpdateListByIdResponse>(getGetUserSubUpdateListByIdUrl(userId,params),
+  return orvalFetcher<UserSubscriptionUpdateList>(getGetUserSubUpdateListByIdUrl(userId,params),
   {
     ...options,
     method: 'GET'
@@ -21844,45 +17113,6 @@ export function useGetUserSubUpdateListById<TData = Awaited<ReturnType<typeof ge
 
 
 
-export type getUsersResponse200 = {
-  data: UsersResponse
-  status: 200
-}
-
-export type getUsersResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type getUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUsersResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUsersResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUsersResponseSuccess = (getUsersResponse200) & {
-  headers: Headers;
-};
-export type getUsersResponseError = (getUsersResponse400 | getUsersResponse401 | getUsersResponse403 | getUsersResponse404 | getUsersResponse422) & {
-  headers: Headers;
-};
-
-export type getUsersResponse = (getUsersResponseSuccess | getUsersResponseError)
-
 export const getGetUsersUrl = (params?: GetUsersParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -21910,9 +17140,9 @@ export const getGetUsersUrl = (params?: GetUsersParams,) => {
  * Get all users
  * @summary Get Users
  */
-export const getUsers = async (params?: GetUsersParams, options?: RequestInit): Promise<getUsersResponse> => {
+export const getUsers = async (params?: GetUsersParams, options?: RequestInit): Promise<UsersResponse> => {
 
-  return orvalFetcher<getUsersResponse>(getGetUsersUrl(params),
+  return orvalFetcher<UsersResponse>(getGetUsersUrl(params),
   {
     ...options,
     method: 'GET'
@@ -22000,40 +17230,6 @@ export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError
 
 
 
-export type getUsersSimpleResponse200 = {
-  data: UsersSimpleResponse
-  status: 200
-}
-
-export type getUsersSimpleResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type getUsersSimpleResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUsersSimpleResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUsersSimpleResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUsersSimpleResponseSuccess = (getUsersSimpleResponse200) & {
-  headers: Headers;
-};
-export type getUsersSimpleResponseError = (getUsersSimpleResponse400 | getUsersSimpleResponse401 | getUsersSimpleResponse403 | getUsersSimpleResponse422) & {
-  headers: Headers;
-};
-
-export type getUsersSimpleResponse = (getUsersSimpleResponseSuccess | getUsersSimpleResponseError)
-
 export const getGetUsersSimpleUrl = (params?: GetUsersSimpleParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -22061,9 +17257,9 @@ export const getGetUsersSimpleUrl = (params?: GetUsersSimpleParams,) => {
  * Returns only id and username for users. Optimized for dropdowns and autocomplete.
  * @summary Get lightweight user list
  */
-export const getUsersSimple = async (params?: GetUsersSimpleParams, options?: RequestInit): Promise<getUsersSimpleResponse> => {
+export const getUsersSimple = async (params?: GetUsersSimpleParams, options?: RequestInit): Promise<UsersSimpleResponse> => {
 
-  return orvalFetcher<getUsersSimpleResponse>(getGetUsersSimpleUrl(params),
+  return orvalFetcher<UsersSimpleResponse>(getGetUsersSimpleUrl(params),
   {
     ...options,
     method: 'GET'
@@ -22151,40 +17347,6 @@ export function useGetUsersSimple<TData = Awaited<ReturnType<typeof getUsersSimp
 
 
 
-export type getUserUsageResponse200 = {
-  data: UserUsageStatsList
-  status: 200
-}
-
-export type getUserUsageResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUserUsageResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUserUsageResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUserUsageResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserUsageResponseSuccess = (getUserUsageResponse200) & {
-  headers: Headers;
-};
-export type getUserUsageResponseError = (getUserUsageResponse401 | getUserUsageResponse403 | getUserUsageResponse404 | getUserUsageResponse422) & {
-  headers: Headers;
-};
-
-export type getUserUsageResponse = (getUserUsageResponseSuccess | getUserUsageResponseError)
-
 export const getGetUserUsageUrl = (username: string,
     params?: GetUserUsageParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -22206,9 +17368,9 @@ export const getGetUserUsageUrl = (username: string,
  * @summary Get User Usage
  */
 export const getUserUsage = async (username: string,
-    params?: GetUserUsageParams, options?: RequestInit): Promise<getUserUsageResponse> => {
+    params?: GetUserUsageParams, options?: RequestInit): Promise<UserUsageStatsList> => {
 
-  return orvalFetcher<getUserUsageResponse>(getGetUserUsageUrl(username,params),
+  return orvalFetcher<UserUsageStatsList>(getGetUserUsageUrl(username,params),
   {
     ...options,
     method: 'GET'
@@ -22302,40 +17464,6 @@ export function useGetUserUsage<TData = Awaited<ReturnType<typeof getUserUsage>>
 
 
 
-export type getUserUsageByUsernameResponse200 = {
-  data: UserUsageStatsList
-  status: 200
-}
-
-export type getUserUsageByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUserUsageByUsernameResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUserUsageByUsernameResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUserUsageByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserUsageByUsernameResponseSuccess = (getUserUsageByUsernameResponse200) & {
-  headers: Headers;
-};
-export type getUserUsageByUsernameResponseError = (getUserUsageByUsernameResponse401 | getUserUsageByUsernameResponse403 | getUserUsageByUsernameResponse404 | getUserUsageByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type getUserUsageByUsernameResponse = (getUserUsageByUsernameResponseSuccess | getUserUsageByUsernameResponseError)
-
 export const getGetUserUsageByUsernameUrl = (username: string,
     params?: GetUserUsageByUsernameParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -22356,9 +17484,9 @@ export const getGetUserUsageByUsernameUrl = (username: string,
  * @summary Get User Usage By Username
  */
 export const getUserUsageByUsername = async (username: string,
-    params?: GetUserUsageByUsernameParams, options?: RequestInit): Promise<getUserUsageByUsernameResponse> => {
+    params?: GetUserUsageByUsernameParams, options?: RequestInit): Promise<UserUsageStatsList> => {
 
-  return orvalFetcher<getUserUsageByUsernameResponse>(getGetUserUsageByUsernameUrl(username,params),
+  return orvalFetcher<UserUsageStatsList>(getGetUserUsageByUsernameUrl(username,params),
   {
     ...options,
     method: 'GET'
@@ -22452,40 +17580,6 @@ export function useGetUserUsageByUsername<TData = Awaited<ReturnType<typeof getU
 
 
 
-export type getUserUsageByIdResponse200 = {
-  data: UserUsageStatsList
-  status: 200
-}
-
-export type getUserUsageByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUserUsageByIdResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUserUsageByIdResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUserUsageByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserUsageByIdResponseSuccess = (getUserUsageByIdResponse200) & {
-  headers: Headers;
-};
-export type getUserUsageByIdResponseError = (getUserUsageByIdResponse401 | getUserUsageByIdResponse403 | getUserUsageByIdResponse404 | getUserUsageByIdResponse422) & {
-  headers: Headers;
-};
-
-export type getUserUsageByIdResponse = (getUserUsageByIdResponseSuccess | getUserUsageByIdResponseError)
-
 export const getGetUserUsageByIdUrl = (userId: number,
     params?: GetUserUsageByIdParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -22506,9 +17600,9 @@ export const getGetUserUsageByIdUrl = (userId: number,
  * @summary Get User Usage By Id
  */
 export const getUserUsageById = async (userId: number,
-    params?: GetUserUsageByIdParams, options?: RequestInit): Promise<getUserUsageByIdResponse> => {
+    params?: GetUserUsageByIdParams, options?: RequestInit): Promise<UserUsageStatsList> => {
 
-  return orvalFetcher<getUserUsageByIdResponse>(getGetUserUsageByIdUrl(userId,params),
+  return orvalFetcher<UserUsageStatsList>(getGetUserUsageByIdUrl(userId,params),
   {
     ...options,
     method: 'GET'
@@ -22602,30 +17696,6 @@ export function useGetUserUsageById<TData = Awaited<ReturnType<typeof getUserUsa
 
 
 
-export type getUsersUsageResponse200 = {
-  data: UserUsageStatsList
-  status: 200
-}
-
-export type getUsersUsageResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUsersUsageResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUsersUsageResponseSuccess = (getUsersUsageResponse200) & {
-  headers: Headers;
-};
-export type getUsersUsageResponseError = (getUsersUsageResponse401 | getUsersUsageResponse422) & {
-  headers: Headers;
-};
-
-export type getUsersUsageResponse = (getUsersUsageResponseSuccess | getUsersUsageResponseError)
-
 export const getGetUsersUsageUrl = (params?: GetUsersUsageParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -22653,9 +17723,9 @@ export const getGetUsersUsageUrl = (params?: GetUsersUsageParams,) => {
  * Get all users usage
  * @summary Get Users Usage
  */
-export const getUsersUsage = async (params?: GetUsersUsageParams, options?: RequestInit): Promise<getUsersUsageResponse> => {
+export const getUsersUsage = async (params?: GetUsersUsageParams, options?: RequestInit): Promise<UserUsageStatsList> => {
 
-  return orvalFetcher<getUsersUsageResponse>(getGetUsersUsageUrl(params),
+  return orvalFetcher<UserUsageStatsList>(getGetUsersUsageUrl(params),
   {
     ...options,
     method: 'GET'
@@ -22743,30 +17813,6 @@ export function useGetUsersUsage<TData = Awaited<ReturnType<typeof getUsersUsage
 
 
 
-export type getUsersCountMetricResponse200 = {
-  data: UserCountMetricStatsList
-  status: 200
-}
-
-export type getUsersCountMetricResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUsersCountMetricResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUsersCountMetricResponseSuccess = (getUsersCountMetricResponse200) & {
-  headers: Headers;
-};
-export type getUsersCountMetricResponseError = (getUsersCountMetricResponse401 | getUsersCountMetricResponse422) & {
-  headers: Headers;
-};
-
-export type getUsersCountMetricResponse = (getUsersCountMetricResponseSuccess | getUsersCountMetricResponseError)
-
 export const getGetUsersCountMetricUrl = (metric: UserCountMetric,
     params?: GetUsersCountMetricParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -22796,9 +17842,9 @@ export const getGetUsersCountMetricUrl = (metric: UserCountMetric,
  * @summary Get Users Count Metric
  */
 export const getUsersCountMetric = async (metric: UserCountMetric,
-    params?: GetUsersCountMetricParams, options?: RequestInit): Promise<getUsersCountMetricResponse> => {
+    params?: GetUsersCountMetricParams, options?: RequestInit): Promise<UserCountMetricStatsList> => {
 
-  return orvalFetcher<getUsersCountMetricResponse>(getGetUsersCountMetricUrl(metric,params),
+  return orvalFetcher<UserCountMetricStatsList>(getGetUsersCountMetricUrl(metric,params),
   {
     ...options,
     method: 'GET'
@@ -22892,30 +17938,6 @@ export function useGetUsersCountMetric<TData = Awaited<ReturnType<typeof getUser
 
 
 
-export type getExpiredUsersResponse200 = {
-  data: string[]
-  status: 200
-}
-
-export type getExpiredUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getExpiredUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getExpiredUsersResponseSuccess = (getExpiredUsersResponse200) & {
-  headers: Headers;
-};
-export type getExpiredUsersResponseError = (getExpiredUsersResponse401 | getExpiredUsersResponse422) & {
-  headers: Headers;
-};
-
-export type getExpiredUsersResponse = (getExpiredUsersResponseSuccess | getExpiredUsersResponseError)
-
 export const getGetExpiredUsersUrl = (params?: GetExpiredUsersParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -22934,15 +17956,16 @@ export const getGetExpiredUsersUrl = (params?: GetExpiredUsersParams,) => {
 /**
  * Get cleanup-target users in the specified scope.
  *
- * - **target**: `expired` | `limited` | `on_hold` | `disabled`
+ * - **target**: `expired` | `limited` | `on_hold` | `disabled` | `inactive`
  * - **expired_after** / **expired_before** UTC datetime (optional)
  * - For `expired`: filters by expiration date.
  * - For `limited` / `on_hold` / `disabled`: filters by last_status_change (when they entered that status).
+ * - For `inactive`: filters by last activity (online_at, or created_at if never online); expired_before is required.
  * @summary Get Expired Users
  */
-export const getExpiredUsers = async (params?: GetExpiredUsersParams, options?: RequestInit): Promise<getExpiredUsersResponse> => {
+export const getExpiredUsers = async (params?: GetExpiredUsersParams, options?: RequestInit): Promise<string[]> => {
 
-  return orvalFetcher<getExpiredUsersResponse>(getGetExpiredUsersUrl(params),
+  return orvalFetcher<string[]>(getGetExpiredUsersUrl(params),
   {
     ...options,
     method: 'GET'
@@ -23030,30 +18053,6 @@ export function useGetExpiredUsers<TData = Awaited<ReturnType<typeof getExpiredU
 
 
 
-export type deleteExpiredUsersResponse200 = {
-  data: RemoveUsersResponse
-  status: 200
-}
-
-export type deleteExpiredUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type deleteExpiredUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteExpiredUsersResponseSuccess = (deleteExpiredUsersResponse200) & {
-  headers: Headers;
-};
-export type deleteExpiredUsersResponseError = (deleteExpiredUsersResponse401 | deleteExpiredUsersResponse422) & {
-  headers: Headers;
-};
-
-export type deleteExpiredUsersResponse = (deleteExpiredUsersResponseSuccess | deleteExpiredUsersResponseError)
-
 export const getDeleteExpiredUsersUrl = (params?: DeleteExpiredUsersParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -23072,16 +18071,17 @@ export const getDeleteExpiredUsersUrl = (params?: DeleteExpiredUsersParams,) => 
 /**
  * Delete cleanup-target users in the specified scope.
  *
- * - **target**: `expired` | `limited` | `on_hold` | `disabled`
+ * - **target**: `expired` | `limited` | `on_hold` | `disabled` | `inactive`
  * - **expired_after** / **expired_before** UTC datetime (optional)
  * - For `expired`: filters by expiration date.
  * - For `limited` / `on_hold` / `disabled`: filters by last_status_change (when they entered that status).
+ * - For `inactive`: filters by last activity (online_at, or created_at if never online); expired_before is required.
  * - **dry_run**: if true, returns users that would be deleted without deleting them.
  * @summary Delete Expired Users
  */
-export const deleteExpiredUsers = async (params?: DeleteExpiredUsersParams, options?: RequestInit): Promise<deleteExpiredUsersResponse> => {
+export const deleteExpiredUsers = async (params?: DeleteExpiredUsersParams, options?: RequestInit): Promise<RemoveUsersResponse> => {
 
-  return orvalFetcher<deleteExpiredUsersResponse>(getDeleteExpiredUsersUrl(params),
+  return orvalFetcher<RemoveUsersResponse>(getDeleteExpiredUsersUrl(params),
   {
     ...options,
     method: 'DELETE'
@@ -23139,45 +18139,6 @@ export const useDeleteExpiredUsers = <TError = ErrorType<Unauthorized | HTTPVali
       return useMutation(getDeleteExpiredUsersMutationOptions(options), queryClient);
     }
 
-export type bulkDeleteUsersResponse200 = {
-  data: RemoveUsersResponse
-  status: 200
-}
-
-export type bulkDeleteUsersResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDeleteUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDeleteUsersResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDeleteUsersResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDeleteUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDeleteUsersResponseSuccess = (bulkDeleteUsersResponse200) & {
-  headers: Headers;
-};
-export type bulkDeleteUsersResponseError = (bulkDeleteUsersResponse400 | bulkDeleteUsersResponse401 | bulkDeleteUsersResponse403 | bulkDeleteUsersResponse404 | bulkDeleteUsersResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDeleteUsersResponse = (bulkDeleteUsersResponseSuccess | bulkDeleteUsersResponseError)
-
 export const getBulkDeleteUsersUrl = () => {
 
 
@@ -23190,9 +18151,9 @@ export const getBulkDeleteUsersUrl = () => {
  * Delete selected users by ID.
  * @summary Bulk Delete Users
  */
-export const bulkDeleteUsers = async (bulkUsersSelection: BulkUsersSelection, options?: RequestInit): Promise<bulkDeleteUsersResponse> => {
+export const bulkDeleteUsers = async (bulkUsersSelection: BulkUsersSelection, options?: RequestInit): Promise<RemoveUsersResponse> => {
 
-  return orvalFetcher<bulkDeleteUsersResponse>(getBulkDeleteUsersUrl(),
+  return orvalFetcher<RemoveUsersResponse>(getBulkDeleteUsersUrl(),
   {
     ...options,
     method: 'POST',
@@ -23250,45 +18211,6 @@ export const useBulkDeleteUsers = <TError = ErrorType<HTTPException | Unauthoriz
       return useMutation(getBulkDeleteUsersMutationOptions(options), queryClient);
     }
 
-export type bulkResetUsersDataUsageResponse200 = {
-  data: BulkUsersActionResponse
-  status: 200
-}
-
-export type bulkResetUsersDataUsageResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkResetUsersDataUsageResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkResetUsersDataUsageResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkResetUsersDataUsageResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkResetUsersDataUsageResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkResetUsersDataUsageResponseSuccess = (bulkResetUsersDataUsageResponse200) & {
-  headers: Headers;
-};
-export type bulkResetUsersDataUsageResponseError = (bulkResetUsersDataUsageResponse400 | bulkResetUsersDataUsageResponse401 | bulkResetUsersDataUsageResponse403 | bulkResetUsersDataUsageResponse404 | bulkResetUsersDataUsageResponse422) & {
-  headers: Headers;
-};
-
-export type bulkResetUsersDataUsageResponse = (bulkResetUsersDataUsageResponseSuccess | bulkResetUsersDataUsageResponseError)
-
 export const getBulkResetUsersDataUsageUrl = () => {
 
 
@@ -23301,9 +18223,9 @@ export const getBulkResetUsersDataUsageUrl = () => {
  * Reset usage for selected users by ID.
  * @summary Bulk Reset Users Data Usage
  */
-export const bulkResetUsersDataUsage = async (bulkUsersSelection: BulkUsersSelection, options?: RequestInit): Promise<bulkResetUsersDataUsageResponse> => {
+export const bulkResetUsersDataUsage = async (bulkUsersSelection: BulkUsersSelection, options?: RequestInit): Promise<BulkUsersActionResponse> => {
 
-  return orvalFetcher<bulkResetUsersDataUsageResponse>(getBulkResetUsersDataUsageUrl(),
+  return orvalFetcher<BulkUsersActionResponse>(getBulkResetUsersDataUsageUrl(),
   {
     ...options,
     method: 'POST',
@@ -23361,45 +18283,6 @@ export const useBulkResetUsersDataUsage = <TError = ErrorType<HTTPException | Un
       return useMutation(getBulkResetUsersDataUsageMutationOptions(options), queryClient);
     }
 
-export type bulkDisableUsersResponse200 = {
-  data: BulkUsersActionResponse
-  status: 200
-}
-
-export type bulkDisableUsersResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDisableUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkDisableUsersResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDisableUsersResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDisableUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDisableUsersResponseSuccess = (bulkDisableUsersResponse200) & {
-  headers: Headers;
-};
-export type bulkDisableUsersResponseError = (bulkDisableUsersResponse400 | bulkDisableUsersResponse401 | bulkDisableUsersResponse403 | bulkDisableUsersResponse404 | bulkDisableUsersResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDisableUsersResponse = (bulkDisableUsersResponseSuccess | bulkDisableUsersResponseError)
-
 export const getBulkDisableUsersUrl = () => {
 
 
@@ -23412,9 +18295,9 @@ export const getBulkDisableUsersUrl = () => {
  * Disable selected users by ID.
  * @summary Bulk Disable Users
  */
-export const bulkDisableUsers = async (bulkUsersSelection: BulkUsersSelection, options?: RequestInit): Promise<bulkDisableUsersResponse> => {
+export const bulkDisableUsers = async (bulkUsersSelection: BulkUsersSelection, options?: RequestInit): Promise<BulkUsersActionResponse> => {
 
-  return orvalFetcher<bulkDisableUsersResponse>(getBulkDisableUsersUrl(),
+  return orvalFetcher<BulkUsersActionResponse>(getBulkDisableUsersUrl(),
   {
     ...options,
     method: 'POST',
@@ -23472,45 +18355,6 @@ export const useBulkDisableUsers = <TError = ErrorType<HTTPException | Unauthori
       return useMutation(getBulkDisableUsersMutationOptions(options), queryClient);
     }
 
-export type bulkEnableUsersResponse200 = {
-  data: BulkUsersActionResponse
-  status: 200
-}
-
-export type bulkEnableUsersResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkEnableUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkEnableUsersResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkEnableUsersResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkEnableUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkEnableUsersResponseSuccess = (bulkEnableUsersResponse200) & {
-  headers: Headers;
-};
-export type bulkEnableUsersResponseError = (bulkEnableUsersResponse400 | bulkEnableUsersResponse401 | bulkEnableUsersResponse403 | bulkEnableUsersResponse404 | bulkEnableUsersResponse422) & {
-  headers: Headers;
-};
-
-export type bulkEnableUsersResponse = (bulkEnableUsersResponseSuccess | bulkEnableUsersResponseError)
-
 export const getBulkEnableUsersUrl = () => {
 
 
@@ -23523,9 +18367,9 @@ export const getBulkEnableUsersUrl = () => {
  * Enable selected users by ID.
  * @summary Bulk Enable Users
  */
-export const bulkEnableUsers = async (bulkUsersSelection: BulkUsersSelection, options?: RequestInit): Promise<bulkEnableUsersResponse> => {
+export const bulkEnableUsers = async (bulkUsersSelection: BulkUsersSelection, options?: RequestInit): Promise<BulkUsersActionResponse> => {
 
-  return orvalFetcher<bulkEnableUsersResponse>(getBulkEnableUsersUrl(),
+  return orvalFetcher<BulkUsersActionResponse>(getBulkEnableUsersUrl(),
   {
     ...options,
     method: 'POST',
@@ -23583,45 +18427,6 @@ export const useBulkEnableUsers = <TError = ErrorType<HTTPException | Unauthoriz
       return useMutation(getBulkEnableUsersMutationOptions(options), queryClient);
     }
 
-export type bulkRevokeUsersSubscriptionResponse200 = {
-  data: BulkUsersActionResponse
-  status: 200
-}
-
-export type bulkRevokeUsersSubscriptionResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkRevokeUsersSubscriptionResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkRevokeUsersSubscriptionResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkRevokeUsersSubscriptionResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkRevokeUsersSubscriptionResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkRevokeUsersSubscriptionResponseSuccess = (bulkRevokeUsersSubscriptionResponse200) & {
-  headers: Headers;
-};
-export type bulkRevokeUsersSubscriptionResponseError = (bulkRevokeUsersSubscriptionResponse400 | bulkRevokeUsersSubscriptionResponse401 | bulkRevokeUsersSubscriptionResponse403 | bulkRevokeUsersSubscriptionResponse404 | bulkRevokeUsersSubscriptionResponse422) & {
-  headers: Headers;
-};
-
-export type bulkRevokeUsersSubscriptionResponse = (bulkRevokeUsersSubscriptionResponseSuccess | bulkRevokeUsersSubscriptionResponseError)
-
 export const getBulkRevokeUsersSubscriptionUrl = () => {
 
 
@@ -23634,9 +18439,9 @@ export const getBulkRevokeUsersSubscriptionUrl = () => {
  * Revoke subscriptions for selected users by ID.
  * @summary Bulk Revoke Users Subscription
  */
-export const bulkRevokeUsersSubscription = async (bulkUsersSelection: BulkUsersSelection, options?: RequestInit): Promise<bulkRevokeUsersSubscriptionResponse> => {
+export const bulkRevokeUsersSubscription = async (bulkUsersSelection: BulkUsersSelection, options?: RequestInit): Promise<BulkUsersActionResponse> => {
 
-  return orvalFetcher<bulkRevokeUsersSubscriptionResponse>(getBulkRevokeUsersSubscriptionUrl(),
+  return orvalFetcher<BulkUsersActionResponse>(getBulkRevokeUsersSubscriptionUrl(),
   {
     ...options,
     method: 'POST',
@@ -23694,45 +18499,6 @@ export const useBulkRevokeUsersSubscription = <TError = ErrorType<HTTPException 
       return useMutation(getBulkRevokeUsersSubscriptionMutationOptions(options), queryClient);
     }
 
-export type bulkSetOwnerResponse200 = {
-  data: BulkUsersActionResponse
-  status: 200
-}
-
-export type bulkSetOwnerResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkSetOwnerResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkSetOwnerResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkSetOwnerResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkSetOwnerResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkSetOwnerResponseSuccess = (bulkSetOwnerResponse200) & {
-  headers: Headers;
-};
-export type bulkSetOwnerResponseError = (bulkSetOwnerResponse400 | bulkSetOwnerResponse401 | bulkSetOwnerResponse403 | bulkSetOwnerResponse404 | bulkSetOwnerResponse422) & {
-  headers: Headers;
-};
-
-export type bulkSetOwnerResponse = (bulkSetOwnerResponseSuccess | bulkSetOwnerResponseError)
-
 export const getBulkSetOwnerUrl = () => {
 
 
@@ -23745,9 +18511,9 @@ export const getBulkSetOwnerUrl = () => {
  * Set a new owner for selected users by ID.
  * @summary Bulk Set Owner
  */
-export const bulkSetOwner = async (bulkUsersSetOwner: BulkUsersSetOwner, options?: RequestInit): Promise<bulkSetOwnerResponse> => {
+export const bulkSetOwner = async (bulkUsersSetOwner: BulkUsersSetOwner, options?: RequestInit): Promise<BulkUsersActionResponse> => {
 
-  return orvalFetcher<bulkSetOwnerResponse>(getBulkSetOwnerUrl(),
+  return orvalFetcher<BulkUsersActionResponse>(getBulkSetOwnerUrl(),
   {
     ...options,
     method: 'PUT',
@@ -23805,30 +18571,6 @@ export const useBulkSetOwner = <TError = ErrorType<HTTPException | Unauthorized 
       return useMutation(getBulkSetOwnerMutationOptions(options), queryClient);
     }
 
-export type createUserFromTemplateResponse201 = {
-  data: UserResponse
-  status: 201
-}
-
-export type createUserFromTemplateResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type createUserFromTemplateResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createUserFromTemplateResponseSuccess = (createUserFromTemplateResponse201) & {
-  headers: Headers;
-};
-export type createUserFromTemplateResponseError = (createUserFromTemplateResponse401 | createUserFromTemplateResponse422) & {
-  headers: Headers;
-};
-
-export type createUserFromTemplateResponse = (createUserFromTemplateResponseSuccess | createUserFromTemplateResponseError)
-
 export const getCreateUserFromTemplateUrl = () => {
 
 
@@ -23840,9 +18582,9 @@ export const getCreateUserFromTemplateUrl = () => {
 /**
  * @summary Create User From Template
  */
-export const createUserFromTemplate = async (createUserFromTemplate: CreateUserFromTemplate, options?: RequestInit): Promise<createUserFromTemplateResponse> => {
+export const createUserFromTemplate = async (createUserFromTemplate: CreateUserFromTemplate, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<createUserFromTemplateResponse>(getCreateUserFromTemplateUrl(),
+  return orvalFetcher<UserResponse>(getCreateUserFromTemplateUrl(),
   {
     ...options,
     method: 'POST',
@@ -23900,50 +18642,6 @@ export const useCreateUserFromTemplate = <TError = ErrorType<Unauthorized | HTTP
       return useMutation(getCreateUserFromTemplateMutationOptions(options), queryClient);
     }
 
-export type bulkCreateUsersFromTemplateResponse201 = {
-  data: BulkUsersCreateResponse
-  status: 201
-}
-
-export type bulkCreateUsersFromTemplateResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkCreateUsersFromTemplateResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkCreateUsersFromTemplateResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkCreateUsersFromTemplateResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkCreateUsersFromTemplateResponse409 = {
-  data: Conflict
-  status: 409
-}
-
-export type bulkCreateUsersFromTemplateResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkCreateUsersFromTemplateResponseSuccess = (bulkCreateUsersFromTemplateResponse201) & {
-  headers: Headers;
-};
-export type bulkCreateUsersFromTemplateResponseError = (bulkCreateUsersFromTemplateResponse400 | bulkCreateUsersFromTemplateResponse401 | bulkCreateUsersFromTemplateResponse403 | bulkCreateUsersFromTemplateResponse404 | bulkCreateUsersFromTemplateResponse409 | bulkCreateUsersFromTemplateResponse422) & {
-  headers: Headers;
-};
-
-export type bulkCreateUsersFromTemplateResponse = (bulkCreateUsersFromTemplateResponseSuccess | bulkCreateUsersFromTemplateResponseError)
-
 export const getBulkCreateUsersFromTemplateUrl = () => {
 
 
@@ -23962,9 +18660,9 @@ export const getBulkCreateUsersFromTemplateUrl = () => {
  * Returns subscription URLs for created users.
  * @summary Bulk Create Users From Template
  */
-export const bulkCreateUsersFromTemplate = async (bulkUsersFromTemplate: BulkUsersFromTemplate, options?: RequestInit): Promise<bulkCreateUsersFromTemplateResponse> => {
+export const bulkCreateUsersFromTemplate = async (bulkUsersFromTemplate: BulkUsersFromTemplate, options?: RequestInit): Promise<BulkUsersCreateResponse> => {
 
-  return orvalFetcher<bulkCreateUsersFromTemplateResponse>(getBulkCreateUsersFromTemplateUrl(),
+  return orvalFetcher<BulkUsersCreateResponse>(getBulkCreateUsersFromTemplateUrl(),
   {
     ...options,
     method: 'POST',
@@ -24022,45 +18720,6 @@ export const useBulkCreateUsersFromTemplate = <TError = ErrorType<HTTPException 
       return useMutation(getBulkCreateUsersFromTemplateMutationOptions(options), queryClient);
     }
 
-export type bulkApplyTemplateToUsersResponse200 = {
-  data: BulkUsersActionResponse
-  status: 200
-}
-
-export type bulkApplyTemplateToUsersResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkApplyTemplateToUsersResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkApplyTemplateToUsersResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkApplyTemplateToUsersResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkApplyTemplateToUsersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkApplyTemplateToUsersResponseSuccess = (bulkApplyTemplateToUsersResponse200) & {
-  headers: Headers;
-};
-export type bulkApplyTemplateToUsersResponseError = (bulkApplyTemplateToUsersResponse400 | bulkApplyTemplateToUsersResponse401 | bulkApplyTemplateToUsersResponse403 | bulkApplyTemplateToUsersResponse404 | bulkApplyTemplateToUsersResponse422) & {
-  headers: Headers;
-};
-
-export type bulkApplyTemplateToUsersResponse = (bulkApplyTemplateToUsersResponseSuccess | bulkApplyTemplateToUsersResponseError)
-
 export const getBulkApplyTemplateToUsersUrl = () => {
 
 
@@ -24073,9 +18732,9 @@ export const getBulkApplyTemplateToUsersUrl = () => {
  * Apply a user template to selected existing users by ID.
  * @summary Bulk Apply Template To Users
  */
-export const bulkApplyTemplateToUsers = async (bulkUsersApplyTemplate: BulkUsersApplyTemplate, options?: RequestInit): Promise<bulkApplyTemplateToUsersResponse> => {
+export const bulkApplyTemplateToUsers = async (bulkUsersApplyTemplate: BulkUsersApplyTemplate, options?: RequestInit): Promise<BulkUsersActionResponse> => {
 
-  return orvalFetcher<bulkApplyTemplateToUsersResponse>(getBulkApplyTemplateToUsersUrl(),
+  return orvalFetcher<BulkUsersActionResponse>(getBulkApplyTemplateToUsersUrl(),
   {
     ...options,
     method: 'POST',
@@ -24133,30 +18792,6 @@ export const useBulkApplyTemplateToUsers = <TError = ErrorType<HTTPException | U
       return useMutation(getBulkApplyTemplateToUsersMutationOptions(options), queryClient);
     }
 
-export type modifyUserWithTemplateResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type modifyUserWithTemplateResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyUserWithTemplateResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyUserWithTemplateResponseSuccess = (modifyUserWithTemplateResponse200) & {
-  headers: Headers;
-};
-export type modifyUserWithTemplateResponseError = (modifyUserWithTemplateResponse401 | modifyUserWithTemplateResponse422) & {
-  headers: Headers;
-};
-
-export type modifyUserWithTemplateResponse = (modifyUserWithTemplateResponseSuccess | modifyUserWithTemplateResponseError)
-
 export const getModifyUserWithTemplateUrl = (username: string,) => {
 
 
@@ -24169,9 +18804,9 @@ export const getModifyUserWithTemplateUrl = (username: string,) => {
  * @summary Modify User With Template
  */
 export const modifyUserWithTemplate = async (username: string,
-    modifyUserByTemplate: ModifyUserByTemplate, options?: RequestInit): Promise<modifyUserWithTemplateResponse> => {
+    modifyUserByTemplate: ModifyUserByTemplate, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<modifyUserWithTemplateResponse>(getModifyUserWithTemplateUrl(username),
+  return orvalFetcher<UserResponse>(getModifyUserWithTemplateUrl(username),
   {
     ...options,
     method: 'PUT',
@@ -24229,30 +18864,6 @@ export const useModifyUserWithTemplate = <TError = ErrorType<Unauthorized | HTTP
       return useMutation(getModifyUserWithTemplateMutationOptions(options), queryClient);
     }
 
-export type modifyUserWithTemplateByUsernameResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type modifyUserWithTemplateByUsernameResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyUserWithTemplateByUsernameResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyUserWithTemplateByUsernameResponseSuccess = (modifyUserWithTemplateByUsernameResponse200) & {
-  headers: Headers;
-};
-export type modifyUserWithTemplateByUsernameResponseError = (modifyUserWithTemplateByUsernameResponse401 | modifyUserWithTemplateByUsernameResponse422) & {
-  headers: Headers;
-};
-
-export type modifyUserWithTemplateByUsernameResponse = (modifyUserWithTemplateByUsernameResponseSuccess | modifyUserWithTemplateByUsernameResponseError)
-
 export const getModifyUserWithTemplateByUsernameUrl = (username: string,) => {
 
 
@@ -24265,9 +18876,9 @@ export const getModifyUserWithTemplateByUsernameUrl = (username: string,) => {
  * @summary Modify User With Template By Username
  */
 export const modifyUserWithTemplateByUsername = async (username: string,
-    modifyUserByTemplate: ModifyUserByTemplate, options?: RequestInit): Promise<modifyUserWithTemplateByUsernameResponse> => {
+    modifyUserByTemplate: ModifyUserByTemplate, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<modifyUserWithTemplateByUsernameResponse>(getModifyUserWithTemplateByUsernameUrl(username),
+  return orvalFetcher<UserResponse>(getModifyUserWithTemplateByUsernameUrl(username),
   {
     ...options,
     method: 'PUT',
@@ -24325,30 +18936,6 @@ export const useModifyUserWithTemplateByUsername = <TError = ErrorType<Unauthori
       return useMutation(getModifyUserWithTemplateByUsernameMutationOptions(options), queryClient);
     }
 
-export type modifyUserWithTemplateByIdResponse200 = {
-  data: UserResponse
-  status: 200
-}
-
-export type modifyUserWithTemplateByIdResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type modifyUserWithTemplateByIdResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyUserWithTemplateByIdResponseSuccess = (modifyUserWithTemplateByIdResponse200) & {
-  headers: Headers;
-};
-export type modifyUserWithTemplateByIdResponseError = (modifyUserWithTemplateByIdResponse401 | modifyUserWithTemplateByIdResponse422) & {
-  headers: Headers;
-};
-
-export type modifyUserWithTemplateByIdResponse = (modifyUserWithTemplateByIdResponseSuccess | modifyUserWithTemplateByIdResponseError)
-
 export const getModifyUserWithTemplateByIdUrl = (userId: number,) => {
 
 
@@ -24361,9 +18948,9 @@ export const getModifyUserWithTemplateByIdUrl = (userId: number,) => {
  * @summary Modify User With Template By Id
  */
 export const modifyUserWithTemplateById = async (userId: number,
-    modifyUserByTemplate: ModifyUserByTemplate, options?: RequestInit): Promise<modifyUserWithTemplateByIdResponse> => {
+    modifyUserByTemplate: ModifyUserByTemplate, options?: RequestInit): Promise<UserResponse> => {
 
-  return orvalFetcher<modifyUserWithTemplateByIdResponse>(getModifyUserWithTemplateByIdUrl(userId),
+  return orvalFetcher<UserResponse>(getModifyUserWithTemplateByIdUrl(userId),
   {
     ...options,
     method: 'PUT',
@@ -24421,30 +19008,6 @@ export const useModifyUserWithTemplateById = <TError = ErrorType<Unauthorized | 
       return useMutation(getModifyUserWithTemplateByIdMutationOptions(options), queryClient);
     }
 
-export type bulkModifyUsersExpireResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type bulkModifyUsersExpireResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkModifyUsersExpireResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkModifyUsersExpireResponseSuccess = (bulkModifyUsersExpireResponse200) & {
-  headers: Headers;
-};
-export type bulkModifyUsersExpireResponseError = (bulkModifyUsersExpireResponse401 | bulkModifyUsersExpireResponse422) & {
-  headers: Headers;
-};
-
-export type bulkModifyUsersExpireResponse = (bulkModifyUsersExpireResponseSuccess | bulkModifyUsersExpireResponseError)
-
 export const getBulkModifyUsersExpireUrl = () => {
 
 
@@ -24465,9 +19028,9 @@ export const getBulkModifyUsersExpireUrl = () => {
  * - **expire_before**: Optional UTC datetime to filter users whose expire date is on or before this date
  * @summary Bulk sum/sub to expire of users
  */
-export const bulkModifyUsersExpire = async (bulkUser: BulkUser, options?: RequestInit): Promise<bulkModifyUsersExpireResponse> => {
+export const bulkModifyUsersExpire = async (bulkUser: BulkUser, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<bulkModifyUsersExpireResponse>(getBulkModifyUsersExpireUrl(),
+  return orvalFetcher<unknown>(getBulkModifyUsersExpireUrl(),
   {
     ...options,
     method: 'POST',
@@ -24525,30 +19088,6 @@ export const useBulkModifyUsersExpire = <TError = ErrorType<Unauthorized | HTTPV
       return useMutation(getBulkModifyUsersExpireMutationOptions(options), queryClient);
     }
 
-export type bulkModifyUsersDatalimitResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type bulkModifyUsersDatalimitResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkModifyUsersDatalimitResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkModifyUsersDatalimitResponseSuccess = (bulkModifyUsersDatalimitResponse200) & {
-  headers: Headers;
-};
-export type bulkModifyUsersDatalimitResponseError = (bulkModifyUsersDatalimitResponse401 | bulkModifyUsersDatalimitResponse422) & {
-  headers: Headers;
-};
-
-export type bulkModifyUsersDatalimitResponse = (bulkModifyUsersDatalimitResponseSuccess | bulkModifyUsersDatalimitResponseError)
-
 export const getBulkModifyUsersDatalimitUrl = () => {
 
 
@@ -24569,9 +19108,9 @@ export const getBulkModifyUsersDatalimitUrl = () => {
  * - **expire_before**: Optional UTC datetime to filter users whose expire date is on or before this date
  * @summary Bulk sum/sub to data limit of users
  */
-export const bulkModifyUsersDatalimit = async (bulkUser: BulkUser, options?: RequestInit): Promise<bulkModifyUsersDatalimitResponse> => {
+export const bulkModifyUsersDatalimit = async (bulkUser: BulkUser, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<bulkModifyUsersDatalimitResponse>(getBulkModifyUsersDatalimitUrl(),
+  return orvalFetcher<unknown>(getBulkModifyUsersDatalimitUrl(),
   {
     ...options,
     method: 'POST',
@@ -24629,30 +19168,6 @@ export const useBulkModifyUsersDatalimit = <TError = ErrorType<Unauthorized | HT
       return useMutation(getBulkModifyUsersDatalimitMutationOptions(options), queryClient);
     }
 
-export type bulkModifyUsersProxySettingsResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type bulkModifyUsersProxySettingsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type bulkModifyUsersProxySettingsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkModifyUsersProxySettingsResponseSuccess = (bulkModifyUsersProxySettingsResponse200) & {
-  headers: Headers;
-};
-export type bulkModifyUsersProxySettingsResponseError = (bulkModifyUsersProxySettingsResponse401 | bulkModifyUsersProxySettingsResponse422) & {
-  headers: Headers;
-};
-
-export type bulkModifyUsersProxySettingsResponse = (bulkModifyUsersProxySettingsResponseSuccess | bulkModifyUsersProxySettingsResponseError)
-
 export const getBulkModifyUsersProxySettingsUrl = () => {
 
 
@@ -24664,9 +19179,9 @@ export const getBulkModifyUsersProxySettingsUrl = () => {
 /**
  * @summary Bulk modify users proxy settings
  */
-export const bulkModifyUsersProxySettings = async (bulkUsersProxy: BulkUsersProxy, options?: RequestInit): Promise<bulkModifyUsersProxySettingsResponse> => {
+export const bulkModifyUsersProxySettings = async (bulkUsersProxy: BulkUsersProxy, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<bulkModifyUsersProxySettingsResponse>(getBulkModifyUsersProxySettingsUrl(),
+  return orvalFetcher<unknown>(getBulkModifyUsersProxySettingsUrl(),
   {
     ...options,
     method: 'POST',
@@ -24724,25 +19239,6 @@ export const useBulkModifyUsersProxySettings = <TError = ErrorType<Unauthorized 
       return useMutation(getBulkModifyUsersProxySettingsMutationOptions(options), queryClient);
     }
 
-export type userSubscriptionResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type userSubscriptionResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type userSubscriptionResponseSuccess = (userSubscriptionResponse200) & {
-  headers: Headers;
-};
-export type userSubscriptionResponseError = (userSubscriptionResponse422) & {
-  headers: Headers;
-};
-
-export type userSubscriptionResponse = (userSubscriptionResponseSuccess | userSubscriptionResponseError)
-
 export const getUserSubscriptionUrl = (token: string,) => {
 
 
@@ -24755,9 +19251,9 @@ export const getUserSubscriptionUrl = (token: string,) => {
  * Provides a subscription link based on the user agent (Clash, V2Ray, etc.).
  * @summary User Subscription
  */
-export const userSubscription = async (token: string, options?: RequestInit): Promise<userSubscriptionResponse> => {
+export const userSubscription = async (token: string, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<userSubscriptionResponse>(getUserSubscriptionUrl(token),
+  return orvalFetcher<unknown>(getUserSubscriptionUrl(token),
   {
     ...options,
     method: 'GET'
@@ -24845,25 +19341,6 @@ export function useUserSubscription<TData = Awaited<ReturnType<typeof userSubscr
 
 
 
-export type userSubscriptionHeadersResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type userSubscriptionHeadersResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type userSubscriptionHeadersResponseSuccess = (userSubscriptionHeadersResponse200) & {
-  headers: Headers;
-};
-export type userSubscriptionHeadersResponseError = (userSubscriptionHeadersResponse422) & {
-  headers: Headers;
-};
-
-export type userSubscriptionHeadersResponse = (userSubscriptionHeadersResponseSuccess | userSubscriptionHeadersResponseError)
-
 export const getUserSubscriptionHeadersUrl = (token: string,) => {
 
 
@@ -24876,9 +19353,9 @@ export const getUserSubscriptionHeadersUrl = (token: string,) => {
  * Provides subscription headers without response body.
  * @summary User Subscription Headers
  */
-export const userSubscriptionHeaders = async (token: string, options?: RequestInit): Promise<userSubscriptionHeadersResponse> => {
+export const userSubscriptionHeaders = async (token: string, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<userSubscriptionHeadersResponse>(getUserSubscriptionHeadersUrl(token),
+  return orvalFetcher<unknown>(getUserSubscriptionHeadersUrl(token),
   {
     ...options,
     method: 'HEAD'
@@ -24936,25 +19413,6 @@ export const useUserSubscriptionHeaders = <TError = ErrorType<HTTPValidationErro
       return useMutation(getUserSubscriptionHeadersMutationOptions(options), queryClient);
     }
 
-export type userSubscriptionInfoResponse200 = {
-  data: SubscriptionUserResponse
-  status: 200
-}
-
-export type userSubscriptionInfoResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type userSubscriptionInfoResponseSuccess = (userSubscriptionInfoResponse200) & {
-  headers: Headers;
-};
-export type userSubscriptionInfoResponseError = (userSubscriptionInfoResponse422) & {
-  headers: Headers;
-};
-
-export type userSubscriptionInfoResponse = (userSubscriptionInfoResponseSuccess | userSubscriptionInfoResponseError)
-
 export const getUserSubscriptionInfoUrl = (token: string,) => {
 
 
@@ -24967,9 +19425,9 @@ export const getUserSubscriptionInfoUrl = (token: string,) => {
  * Retrieves detailed information about the user's subscription.
  * @summary User Subscription Info
  */
-export const userSubscriptionInfo = async (token: string, options?: RequestInit): Promise<userSubscriptionInfoResponse> => {
+export const userSubscriptionInfo = async (token: string, options?: RequestInit): Promise<SubscriptionUserResponse> => {
 
-  return orvalFetcher<userSubscriptionInfoResponse>(getUserSubscriptionInfoUrl(token),
+  return orvalFetcher<SubscriptionUserResponse>(getUserSubscriptionInfoUrl(token),
   {
     ...options,
     method: 'GET'
@@ -25057,25 +19515,6 @@ export function useUserSubscriptionInfo<TData = Awaited<ReturnType<typeof userSu
 
 
 
-export type userSubscriptionRawResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type userSubscriptionRawResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type userSubscriptionRawResponseSuccess = (userSubscriptionRawResponse200) & {
-  headers: Headers;
-};
-export type userSubscriptionRawResponseError = (userSubscriptionRawResponse422) & {
-  headers: Headers;
-};
-
-export type userSubscriptionRawResponse = (userSubscriptionRawResponseSuccess | userSubscriptionRawResponseError)
-
 export const getUserSubscriptionRawUrl = (token: string,) => {
 
 
@@ -25087,9 +19526,9 @@ export const getUserSubscriptionRawUrl = (token: string,) => {
 /**
  * @summary User Subscription Raw
  */
-export const userSubscriptionRaw = async (token: string, options?: RequestInit): Promise<userSubscriptionRawResponse> => {
+export const userSubscriptionRaw = async (token: string, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<userSubscriptionRawResponse>(getUserSubscriptionRawUrl(token),
+  return orvalFetcher<unknown>(getUserSubscriptionRawUrl(token),
   {
     ...options,
     method: 'GET'
@@ -25177,25 +19616,6 @@ export function useUserSubscriptionRaw<TData = Awaited<ReturnType<typeof userSub
 
 
 
-export type userSubscriptionAppsResponse200 = {
-  data: Application[]
-  status: 200
-}
-
-export type userSubscriptionAppsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type userSubscriptionAppsResponseSuccess = (userSubscriptionAppsResponse200) & {
-  headers: Headers;
-};
-export type userSubscriptionAppsResponseError = (userSubscriptionAppsResponse422) & {
-  headers: Headers;
-};
-
-export type userSubscriptionAppsResponse = (userSubscriptionAppsResponseSuccess | userSubscriptionAppsResponseError)
-
 export const getUserSubscriptionAppsUrl = (token: string,) => {
 
 
@@ -25208,9 +19628,9 @@ export const getUserSubscriptionAppsUrl = (token: string,) => {
  * Get applications available for user's subscription.
  * @summary User Subscription Apps
  */
-export const userSubscriptionApps = async (token: string, options?: RequestInit): Promise<userSubscriptionAppsResponse> => {
+export const userSubscriptionApps = async (token: string, options?: RequestInit): Promise<Application[]> => {
 
-  return orvalFetcher<userSubscriptionAppsResponse>(getUserSubscriptionAppsUrl(token),
+  return orvalFetcher<Application[]>(getUserSubscriptionAppsUrl(token),
   {
     ...options,
     method: 'GET'
@@ -25298,25 +19718,6 @@ export function useUserSubscriptionApps<TData = Awaited<ReturnType<typeof userSu
 
 
 
-export type getSubUserUsageResponse200 = {
-  data: UserUsageStatsList
-  status: 200
-}
-
-export type getSubUserUsageResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getSubUserUsageResponseSuccess = (getSubUserUsageResponse200) & {
-  headers: Headers;
-};
-export type getSubUserUsageResponseError = (getSubUserUsageResponse422) & {
-  headers: Headers;
-};
-
-export type getSubUserUsageResponse = (getSubUserUsageResponseSuccess | getSubUserUsageResponseError)
-
 export const getGetSubUserUsageUrl = (token: string,
     params?: GetSubUserUsageParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -25338,9 +19739,9 @@ export const getGetSubUserUsageUrl = (token: string,
  * @summary Get Sub User Usage
  */
 export const getSubUserUsage = async (token: string,
-    params?: GetSubUserUsageParams, options?: RequestInit): Promise<getSubUserUsageResponse> => {
+    params?: GetSubUserUsageParams, options?: RequestInit): Promise<UserUsageStatsList> => {
 
-  return orvalFetcher<getSubUserUsageResponse>(getGetSubUserUsageUrl(token,params),
+  return orvalFetcher<UserUsageStatsList>(getGetSubUserUsageUrl(token,params),
   {
     ...options,
     method: 'GET'
@@ -25434,25 +19835,6 @@ export function useGetSubUserUsage<TData = Awaited<ReturnType<typeof getSubUserU
 
 
 
-export type userSubscriptionWithClientTypeResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type userSubscriptionWithClientTypeResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type userSubscriptionWithClientTypeResponseSuccess = (userSubscriptionWithClientTypeResponse200) & {
-  headers: Headers;
-};
-export type userSubscriptionWithClientTypeResponseError = (userSubscriptionWithClientTypeResponse422) & {
-  headers: Headers;
-};
-
-export type userSubscriptionWithClientTypeResponse = (userSubscriptionWithClientTypeResponseSuccess | userSubscriptionWithClientTypeResponseError)
-
 export const getUserSubscriptionWithClientTypeUrl = (token: string,
     clientType: ConfigFormat,) => {
 
@@ -25467,9 +19849,9 @@ export const getUserSubscriptionWithClientTypeUrl = (token: string,
  * @summary User Subscription With Client Type
  */
 export const userSubscriptionWithClientType = async (token: string,
-    clientType: ConfigFormat, options?: RequestInit): Promise<userSubscriptionWithClientTypeResponse> => {
+    clientType: ConfigFormat, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<userSubscriptionWithClientTypeResponse>(getUserSubscriptionWithClientTypeUrl(token,clientType),
+  return orvalFetcher<unknown>(getUserSubscriptionWithClientTypeUrl(token,clientType),
   {
     ...options,
     method: 'GET'
@@ -25563,30 +19945,6 @@ export function useUserSubscriptionWithClientType<TData = Awaited<ReturnType<typ
 
 
 
-export type createUserTemplateResponse201 = {
-  data: UserTemplateResponse
-  status: 201
-}
-
-export type createUserTemplateResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type createUserTemplateResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createUserTemplateResponseSuccess = (createUserTemplateResponse201) & {
-  headers: Headers;
-};
-export type createUserTemplateResponseError = (createUserTemplateResponse403 | createUserTemplateResponse422) & {
-  headers: Headers;
-};
-
-export type createUserTemplateResponse = (createUserTemplateResponseSuccess | createUserTemplateResponseError)
-
 export const getCreateUserTemplateUrl = () => {
 
 
@@ -25604,9 +19962,9 @@ export const getCreateUserTemplateUrl = () => {
  * - **group_ids** list of group ids
  * @summary Create User Template
  */
-export const createUserTemplate = async (userTemplateCreate: UserTemplateCreate, options?: RequestInit): Promise<createUserTemplateResponse> => {
+export const createUserTemplate = async (userTemplateCreate: UserTemplateCreate, options?: RequestInit): Promise<UserTemplateResponse> => {
 
-  return orvalFetcher<createUserTemplateResponse>(getCreateUserTemplateUrl(),
+  return orvalFetcher<UserTemplateResponse>(getCreateUserTemplateUrl(),
   {
     ...options,
     method: 'POST',
@@ -25664,25 +20022,6 @@ export const useCreateUserTemplate = <TError = ErrorType<Forbidden | HTTPValidat
       return useMutation(getCreateUserTemplateMutationOptions(options), queryClient);
     }
 
-export type getUserTemplateResponse200 = {
-  data: UserTemplateResponse
-  status: 200
-}
-
-export type getUserTemplateResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserTemplateResponseSuccess = (getUserTemplateResponse200) & {
-  headers: Headers;
-};
-export type getUserTemplateResponseError = (getUserTemplateResponse422) & {
-  headers: Headers;
-};
-
-export type getUserTemplateResponse = (getUserTemplateResponseSuccess | getUserTemplateResponseError)
-
 export const getGetUserTemplateUrl = (templateId: number,) => {
 
 
@@ -25695,9 +20034,9 @@ export const getGetUserTemplateUrl = (templateId: number,) => {
  * Get User Template information with id
  * @summary Get User Template
  */
-export const getUserTemplate = async (templateId: number, options?: RequestInit): Promise<getUserTemplateResponse> => {
+export const getUserTemplate = async (templateId: number, options?: RequestInit): Promise<UserTemplateResponse> => {
 
-  return orvalFetcher<getUserTemplateResponse>(getGetUserTemplateUrl(templateId),
+  return orvalFetcher<UserTemplateResponse>(getGetUserTemplateUrl(templateId),
   {
     ...options,
     method: 'GET'
@@ -25785,30 +20124,6 @@ export function useGetUserTemplate<TData = Awaited<ReturnType<typeof getUserTemp
 
 
 
-export type modifyUserTemplateResponse200 = {
-  data: UserTemplateResponse
-  status: 200
-}
-
-export type modifyUserTemplateResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type modifyUserTemplateResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type modifyUserTemplateResponseSuccess = (modifyUserTemplateResponse200) & {
-  headers: Headers;
-};
-export type modifyUserTemplateResponseError = (modifyUserTemplateResponse403 | modifyUserTemplateResponse422) & {
-  headers: Headers;
-};
-
-export type modifyUserTemplateResponse = (modifyUserTemplateResponseSuccess | modifyUserTemplateResponseError)
-
 export const getModifyUserTemplateUrl = (templateId: number,) => {
 
 
@@ -25827,9 +20142,9 @@ export const getModifyUserTemplateUrl = (templateId: number,) => {
  * @summary Modify User Template
  */
 export const modifyUserTemplate = async (templateId: number,
-    userTemplateModify: UserTemplateModify, options?: RequestInit): Promise<modifyUserTemplateResponse> => {
+    userTemplateModify: UserTemplateModify, options?: RequestInit): Promise<UserTemplateResponse> => {
 
-  return orvalFetcher<modifyUserTemplateResponse>(getModifyUserTemplateUrl(templateId),
+  return orvalFetcher<UserTemplateResponse>(getModifyUserTemplateUrl(templateId),
   {
     ...options,
     method: 'PUT',
@@ -25887,30 +20202,6 @@ export const useModifyUserTemplate = <TError = ErrorType<Forbidden | HTTPValidat
       return useMutation(getModifyUserTemplateMutationOptions(options), queryClient);
     }
 
-export type removeUserTemplateResponse204 = {
-  data: void
-  status: 204
-}
-
-export type removeUserTemplateResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type removeUserTemplateResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeUserTemplateResponseSuccess = (removeUserTemplateResponse204) & {
-  headers: Headers;
-};
-export type removeUserTemplateResponseError = (removeUserTemplateResponse403 | removeUserTemplateResponse422) & {
-  headers: Headers;
-};
-
-export type removeUserTemplateResponse = (removeUserTemplateResponseSuccess | removeUserTemplateResponseError)
-
 export const getRemoveUserTemplateUrl = (templateId: number,) => {
 
 
@@ -25923,9 +20214,9 @@ export const getRemoveUserTemplateUrl = (templateId: number,) => {
  * Remove a User Template by its ID
  * @summary Remove User Template
  */
-export const removeUserTemplate = async (templateId: number, options?: RequestInit): Promise<removeUserTemplateResponse> => {
+export const removeUserTemplate = async (templateId: number, options?: RequestInit): Promise<void> => {
 
-  return orvalFetcher<removeUserTemplateResponse>(getRemoveUserTemplateUrl(templateId),
+  return orvalFetcher<void>(getRemoveUserTemplateUrl(templateId),
   {
     ...options,
     method: 'DELETE'
@@ -25983,25 +20274,6 @@ export const useRemoveUserTemplate = <TError = ErrorType<Forbidden | HTTPValidat
       return useMutation(getRemoveUserTemplateMutationOptions(options), queryClient);
     }
 
-export type getUserTemplatesResponse200 = {
-  data: UserTemplateResponse[]
-  status: 200
-}
-
-export type getUserTemplatesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserTemplatesResponseSuccess = (getUserTemplatesResponse200) & {
-  headers: Headers;
-};
-export type getUserTemplatesResponseError = (getUserTemplatesResponse422) & {
-  headers: Headers;
-};
-
-export type getUserTemplatesResponse = (getUserTemplatesResponseSuccess | getUserTemplatesResponseError)
-
 export const getGetUserTemplatesUrl = (params?: GetUserTemplatesParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -26029,9 +20301,9 @@ export const getGetUserTemplatesUrl = (params?: GetUserTemplatesParams,) => {
  * Get a list of User Templates with optional pagination
  * @summary Get User Templates
  */
-export const getUserTemplates = async (params?: GetUserTemplatesParams, options?: RequestInit): Promise<getUserTemplatesResponse> => {
+export const getUserTemplates = async (params?: GetUserTemplatesParams, options?: RequestInit): Promise<UserTemplateResponse[]> => {
 
-  return orvalFetcher<getUserTemplatesResponse>(getGetUserTemplatesUrl(params),
+  return orvalFetcher<UserTemplateResponse[]>(getGetUserTemplatesUrl(params),
   {
     ...options,
     method: 'GET'
@@ -26119,25 +20391,6 @@ export function useGetUserTemplates<TData = Awaited<ReturnType<typeof getUserTem
 
 
 
-export type getUserTemplatesSimpleResponse200 = {
-  data: UserTemplatesSimpleResponse
-  status: 200
-}
-
-export type getUserTemplatesSimpleResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserTemplatesSimpleResponseSuccess = (getUserTemplatesSimpleResponse200) & {
-  headers: Headers;
-};
-export type getUserTemplatesSimpleResponseError = (getUserTemplatesSimpleResponse422) & {
-  headers: Headers;
-};
-
-export type getUserTemplatesSimpleResponse = (getUserTemplatesSimpleResponseSuccess | getUserTemplatesSimpleResponseError)
-
 export const getGetUserTemplatesSimpleUrl = (params?: GetUserTemplatesSimpleParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -26165,9 +20418,9 @@ export const getGetUserTemplatesSimpleUrl = (params?: GetUserTemplatesSimplePara
  * Returns only id and name for user templates. Optimized for dropdowns and autocomplete.
  * @summary Get lightweight user template list
  */
-export const getUserTemplatesSimple = async (params?: GetUserTemplatesSimpleParams, options?: RequestInit): Promise<getUserTemplatesSimpleResponse> => {
+export const getUserTemplatesSimple = async (params?: GetUserTemplatesSimpleParams, options?: RequestInit): Promise<UserTemplatesSimpleResponse> => {
 
-  return orvalFetcher<getUserTemplatesSimpleResponse>(getGetUserTemplatesSimpleUrl(params),
+  return orvalFetcher<UserTemplatesSimpleResponse>(getGetUserTemplatesSimpleUrl(params),
   {
     ...options,
     method: 'GET'
@@ -26255,40 +20508,6 @@ export function useGetUserTemplatesSimple<TData = Awaited<ReturnType<typeof getU
 
 
 
-export type bulkDeleteUserTemplatesResponse200 = {
-  data: RemoveUserTemplatesResponse
-  status: 200
-}
-
-export type bulkDeleteUserTemplatesResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDeleteUserTemplatesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDeleteUserTemplatesResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDeleteUserTemplatesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDeleteUserTemplatesResponseSuccess = (bulkDeleteUserTemplatesResponse200) & {
-  headers: Headers;
-};
-export type bulkDeleteUserTemplatesResponseError = (bulkDeleteUserTemplatesResponse400 | bulkDeleteUserTemplatesResponse403 | bulkDeleteUserTemplatesResponse404 | bulkDeleteUserTemplatesResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDeleteUserTemplatesResponse = (bulkDeleteUserTemplatesResponseSuccess | bulkDeleteUserTemplatesResponseError)
-
 export const getBulkDeleteUserTemplatesUrl = () => {
 
 
@@ -26301,9 +20520,9 @@ export const getBulkDeleteUserTemplatesUrl = () => {
  * Delete selected user templates by ID.
  * @summary Bulk Delete User Templates
  */
-export const bulkDeleteUserTemplates = async (bulkUserTemplateSelection: BulkUserTemplateSelection, options?: RequestInit): Promise<bulkDeleteUserTemplatesResponse> => {
+export const bulkDeleteUserTemplates = async (bulkUserTemplateSelection: BulkUserTemplateSelection, options?: RequestInit): Promise<RemoveUserTemplatesResponse> => {
 
-  return orvalFetcher<bulkDeleteUserTemplatesResponse>(getBulkDeleteUserTemplatesUrl(),
+  return orvalFetcher<RemoveUserTemplatesResponse>(getBulkDeleteUserTemplatesUrl(),
   {
     ...options,
     method: 'POST',
@@ -26361,40 +20580,6 @@ export const useBulkDeleteUserTemplates = <TError = ErrorType<HTTPException | Fo
       return useMutation(getBulkDeleteUserTemplatesMutationOptions(options), queryClient);
     }
 
-export type bulkDisableUserTemplatesResponse200 = {
-  data: BulkUserTemplatesActionResponse
-  status: 200
-}
-
-export type bulkDisableUserTemplatesResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkDisableUserTemplatesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkDisableUserTemplatesResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkDisableUserTemplatesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkDisableUserTemplatesResponseSuccess = (bulkDisableUserTemplatesResponse200) & {
-  headers: Headers;
-};
-export type bulkDisableUserTemplatesResponseError = (bulkDisableUserTemplatesResponse400 | bulkDisableUserTemplatesResponse403 | bulkDisableUserTemplatesResponse404 | bulkDisableUserTemplatesResponse422) & {
-  headers: Headers;
-};
-
-export type bulkDisableUserTemplatesResponse = (bulkDisableUserTemplatesResponseSuccess | bulkDisableUserTemplatesResponseError)
-
 export const getBulkDisableUserTemplatesUrl = () => {
 
 
@@ -26407,9 +20592,9 @@ export const getBulkDisableUserTemplatesUrl = () => {
  * Disable selected user templates by ID.
  * @summary Bulk Disable User Templates
  */
-export const bulkDisableUserTemplates = async (bulkUserTemplateSelection: BulkUserTemplateSelection, options?: RequestInit): Promise<bulkDisableUserTemplatesResponse> => {
+export const bulkDisableUserTemplates = async (bulkUserTemplateSelection: BulkUserTemplateSelection, options?: RequestInit): Promise<BulkUserTemplatesActionResponse> => {
 
-  return orvalFetcher<bulkDisableUserTemplatesResponse>(getBulkDisableUserTemplatesUrl(),
+  return orvalFetcher<BulkUserTemplatesActionResponse>(getBulkDisableUserTemplatesUrl(),
   {
     ...options,
     method: 'POST',
@@ -26467,40 +20652,6 @@ export const useBulkDisableUserTemplates = <TError = ErrorType<HTTPException | F
       return useMutation(getBulkDisableUserTemplatesMutationOptions(options), queryClient);
     }
 
-export type bulkEnableUserTemplatesResponse200 = {
-  data: BulkUserTemplatesActionResponse
-  status: 200
-}
-
-export type bulkEnableUserTemplatesResponse400 = {
-  data: HTTPException
-  status: 400
-}
-
-export type bulkEnableUserTemplatesResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type bulkEnableUserTemplatesResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type bulkEnableUserTemplatesResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkEnableUserTemplatesResponseSuccess = (bulkEnableUserTemplatesResponse200) & {
-  headers: Headers;
-};
-export type bulkEnableUserTemplatesResponseError = (bulkEnableUserTemplatesResponse400 | bulkEnableUserTemplatesResponse403 | bulkEnableUserTemplatesResponse404 | bulkEnableUserTemplatesResponse422) & {
-  headers: Headers;
-};
-
-export type bulkEnableUserTemplatesResponse = (bulkEnableUserTemplatesResponseSuccess | bulkEnableUserTemplatesResponseError)
-
 export const getBulkEnableUserTemplatesUrl = () => {
 
 
@@ -26513,9 +20664,9 @@ export const getBulkEnableUserTemplatesUrl = () => {
  * Enable selected user templates by ID.
  * @summary Bulk Enable User Templates
  */
-export const bulkEnableUserTemplates = async (bulkUserTemplateSelection: BulkUserTemplateSelection, options?: RequestInit): Promise<bulkEnableUserTemplatesResponse> => {
+export const bulkEnableUserTemplates = async (bulkUserTemplateSelection: BulkUserTemplateSelection, options?: RequestInit): Promise<BulkUserTemplatesActionResponse> => {
 
-  return orvalFetcher<bulkEnableUserTemplatesResponse>(getBulkEnableUserTemplatesUrl(),
+  return orvalFetcher<BulkUserTemplatesActionResponse>(getBulkEnableUserTemplatesUrl(),
   {
     ...options,
     method: 'POST',
@@ -26573,40 +20724,6 @@ export const useBulkEnableUserTemplates = <TError = ErrorType<HTTPException | Fo
       return useMutation(getBulkEnableUserTemplatesMutationOptions(options), queryClient);
     }
 
-export type getUserHwidsResponse200 = {
-  data: UserHWIDListResponse
-  status: 200
-}
-
-export type getUserHwidsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type getUserHwidsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type getUserHwidsResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type getUserHwidsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserHwidsResponseSuccess = (getUserHwidsResponse200) & {
-  headers: Headers;
-};
-export type getUserHwidsResponseError = (getUserHwidsResponse401 | getUserHwidsResponse403 | getUserHwidsResponse404 | getUserHwidsResponse422) & {
-  headers: Headers;
-};
-
-export type getUserHwidsResponse = (getUserHwidsResponseSuccess | getUserHwidsResponseError)
-
 export const getGetUserHwidsUrl = (userId: number,) => {
 
 
@@ -26619,9 +20736,9 @@ export const getGetUserHwidsUrl = (userId: number,) => {
  * Get user's registered hardware IDs
  * @summary Get User Hwids
  */
-export const getUserHwids = async (userId: number, options?: RequestInit): Promise<getUserHwidsResponse> => {
+export const getUserHwids = async (userId: number, options?: RequestInit): Promise<UserHWIDListResponse> => {
 
-  return orvalFetcher<getUserHwidsResponse>(getGetUserHwidsUrl(userId),
+  return orvalFetcher<UserHWIDListResponse>(getGetUserHwidsUrl(userId),
   {
     ...options,
     method: 'GET'
@@ -26709,40 +20826,6 @@ export function useGetUserHwids<TData = Awaited<ReturnType<typeof getUserHwids>>
 
 
 
-export type deleteUserHwidResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deleteUserHwidResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type deleteUserHwidResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type deleteUserHwidResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type deleteUserHwidResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteUserHwidResponseSuccess = (deleteUserHwidResponse200) & {
-  headers: Headers;
-};
-export type deleteUserHwidResponseError = (deleteUserHwidResponse401 | deleteUserHwidResponse403 | deleteUserHwidResponse404 | deleteUserHwidResponse422) & {
-  headers: Headers;
-};
-
-export type deleteUserHwidResponse = (deleteUserHwidResponseSuccess | deleteUserHwidResponseError)
-
 export const getDeleteUserHwidUrl = (userId: number,
     hwid: string,) => {
 
@@ -26757,9 +20840,9 @@ export const getDeleteUserHwidUrl = (userId: number,
  * @summary Delete User Hwid
  */
 export const deleteUserHwid = async (userId: number,
-    hwid: string, options?: RequestInit): Promise<deleteUserHwidResponse> => {
+    hwid: string, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<deleteUserHwidResponse>(getDeleteUserHwidUrl(userId,hwid),
+  return orvalFetcher<unknown>(getDeleteUserHwidUrl(userId,hwid),
   {
     ...options,
     method: 'DELETE'
@@ -26817,40 +20900,6 @@ export const useDeleteUserHwid = <TError = ErrorType<Unauthorized | Forbidden | 
       return useMutation(getDeleteUserHwidMutationOptions(options), queryClient);
     }
 
-export type resetUserHwidsResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type resetUserHwidsResponse401 = {
-  data: Unauthorized
-  status: 401
-}
-
-export type resetUserHwidsResponse403 = {
-  data: Forbidden
-  status: 403
-}
-
-export type resetUserHwidsResponse404 = {
-  data: NotFound
-  status: 404
-}
-
-export type resetUserHwidsResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type resetUserHwidsResponseSuccess = (resetUserHwidsResponse200) & {
-  headers: Headers;
-};
-export type resetUserHwidsResponseError = (resetUserHwidsResponse401 | resetUserHwidsResponse403 | resetUserHwidsResponse404 | resetUserHwidsResponse422) & {
-  headers: Headers;
-};
-
-export type resetUserHwidsResponse = (resetUserHwidsResponseSuccess | resetUserHwidsResponseError)
-
 export const getResetUserHwidsUrl = (userId: number,) => {
 
 
@@ -26863,9 +20912,9 @@ export const getResetUserHwidsUrl = (userId: number,) => {
  * Delete all hardware IDs for user
  * @summary Reset User Hwids
  */
-export const resetUserHwids = async (userId: number, options?: RequestInit): Promise<resetUserHwidsResponse> => {
+export const resetUserHwids = async (userId: number, options?: RequestInit): Promise<unknown> => {
 
-  return orvalFetcher<resetUserHwidsResponse>(getResetUserHwidsUrl(userId),
+  return orvalFetcher<unknown>(getResetUserHwidsUrl(userId),
   {
     ...options,
     method: 'POST'
@@ -26923,72 +20972,775 @@ export const useResetUserHwids = <TError = ErrorType<Unauthorized | Forbidden | 
       return useMutation(getResetUserHwidsMutationOptions(options), queryClient);
     }
 
-// Passkey endpoints are kept here so the generated API surface includes the WebAuthn flow.
-export interface PasskeySummary {
-  id: number;
-  name: string;
+export const getListPasskeysUrl = () => {
+
+
+
+
+  return `/api/admin/passkey`
 }
 
-export interface PasskeyOptionsRequest {
-  username?: string;
+/**
+ * @summary List Passkeys
+ */
+export const listPasskeys = async ( options?: RequestInit): Promise<PasskeyInfo[]> => {
+
+  return orvalFetcher<PasskeyInfo[]>(getListPasskeysUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPasskeysQueryKey = () => {
+    return [
+    `/api/admin/passkey`
+    ] as const;
+    }
+
+
+export const getListPasskeysQueryOptions = <TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPasskeysQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPasskeys>>> = ({ signal }) => listPasskeys({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export interface PasskeyRegistrationRequest {
-  credential: Record<string, unknown>;
-  name?: string;
+export type ListPasskeysQueryResult = NonNullable<Awaited<ReturnType<typeof listPasskeys>>>
+export type ListPasskeysQueryError = ErrorType<unknown>
+
+
+export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPasskeys>>,
+          TError,
+          Awaited<ReturnType<typeof listPasskeys>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPasskeys>>,
+          TError,
+          Awaited<ReturnType<typeof listPasskeys>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Passkeys
+ */
+
+export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPasskeysQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
 }
 
-export interface PasskeyAuthenticationRequest {
-  username?: string;
-  credential: Record<string, unknown>;
+
+
+
+
+
+
+export const getListAdminPasskeysUrl = (adminId: number,) => {
+
+
+
+
+  return `/api/admin/passkey/admins/${adminId}`
 }
 
-export const getAdminPasskeys = async (options?: RequestInit): Promise<PasskeySummary[]> =>
-  orvalFetcher<PasskeySummary[]>('/api/admin/passkey', { ...options, method: 'GET' });
+/**
+ * @summary List Admin Passkeys
+ */
+export const listAdminPasskeys = async (adminId: number, options?: RequestInit): Promise<PasskeyInfo[]> => {
 
-export const getAdminPasskeysForAdmin = async (adminId: number, options?: RequestInit): Promise<PasskeySummary[]> =>
-  orvalFetcher<PasskeySummary[]>(`/api/admin/passkey/admins/${adminId}`, { ...options, method: 'GET' });
+  return orvalFetcher<PasskeyInfo[]>(getListAdminPasskeysUrl(adminId),
+  {
+    ...options,
+    method: 'GET'
 
-export const getAdminPasskeyLoginOptions = async (body: PasskeyOptionsRequest, options?: RequestInit): Promise<Record<string, unknown>> =>
-  orvalFetcher<Record<string, unknown>>('/api/admin/passkey/login/options', {
+
+  }
+);}
+
+
+
+
+
+export const getListAdminPasskeysQueryKey = (adminId: number,) => {
+    return [
+    `/api/admin/passkey/admins/${adminId}`
+    ] as const;
+    }
+
+
+export const getListAdminPasskeysQueryOptions = <TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminPasskeysQueryKey(adminId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminPasskeys>>> = ({ signal }) => listAdminPasskeys(adminId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: adminId !== null && adminId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAdminPasskeysQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminPasskeys>>>
+export type ListAdminPasskeysQueryError = ErrorType<HTTPValidationError>
+
+
+export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(
+ adminId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminPasskeys>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminPasskeys>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(
+ adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminPasskeys>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminPasskeys>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(
+ adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Admin Passkeys
+ */
+
+export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(
+ adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAdminPasskeysQueryOptions(adminId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeleteAdminPasskeyUrl = (adminId: number,
+    passkeyId: number,) => {
+
+
+
+
+  return `/api/admin/passkey/admins/${adminId}/${passkeyId}`
+}
+
+/**
+ * @summary Delete Admin Passkey
+ */
+export const deleteAdminPasskey = async (adminId: number,
+    passkeyId: number, options?: RequestInit): Promise<unknown> => {
+
+  return orvalFetcher<unknown>(getDeleteAdminPasskeyUrl(adminId,passkeyId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminPasskeyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminPasskey>>, TError,{adminId: number;passkeyId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminPasskey>>, TError,{adminId: number;passkeyId: number}, TContext> => {
+
+const mutationKey = ['deleteAdminPasskey'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminPasskey>>, {adminId: number;passkeyId: number}> = (props) => {
+          const {adminId,passkeyId} = props ?? {};
+
+          return  deleteAdminPasskey(adminId,passkeyId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminPasskeyMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminPasskey>>>
+
+    export type DeleteAdminPasskeyMutationError = ErrorType<HTTPValidationError>
+
+    /**
+ * @summary Delete Admin Passkey
+ */
+export const useDeleteAdminPasskey = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminPasskey>>, TError,{adminId: number;passkeyId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminPasskey>>,
+        TError,
+        {adminId: number;passkeyId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteAdminPasskeyMutationOptions(options), queryClient);
+    }
+
+export const getDeletePasskeyUrl = (passkeyId: number,) => {
+
+
+
+
+  return `/api/admin/passkey/${passkeyId}`
+}
+
+/**
+ * @summary Delete Passkey
+ */
+export const deletePasskey = async (passkeyId: number, options?: RequestInit): Promise<unknown> => {
+
+  return orvalFetcher<unknown>(getDeletePasskeyUrl(passkeyId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePasskeyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePasskey>>, TError,{passkeyId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePasskey>>, TError,{passkeyId: number}, TContext> => {
+
+const mutationKey = ['deletePasskey'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePasskey>>, {passkeyId: number}> = (props) => {
+          const {passkeyId} = props ?? {};
+
+          return  deletePasskey(passkeyId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePasskeyMutationResult = NonNullable<Awaited<ReturnType<typeof deletePasskey>>>
+
+    export type DeletePasskeyMutationError = ErrorType<HTTPValidationError>
+
+    /**
+ * @summary Delete Passkey
+ */
+export const useDeletePasskey = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePasskey>>, TError,{passkeyId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deletePasskey>>,
+        TError,
+        {passkeyId: number},
+        TContext
+      > => {
+      return useMutation(getDeletePasskeyMutationOptions(options), queryClient);
+    }
+
+export const getPasskeyLoginOptionsUrl = () => {
+
+
+
+
+  return `/api/admin/passkey/login/options`
+}
+
+/**
+ * @summary Passkey Login Options
+ */
+export const passkeyLoginOptions = async (passkeyOptionsRequest: PasskeyOptionsRequest, options?: RequestInit): Promise<unknown> => {
+
+  return orvalFetcher<unknown>(getPasskeyLoginOptionsUrl(),
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(body),
-  });
+    body: JSON.stringify(passkeyOptionsRequest)
+  }
+);}
 
-export const verifyAdminPasskeyLogin = async (body: PasskeyAuthenticationRequest, options?: RequestInit): Promise<Token> =>
-  orvalFetcher<Token>('/api/admin/passkey/login/verify', {
+
+
+
+
+export const getPasskeyLoginOptionsMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginOptions>>, TError,{data: BodyType<PasskeyOptionsRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginOptions>>, TError,{data: BodyType<PasskeyOptionsRequest>}, TContext> => {
+
+const mutationKey = ['passkeyLoginOptions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof passkeyLoginOptions>>, {data: BodyType<PasskeyOptionsRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  passkeyLoginOptions(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PasskeyLoginOptionsMutationResult = NonNullable<Awaited<ReturnType<typeof passkeyLoginOptions>>>
+    export type PasskeyLoginOptionsMutationBody = BodyType<PasskeyOptionsRequest>
+    export type PasskeyLoginOptionsMutationError = ErrorType<HTTPValidationError>
+
+    /**
+ * @summary Passkey Login Options
+ */
+export const usePasskeyLoginOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginOptions>>, TError,{data: BodyType<PasskeyOptionsRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof passkeyLoginOptions>>,
+        TError,
+        {data: BodyType<PasskeyOptionsRequest>},
+        TContext
+      > => {
+      return useMutation(getPasskeyLoginOptionsMutationOptions(options), queryClient);
+    }
+
+export const getPasskeyLoginVerifyUrl = () => {
+
+
+
+
+  return `/api/admin/passkey/login/verify`
+}
+
+/**
+ * @summary Passkey Login Verify
+ */
+export const passkeyLoginVerify = async (passkeyAuthenticationRequest: PasskeyAuthenticationRequest, options?: RequestInit): Promise<Token> => {
+
+  return orvalFetcher<Token>(getPasskeyLoginVerifyUrl(),
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(body),
-  });
+    body: JSON.stringify(passkeyAuthenticationRequest)
+  }
+);}
 
-export const getAdminPasskeyRegistrationOptions = async (options?: RequestInit): Promise<Record<string, unknown>> =>
-  orvalFetcher<Record<string, unknown>>('/api/admin/passkey/register/options', { ...options, method: 'POST' });
 
-export const registerAdminPasskey = async (body: PasskeyRegistrationRequest, options?: RequestInit): Promise<{ ok: boolean }> =>
-  orvalFetcher<{ ok: boolean }>('/api/admin/passkey/register/verify', {
+
+
+
+export const getPasskeyLoginVerifyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginVerify>>, TError,{data: BodyType<PasskeyAuthenticationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginVerify>>, TError,{data: BodyType<PasskeyAuthenticationRequest>}, TContext> => {
+
+const mutationKey = ['passkeyLoginVerify'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof passkeyLoginVerify>>, {data: BodyType<PasskeyAuthenticationRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  passkeyLoginVerify(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PasskeyLoginVerifyMutationResult = NonNullable<Awaited<ReturnType<typeof passkeyLoginVerify>>>
+    export type PasskeyLoginVerifyMutationBody = BodyType<PasskeyAuthenticationRequest>
+    export type PasskeyLoginVerifyMutationError = ErrorType<HTTPValidationError>
+
+    /**
+ * @summary Passkey Login Verify
+ */
+export const usePasskeyLoginVerify = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginVerify>>, TError,{data: BodyType<PasskeyAuthenticationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof passkeyLoginVerify>>,
+        TError,
+        {data: BodyType<PasskeyAuthenticationRequest>},
+        TContext
+      > => {
+      return useMutation(getPasskeyLoginVerifyMutationOptions(options), queryClient);
+    }
+
+export const getPasskeyRegisterOptionsUrl = () => {
+
+
+
+
+  return `/api/admin/passkey/register/options`
+}
+
+/**
+ * @summary Passkey Register Options
+ */
+export const passkeyRegisterOptions = async ( options?: RequestInit): Promise<unknown> => {
+
+  return orvalFetcher<unknown>(getPasskeyRegisterOptionsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPasskeyRegisterOptionsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterOptions>>, TError,void, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterOptions>>, TError,void, TContext> => {
+
+const mutationKey = ['passkeyRegisterOptions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof passkeyRegisterOptions>>, void> = () => {
+
+
+          return  passkeyRegisterOptions(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PasskeyRegisterOptionsMutationResult = NonNullable<Awaited<ReturnType<typeof passkeyRegisterOptions>>>
+
+    export type PasskeyRegisterOptionsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Passkey Register Options
+ */
+export const usePasskeyRegisterOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterOptions>>, TError,void, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof passkeyRegisterOptions>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getPasskeyRegisterOptionsMutationOptions(options), queryClient);
+    }
+
+export const getPasskeyRegisterVerifyUrl = () => {
+
+
+
+
+  return `/api/admin/passkey/register/verify`
+}
+
+/**
+ * @summary Passkey Register Verify
+ */
+export const passkeyRegisterVerify = async (passkeyRegistrationRequest: PasskeyRegistrationRequest, options?: RequestInit): Promise<unknown> => {
+
+  return orvalFetcher<unknown>(getPasskeyRegisterVerifyUrl(),
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(body),
-  });
+    body: JSON.stringify(passkeyRegistrationRequest)
+  }
+);}
 
-export const getAdminPasskeyRegistrationOptionsForAdmin = async (adminId: number, options?: RequestInit): Promise<Record<string, unknown>> =>
-  orvalFetcher<Record<string, unknown>>(`/api/admin/passkey/admins/${adminId}/register/options`, { ...options, method: 'POST' });
 
-export const registerAdminPasskeyForAdmin = async (adminId: number, body: PasskeyRegistrationRequest, options?: RequestInit): Promise<{ ok: boolean }> =>
-  orvalFetcher<{ ok: boolean }>(`/api/admin/passkey/admins/${adminId}/register/verify`, {
+
+
+
+export const getPasskeyRegisterVerifyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterVerify>>, TError,{data: BodyType<PasskeyRegistrationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterVerify>>, TError,{data: BodyType<PasskeyRegistrationRequest>}, TContext> => {
+
+const mutationKey = ['passkeyRegisterVerify'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof passkeyRegisterVerify>>, {data: BodyType<PasskeyRegistrationRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  passkeyRegisterVerify(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PasskeyRegisterVerifyMutationResult = NonNullable<Awaited<ReturnType<typeof passkeyRegisterVerify>>>
+    export type PasskeyRegisterVerifyMutationBody = BodyType<PasskeyRegistrationRequest>
+    export type PasskeyRegisterVerifyMutationError = ErrorType<HTTPValidationError>
+
+    /**
+ * @summary Passkey Register Verify
+ */
+export const usePasskeyRegisterVerify = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterVerify>>, TError,{data: BodyType<PasskeyRegistrationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof passkeyRegisterVerify>>,
+        TError,
+        {data: BodyType<PasskeyRegistrationRequest>},
+        TContext
+      > => {
+      return useMutation(getPasskeyRegisterVerifyMutationOptions(options), queryClient);
+    }
+
+export const getAdminPasskeyRegisterOptionsUrl = (adminId: number,) => {
+
+
+
+
+  return `/api/admin/passkey/admins/${adminId}/register/options`
+}
+
+/**
+ * @summary Admin Passkey Register Options
+ */
+export const adminPasskeyRegisterOptions = async (adminId: number, options?: RequestInit): Promise<unknown> => {
+
+  return orvalFetcher<unknown>(getAdminPasskeyRegisterOptionsUrl(adminId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminPasskeyRegisterOptionsMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>, TError,{adminId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>, TError,{adminId: number}, TContext> => {
+
+const mutationKey = ['adminPasskeyRegisterOptions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>, {adminId: number}> = (props) => {
+          const {adminId} = props ?? {};
+
+          return  adminPasskeyRegisterOptions(adminId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminPasskeyRegisterOptionsMutationResult = NonNullable<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>>
+
+    export type AdminPasskeyRegisterOptionsMutationError = ErrorType<HTTPValidationError>
+
+    /**
+ * @summary Admin Passkey Register Options
+ */
+export const useAdminPasskeyRegisterOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>, TError,{adminId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>,
+        TError,
+        {adminId: number},
+        TContext
+      > => {
+      return useMutation(getAdminPasskeyRegisterOptionsMutationOptions(options), queryClient);
+    }
+
+export const getAdminPasskeyRegisterVerifyUrl = (adminId: number,) => {
+
+
+
+
+  return `/api/admin/passkey/admins/${adminId}/register/verify`
+}
+
+/**
+ * @summary Admin Passkey Register Verify
+ */
+export const adminPasskeyRegisterVerify = async (adminId: number,
+    passkeyRegistrationRequest: PasskeyRegistrationRequest, options?: RequestInit): Promise<unknown> => {
+
+  return orvalFetcher<unknown>(getAdminPasskeyRegisterVerifyUrl(adminId),
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(body),
-  });
+    body: JSON.stringify(passkeyRegistrationRequest)
+  }
+);}
 
-export const deleteAdminPasskey = async (passkeyId: number, options?: RequestInit): Promise<{ ok: boolean }> =>
-  orvalFetcher<{ ok: boolean }>(`/api/admin/passkey/${passkeyId}`, { ...options, method: 'DELETE' });
 
-export const deleteAdminPasskeyForAdmin = async (adminId: number, passkeyId: number, options?: RequestInit): Promise<{ ok: boolean }> =>
-  orvalFetcher<{ ok: boolean }>(`/api/admin/passkey/admins/${adminId}/${passkeyId}`, { ...options, method: 'DELETE' });
+
+
+
+export const getAdminPasskeyRegisterVerifyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>, TError,{adminId: number;data: BodyType<PasskeyRegistrationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>, TError,{adminId: number;data: BodyType<PasskeyRegistrationRequest>}, TContext> => {
+
+const mutationKey = ['adminPasskeyRegisterVerify'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>, {adminId: number;data: BodyType<PasskeyRegistrationRequest>}> = (props) => {
+          const {adminId,data} = props ?? {};
+
+          return  adminPasskeyRegisterVerify(adminId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminPasskeyRegisterVerifyMutationResult = NonNullable<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>>
+    export type AdminPasskeyRegisterVerifyMutationBody = BodyType<PasskeyRegistrationRequest>
+    export type AdminPasskeyRegisterVerifyMutationError = ErrorType<HTTPValidationError>
+
+    /**
+ * @summary Admin Passkey Register Verify
+ */
+export const useAdminPasskeyRegisterVerify = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>, TError,{adminId: number;data: BodyType<PasskeyRegistrationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>,
+        TError,
+        {adminId: number;data: BodyType<PasskeyRegistrationRequest>},
+        TContext
+      > => {
+      return useMutation(getAdminPasskeyRegisterVerifyMutationOptions(options), queryClient);
+    }

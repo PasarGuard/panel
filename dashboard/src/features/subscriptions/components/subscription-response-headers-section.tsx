@@ -1,21 +1,22 @@
-import type { SubscriptionFormData } from '@/features/subscriptions/components/subscription-settings-schema'
+import { withCustomVariableDefaults, type SubscriptionFormInput, type SubscriptionSettingsForm } from './subscription-settings-schema'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { CustomVariablesPopover, VariablesList } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Info, Plus, Trash2 } from 'lucide-react'
-import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 export interface SubscriptionResponseHeadersSectionProps {
-  form: UseFormReturn<SubscriptionFormData>
+  form: SubscriptionSettingsForm
 }
 
 export function SubscriptionResponseHeadersSection({ form }: SubscriptionResponseHeadersSectionProps) {
   const { t } = useTranslation()
+  const customVariables = withCustomVariableDefaults(form.watch('custom_variables'))
   const dir = useDirDetection()
   const isMobile = useIsMobile()
   const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
@@ -82,12 +83,36 @@ export function SubscriptionResponseHeadersSection({ form }: SubscriptionRespons
               </div>
             </PopoverContent>
           </Popover>
-          <CustomVariablesPopover customVariables={form.watch('custom_variables') || []} side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5} />
+          <CustomVariablesPopover customVariables={customVariables} side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5} />
           <Button type="button" variant="outline" size="sm" onClick={addResponseHeader}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             {t('settings.subscriptions.responseHeaders.addHeader')}
           </Button>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-base font-semibold sm:text-lg">{t('settings.subscriptions.responseHeaders.placement.title')}</h4>
+        <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.responseHeaders.placement.description')}</p>
+        <Select
+          value={form.watch('header_placement') ?? 'header'}
+          onValueChange={value => form.setValue('header_placement', value as SubscriptionFormInput['header_placement'], { shouldDirty: true })}
+        >
+          <SelectTrigger aria-label={t('settings.subscriptions.responseHeaders.placement.title')} className="text-xs sm:text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="header" className="text-xs sm:text-sm">
+              {t('settings.subscriptions.responseHeaders.placement.header')}
+            </SelectItem>
+            <SelectItem value="body_start" className="text-xs sm:text-sm">
+              {t('settings.subscriptions.responseHeaders.placement.bodyStart')}
+            </SelectItem>
+            <SelectItem value="body_end" className="text-xs sm:text-sm">
+              {t('settings.subscriptions.responseHeaders.placement.bodyEnd')}
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-3">

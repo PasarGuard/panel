@@ -5,17 +5,24 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from app.utils.logger import get_logger
 from config import cors_settings, server_settings
 
+from .gzip import PanelGZipMiddleware
 from .request_logging import RequestProcessTimeLoggingMiddleware
 
 
 def setup_middleware(app: FastAPI):
+    allowed_origins = cors_settings.allowed_origins
+    # With a wildcard plus credentials, Starlette echoes every Origin back with Allow-Credentials.
+    allow_credentials = "*" not in allowed_origins
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=cors_settings.allowed_origins,
-        allow_credentials=True,
+        allow_origins=allowed_origins,
+        allow_credentials=allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    if server_settings.gzip_enabled:
+        # Level 6 is close to 9 in size at a fraction of the CPU. SSE (text/event-stream) is never compressed.
+        app.add_middleware(PanelGZipMiddleware, minimum_size=server_settings.gzip_minimum_size, compresslevel=6)
     if server_settings.proxy_headers:
         app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=server_settings.forwarded_allow_ips)
     app.add_middleware(RequestProcessTimeLoggingMiddleware, access_logger=get_logger("uvicorn.access"))

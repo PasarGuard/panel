@@ -3,6 +3,7 @@ from fastapi import Query
 from app.models.node import (
     NodeClearUsageQuery,
     NodeListQuery,
+    NodeOutboundUsageQuery,
     NodeSimpleListQuery,
     NodeStatsPeriodQuery,
     NodeUsageQuery,
@@ -13,6 +14,15 @@ from ._common import make_query_dependency, query_param
 
 get_node_usage_query = make_query_dependency(
     NodeUsageQuery,
+    field_overrides={
+        "period": Query(Period.hour),
+        "node_id": Query(None),
+        "start": Query(None, examples=["2024-01-01T00:00:00+03:30"]),
+        "end": Query(None, examples=["2024-01-31T23:59:59+03:30"]),
+    },
+)
+get_node_outbound_usage_query = make_query_dependency(
+    NodeOutboundUsageQuery,
     field_overrides={
         "period": Query(Period.hour),
         "node_id": Query(None),

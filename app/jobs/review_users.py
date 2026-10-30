@@ -12,6 +12,7 @@ from app.db.crud.user import (
     get_days_left_reached_users,
     get_on_hold_to_active_users,
     get_usage_percentage_reached_users,
+    reload_review_users,
     remove_users,
     reset_user_by_next,
     start_users_expire,
@@ -21,12 +22,16 @@ from app.db.models import ReminderType, User, UserStatus
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.models.settings import OnHoldTimeoutAction, Webhook
 from app.models.user import UserNotificationResponse
-from app.node.sync import remove_user_awaited as sync_remove_user_awaited, sync_users
+from app.node.sync import (
+    remove_user as sync_remove_user,
+    remove_user_awaited as sync_remove_user_awaited,
+    sync_users,
+)
 from app.operation import OperatorType
 from app.operation.user import UserOperation
 from app.settings import general_settings, webhook_settings
 from app.utils.logger import get_logger
-from config import job_settings, runtime_settings, usage_settings
+from config import job_settings, runtime_settings
 
 logger = get_logger("review-users")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
@@ -67,15 +72,26 @@ async def apply_status_changes(db: AsyncSession, users: list[User], status: User
     if not next_plan_users:
         return
 
+    # Read ids up front: a rollback below expires every loaded user, primary keys included.
+    user_ids = [db_user.id for db_user in next_plan_users]
+    reset_ids: list[int] = []
     reset_users: list[User] = []
-    for db_user in next_plan_users:
-        reset_users.append(
-            await reset_user_by_next(
-                db,
-                db_user,
-                clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+    for index, db_user in enumerate(next_plan_users):
+        username = db_user.username
+        try:
+            reset_users.append(
+                await reset_user_by_next(
+                    db,
+                    db_user,
+                    clean_chart_data=(await general_settings()).usage.reset_usage_clean_chart_data,
+                )
             )
-        )
+            reset_ids.append(user_ids[index])
+        except Exception:
+            # One bad next plan must not stall every user after it: skip it, the next run retries it.
+            logger.exception(f'Failed to activate next plan of user "{username}", skipped')
+            await db.rollback()
+            await reload_review_users(db, reset_ids + user_ids[index + 1 :])
     await sync_users(reset_users)
     for db_user in reset_users:
         await _notify_next_plan(db_user)
@@ -106,6 +122,11 @@ async def remove_on_hold_users(db: AsyncSession, db_users: list[User]):
     # Node updates confirmed – now commit the database deletions atomically.
     await remove_users(db, db_users)
 
+    # A delivery re-reads the database, so one that ran before the commit sent
+    # these users as still on hold. Queue the removals again now that they are gone.
+    for user in users:
+        await sync_remove_user(user)
+
     # Notifications and logging run after successful removal, same as before.
     for user in users:
         asyncio.create_task(notification.remove_user(user, SYSTEM_ADMIN))
@@ -117,15 +138,25 @@ async def on_hold_to_active_users_job():
         if on_hold_users := await get_on_hold_to_active_users(db):
             settings = await general_settings()
 
-            match settings.on_hold_timeout_action:
-                case OnHoldTimeoutAction.disable:
-                    updated_users = await update_users_status(db, on_hold_users, UserStatus.disabled)
-                    await apply_status_changes(db, updated_users, UserStatus.disabled)
-                case OnHoldTimeoutAction.delete:
-                    await remove_on_hold_users(db, on_hold_users)
-                case _:
-                    updated_users = await start_users_expire(db, on_hold_users)
-                    await apply_status_changes(db, updated_users, UserStatus.active)
+            # The selector returns users that came online and users whose on-hold timeout passed with no
+            # traffic since their last edit. The timeout action is only for the latter: a user who started
+            # using the service is always activated.
+            timed_out_users: list[User] = []
+            if settings.on_hold_timeout_action != OnHoldTimeoutAction.activate:
+                timed_out_users = [user for user in on_hold_users if not user.came_online]
+                on_hold_users = [user for user in on_hold_users if user.came_online]
+
+            if on_hold_users:
+                updated_users = await start_users_expire(db, on_hold_users)
+                await apply_status_changes(db, updated_users, UserStatus.active)
+
+            if timed_out_users:
+                match settings.on_hold_timeout_action:
+                    case OnHoldTimeoutAction.disable:
+                        updated_users = await update_users_status(db, timed_out_users, UserStatus.disabled)
+                        await apply_status_changes(db, updated_users, UserStatus.disabled)
+                    case OnHoldTimeoutAction.delete:
+                        await remove_on_hold_users(db, timed_out_users)
 
 
 async def usage_percent_notification_job():

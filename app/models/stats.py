@@ -1,3 +1,5 @@
+import math
+from datetime import datetime, timedelta
 from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator
@@ -10,6 +12,44 @@ class Period(str, Enum):
     hour = "hour"
     day = "day"
     month = "month"
+
+
+# Upper limit for the number of period buckets one stats request may ask for.
+# The dashboard stays far below it (about 500 per series); it only stops
+# requests like a year of minute buckets.
+MAX_USAGE_BUCKETS = 5000
+
+# Periods the limit applies to. Day and month are not limited: "all time" asks for
+# day buckets since 2000, and they can never outnumber the days of stored history.
+BUCKET_LIMITED_PERIODS = frozenset({Period.minute, Period.hour})
+
+# Shortest width of each period. Month uses 28 days so the count is an upper bound.
+PERIOD_WIDTHS: dict[Period, timedelta] = {
+    Period.minute: timedelta(minutes=1),
+    Period.hour: timedelta(hours=1),
+    Period.day: timedelta(days=1),
+    Period.month: timedelta(days=28),
+}
+
+# Usage history rows (node usages, node user usages) are written in 10 minute
+# buckets (see _get_time_bucket in app/jobs/record_usages.py), so a minute query
+# on them returns at most one row per 10 minutes.
+USAGE_RECORD_GRANULARITY = timedelta(minutes=10)
+
+
+def count_period_buckets(
+    start: datetime, end: datetime, period: Period, granularity: timedelta = timedelta(minutes=1)
+) -> int:
+    """Upper bound of the buckets a stats query returns for one series.
+
+    `granularity` is how far apart the stored rows are; buckets narrower than
+    that cannot all hold data, so the wider of the two decides the count.
+    """
+    span = (end - start).total_seconds()
+    if span <= 0:
+        return 1
+    width = max(PERIOD_WIDTHS[period], granularity).total_seconds()
+    return math.ceil(span / width)
 
 
 class StatList(BaseModel):
@@ -72,6 +112,12 @@ class NodeUsageStat(PeriodStartStat):
 
 class NodeUsageStatsList(StatList):
     stats: dict[int, list[NodeUsageStat]]
+
+
+class NodeOutboundUsageStatsList(StatList):
+    """Usage per outbound tag; the key is the tag."""
+
+    stats: dict[str, list[NodeUsageStat]]
 
 
 class NodeRealtimeStats(BaseModel):

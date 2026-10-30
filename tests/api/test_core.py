@@ -1,6 +1,10 @@
+import copy
+from unittest.mock import AsyncMock
+
 from fastapi import status
 
 from app.core.xray import XRayConfig
+from app.routers import core as core_router
 from app.utils.crypto import generate_wireguard_keypair
 from tests.api import client
 from tests.api.helpers import (
@@ -456,3 +460,51 @@ def test_get_cores_simple_search_and_sort(access_token):
     finally:
         for core_id in created_core_ids:
             delete_core(access_token, core_id)
+
+
+def _save_core(access_token, core, config):
+    return client.put(
+        url=f"/api/core/{core['id']}",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "config": config,
+            "name": core["name"],
+            "exclude_inbound_tags": core["exclude_inbound_tags"],
+            "fallbacks_inbound_tags": core["fallbacks_inbound_tags"],
+        },
+        params={"restart_nodes": True},
+    )
+
+
+def _stop_first_after_save(access_token, monkeypatch, change) -> bool:
+    restart = AsyncMock()
+    monkeypatch.setattr(core_router.node_operator, "restart_all_node", restart)
+    core = create_core(access_token)
+    config = copy.deepcopy(xray_config)
+    change(config)
+    try:
+        response = _save_core(access_token, core, config)
+        assert response.status_code == status.HTTP_200_OK
+        restart.assert_awaited_once()
+        return restart.await_args.kwargs["stop_first"]
+    finally:
+        delete_core(access_token, core["id"])
+
+
+def test_core_save_with_rule_and_outbound_changes_skips_stop(access_token, monkeypatch):
+    def change(config):
+        config["routing"]["rules"].append({"type": "field", "domain": ["example.com"], "outboundTag": "BLOCK"})
+        config["outbounds"].append({"tag": "DIRECT2", "protocol": "freedom"})
+
+    assert _stop_first_after_save(access_token, monkeypatch, change) is False
+
+
+def test_unchanged_core_save_skips_stop(access_token, monkeypatch):
+    assert _stop_first_after_save(access_token, monkeypatch, lambda config: None) is False
+
+
+def test_core_save_with_other_changes_keeps_stop(access_token, monkeypatch):
+    def change(config):
+        config["routing"]["domainStrategy"] = "IPIfNonMatch"
+
+    assert _stop_first_after_save(access_token, monkeypatch, change) is True

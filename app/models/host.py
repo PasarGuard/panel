@@ -1,10 +1,23 @@
+from copy import deepcopy
 from enum import Enum
-from ipaddress import ip_network
+from ipaddress import ip_address, ip_network
+from string import Formatter
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_serializer,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from app.db.models import ProxyHostALPN, ProxyHostFingerprint, ProxyHostSecurity, UserStatus
+from app.utils.helpers import MAX_FORMAT_SPEC_NUMBER, has_markup_unsafe_chars, has_oversized_format_spec
 
 from .validators import ListValidator, StringArrayValidator
 
@@ -140,6 +153,7 @@ class FinalMaskUdpType(str, Enum):
     xdns = "xdns"
     xicmp = "xicmp"
     realm = "realm"
+    udphop = "udphop"
 
     # Legacy aliases
     header_dns = "header-dns"
@@ -169,15 +183,97 @@ class FinalMaskNoiseItem(FinalMaskBaseModel):
     rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
 
 
+class FinalMaskNoiseMaskItem(FinalMaskNoiseItem):
+    """Packet item of the UDP noise mask. Unlike header-custom items, it also accepts exp, a packet template."""
+
+    type: str | None = Field(default=None, pattern=r"^$|^(:?array|str|base64|hex|exp)$")
+
+    @model_validator(mode="after")
+    def validate_exp_packet(self):
+        """Xray parses an exp packet as a template string and rejects a missing or blank one."""
+        if self.type == "exp" and not (isinstance(self.packet, str) and self.packet.strip()):
+            raise ValueError("exp noise needs a non-empty packet template string")
+        return self
+
+
+def _numeric_string_to_int(value: Any) -> Any:
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.isdecimal():
+            return int(text)
+    return value
+
+
+def _parse_int_range(value: str, *, maximum: int) -> tuple[int, int]:
+    parts = value.split("-")
+    if len(parts) > 2 or not all(part.isdecimal() for part in parts):
+        raise ValueError(f"'{value}' is not an integer or a range like 5-10")
+    low, high = int(parts[0]), int(parts[-1])
+    if low > high:
+        raise ValueError(f"'{value}' has a lower bound above the upper bound")
+    if high > maximum:
+        raise ValueError(f"'{value}' is above the maximum of {maximum}")
+    return low, high
+
+
+class FinalMaskHeaderCustomItemBase(FinalMaskBaseModel):
+    type: str | None = Field(default=None, pattern=r"^$|^(?:array|str|base64|hex)$")
+    packet: str | list[int] | None = Field(default=None)
+    rand: int | None = Field(default=None, ge=0, le=2_147_483_647)
+    rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
+
+    @field_validator("rand", mode="before")
+    @classmethod
+    def normalize_rand(cls, value):
+        return _numeric_string_to_int(value)
+
+    @field_validator("rand_range")
+    @classmethod
+    def check_rand_range(cls, value: str | None):
+        """Xray converts both bounds of randRange to a byte."""
+        if value is not None:
+            _parse_int_range(value, maximum=255)
+        return value
+
+
+class FinalMaskUdpHeaderCustomItem(FinalMaskHeaderCustomItemBase):
+    @model_validator(mode="before")
+    @classmethod
+    def drop_delay(cls, value):
+        """Xray's UDP header-custom item has no delay field."""
+        if isinstance(value, dict) and "delay" in value:
+            return {key: item for key, item in value.items() if key != "delay"}
+        return value
+
+
+class FinalMaskTcpHeaderCustomItem(FinalMaskHeaderCustomItemBase):
+    delay: int | str | None = Field(default=None)
+
+    @field_validator("delay", mode="before")
+    @classmethod
+    def normalize_delay(cls, value):
+        return _numeric_string_to_int(value)
+
+    @field_validator("delay")
+    @classmethod
+    def check_delay(cls, value: int | str | None):
+        """A string delay is a range such as "5-10"; Xray cannot parse anything else."""
+        if isinstance(value, str):
+            _parse_int_range(value, maximum=2_147_483_647)
+        return value
+
+
 class FinalMaskTcpHeaderCustomSettings(FinalMaskBaseModel):
-    clients: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
-    servers: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
-    errors: list[list[FinalMaskNoiseItem]] | None = Field(default=None)
+    clients: list[list[FinalMaskTcpHeaderCustomItem]] | None = Field(default=None)
+    servers: list[list[FinalMaskTcpHeaderCustomItem]] | None = Field(default=None)
+    errors: list[list[FinalMaskTcpHeaderCustomItem]] | None = Field(default=None)
 
 
 class FinalMaskUdpHeaderCustomSettings(FinalMaskBaseModel):
-    client: list[FinalMaskNoiseItem] | None = Field(default=None)
-    server: list[FinalMaskNoiseItem] | None = Field(default=None)
+    client: list[FinalMaskUdpHeaderCustomItem] | None = Field(default=None)
+    server: list[FinalMaskUdpHeaderCustomItem] | None = Field(default=None)
 
 
 class FinalMaskPasswordSettings(FinalMaskBaseModel):
@@ -210,17 +306,68 @@ class FinalMaskDomainSettings(FinalMaskBaseModel):
     domain: str | None = Field(default=None)
 
 
+class FinalMaskXdnsDomain(FinalMaskBaseModel):
+    names: list[str] = Field(default_factory=list)
+    len_limit: int | None = Field(default=None, alias="lenLimit")
+    label_limit: int | None = Field(default=None, alias="labelLimit")
+    types: list[int] | None = Field(default=None)
+    edns0: int | None = Field(default=None)
+
+    @model_serializer(mode="wrap")
+    def omit_unset_options(self, handler):
+        return {key: value for key, value in handler(self).items() if value is not None}
+
+
+class FinalMaskXdnsResolver(FinalMaskBaseModel):
+    addrs: list[str] = Field(default_factory=list)
+    worker: int | None = Field(default=None, ge=0)
+    tls_config: dict[str, Any] | None = Field(default=None, alias="tlsConfig")
+    quic_config: dict[str, Any] | None = Field(default=None, alias="quicConfig")
+
+    @model_validator(mode="after")
+    def ensure_doh_tls_config(self):
+        # Xray's DoH resolver requires a non-nil tlsConfig, including when its
+        # defaults are desired. An empty object enables the default fingerprint.
+        if any(addr.startswith("https://") for addr in self.addrs) and self.tls_config is None:
+            self.tls_config = {}
+        return self
+
+
 class FinalMaskXdnsSettings(FinalMaskBaseModel):
-    domains: list[str] | None = Field(default=None)
-    resolvers: list[str] | None = Field(default=None)
-    domain: str | None = Field(default=None)
+    domains: list[FinalMaskXdnsDomain] | None = Field(default=None)
+    resolvers: list[FinalMaskXdnsResolver] | None = Field(default=None)
+    extra_poll: int | None = Field(default=None, alias="extraPoll", ge=0, le=3)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_lists(cls, value):
+        if not isinstance(value, dict):
+            return value
+        result = {**value}
+        for key, member in (("domains", "names"), ("resolvers", "addrs")):
+            if isinstance(result.get(key), list):
+                result[key] = [{member: [item]} if isinstance(item, str) else item for item in result[key]]
+        return result
 
 
 class FinalMaskXicmpSettings(FinalMaskBaseModel):
     dgram: bool | None = Field(default=None)
     ips: list[str] | None = Field(default=None)
-    listen_ip: str | None = Field(default=None, alias="listenIp")
-    id: int | None = Field(default=None)
+
+    @model_validator(mode="before")
+    @classmethod
+    def remove_obsolete_fields(cls, value):
+        if not isinstance(value, dict):
+            return value
+        return {key: item for key, item in value.items() if key not in ("listenIp", "listen_ip", "id")}
+
+    @field_validator("ips")
+    @classmethod
+    def validate_ips(cls, value):
+        if value is not None:
+            for ip in value:
+                ip_address(ip)
+        return value
 
 
 class FinalMaskSalamanderSettings(FinalMaskPasswordSettings):
@@ -233,6 +380,80 @@ class FinalMaskRealmSettings(FinalMaskBaseModel):
     tls_config: dict[str, Any] | None = Field(default=None, alias="tlsConfig")
 
 
+class FinalMaskUdpHopSettings(FinalMaskBaseModel):
+    mode: str = Field(
+        pattern=r"^(?i:intervalLocal|intervalRemote|perConnRemote)(,(?i:intervalLocal|intervalRemote|perConnRemote))*$",
+    )
+    interval: str | None = Field(default=None, pattern=r"^[0-9]{1,16}(-[0-9]{1,16})?$")
+    remote_ips: list[str] | None = Field(default=None, alias="remoteIPs")
+    remote_ports: str | None = Field(
+        default=None, alias="remotePorts", pattern=r"^[0-9]{1,5}(-[0-9]{1,5})?(,[0-9]{1,5}(-[0-9]{1,5})?)*$"
+    )
+
+    @field_validator("mode", "interval", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, value):
+        """Strip form input, turn blanks into None and integers into strings."""
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, str):
+            value = value.strip()
+        return value or None
+
+    @field_validator("interval")
+    @classmethod
+    def interval_in_xray_range(cls, value: str | None):
+        """Xray refuses an udphop interval below 5 seconds and reads each bound as int32, so larger ones wrap."""
+        if value is None:
+            return value
+        bounds = [int(bound) for bound in value.split("-")]
+        if min(bounds) < 5:
+            raise ValueError("interval must be at least 5 seconds")
+        if max(bounds) > 2_147_483_647:
+            raise ValueError("interval must be at most 2147483647 seconds")
+        return value
+
+    @field_validator("remote_ips", mode="before")
+    @classmethod
+    def normalize_remote_ips(cls, value):
+        """Normalize IPs and CIDRs the way WireGuard allowed_ips are normalized."""
+        if value in (None, "", []):
+            return None
+        if not isinstance(value, list):
+            return value
+        # Non-string items are left for the list[str] check, so they fail as 422 instead of being dropped
+        normalized = [
+            str(ip_network(ip.strip(), strict=False)) if isinstance(ip, str) else ip
+            for ip in value
+            if not isinstance(ip, str) or ip.strip()
+        ]
+        return normalized or None
+
+    @field_validator("remote_ports", mode="before")
+    @classmethod
+    def normalize_remote_ports(cls, value):
+        """Xray's PortList takes a "a-b,c" string or a single number, never a JSON array."""
+        if isinstance(value, list):
+            value = ",".join(str(port) for port in value)
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, str):
+            return ",".join(part.strip() for part in value.split(",") if part.strip()) or None
+        return value
+
+    @field_validator("remote_ports")
+    @classmethod
+    def remote_ports_in_range(cls, value: str | None):
+        """Ports must be 1-65535 and ranges ascending: Xray expands a reversed range to no ports."""
+        for part in (value or "").split(","):
+            if not part:
+                continue
+            bounds = [int(port) for port in part.split("-")]
+            if any(not 1 <= port <= 65535 for port in bounds) or bounds != sorted(bounds):
+                raise ValueError("remotePorts must be ports or ascending ranges between 1 and 65535")
+        return value
+
+
 class FinalMaskMkcpLegacySettings(FinalMaskBaseModel):
     header: str | None = Field(default=None)
     value: str | None = Field(default=None)
@@ -240,7 +461,7 @@ class FinalMaskMkcpLegacySettings(FinalMaskBaseModel):
 
 class FinalMaskNoiseSettings(FinalMaskBaseModel):
     reset: str | int | None = Field(default=None)
-    noise: list[FinalMaskNoiseItem] | None = Field(default=None)
+    noise: list[FinalMaskNoiseMaskItem] | None = Field(default=None)
 
 
 class FinalMaskUdpHop(FinalMaskBaseModel):
@@ -282,6 +503,7 @@ FinalMaskUdpSettings = (
     | FinalMaskNoiseSettings
     | FinalMaskSalamanderSettings
     | FinalMaskRealmSettings
+    | FinalMaskUdpHopSettings
     | FinalMaskMkcpLegacySettings
     | dict[str, Any]
 )
@@ -297,7 +519,7 @@ FINAL_MASK_TCP_SETTINGS_MODELS = {
 FINAL_MASK_UDP_SETTINGS_MODELS = {
     FinalMaskUdpType.header_custom: FinalMaskUdpHeaderCustomSettings,
     FinalMaskUdpType.mkcp_legacy: FinalMaskMkcpLegacySettings,
-    FinalMaskUdpType.header_dns: FinalMaskXdnsSettings,
+    FinalMaskUdpType.header_dns: FinalMaskDomainSettings,
     FinalMaskUdpType.header_dtls: FinalMaskPasswordSettings,
     FinalMaskUdpType.header_srtp: FinalMaskPasswordSettings,
     FinalMaskUdpType.header_utp: FinalMaskPasswordSettings,
@@ -311,6 +533,7 @@ FINAL_MASK_UDP_SETTINGS_MODELS = {
     FinalMaskUdpType.xdns: FinalMaskXdnsSettings,
     FinalMaskUdpType.xicmp: FinalMaskXicmpSettings,
     FinalMaskUdpType.realm: FinalMaskRealmSettings,
+    FinalMaskUdpType.udphop: FinalMaskUdpHopSettings,
 }
 
 
@@ -366,6 +589,53 @@ class FinalMask(FinalMaskBaseModel):
     tcp: list[FinalMaskTcpLayer] | None = Field(default=None)
     udp: list[FinalMaskUdpLayer] | None = Field(default=None)
     quic_params: FinalMaskQuicParams | None = Field(default=None, alias="quicParams")
+
+    @model_validator(mode="after")
+    def validate_udphop_layer(self):
+        """Xray applies UDP layers last to first and allows one dialing layer (udphop or xicmp), applied first."""
+        layers = self.udp or []
+        types = [layer.type for layer in layers]
+        if FinalMaskUdpType.udphop not in types:
+            return self
+        if FinalMaskUdpType.xicmp in types:
+            raise ValueError("udphop cannot be combined with xicmp")
+        if types[-1] != FinalMaskUdpType.udphop or types.count(FinalMaskUdpType.udphop) > 1:
+            raise ValueError("udphop must be the last UDP layer and appear once")
+        if not getattr(layers[-1].settings, "mode", None):
+            raise ValueError("udphop needs settings with a mode")
+        return self
+
+
+def dump_final_mask_for_xray(final_mask: FinalMask | dict[str, Any]) -> dict[str, Any]:
+    """Serialize FinalMask with fragment keys understood by stable and newer Xray cores."""
+    try:
+        validated = final_mask if isinstance(final_mask, FinalMask) else FinalMask.model_validate(final_mask)
+    except ValidationError:
+        result = deepcopy(final_mask)
+    else:
+        result = validated.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+    tcp_layers = result.get("tcp")
+    if not isinstance(tcp_layers, list):
+        return result
+
+    for layer in tcp_layers:
+        if not isinstance(layer, dict) or layer.get("type") != FinalMaskTcpType.fragment.value:
+            continue
+        settings = layer.get("settings")
+        if not isinstance(settings, dict):
+            continue
+
+        # Xray v26.3.27 reads the singular fields. Development builds added the
+        # plural lists later, so emitting both lets each schema consume its own keys.
+        lengths = settings.get("lengths")
+        if settings.get("length") in (None, "") and isinstance(lengths, list) and lengths:
+            settings["length"] = lengths[0]
+        delays = settings.get("delays")
+        if settings.get("delay") in (None, "") and isinstance(delays, list) and delays:
+            settings["delay"] = delays[0]
+
+    return result
 
 
 class XMuxSettings(BaseModel):
@@ -540,17 +810,49 @@ class MuxSettings(BaseModel):
     xray: XrayMuxSettings | None = Field(default=None)
 
 
+class MasqueHostSettings(BaseModel):
+    remote_dns: list[str] | None = Field(default=None)
+    xmux: XMuxSettings | None = Field(default=None)
+
+
 class TransportSettings(BaseModel):
     xhttp_settings: XHttpSettings | None = Field(default=None)
     grpc_settings: GRPCSettings | None = Field(default=None)
     kcp_settings: KCPSettings | None = Field(default=None)
     tcp_settings: TcpSettings | None = Field(default=None)
     websocket_settings: WebSocketSettings | None = Field(default=None)
+    masque_settings: MasqueHostSettings | None = Field(default=None)
 
 
 class FormatVariables(dict):
     def __missing__(self, key):
         return key.join("{}")
+
+
+def validate_format_variables(value: str, allow_quoting: bool = True) -> str:
+    """Reject a value that the subscription cannot render with ``str.format_map``.
+
+    Unbalanced braces and positional fields (``{}``, ``{0}``) always fail; attribute and index
+    fields (``{USERNAME.x}``, ``{USERNAME[9]}``) fail or not depending on the user, so only plain
+    variable names (with an optional format spec) are allowed. ``{{`` and ``}}`` stay literal braces.
+    Widths and precisions above ``MAX_FORMAT_SPEC_NUMBER`` are rejected before anything is formatted.
+    ``allow_quoting=False`` also rejects the ``!r`` and ``!a`` conversions, which wrap the value in quotes.
+    """
+    if has_oversized_format_spec(value):
+        raise ValueError(
+            f'Invalid formatting variables in "{value}": width and precision must be numbers up to '
+            f"{MAX_FORMAT_SPEC_NUMBER}"
+        )
+    try:
+        fields = [(field, conversion) for _, field, _, conversion in Formatter().parse(value) if field is not None]
+        value.format_map(FormatVariables())
+    except ValueError, AttributeError, IndexError, TypeError:
+        raise ValueError(f'Invalid formatting variables in "{value}"')
+    if any("." in field or "[" in field for field, _ in fields):
+        raise ValueError(f'Invalid formatting variables in "{value}"')
+    if not allow_quoting and any(conversion in ("r", "a") for _, conversion in fields):
+        raise ValueError(f'Invalid formatting variables in "{value}": !r and !a add quotes, use the plain field')
+    return value
 
 
 class WireGuardHostOverrides(BaseModel):
@@ -642,18 +944,19 @@ class BaseHost(BaseModel):
             return None
         return value
 
+    @field_serializer("final_mask_settings")
+    def serialize_final_mask_settings(self, value: FinalMask | None) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        return value.model_dump(by_alias=True, exclude_none=True, mode="json")
+
 
 class CreateHost(BaseHost):
     @field_validator("remark", mode="after")
     def validate_remark(cls, v):
         if not v:
             raise ValueError("Remark cannot be empty")
-        try:
-            v.format_map(FormatVariables())
-        except ValueError:
-            raise ValueError("Invalid formatting variables")
-
-        return v
+        return validate_format_variables(v)
 
     @field_validator("alpn", mode="after")
     def remove_duplicates(cls, v):
@@ -666,23 +969,27 @@ class CreateHost(BaseHost):
         if v:
             return sorted(v, key=lambda x: priority[x])
 
-    @field_validator("address", mode="after")
-    def validate_address(cls, v):
-        return StringArrayValidator.len_check(v, 256)
-
     @field_validator("sni", "host", mode="after")
     def validate_sets(cls, v: set):
-        return StringArrayValidator.len_check(v, 1000)
+        v = StringArrayValidator.len_check(v, 1000)
+        for item in v or ():
+            validate_format_variables(item, allow_quoting=False)
+        return v
+
+    @field_validator("path", mode="after")
+    def validate_path(cls, v):
+        return validate_format_variables(v, allow_quoting=False) if v else v
 
 
 class BulkHostSelection(BaseModel):
     """Model for bulk host selection by IDs"""
 
-    ids: set[int] = Field(default_factory=set)
+    ids: set[int]
 
     @field_validator("ids", mode="after")
     @classmethod
     def ids_validator(cls, v):
+        """Reject an empty selection after deduplicating host IDs."""
         return ListValidator.not_null_list(list(v), "host")
 
 

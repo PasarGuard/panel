@@ -10,6 +10,7 @@ from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.xray import xray_wireguard_allocatable_addresses
 from app.db.models import (
     CoreConfig,
     CoreType,
@@ -44,6 +45,44 @@ def core_config_dict(core: CoreConfig) -> dict:
     if isinstance(cfg, str):
         cfg = json.loads(cfg)
     return cfg
+
+
+def wg_core_interfaces(core: CoreConfig) -> list[dict]:
+    """Allocation interfaces for kernel WG or managed Xray WG inbounds.
+
+    Xray outbounds and excluded inbounds never participate in user allocation.
+    Only this view uses interface_name; the Xray config sent to nodes is unchanged.
+    """
+    config = core_config_dict(core)
+    if core.type == CoreType.wg:
+        return [config]
+    if core.type not in (None, CoreType.xray):
+        return []
+    excluded = set(core.exclude_inbound_tags or []) | set(core.fallbacks_inbound_tags or [])
+    interfaces = []
+    for inbound in config.get("inbounds", []):
+        if inbound.get("protocol") != "wireguard" or inbound.get("tag") in excluded:
+            continue
+        settings = inbound.get("settings") or {}
+        if not isinstance(settings, dict):
+            continue
+        # Same rule as the core parser: only client subnets make an inbound managed.
+        try:
+            addresses = xray_wireguard_allocatable_addresses(inbound.get("tag"), settings.get("address"))
+        except ValueError:
+            # The core parser rejects this inbound, so it is never served.
+            continue
+        if addresses:
+            interfaces.append(
+                {
+                    "interface_name": inbound.get("tag"),
+                    "address": addresses,
+                    # Xray binds every entry, host addresses included, as a server
+                    # address of the inbound; none of them may go to a client.
+                    "server_addresses": [str(ip_interface(address)) for address in settings["address"]],
+                }
+            )
+    return interfaces
 
 
 def wg_core_subnets(config: dict) -> list[IpNetwork]:
@@ -89,9 +128,9 @@ class WgNamespace:
 def wg_namespaces(cores: Iterable[CoreConfig]) -> dict[str, WgNamespace]:
     by_key: dict[str, list[tuple[dict, IpNetwork]]] = {}
     for core in cores:
-        cfg = core_config_dict(core)
-        for subnet in wg_core_subnets(cfg):
-            by_key.setdefault(str(subnet), []).append((cfg, subnet))
+        for cfg in wg_core_interfaces(core):
+            for subnet in wg_core_subnets(cfg):
+                by_key.setdefault(str(subnet), []).append((cfg, subnet))
 
     namespaces: dict[str, WgNamespace] = {}
     for key, entries in by_key.items():
@@ -103,7 +142,8 @@ def wg_namespaces(cores: Iterable[CoreConfig]) -> dict[str, WgNamespace]:
             tag = str(cfg.get("interface_name") or "").strip()
             if tag:
                 tags.add(tag)
-            for cidr in cfg.get("address") or []:
+            # Kernel WireGuard configs have no server_addresses and reserve their interface addresses.
+            for cidr in cfg.get("server_addresses") or cfg.get("address") or []:
                 try:
                     iface = ip_interface(str(cidr).strip())
                 except ValueError:
@@ -159,9 +199,10 @@ def wg_core_tags(cores: Iterable[CoreConfig]) -> set[str]:
     """Interface names (= inbound tags) of all WG cores, subnet or not."""
     tags: set[str] = set()
     for core in cores:
-        tag = str(core_config_dict(core).get("interface_name") or "").strip()
-        if tag:
-            tags.add(tag)
+        for cfg in wg_core_interfaces(core):
+            tag = str(cfg.get("interface_name") or "").strip()
+            if tag:
+                tags.add(tag)
     return tags
 
 
@@ -308,8 +349,9 @@ def _peer_sort_key(entry: str) -> tuple[int, int]:
 
 
 async def get_wg_cores(db: AsyncSession) -> list[CoreConfig]:
-    result = await db.execute(select(CoreConfig).where(CoreConfig.type == CoreType.wg))
-    return list(result.scalars().all())
+    """Cores with managed WireGuard interfaces, across both backend types."""
+    result = await db.execute(select(CoreConfig))
+    return [core for core in result.scalars().all() if wg_core_interfaces(core)]
 
 
 def _accessible_tags_stmt(*, tags: Iterable[str] | None = None, user_ids: Iterable[int] | None = None):
@@ -337,12 +379,15 @@ def _accessible_tags_stmt(*, tags: Iterable[str] | None = None, user_ids: Iterab
 
 
 async def get_users_accessible_tags(db: AsyncSession, user_ids: list[int]) -> dict[int, set[str]]:
-    """user_id -> inbound tags reachable through enabled groups. One joined SELECT."""
+    """user_id -> inbound tags reachable through enabled groups. One joined SELECT per 10k ids."""
     if not user_ids:
         return {}
     tags_by_user: dict[int, set[str]] = {}
-    for user_id, tag in (await db.execute(_accessible_tags_stmt(user_ids=user_ids))).all():
-        tags_by_user.setdefault(user_id, set()).add(tag)
+    # asyncpg caps a statement at 32767 bind parameters, so a big group can't go into one IN (...).
+    for start in range(0, len(user_ids), 10_000):
+        stmt = _accessible_tags_stmt(user_ids=user_ids[start : start + 10_000])
+        for user_id, tag in (await db.execute(stmt)).all():
+            tags_by_user.setdefault(user_id, set()).add(tag)
     return tags_by_user
 
 
@@ -417,6 +462,8 @@ async def ensure_wireguard_subnet_pools(db: AsyncSession) -> None:
 
     Used on core create so we do not run a full user reconcile; allocations happen when
     groups gain the inbound via sync_users_allocations.
+    The rows stay locked until commit: a transaction that locks user rows before it allocates
+    calls this first, to keep the pool -> users lock order of every other writer.
     """
     namespaces = wg_namespaces(await get_wg_cores(db))
     if not namespaces:

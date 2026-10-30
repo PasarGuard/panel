@@ -1,13 +1,13 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { type HostAdvanceSearchFormValues, hostAdvanceSearchFormSchema } from '@/features/hosts/forms/host-advance-search-form'
-import { HostFormSchema, hostFormDefaultValues, mapHostFragmentSettingsForForm, type HostFormValues } from '@/features/hosts/forms/host-form'
+import { HostFormSchema, hostFormDefaultValues, mapHostFragmentSettingsForForm, mapMasqueXmuxForForm, type HostFormValues } from '@/features/hosts/forms/host-form'
 import HostAdvanceSearchModal from '@/features/hosts/dialogs/host-advance-search-modal'
 import { type HostListFilters, HostFilters } from '@/features/hosts/components/host-filters'
 import { ListGenerator } from '@/components/common/list-generator'
 import { ListGeneratorGrid } from '@/components/common/list-generator-grid'
 import { useHostsListColumns } from '@/features/hosts/components/use-hosts-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
-import { BaseHost, CreateHost, createHost, modifyHosts, useBulkDeleteHosts, useBulkDisableHosts, useBulkEnableHosts, useGetInboundDetails } from '@/service/api'
+import { BaseHost, CreateHost, createHost, getGetHostsQueryKey, modifyHosts, useBulkDeleteHosts, useBulkDisableHosts, useBulkEnableHosts, useGetInboundDetails } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, UniqueIdentifier, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
@@ -46,12 +46,6 @@ interface BulkActionDialogConfig {
   onConfirm: () => Promise<void>
   isPending: boolean
   destructive?: boolean
-}
-
-const toOptionalNumber = (value: unknown) => {
-  if (value === null || value === undefined || value === '') return undefined
-  const numericValue = Number(value)
-  return Number.isFinite(numericValue) ? numericValue : undefined
 }
 
 export default function HostsList({
@@ -104,7 +98,7 @@ export default function HostsList({
   const refreshHostsData = () => {
     // Just invalidate the main query key used in the dashboard
     return queryClient.invalidateQueries({
-      queryKey: ['getGetHostsQueryKey'],
+      queryKey: getGetHostsQueryKey(),
       exact: true, // Only invalidate this exact query
       refetchType: 'active', // Only refetch if the query is currently being rendered
     })
@@ -175,6 +169,10 @@ export default function HostsList({
     setIsAdvanceSearchOpen(open)
   }
 
+  /**
+   * Populate the form and open the host editor when updates are allowed.
+   * An existing MASQUE settings block with no DNS list is loaded with an empty list.
+   */
   const handleEdit = (host: BaseHost) => {
     if (!canUpdate) return
 
@@ -218,8 +216,8 @@ export default function HostsList({
             xray:
               host.noise_settings.xray?.map(noise => ({
                 type: noise.type,
-                packet: Array.isArray(noise.packet) ? noise.packet.join(',') : (noise.packet ?? ''),
-                delay: noise.delay != null ? String(noise.delay) : '',
+                packet: noise.packet ?? '',
+                delay: noise.delay ?? '',
                 apply_to: (noise.apply_to as 'ip' | 'ipv4' | 'ipv6') || 'ip',
               })) ?? undefined,
           }
@@ -262,6 +260,12 @@ export default function HostsList({
         : undefined,
       transport_settings: host.transport_settings
         ? {
+            masque_settings: host.transport_settings.masque_settings
+              ? {
+                  remote_dns: host.transport_settings.masque_settings.remote_dns ?? [],
+                  xmux: mapMasqueXmuxForForm(host.transport_settings.masque_settings.xmux),
+                }
+              : undefined,
             xhttp_settings: host.transport_settings.xhttp_settings
               ? {
                   mode: host.transport_settings.xhttp_settings.mode ?? undefined,
@@ -281,7 +285,7 @@ export default function HostsList({
                   seq_key: host.transport_settings.xhttp_settings.seq_key ?? undefined,
                   uplink_data_placement: host.transport_settings.xhttp_settings.uplink_data_placement ?? undefined,
                   uplink_data_key: host.transport_settings.xhttp_settings.uplink_data_key ?? undefined,
-                  uplink_chunk_size: toOptionalNumber(host.transport_settings.xhttp_settings.uplink_chunk_size),
+                  uplink_chunk_size: host.transport_settings.xhttp_settings.uplink_chunk_size ?? undefined,
                   sc_max_each_post_bytes: host.transport_settings.xhttp_settings.sc_max_each_post_bytes ?? undefined,
                   sc_min_posts_interval_ms: host.transport_settings.xhttp_settings.sc_min_posts_interval_ms ?? undefined,
                   download_settings: host.transport_settings.xhttp_settings.download_settings ?? undefined,
@@ -540,6 +544,11 @@ export default function HostsList({
     }),
   )
 
+  /**
+   * Persist an unfiltered drag reorder as zero-based host priorities, retaining MASQUE DNS settings.
+   * Ignore drops when updates are disallowed or the source or target is invalid.
+   * On failure, restore the previous local order and show an error without rejecting the promise.
+   */
   const handleDragEnd = async (event: DragEndEvent) => {
     if (!canUpdate) return
 
@@ -633,6 +642,12 @@ export default function HostsList({
           : undefined,
         transport_settings: host.transport_settings
           ? {
+              masque_settings: host.transport_settings.masque_settings
+                ? {
+                    remote_dns: host.transport_settings.masque_settings.remote_dns ?? [],
+                    xmux: host.transport_settings.masque_settings.xmux ?? undefined,
+                  }
+                : undefined,
               xhttp_settings: host.transport_settings.xhttp_settings
                 ? {
                     mode: host.transport_settings.xhttp_settings.mode ?? undefined,
@@ -652,20 +667,11 @@ export default function HostsList({
                     seq_key: host.transport_settings.xhttp_settings.seq_key ?? undefined,
                     uplink_data_placement: host.transport_settings.xhttp_settings.uplink_data_placement ?? undefined,
                     uplink_data_key: host.transport_settings.xhttp_settings.uplink_data_key ?? undefined,
-                    uplink_chunk_size: toOptionalNumber(host.transport_settings.xhttp_settings.uplink_chunk_size),
+                    uplink_chunk_size: host.transport_settings.xhttp_settings.uplink_chunk_size ?? undefined,
                     sc_max_each_post_bytes: host.transport_settings.xhttp_settings.sc_max_each_post_bytes ?? undefined,
                     sc_min_posts_interval_ms: host.transport_settings.xhttp_settings.sc_min_posts_interval_ms ?? undefined,
                     download_settings: host.transport_settings.xhttp_settings.download_settings ?? undefined,
-                    xmux: host.transport_settings.xhttp_settings.xmux
-                      ? {
-                          max_concurrency: host.transport_settings.xhttp_settings.xmux.maxConcurrency ?? undefined,
-                          max_connections: host.transport_settings.xhttp_settings.xmux.maxConnections ?? undefined,
-                          c_max_reuse_times: host.transport_settings.xhttp_settings.xmux.cMaxReuseTimes ?? undefined,
-                          h_max_reusable_secs: host.transport_settings.xhttp_settings.xmux.hMaxReusableSecs ?? undefined,
-                          h_max_request_times: host.transport_settings.xhttp_settings.xmux.hMaxRequestTimes ?? undefined,
-                          h_keep_alive_period: host.transport_settings.xhttp_settings.xmux.hKeepAlivePeriod ?? undefined,
-                        }
-                      : undefined,
+                    xmux: host.transport_settings.xhttp_settings.xmux ?? undefined,
                   }
                 : undefined,
               grpc_settings: host.transport_settings.grpc_settings
@@ -735,8 +741,17 @@ export default function HostsList({
       // Revert the optimistic update on error
       setHosts(hosts)
 
-      // Show error message
-      toast.error(t('host.priorityUpdateError', { defaultValue: 'Failed to update priorities' }))
+      // Show error message, with the API's reason (a 422 names the host value it rejected)
+      const detail = (error as any)?.data?.detail
+      const description =
+        typeof detail === 'string'
+          ? detail
+          : detail && typeof detail === 'object'
+            ? Object.entries(detail)
+                .map(([field, message]) => `${field}: ${message}`)
+                .join('\n')
+            : undefined
+      toast.error(t('host.priorityUpdateError', { defaultValue: 'Failed to update priorities' }), { description })
     } finally {
       setIsUpdatingPriorities(false)
     }

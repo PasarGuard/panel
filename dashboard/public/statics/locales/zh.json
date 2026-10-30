@@ -70,6 +70,8 @@
     "bulkReconnectPrompt": "确定要重连选中的 {{count}} 个节点吗？",
     "bulkUpdateSuccess": "已成功更新 {{count}} 个节点。",
     "bulkUpdateFailed": "更新所选节点失败。",
+    "orderUpdated": "节点顺序已更新",
+    "orderUpdateFailed": "更新节点顺序失败",
     "bulkUpdateTitle": "更新所选节点",
     "bulkUpdatePrompt": "确定要更新选中的 {{count}} 个节点吗？",
     "enableSuccess": "节点 «{{name}}» 启用成功",
@@ -251,7 +253,9 @@
         "disableSubTemplate": "禁用订阅模板",
         "disableSubTemplateDescription": "禁用后，浏览器请求将返回 API 响应而不是 HTML 订阅页面",
         "randomizeOrder": "随机化订阅顺序",
-        "randomizeOrderDescription": "每次请求订阅时，随机打乱配置顺序"
+        "randomizeOrderDescription": "每次请求订阅时，随机打乱配置顺序",
+        "clientsLimit": "每位用户保留的更新数",
+        "clientsLimitDescription": "每位用户保留多少条最近的订阅更新（客户端应用）。0 或更小表示全部保留"
       },
       "responseHeaders": {
         "title": "响应头",
@@ -542,10 +546,12 @@
           "expired": "按时间过期",
           "limited": "按流量受限",
           "on_hold": "暂停中",
-          "disabled": "已禁用"
+          "disabled": "已禁用",
+          "inactive": "不活跃用户"
         },
         "statusChangedAfter": "状态变更时间晚于",
         "statusChangedBefore": "状态变更时间早于",
+        "lastActivityBefore": "最后活动时间早于",
         "expiredAfterPlaceholder": "选择开始日期",
         "expiredBeforePlaceholder": "选择结束日期",
         "dateRange": "日期范围",
@@ -556,27 +562,33 @@
         "deleteLimited": "删除受限账户",
         "deleteOnHold": "删除暂停账户",
         "deleteDisabled": "删除禁用账户",
+        "deleteInactive": "删除不活跃账户",
         "deleting": "删除中...",
         "deleteSuccess": "成功删除 {{count}} 个过期账户",
         "deleteLimitedSuccess": "成功删除 {{count}} 个受限账户",
         "deleteOnHoldSuccess": "成功删除 {{count}} 个暂停账户",
         "deleteDisabledSuccess": "成功删除 {{count}} 个禁用账户",
+        "deleteInactiveSuccess": "成功删除 {{count}} 个不活跃账户",
         "dryRunSuccess": "模拟运行：将删除 {{count}} 个账户",
         "deleteFailed": "删除过期账户失败",
         "deleteLimitedFailed": "删除受限账户失败",
         "deleteOnHoldFailed": "删除暂停账户失败",
         "deleteDisabledFailed": "删除禁用账户失败",
+        "deleteInactiveFailed": "删除不活跃账户失败",
         "confirmDelete": "删除过期账户",
         "confirmDeleteLimited": "删除受限账户",
         "confirmDeleteOnHold": "删除暂停账户",
         "confirmDeleteDisabled": "删除禁用账户",
+        "confirmDeleteInactive": "删除不活跃账户",
         "confirmDeleteMessage": "您确定要删除所选日期范围内的所有过期账户吗？此操作无法撤销。",
         "confirmDeleteLimitedMessage": "您确定要删除所选日期范围内的所有受限账户吗？此操作无法撤销。",
         "confirmDeleteOnHoldMessage": "您确定要删除所选日期范围内的所有暂停账户吗？此操作无法撤销。",
         "confirmDeleteDisabledMessage": "您确定要删除所选日期范围内的所有禁用账户吗？此操作无法撤销。",
+        "confirmDeleteInactiveMessage": "您确定要删除最后活动时间早于所选日期的账户吗？此操作无法撤销。",
         "noDateSelected": "请至少选择一个日期",
         "selectDateRange": "按到期日期过滤。如果开始和结束日期都为空，将删除所有匹配账户。",
         "selectStatusChangedDateRange": "按用户进入此状态的日期过滤。如果开始和结束日期都为空，将删除所有匹配账户。",
+        "selectInactiveDate": "请选择截止日期。最后在线时间早于该日期的账户将被选中；从未上线的账户使用创建日期。",
         "selectLimitedInfo": "将删除所选管理员范围内的所有按流量受限账户。"
       },
       "resetUsage": {
@@ -610,7 +622,8 @@
         "warning": "警告：此操作将永久删除所选表中的所有使用数据。此操作无法撤销。",
         "tables": {
           "nodeUserUsages": "节点用户使用情况",
-          "nodeUsages": "节点使用情况"
+          "nodeUsages": "节点使用情况",
+          "nodeOutboundUsages": "节点出站使用情况"
         }
       }
     },
@@ -679,7 +692,51 @@
         "disable": "禁用用户",
         "delete": "删除用户"
       },
-      "errorLoadingSettings": "加载设置时出错"
+      "errorLoadingSettings": "加载设置时出错",
+      "usage": {
+        "title": "用量记录",
+        "description": "选择面板保存哪些用量数据",
+        "recordNodeUsage": {
+          "title": "记录节点用量",
+          "description": "按节点保存用户和节点的流量。用户和管理员的用量始终会统计"
+        },
+        "recordNodeStats": {
+          "title": "记录节点系统统计",
+          "description": "保存节点的 CPU、内存和带宽历史。仅支持 PostgreSQL 和 TimescaleDB"
+        },
+        "resetUsageCleanChartData": {
+          "title": "重置用量时清除图表",
+          "description": "重置用户流量时删除其用量图表历史"
+        },
+        "recordOutboundUsage": {
+          "title": "按出站记录使用量",
+          "description": "为每个节点按出站标签保存流量，用于显示出站使用情况图表。会增加数据库行数，出站较多时更多。"
+        }
+      },
+      "nodeHealth": {
+        "title": "节点健康检查",
+        "description": "节点何时被判定为离线或恢复",
+        "failThreshold": {
+          "title": "失败阈值",
+          "description": "连续失败多少次检查后将节点标记为错误"
+        },
+        "recoverThreshold": {
+          "title": "恢复阈值",
+          "description": "连续成功多少次检查后将节点重新标记为已连接"
+        },
+        "probeTimeout": {
+          "title": "探测超时（秒）",
+          "description": "健康探测等待节点响应的时间，不会超过节点自身的超时"
+        },
+        "maxBackoff": {
+          "title": "最大退避（秒）",
+          "description": "处于错误状态的节点两次探测之间的最长间隔。0 表示每次检查都探测"
+        }
+      },
+      "stopNodesOnShutdown": {
+        "title": "关闭时停止节点核心",
+        "description": "面板关闭时停止所有节点的核心。仅在单个 worker 时生效"
+      }
     },
     "errorLoadingSettings": "加载设置时出错"
   },
@@ -822,7 +879,7 @@
       "traffic": "监控管理员使用情况",
       "no_traffic": "没有使用情况数据"
     },
-    "disabled": "??"
+    "disabled": "已禁用"
   },
   "apiKeys": {
     "title": "API 密钥",
@@ -1278,6 +1335,14 @@
   "header.logout": "退出",
   "header.nodeSettings": "节点设置",
   "header.nodesUsage": "节点统计",
+  "realityFingerprint": {
+    "title": "REALITY 指纹兼容性",
+    "tls13": "此预设不支持 Xray REALITY 所需的 TLS 1.3 握手。请选择 chrome 或 firefox。",
+    "modern": "此预设可能无法提供新版 Xray REALITY 服务端所需的 X25519MLKEM768。请使用 chrome 或 firefox，并保持客户端为最新版本。",
+    "random": "随机预设可能生成被新版 Xray REALITY 服务端拒绝的握手。请选择 chrome 或 firefox 以使用固定预设，并保持客户端为最新版本。",
+    "unsafe": "unsafe 不是 uTLS 预设，不能用于 Xray REALITY。请选择 chrome 或 firefox。",
+    "useChrome": "使用 Chrome"
+  },
   "hostsDialog": {
     "addHost": "添加主机",
     "selectInbound": "选择入站",
@@ -1301,6 +1366,11 @@
     "path": "路径",
     "selectAlpn": "选择 ALPN",
     "networkSettings": "网络设置",
+    "masque": {
+      "remoteDns": "MASQUE 远程 DNS 服务器",
+      "remoteDnsHint": "留空则使用入站 DNS 服务器",
+      "xmuxHint": "客户端需要 Xray 26.10.21 或更新版本。全部留空时使用 Xray 默认值：一个隧道，可复用 1800-3000 秒。设置任一字段后，这些默认值将被替换。最大连接数和最大并发数不能同时设置。"
+    },
     "transportSettings": "传输设置",
     "transportType": "传输类型",
     "selectTransport": "选择传输类型",
@@ -1463,6 +1533,10 @@
       "invalidJson": "无效的 JSON: {{error}}",
       "tcpLayers": "TCP 层",
       "addTcpLayer": "添加 TCP 层",
+      "filterHint": "仅适用于入站流量。请将过滤器放在最后，使其成为最外层 TCP 遮罩。阻止列表优先于允许列表。",
+      "allowedSourceIPs": "允许的来源 IP",
+      "blockedSourceIPs": "阻止的来源 IP",
+      "sourceIPsPlaceholder": "添加 CIDR 或 geoip:cn",
       "noTcpLayers": "未配置 TCP 层",
       "udpLayers": "UDP 层",
       "addUdpLayer": "添加 UDP 层",
@@ -1477,6 +1551,13 @@
       "realmUrlPlaceholder": "realm[+http]://token@host[:port]/id",
       "stunServers": "STUN 服务器",
       "stunServersPlaceholder": "例如 stun.nextcloud.com:3478",
+      "udphopMode": "模式",
+      "udphopRemotePorts": "远程端口",
+      "udphopRemoteIps": "远程 IP",
+      "udphopRemoteIpsPlaceholder": "例如 203.0.113.0/24",
+      "udphopLastLayerHint": "必须是最后一个 UDP 层，且不能与 xicmp 同时使用。",
+      "udphopVersionHint": "需要 Xray 26.9.9 或更高版本（预发布版）；旧版 Xray 会拒绝整个配置。",
+      "noiseExpVersionHint": "exp 需要 Xray 26.9.30 或更高版本（预发布版）；旧版 Xray 会拒绝整个配置。",
       "tlsConfig": "TLS 配置（JSON 对象，可选）",
       "mustBeJsonObject": "必须是 JSON 对象",
       "invalidJsonObject": "无效的 JSON",
@@ -1484,12 +1565,17 @@
       "serverDomainsPlaceholder": "例如 t.example.com 或 t.example.com:txt",
       "clientResolvers": "客户端解析器",
       "clientResolversPlaceholder": "例如 t.example.com+udp://8.8.8.8:53",
+      "xdnsDomainsHint": "JSON 对象数组，例如 [{\"names\":[\"t.example.com\"]}]。可选：lenLimit、labelLimit、types、edns0。",
+      "xdnsResolversHint": "JSON 对象数组，例如 [{\"addrs\":[\"https://dns.example/dns-query\"],\"tlsConfig\":{}}]。可选：worker、quicConfig。HTTP/3 使用 tlsConfig.alpn=[\"h3\"]。",
+      "xdnsExtraPoll": "Extra Poll（0–3）",
+      "xdnsInvalidArray": "请输入 JSON 对象数组",
       "domain": "域名",
       "domainPlaceholder": "例如 example.com",
       "password": "密码",
       "packetSize": "数据包大小（Gecko，上限 2048）",
       "packetSizePlaceholder": "例如 512-1200",
       "dgramMode": "DGRAM 模式（仅客户端，Linux/macOS/iOS）",
+      "xicmpIpsHint": "可选 IP 地址：客户端目标地址或服务端允许的来源地址。支持多个 IPv4 和 IPv6 地址。",
       "ips": "IP 地址",
       "ipsPlaceholder": "添加 IP（例如 1.1.1.1）",
       "reset": "重置（秒 / 范围）",
@@ -1529,6 +1615,7 @@
       "brutalDown": "Brutal 下行",
       "mbpsPlaceholder": "例如 60 mbps",
       "udpHop": "UDP Hop",
+      "udpHopLegacyHint": "Xray 26.9.9+ 客户端会忽略此项并使用 udphop UDP 掩码；Hysteria2 链接、sing-box 和 Clash 仍会读取它。",
       "ports": "端口",
       "portsPlaceholder": "例如 20000-50000 或 11,13,15-17",
       "interval": "间隔（秒，最小 5）",
@@ -1550,7 +1637,19 @@
       "keepAlivePeriodPlaceholder": "例如 0",
       "disablePmtuDiscovery": "禁用 PMTU 发现",
       "noiseRandPlaceholder": "例如 1-8192",
-      "noiseRandRangePlaceholder": "例如 0-255"
+      "noiseRandRange": "随机范围",
+      "noiseRandRangePlaceholder": "例如 0-255",
+      "noiseExpPlaceholder": "例如 <b 0d0a><t><r 24-48>",
+      "noiseExpSyntaxTitle": "数据包表达式语法",
+      "noiseExpSyntaxIntro": "按顺序连接这些部分以构建一个数据包。每次发送时都会重新计算表达式。",
+      "noiseExpBytes": "固定的十六进制字节（可选 0x 前缀）",
+      "noiseExpRandom": "N 个随机字节，或 A 到 B 个随机字节",
+      "noiseExpLetters": "随机字母 (a-zA-Z)",
+      "noiseExpDigits": "随机数字 (0-9)",
+      "noiseExpTime": "当前 Unix 时间（秒），4 字节，大端序",
+      "noiseExpCounter": "4 字节计数器，每次发送递增",
+      "noiseExpNonce": "8 个随机字节",
+      "noiseExpExample": "示例："
     },
     "muxSettings": "Mux 设置",
     "enableMux": "启用 Mux",
@@ -1820,6 +1919,8 @@
   "revokeUserSub.success": "成功撤销用户 {{username}} 的订阅。",
   "revokeUserSub.title": "撤销用户订阅",
   "hwids": {
+    "count": "HWID 数量",
+    "registeredCount": "已注册的硬件 ID 数量",
     "title": "硬件 ID",
     "description": "管理此用户已注册的硬件 ID。",
     "copy": "复制硬件 ID",
@@ -1942,6 +2043,7 @@
   "userDialog.proxySettings.method": "加密方式",
   "userDialog.proxySettings.hysteria": "Hysteria",
   "userDialog.proxySettings.hysteriaAuth": "Hysteria 认证",
+  "userDialog.proxySettings.masque": "MASQUE",
   "userDialog.proxySettings.wireguardPrivateKey": "WireGuard 私钥",
   "userDialog.proxySettings.wireguardPublicKey": "WireGuard 公钥",
   "userDialog.proxySettings.generateWireGuardKeyPair": "WireGuard 密钥对",
@@ -1979,6 +2081,7 @@
     "refreshNow": "立即刷新"
   },
   "statistics.system": "系统",
+  "statistics.periodTooFineForRange": "此时间范围的数据点过多，请选择更短的范围。",
   "statistics.totalTraffic": "总流量",
   "statistics.ramUsage": "RAM 使用情况",
   "statistics.cpuUsage": "CPU 使用情况",
@@ -2000,7 +2103,7 @@
   "statistics.subscriptionDistribution": "订阅客户端分布",
   "statistics.subscriptionDistributionDetails": "订阅客户端详情",
   "statistics.subscriptionDistributionDescription": "不同代理和应用的订阅更新占比。",
-  "statistics.subscriptionDistributionRetentionNote": "默认每位用户仅保留最近 {{limit}} 条订阅更新记录。如需修改，请在环境变量中设置 {{env}}。",
+  "statistics.subscriptionDistributionRetentionNote": "默认每位用户仅保留最近 {{limit}} 条订阅更新记录。可在订阅设置中修改。",
   "statistics.totalSubscriptions": "总更新次数",
   "statistics.percentage": "百分比",
   "statistics.adminFilterLabel": "按管理员筛选",
@@ -2367,6 +2470,9 @@
     "excludedInbound": "排除的入站",
     "selectInbound": "选择入站",
     "inbound": "入站",
+    "apiServices": "API 服务",
+    "apiServiceAlwaysOn": "始终启用",
+    "apiServicesUnknown": "无法识别的 API 服务：{{names}}。请删除或修复后再保存。",
     "generateKeyPair": "密钥对",
     "backendType": "类型",
     "generateWireGuardKeyPair": "WireGuard 密钥对",
@@ -2378,7 +2484,7 @@
     "copyPublicKey": "复制公钥",
     "copyPrivateKey": "复制私钥",
     "copyShortId": "复制短 ID",
-    "restartNodes": "重启节点",
+    "restartNodes": "同步节点",
     "generateShadowsocksPassword": "Shadowsocks 密码",
     "generatingShadowsocksPassword": "正在生成密码...",
     "shadowsocksPassword": "Shadowsocks 密码",
@@ -2482,6 +2588,7 @@
     },
     "section": {
       "label": "分区",
+      "api": "API",
       "inbounds": "入站",
       "outbounds": "出站",
       "routing": "路由",
@@ -2493,6 +2600,7 @@
     },
     "sectionDesc": {
       "wgInterface": "WireGuard 接口与密钥",
+      "api": "Xray gRPC API 服务",
       "advanced": "JSON 编辑与诊断工具",
       "inbounds": "入站监听与协议配置",
       "outbounds": "出站连接与上游路由",
@@ -2500,6 +2608,12 @@
       "balancers": "负载均衡与调度策略",
       "dns": "DNS 解析与解析器",
       "bindings": "入站标签回退与排除"
+    },
+    "api": {
+      "title": "API 服务",
+      "hint": "此核心提供的 gRPC API 服务。节点始终启用必需的服务；可按需启用可选服务。",
+      "alwaysOn": "始终启用",
+      "unknown": "无法识别的 API 服务：{{names}}。请在“高级”选项卡中修复。"
     },
     "wg": {
       "interfaceBlurb": "此核心的 WireGuard 接口与密钥设置。",
@@ -2509,7 +2623,10 @@
       "generatePreSharedKey": "生成预共享密钥",
       "preSharedKeyGenerated": "已生成预共享密钥",
       "preSharedKeyFailed": "无法生成预共享密钥",
+      "mtuPlaceholder": "节点默认值",
+      "mtuDescription": "可选，576–9000 字节。需要节点支持核心 MTU。客户端 MTU 在主机设置中单独配置。",
       "fields": {
+        "mtu": "服务器接口 MTU",
         "interfaceName": "接口名称",
         "privateKey": "私钥",
         "publicKey": "公钥",
@@ -2702,6 +2819,90 @@
       "customSockoptInvalid": "customSockopt 必须是有效的 JSON 数组。",
       "addCustomSockopt": "添加选项"
     },
+    "masque": {
+      "title": "MASQUE",
+      "addressPool": "服务器地址池",
+      "addressPoolHint": "服务器自身的地址及其前缀，最多一个 IPv4 和一个 IPv6（例如 10.14.0.1/16 和 fd14::1/64）。客户端从这些子网获取地址。",
+      "mtu": "MTU",
+      "mtuHint": "留空或 0 表示 1280，否则为 1280 到 65535。",
+      "mtuInvalid": "MTU 必须为 0 或 1280 到 65535 之间的整数。",
+      "clientDns": "客户端 DNS",
+      "clientDnsHint": "面板写入客户端配置的 DNS 服务器。仅限 IP 地址；Xray 不读取此项。",
+      "serverAddress": "服务器地址",
+      "serverPort": "服务器端口",
+      "portInvalid": "请输入一个 1 到 65535 之间的端口。",
+      "remoteDns": "远程 DNS",
+      "remoteDnsHint": "仅限 IP 地址。留空则使用 {{servers}}。",
+      "httpVersion": "HTTP 版本",
+      "httpBoth": "HTTP/3 和 HTTP/2（h3, h2）",
+      "httpH3": "基于 UDP 的 HTTP/3（h3）",
+      "httpH2": "基于 TCP 的 HTTP/2（h2）",
+      "httpServerHint": "保存为 TLS ALPN。h3 监听 UDP，h2 监听 TCP，两者都选时同时监听两者。",
+      "httpClientHint": "保存为 TLS ALPN。服务器必须接受相同的版本。",
+      "httpNeedsTls": "将安全设置为 TLS 后才能选择 HTTP 版本。",
+      "pathHint": "以 / 开头。只允许使用 {target} 和 {ipproto} 变量。",
+      "host": "主机",
+      "hostHint": "可选的主机名或 host:port，不含协议和路径。",
+      "headers": "请求头（JSON 对象）",
+      "headersHint": "不允许使用 Host 和 Capsule-Protocol，设置了用户名或密码时也不允许使用 Authorization。",
+      "headersInvalid": "头部必须是值为文本的 JSON 对象。",
+      "xmux": "XMUX（JSON 对象）",
+      "xmuxHint": "可选的连接复用限制，与 XHTTP 相同。可设置 maxConnections 或 maxConcurrency，但不能同时设置。",
+      "xmuxInvalid": "XMUX 必须是 JSON 对象。",
+      "auth": "身份验证",
+      "authNone": "无",
+      "authBasic": "用户名和密码",
+      "authWarp": "Cloudflare WARP 密钥",
+      "user": "用户名",
+      "userHint": "以 HTTP Basic 认证发送，因此不能包含冒号。",
+      "warpPrivateKey": "WARP 私钥",
+      "warpPublicKey": "WARP 公钥",
+      "warpKeysHint": "来自 WARP MASQUE 注册信息：PEM 或 base64 DER 格式的 P-256 密钥。",
+      "warpAddress": "WARP 隧道地址",
+      "warpAddressHint": "注册信息中的地址，最多一个 IPv4 和一个 IPv6。",
+      "warpDefaultsHint": "使用 WARP 时，主机留空表示 {{host}}，路径留空表示 {{path}}。",
+      "removeClientOnly": "移除仅用于客户端的设置"
+    },
+    "xdrive": {
+      "title": "XDrive",
+      "tlsHint": "使用 XDrive 时，TLS 设置只影响与存储 API 通信的 HTTPS 客户端。",
+      "service": "存储服务",
+      "serviceLocal": "本地文件夹（local）",
+      "serviceTemplate": "自定义模板（template）",
+      "folderLocal": "文件夹路径",
+      "folderLocalHint": "双方都能访问的目录，主要用于测试。",
+      "folderGoogleDrive": "文件夹 ID",
+      "folderGoogleDriveHint": "双方共享的 Drive 文件夹的 ID。",
+      "folderTemplate": "文件夹",
+      "folderTemplateHint": "可选。模板通过 {folder} 读取它。",
+      "clientId": "客户端 ID",
+      "clientSecret": "客户端密钥",
+      "refreshToken": "刷新令牌",
+      "googleDriveHint": "拥有该文件夹的 Google 账号的 OAuth 凭据。",
+      "secrets": "密钥",
+      "secretsHint": "模板通过 {secret0}、{secret1} 等读取它们。",
+      "template": "模板（JSON 对象）",
+      "templateHint": "描述存储 API 的请求。",
+      "templateInvalid": "模板必须是 JSON 对象。",
+      "tuning": "调优",
+      "tuningHint": "留空或 0 时使用各字段中显示的 Xray 默认值。",
+      "segmentBytes": "分段大小（字节）",
+      "flushIntervalMs": "刷新间隔（毫秒）",
+      "pollIntervalMs": "轮询间隔（毫秒）",
+      "maxPollIntervalMs": "最大轮询间隔（毫秒）",
+      "sessionTtlSeconds": "会话 TTL（秒）",
+      "concurrency": "并发数",
+      "eagerWindowMs": "快速轮询窗口（毫秒）",
+      "holeTimeoutMs": "缺失分段超时（毫秒）",
+      "numberInvalid": "请输入 0 到 4294967295 之间的整数。",
+      "capHint": "Xray 将此值的上限设为 {{max}}。",
+      "flowNotSupported": "XDrive 不支持 VLESS flow，而此入站的用户会继承该设置。请将「流 (Flow)」设为默认。",
+      "decryptionHint": "使用下方的「VLESS 加密」按钮生成一对匹配的加密和解密设置。"
+    },
+    "streamForms": {
+      "invalidInputs": "部分字段的值无法保存。请修正标红的字段。",
+      "blockingTitle": "请先修正以下 MASQUE 或 XDrive 设置"
+    },
     "inbound": {
       "add": "添加入站",
       "addToList": "添加到列表",
@@ -2770,7 +2971,7 @@
         "secretKey": "密钥",
         "generateSecretKey": "生成密钥",
         "address": "服务器地址",
-        "addressHint": "示例：10.0.0.1/128",
+        "addressHint": "示例：10.0.0.1/24",
         "addressAddPlaceholder": "添加地址",
         "addItem": "添加",
         "addressItems": "地址",
@@ -2792,9 +2993,21 @@
         "allowedIPsAddPlaceholder": "添加 CIDR",
         "allowedIPsItems": "允许的 IP",
         "noAllowedIPs": "未添加 CIDR。",
+        "publicKeyHint": "由密钥推导得出，面板会将其写入客户端配置。",
+        "publicKeyUnavailable": "输入有效的密钥后即可看到公钥。",
+        "addressPoolHint": "客户端从至少容纳 4 个地址的子网获取 IP（IPv4 为 /30 或更大，IPv6 为 /126 或更大）。单个 IP 以及 /31、/32、/127、/128 会保留在 Xray 配置中，但不提供客户端地址池。",
+        "addressNoPool": "没有客户端子网：面板不会管理此入站，用户也不会从中获得 WireGuard 配置。",
+        "addressInvalid": "不是 IP 地址或 CIDR：{{values}}",
+        "mtuHint": "576 到 9000。留空则使用 1420。",
+        "reserved": "保留值",
+        "reservedHint": "可选。客户端写入每个数据包的三个字节（0 到 255），例如 1, 2, 3 或 [1,2,3]。",
         "validation": {
           "peerRequired": "至少需要一个对端。",
-          "peerPublicKeyRequired": "每个对端都必须有公钥。"
+          "peerPublicKeyRequired": "每个对端都必须有公钥。",
+          "secretKeyInvalid": "密钥必须是 32 字节的 WireGuard 密钥（base64 或 64 个十六进制字符）。",
+          "portSingle": "WireGuard 需要一个 1 到 65535 之间的端口。",
+          "mtuRange": "MTU 必须是 576 到 9000 之间的整数。",
+          "reservedFormat": "保留值必须是三个 0 到 255 之间的数字，例如 1, 2, 3。"
         }
       },
       "hysteria": {
@@ -2977,7 +3190,19 @@
         "allowedIPs": "允许的 IP",
         "allowedIPsAddPlaceholder": "添加 CIDR",
         "allowedIPsItems": "允许的 IP",
-        "noAllowedIPs": "未添加 CIDR。"
+        "noAllowedIPs": "未添加 CIDR。",
+        "kernelModeKernel": "内核 TUN",
+        "kernelModeUserspace": "用户态 (gVisor)",
+        "kernelModeHint": "保存为 noKernelTun。内核 TUN 需要 Linux 和 CAP_NET_ADMIN，否则 Xray 使用用户态。默认行为与内核 TUN 相同：Xray 在支持时使用内核 TUN，否则使用用户态。",
+        "legacyFieldHint": "仅 Xray {{lastRelease}} 及更早版本读取此项；{{removedIn}} 已将其移除。",
+        "dnsHint": "仅限 IP 地址。Xray v26.9.8 及更新版本读取此项。",
+        "dnsAddPlaceholder": "添加 DNS 服务器",
+        "dnsItems": "DNS 服务器",
+        "noDns": "未添加 DNS 服务器。",
+        "dnsInvalid": "DNS 服务器必须是 IP 地址：{{values}}",
+        "dnsNotList": "DNS 服务器必须是 IP 地址列表。编辑列表即可将其保存为列表。",
+        "reservedHint": "三个 0 到 255 之间的字节，例如 1, 2, 3 或 [1,2,3]。",
+        "reservedInvalid": "保留值必须是三个 0 到 255 之间的数字，例如 1, 2, 3。"
       },
       "dns": {
         "blurb": "DNS 出站处理来自路由的明文 DNS。可配置重写与有序规则；少见写法请用 JSON 标签页。",
@@ -3302,6 +3527,8 @@
   "settings.cores.deleteFailed": "核心删除失败",
   "settings.cores.delete": "删除核心配置",
   "settings.cores.coreNotFound": "未找到核心",
+  "settings.cores.orderUpdated": "核心配置顺序已更新",
+  "settings.cores.orderUpdateFailed": "更新核心配置顺序失败",
   "toggle": "切换状态",
   "close": "关闭",
   "view": "查看",
@@ -3352,6 +3579,10 @@
   "usersTable.delete": "删除",
   "usersTable.cancel": "取消",
   "statistics.trafficUsage": "流量使用",
+  "statistics.outboundUsage": "出站使用情况",
+  "statistics.outboundUsageDescription": "按出站标签统计的流量（direct、warp、block 等）",
+  "statistics.outboundUsageEmpty": "此时间段内没有出站使用数据。仅在 设置 > 常规 中开启“按出站记录使用量”时才会记录。",
+  "statistics.outboundUsageOther": "其他",
   "statistics.trafficUsageDescription": "所有服务器的总流量使用情况",
   "statistics.usageDuringPeriod": "期间使用量",
   "statistics.users": "用户",

@@ -72,6 +72,8 @@
     "bulkReconnectPrompt": "Are you sure you want to reconnect {{count}} selected nodes?",
     "bulkUpdateSuccess": "{{count}} nodes updated successfully.",
     "bulkUpdateFailed": "Failed to update selected nodes.",
+    "orderUpdated": "Node order updated",
+    "orderUpdateFailed": "Failed to update node order",
     "bulkUpdateTitle": "Update Selected Nodes",
     "bulkUpdatePrompt": "Are you sure you want to update {{count}} selected nodes?",
     "enableSuccess": "Node «{{name}}» has been enabled successfully",
@@ -170,7 +172,51 @@
         "disable": "Disable user",
         "delete": "Delete user"
       },
-      "errorLoadingSettings": "Error loading settings"
+      "errorLoadingSettings": "Error loading settings",
+      "usage": {
+        "title": "Usage recording",
+        "description": "Choose which usage data the panel stores",
+        "recordNodeUsage": {
+          "title": "Record node usage",
+          "description": "Store traffic per node for users and nodes. User and admin usage is counted either way"
+        },
+        "recordNodeStats": {
+          "title": "Record node system stats",
+          "description": "Store CPU, memory and bandwidth history of nodes. PostgreSQL and TimescaleDB only"
+        },
+        "resetUsageCleanChartData": {
+          "title": "Clear charts on usage reset",
+          "description": "Delete a user's usage chart history when their data usage is reset"
+        },
+        "recordOutboundUsage": {
+          "title": "Record usage per outbound",
+          "description": "Store traffic per outbound tag for each node to show the Outbound Usage chart. Adds rows to the database, more with many outbounds."
+        }
+      },
+      "nodeHealth": {
+        "title": "Node health checks",
+        "description": "When a node is reported as down or back up",
+        "failThreshold": {
+          "title": "Failure threshold",
+          "description": "Failed checks in a row before a node is marked as error"
+        },
+        "recoverThreshold": {
+          "title": "Recovery threshold",
+          "description": "Good checks in a row before a node is marked as connected again"
+        },
+        "probeTimeout": {
+          "title": "Probe timeout (seconds)",
+          "description": "How long a health probe waits for a node, never longer than the node's own timeout"
+        },
+        "maxBackoff": {
+          "title": "Maximum backoff (seconds)",
+          "description": "Longest wait between probes of a node in error. 0 probes it on every check"
+        }
+      },
+      "stopNodesOnShutdown": {
+        "title": "Stop node cores on shutdown",
+        "description": "Stop the cores of all nodes when the panel shuts down. Only with a single worker"
+      }
     },
     "notifications": {
       "title": "Notifications",
@@ -274,7 +320,9 @@
         "disableSubTemplate": "Disable Subscription Template",
         "disableSubTemplateDescription": "When disabled, browser requests will return API responses instead of HTML subscription pages",
         "randomizeOrder": "Randomize Subscription Order",
-        "randomizeOrderDescription": "Shuffle configuration order on each subscription request"
+        "randomizeOrderDescription": "Shuffle configuration order on each subscription request",
+        "clientsLimit": "Client updates kept per user",
+        "clientsLimitDescription": "How many recent subscription updates (client apps) are kept per user. 0 or less keeps all"
       },
       "responseHeaders": {
         "title": "Response Headers",
@@ -282,7 +330,14 @@
         "addHeader": "Add Header",
         "headerName": "Header name",
         "headerValue": "Header value",
-        "noHeaders": "No response headers configured. Add headers to include custom HTTP headers in subscription responses."
+        "noHeaders": "No response headers configured. Add headers to include custom HTTP headers in subscription responses.",
+        "placement": {
+          "title": "Header Placement",
+          "description": "Choose whether these headers are sent as real HTTP headers, or embedded as comment lines inside the subscription body — useful when a CDN strips or blocks custom headers.",
+          "header": "HTTP header (default)",
+          "bodyStart": "Body start",
+          "bodyEnd": "Body end"
+        }
       },
       "customVariables": {
         "title": "Custom Variables",
@@ -573,10 +628,12 @@
           "expired": "Time Expired",
           "limited": "Usage Limited",
           "on_hold": "On Hold",
-          "disabled": "Disabled"
+          "disabled": "Disabled",
+          "inactive": "Inactive Users"
         },
         "statusChangedAfter": "Status Changed After",
         "statusChangedBefore": "Status Changed Before",
+        "lastActivityBefore": "Last Activity Before",
         "expiredAfterPlaceholder": "Select start date",
         "expiredBeforePlaceholder": "Select end date",
         "dateRange": "Date Range",
@@ -587,27 +644,33 @@
         "deleteLimited": "Delete Limited",
         "deleteOnHold": "Delete On Hold",
         "deleteDisabled": "Delete Disabled",
+        "deleteInactive": "Delete Inactive",
         "deleting": "Deleting...",
         "deleteSuccess": "{{count}} expired accounts deleted successfully",
         "deleteLimitedSuccess": "{{count}} limited accounts deleted successfully",
         "deleteOnHoldSuccess": "{{count}} on-hold accounts deleted successfully",
         "deleteDisabledSuccess": "{{count}} disabled accounts deleted successfully",
+        "deleteInactiveSuccess": "{{count}} inactive accounts deleted successfully",
         "dryRunSuccess": "Dry run: {{count}} accounts would be deleted",
         "deleteFailed": "Failed to delete expired accounts",
         "deleteLimitedFailed": "Failed to delete limited accounts",
         "deleteOnHoldFailed": "Failed to delete on-hold accounts",
         "deleteDisabledFailed": "Failed to delete disabled accounts",
+        "deleteInactiveFailed": "Failed to delete inactive accounts",
         "confirmDelete": "Delete Expired Accounts",
         "confirmDeleteLimited": "Delete Limited Accounts",
         "confirmDeleteOnHold": "Delete On Hold Accounts",
         "confirmDeleteDisabled": "Delete Disabled Accounts",
+        "confirmDeleteInactive": "Delete Inactive Accounts",
         "confirmDeleteMessage": "Are you sure you want to delete all expired accounts in the selected date range? This action cannot be undone.",
         "confirmDeleteLimitedMessage": "Are you sure you want to delete all usage-limited accounts in the selected date range? This action cannot be undone.",
         "confirmDeleteOnHoldMessage": "Are you sure you want to delete all on-hold accounts in the selected date range? This action cannot be undone.",
         "confirmDeleteDisabledMessage": "Are you sure you want to delete all disabled accounts in the selected date range? This action cannot be undone.",
+        "confirmDeleteInactiveMessage": "Are you sure you want to delete accounts whose last activity was before the selected date? This action cannot be undone.",
         "noDateSelected": "Please select at least one date",
         "selectDateRange": "Filter by expiration date. Leave both empty to delete all matching accounts.",
         "selectStatusChangedDateRange": "Filter by the date the user entered this status. Leave both empty to delete all matching accounts.",
+        "selectInactiveDate": "Select a cutoff date. Accounts last online before it will match; for accounts never online, their creation date is used.",
         "selectLimitedInfo": "Delete all usage-limited accounts for the selected admin scope."
       },
       "resetUsage": {
@@ -641,7 +704,8 @@
         "warning": "Warning: This will permanently delete all usage data from the selected table. This action cannot be undone.",
         "tables": {
           "nodeUserUsages": "Node User Usages",
-          "nodeUsages": "Node Usages"
+          "nodeUsages": "Node Usages",
+          "nodeOutboundUsages": "Node Outbound Usages"
         }
       }
     },
@@ -1311,6 +1375,14 @@
     "cancelEdit": "Cancel edit",
     "clickToEdit": "Click to edit"
   },
+  "realityFingerprint": {
+    "title": "REALITY fingerprint compatibility",
+    "tls13": "This preset does not support the TLS 1.3 handshake required by Xray REALITY. Choose chrome or firefox.",
+    "modern": "This preset may not provide X25519MLKEM768, which newer Xray REALITY servers require. Use chrome or firefox with an up-to-date client.",
+    "random": "Random presets can produce handshakes that newer Xray REALITY servers reject. Use chrome or firefox for a consistent preset, and keep the client up to date.",
+    "unsafe": "The unsafe setting is not a uTLS preset and cannot be used with Xray REALITY. Choose chrome or firefox.",
+    "useChrome": "Use Chrome"
+  },
   "hostsDialog": {
     "addHost": "Create Host",
     "selectInbound": "Select an inbound",
@@ -1334,6 +1406,11 @@
     "path": "Path",
     "selectAlpn": "Select ALPN",
     "networkSettings": "Network Settings",
+    "masque": {
+      "remoteDns": "MASQUE remote DNS servers",
+      "remoteDnsHint": "Leave empty to use the inbound DNS servers",
+      "xmuxHint": "Requires Xray 26.10.21 or newer on the client. Leave all fields blank for Xray defaults: one tunnel, reusable for 1800-3000 seconds. Setting any field replaces those defaults. Max Connections and Max Concurrency cannot both be set."
+    },
     "transportSettings": "Transport Settings",
     "transportType": "Transport Type",
     "selectTransport": "Select transport type",
@@ -1499,6 +1576,10 @@
       "invalidJson": "Invalid JSON: {{error}}",
       "tcpLayers": "TCP Layers",
       "addTcpLayer": "Add TCP Layer",
+      "filterHint": "Inbound only. Place filter last so it is the outermost TCP layer. Blocked IPs take precedence over allowed IPs.",
+      "allowedSourceIPs": "Allowed source IPs",
+      "blockedSourceIPs": "Blocked source IPs",
+      "sourceIPsPlaceholder": "Add CIDR or geoip:cn",
       "noTcpLayers": "No TCP layers configured",
       "udpLayers": "UDP Layers",
       "addUdpLayer": "Add UDP Layer",
@@ -1513,6 +1594,13 @@
       "realmUrlPlaceholder": "realm[+http]://token@host[:port]/id",
       "stunServers": "STUN Servers",
       "stunServersPlaceholder": "e.g. stun.nextcloud.com:3478",
+      "udphopMode": "Mode",
+      "udphopRemotePorts": "Remote ports",
+      "udphopRemoteIps": "Remote IPs",
+      "udphopRemoteIpsPlaceholder": "e.g. 203.0.113.0/24",
+      "udphopLastLayerHint": "Must be the last UDP layer; cannot be combined with xicmp.",
+      "udphopVersionHint": "Needs Xray 26.9.9 or newer (a pre-release); an older Xray rejects the whole config.",
+      "noiseExpVersionHint": "exp needs Xray 26.9.30 or newer (a pre-release); an older Xray rejects the whole config.",
       "tlsConfig": "TLS Config (JSON object, optional)",
       "mustBeJsonObject": "Must be a JSON object",
       "invalidJsonObject": "Invalid JSON",
@@ -1520,12 +1608,17 @@
       "serverDomainsPlaceholder": "e.g. t.example.com or t.example.com:txt",
       "clientResolvers": "Client Resolvers",
       "clientResolversPlaceholder": "e.g. t.example.com+udp://8.8.8.8:53",
+      "xdnsDomainsHint": "JSON objects, e.g. [{\"names\":[\"t.example.com\"]}]. Optional: lenLimit, labelLimit, types, edns0.",
+      "xdnsResolversHint": "JSON objects, e.g. [{\"addrs\":[\"https://dns.example/dns-query\"],\"tlsConfig\":{}}]. Optional: worker, quicConfig. Use tlsConfig.alpn=[\"h3\"] for HTTP/3.",
+      "xdnsExtraPoll": "Extra Poll (0–3)",
+      "xdnsInvalidArray": "Enter a JSON array of objects",
       "domain": "Domain",
       "domainPlaceholder": "e.g. example.com",
       "password": "Password",
       "packetSize": "Packet Size (Gecko, max 2048)",
       "packetSizePlaceholder": "e.g. 512-1200",
       "dgramMode": "DGRAM Mode (client-only, Linux/macOS/iOS)",
+      "xicmpIpsHint": "Optional IP literals: client target addresses or server allowed source addresses. Supports multiple IPv4 and IPv6 addresses.",
       "ips": "IPs",
       "ipsPlaceholder": "Add IP (e.g. 1.1.1.1)",
       "reset": "Reset (seconds / range)",
@@ -1565,6 +1658,7 @@
       "brutalDown": "Brutal Down",
       "mbpsPlaceholder": "e.g. 60 mbps",
       "udpHop": "UDP Hop",
+      "udpHopLegacyHint": "Xray 26.9.9+ clients ignore this and use the udphop UDP mask; Hysteria2 links, sing-box and Clash still read it.",
       "ports": "Ports",
       "portsPlaceholder": "e.g. 20000-50000 or 11,13,15-17",
       "interval": "Interval (seconds, min 5)",
@@ -1586,7 +1680,19 @@
       "keepAlivePeriodPlaceholder": "e.g. 0",
       "disablePmtuDiscovery": "Disable PMTU Discovery",
       "noiseRandPlaceholder": "e.g. 1-8192",
-      "noiseRandRangePlaceholder": "e.g. 0-255"
+      "noiseRandRange": "Random range",
+      "noiseRandRangePlaceholder": "e.g. 0-255",
+      "noiseExpPlaceholder": "e.g. <b 0d0a><t><r 24-48>",
+      "noiseExpSyntaxTitle": "Expression packet syntax",
+      "noiseExpSyntaxIntro": "Join these parts in order to build one packet. The expression is evaluated again for every send.",
+      "noiseExpBytes": "fixed hex bytes (optional 0x prefix)",
+      "noiseExpRandom": "N random bytes, or a random count from A to B",
+      "noiseExpLetters": "random letters (a-zA-Z)",
+      "noiseExpDigits": "random digits (0-9)",
+      "noiseExpTime": "current Unix time in seconds, 4 bytes, big endian",
+      "noiseExpCounter": "4-byte counter, incremented for each send",
+      "noiseExpNonce": "8 random bytes",
+      "noiseExpExample": "Example:"
     },
     "muxSettings": "Mux Settings",
     "enableMux": "Enable Mux",
@@ -1849,6 +1955,8 @@
   "revokeUserSub.success": "{{username}}'s subscription has revoked successfully.",
   "revokeUserSub.title": "Revoke User Subscription",
   "hwids": {
+    "count": "HWIDs",
+    "registeredCount": "Registered hardware IDs",
     "title": "Hardware IDs",
     "description": "Manage this user's registered hardware IDs.",
     "copy": "Copy hardware ID",
@@ -1982,6 +2090,7 @@
     "proxySettings.method": "Method",
     "proxySettings.hysteria": "Hysteria",
     "proxySettings.hysteriaAuth": "Hysteria Auth",
+    "proxySettings.masque": "MASQUE",
     "proxySettings.wireguardPrivateKey": "WireGuard Private key",
     "proxySettings.wireguardPublicKey": "WireGuard Public key",
     "proxySettings.generateWireGuardKeyPair": "WireGuard keypair",
@@ -2040,6 +2149,7 @@
     "refreshNow": "Refresh now"
   },
   "statistics.system": "System",
+  "statistics.periodTooFineForRange": "Too many points for this range. Pick a shorter range.",
   "statistics.totalTraffic": "Total Traffic",
   "statistics.ramUsage": "RAM Usage",
   "statistics.cpuUsage": "CPU Usage",
@@ -2058,7 +2168,7 @@
   "statistics.subscriptionDistribution": "Subscription Client Distribution",
   "statistics.subscriptionDistributionDetails": "Subscription Client Details",
   "statistics.subscriptionDistributionDescription": "Share of subscription updates across agents and applications.",
-  "statistics.subscriptionDistributionRetentionNote": "By default only the latest {{limit}} subscription updates are kept per user. Change this with {{env}} in your environment.",
+  "statistics.subscriptionDistributionRetentionNote": "By default only the latest {{limit}} subscription updates are kept per user. Change this in the subscription settings.",
   "statistics.totalSubscriptions": "Total subscription updates",
   "statistics.percentage": "Percentage",
   "statistics.adminFilterLabel": "Filter by admin",
@@ -2416,6 +2526,9 @@
     "excludedInbound": "Excluded inbound",
     "selectInbound": "Select inbound",
     "inbound": "Inbound",
+    "apiServices": "API Services",
+    "apiServiceAlwaysOn": "always on",
+    "apiServicesUnknown": "Unrecognized API service(s): {{names}}. Remove or fix them to save.",
     "generateKeyPair": "Key Pair",
     "generateShortId": "Short ID",
     "backendType": "Type",
@@ -2427,7 +2540,7 @@
     "copyPublicKey": "Copy Public Key",
     "copyPrivateKey": "Copy Private Key",
     "copyShortId": "Copy Short ID",
-    "restartNodes": "Restart Nodes",
+    "restartNodes": "Sync Nodes",
     "generateShadowsocksPassword": "Shadowsocks Password",
     "generatingShadowsocksPassword": "Generating Password...",
     "shadowsocksPassword": "Shadowsocks Password",
@@ -2532,6 +2645,7 @@
     },
     "section": {
       "label": "Section",
+      "api": "API",
       "inbounds": "Inbounds",
       "outbounds": "Outbounds",
       "routing": "Routing",
@@ -2543,6 +2657,7 @@
     },
     "sectionDesc": {
       "wgInterface": "WireGuard interface and keys",
+      "api": "Xray gRPC API services",
       "advanced": "JSON editing and diagnostics",
       "inbounds": "Inbound listeners and protocols",
       "outbounds": "Outbound connections and upstreams",
@@ -2550,6 +2665,12 @@
       "balancers": "Outbound load balancing setup",
       "dns": "DNS resolver and server config",
       "bindings": "Inbound tag fallbacks and exclusions"
+    },
+    "api": {
+      "title": "API Services",
+      "hint": "gRPC API services exposed by this core. The node always enables the required services; enable optional ones as needed.",
+      "alwaysOn": "always on",
+      "unknown": "Unrecognized API service(s): {{names}}. Fix them in the Advanced tab."
     },
     "wg": {
       "interfaceBlurb": "WireGuard interface settings and key material for this core.",
@@ -2559,7 +2680,10 @@
       "generatePreSharedKey": "Generate pre-shared key",
       "preSharedKeyGenerated": "Pre-shared key generated",
       "preSharedKeyFailed": "Could not generate pre-shared key",
+      "mtuPlaceholder": "Node default",
+      "mtuDescription": "Optional, 576–9000 bytes. Requires a node with core MTU support. Client MTU is configured separately in hosts.",
       "fields": {
+        "mtu": "Server interface MTU",
         "interfaceName": "Interface name",
         "privateKey": "Private key",
         "publicKey": "Public key",
@@ -2752,6 +2876,90 @@
       "customSockoptInvalid": "customSockopt must be valid JSON array.",
       "addCustomSockopt": "Add option"
     },
+    "masque": {
+      "title": "MASQUE",
+      "addressPool": "Server address pool",
+      "addressPoolHint": "The server's own address with its prefix, at most one IPv4 and one IPv6 (for example 10.14.0.1/16 and fd14::1/64). Clients get addresses from these subnets.",
+      "mtu": "MTU",
+      "mtuHint": "Empty or 0 means 1280. Otherwise 1280 to 65535.",
+      "mtuInvalid": "MTU must be 0 or a whole number from 1280 to 65535.",
+      "clientDns": "Client DNS",
+      "clientDnsHint": "DNS servers the panel puts in client configs. IP addresses only; Xray does not read this.",
+      "serverAddress": "Server address",
+      "serverPort": "Server port",
+      "portInvalid": "Enter one port from 1 to 65535.",
+      "remoteDns": "Remote DNS",
+      "remoteDnsHint": "IP addresses only. Empty uses {{servers}}.",
+      "httpVersion": "HTTP version",
+      "httpBoth": "HTTP/3 and HTTP/2 (h3, h2)",
+      "httpH3": "HTTP/3 over UDP (h3)",
+      "httpH2": "HTTP/2 over TCP (h2)",
+      "httpServerHint": "Saved as the TLS ALPN. h3 listens on UDP, h2 on TCP, and both listens on both.",
+      "httpClientHint": "Saved as the TLS ALPN. The server must accept the same version.",
+      "httpNeedsTls": "Set Security to TLS to choose the HTTP version.",
+      "pathHint": "Starts with /. Only the {target} and {ipproto} variables are allowed.",
+      "host": "Host",
+      "hostHint": "Optional host name or host:port, without scheme or path.",
+      "headers": "Headers (JSON object)",
+      "headersHint": "Host and Capsule-Protocol are not allowed, and Authorization is not allowed with a user or password.",
+      "headersInvalid": "Headers must be a JSON object with text values.",
+      "xmux": "XMUX (JSON object)",
+      "xmuxHint": "Optional connection reuse limits, as in XHTTP. Set maxConnections or maxConcurrency, not both.",
+      "xmuxInvalid": "XMUX must be a JSON object.",
+      "auth": "Authentication",
+      "authNone": "None",
+      "authBasic": "User and password",
+      "authWarp": "Cloudflare WARP keys",
+      "user": "User",
+      "userHint": "Sent as HTTP Basic auth, so it cannot contain a colon.",
+      "warpPrivateKey": "WARP private key",
+      "warpPublicKey": "WARP public key",
+      "warpKeysHint": "From your WARP MASQUE registration: P-256 keys as PEM or base64 DER.",
+      "warpAddress": "WARP tunnel addresses",
+      "warpAddressHint": "The addresses from the registration, at most one IPv4 and one IPv6.",
+      "warpDefaultsHint": "With WARP, an empty host means {{host}} and an empty path means {{path}}.",
+      "removeClientOnly": "Remove client-only settings"
+    },
+    "xdrive": {
+      "title": "XDrive",
+      "tlsHint": "With XDrive, TLS settings only shape the HTTPS client that talks to the storage API.",
+      "service": "Storage service",
+      "serviceLocal": "Local folder (local)",
+      "serviceTemplate": "Custom template (template)",
+      "folderLocal": "Folder path",
+      "folderLocalHint": "A directory both sides can reach, mostly for testing.",
+      "folderGoogleDrive": "Folder ID",
+      "folderGoogleDriveHint": "The ID of the Drive folder both sides share.",
+      "folderTemplate": "Folder",
+      "folderTemplateHint": "Optional. The template reads it as {folder}.",
+      "clientId": "Client ID",
+      "clientSecret": "Client secret",
+      "refreshToken": "Refresh token",
+      "googleDriveHint": "OAuth credentials of the Google account that owns the folder.",
+      "secrets": "Secrets",
+      "secretsHint": "The template reads them as {secret0}, {secret1} and so on.",
+      "template": "Template (JSON object)",
+      "templateHint": "Describes the storage API requests.",
+      "templateInvalid": "The template must be a JSON object.",
+      "tuning": "Tuning",
+      "tuningHint": "Empty or 0 uses the Xray default shown in each field.",
+      "segmentBytes": "Segment size (bytes)",
+      "flushIntervalMs": "Flush interval (ms)",
+      "pollIntervalMs": "Poll interval (ms)",
+      "maxPollIntervalMs": "Max poll interval (ms)",
+      "sessionTtlSeconds": "Session TTL (seconds)",
+      "concurrency": "Concurrency",
+      "eagerWindowMs": "Eager window (ms)",
+      "holeTimeoutMs": "Hole timeout (ms)",
+      "numberInvalid": "Enter a whole number from 0 to 4294967295.",
+      "capHint": "Xray caps this at {{max}}.",
+      "flowNotSupported": "XDrive does not support VLESS flow, and the users of this inbound inherit it. Set Flow to Default.",
+      "decryptionHint": "Use the VLESS Encryption button below to generate a matching encryption and decryption pair."
+    },
+    "streamForms": {
+      "invalidInputs": "Some fields have values that cannot be saved. Fix the ones marked in red.",
+      "blockingTitle": "Fix these MASQUE or XDrive settings first"
+    },
     "inbound": {
       "keepAtLeastOne": "At least one inbound is required.",
       "add": "Add inbound",
@@ -2821,7 +3029,7 @@
         "secretKey": "Secret Key",
         "generateSecretKey": "Generate secret key",
         "address": "Server Address",
-        "addressHint": "Example: 10.0.0.1/128",
+        "addressHint": "Example: 10.0.0.1/24",
         "addressAddPlaceholder": "Add address",
         "addItem": "Add",
         "addressItems": "Addresses",
@@ -2843,9 +3051,21 @@
         "allowedIPsAddPlaceholder": "Add CIDR",
         "allowedIPsItems": "Allowed IPs",
         "noAllowedIPs": "No CIDR added.",
+        "publicKeyHint": "Derived from the secret key. The panel puts it in client configs.",
+        "publicKeyUnavailable": "Enter a valid secret key to see the public key.",
+        "addressPoolHint": "Clients get IPs from subnets with room for 4 or more addresses (IPv4 /30 or wider, IPv6 /126 or wider). Bare IPs and /31, /32, /127, /128 stay in the Xray config but give no client pool.",
+        "addressNoPool": "No client subnet: the panel will not manage this inbound, so users get no WireGuard config from it.",
+        "addressInvalid": "Not an IP address or CIDR: {{values}}",
+        "mtuHint": "576 to 9000. Leave empty for 1420.",
+        "reserved": "Reserved",
+        "reservedHint": "Optional. Three bytes from 0 to 255 that clients put in every packet, for example 1, 2, 3 or [1,2,3].",
         "validation": {
           "peerRequired": "At least one peer is required.",
-          "peerPublicKeyRequired": "Each peer must have a public key."
+          "peerPublicKeyRequired": "Each peer must have a public key.",
+          "secretKeyInvalid": "Secret key must be a 32-byte WireGuard key (base64 or 64 hex characters).",
+          "portSingle": "WireGuard needs one port from 1 to 65535.",
+          "mtuRange": "MTU must be a whole number from 576 to 9000.",
+          "reservedFormat": "Reserved must be three numbers from 0 to 255, for example 1, 2, 3."
         }
       },
       "hysteria": {
@@ -3058,7 +3278,19 @@
         "allowedIPs": "Allowed IPs",
         "allowedIPsAddPlaceholder": "Add CIDR",
         "allowedIPsItems": "Allowed IPs",
-        "noAllowedIPs": "No CIDR added."
+        "noAllowedIPs": "No CIDR added.",
+        "kernelModeKernel": "Kernel TUN",
+        "kernelModeUserspace": "Userspace (gVisor)",
+        "kernelModeHint": "Saved as noKernelTun. Kernel TUN needs Linux and CAP_NET_ADMIN; otherwise Xray uses userspace. Default behaves like Kernel TUN: Xray uses kernel TUN when supported, otherwise userspace.",
+        "legacyFieldHint": "Only Xray {{lastRelease}} and older read this; {{removedIn}} removed it.",
+        "dnsHint": "IP addresses only. Read by Xray v26.9.8 and newer.",
+        "dnsAddPlaceholder": "Add DNS server",
+        "dnsItems": "DNS servers",
+        "noDns": "No DNS server added.",
+        "dnsInvalid": "DNS servers must be IP addresses: {{values}}",
+        "dnsNotList": "DNS servers must be a list of IP addresses. Edit the list to save it as one.",
+        "reservedHint": "Three bytes from 0 to 255, for example 1, 2, 3 or [1,2,3].",
+        "reservedInvalid": "Reserved must be three numbers from 0 to 255, for example 1, 2, 3."
       },
       "dns": {
         "blurb": "DNS outbound handles plaintext DNS from routing. Optional rewrites (transport, address, port) and ordered rules (action, qtype, domain). Use the JSON tab for edge cases.",
@@ -3354,6 +3586,8 @@
   "settings.cores.deleteFailed": "Failed to remove core",
   "settings.cores.delete": "Remove Core Config",
   "settings.cores.coreNotFound": "Core not found",
+  "settings.cores.orderUpdated": "Core config order updated",
+  "settings.cores.orderUpdateFailed": "Failed to update core config order",
   "createdAt": "Created at",
   "toggle": "Toggle status",
   "close": "Close",
@@ -3397,6 +3631,10 @@
   "usersTable.delete": "Delete",
   "usersTable.cancel": "Cancel",
   "statistics.trafficUsage": "Traffic Usage",
+  "statistics.outboundUsage": "Outbound Usage",
+  "statistics.outboundUsageDescription": "Traffic per outbound tag (direct, warp, block, ...)",
+  "statistics.outboundUsageEmpty": "No outbound usage in this period. It is recorded only while \"Record usage per outbound\" is on in Settings > General.",
+  "statistics.outboundUsageOther": "Other",
   "statistics.trafficUsageDescription": "Total traffic usage across all servers",
   "statistics.usageDuringPeriod": "Usage During Period",
   "statistics.users": "Users",

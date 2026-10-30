@@ -1,8 +1,8 @@
 import MainSection from '@/features/hosts/components/hosts-list'
-import { type HostFormValues } from '@/features/hosts/forms/host-form'
+import { mapHostTransportSettingsForApi, type HostFormValues } from '@/features/hosts/forms/host-form'
 import PageHeader from '@/components/layout/page-header'
 import { Separator } from '@/components/ui/separator'
-import { BaseHost, createHost, CreateHost, getHosts, modifyHost, MultiplexProtocol, ProxyHostALPN, ProxyHostFingerprint, Xudp } from '@/service/api'
+import { BaseHost, createHost, CreateHost, getGetHostsQueryKey, getHosts, modifyHost, MultiplexProtocol, ProxyHostALPN, ProxyHostFingerprint, Xudp } from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
 import { hasPermission } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -19,7 +19,7 @@ export default function HostsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingHost, setEditingHost] = useState<BaseHost | null>(null)
   const { data, refetch, isFetching } = useQuery({
-    queryKey: ['getGetHostsQueryKey'],
+    queryKey: getGetHostsQueryKey(),
     queryFn: () => getHosts(),
   })
   const { t } = useTranslation()
@@ -107,22 +107,7 @@ export default function HostsPage() {
         pinned_peer_cert_sha256: formData.pinned_peer_cert_sha256 || undefined,
         verify_peer_cert_by_name: formData.verify_peer_cert_by_name && formData.verify_peer_cert_by_name.length > 0 ? formData.verify_peer_cert_by_name : undefined,
         vless_route: formData.vless_route || undefined,
-        transport_settings: formData.transport_settings
-          ? {
-              ...formData.transport_settings,
-              xhttp_settings: formData.transport_settings.xhttp_settings
-                ? {
-                    ...formData.transport_settings.xhttp_settings,
-                    xmux: formData.transport_settings.xhttp_settings.xmux
-                      ? {
-                          ...formData.transport_settings.xhttp_settings.xmux,
-                          h_keep_alive_period: formData.transport_settings.xhttp_settings.xmux.h_keep_alive_period || undefined,
-                        }
-                      : undefined,
-                  }
-                : undefined,
-            }
-          : undefined,
+        transport_settings: mapHostTransportSettingsForApi(formData.transport_settings),
         mux_settings: allProtocolsNone
           ? undefined
           : formData.mux_settings
@@ -200,14 +185,12 @@ export default function HostsPage() {
       }
 
       if (editingHost?.id) {
-        // This is an edit operation
         await modifyHost(editingHost.id, hostData)
-        return { status: 200 }
       } else {
-        // This is a new host
         await createHost(hostData)
-        return { status: 200 }
       }
+      await queryClient.invalidateQueries({ queryKey: getGetHostsQueryKey() })
+      return { status: 200 }
     } catch (error: any) {
       console.error('Error submitting host:', error)
       console.error('Error response:', error?.response)
@@ -252,11 +235,6 @@ export default function HostsPage() {
       const toastMessage = errorField ? `${errorField}: ${errorMessage}` : errorMessage
       toast.error(toastMessage)
       return { status: 500 }
-    } finally {
-      // Refresh the hosts data
-      queryClient.invalidateQueries({
-        queryKey: ['/api/hosts'],
-      })
     }
   }
 

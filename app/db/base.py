@@ -1,7 +1,7 @@
 from typing import Any
 
-from sqlalchemy import MetaData, event
-from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
+from sqlalchemy import MetaData, event, text
+from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 
 from config import DatabaseSettings, database_settings
@@ -58,8 +58,32 @@ if database_settings.is_sqlite:
         cursor.execute("PRAGMA busy_timeout=5000")
         cursor.close()
 
+elif database_settings.is_mysql:
+    # GROUP_CONCAT output is cut at group_concat_max_len (1024 bytes by default on
+    # MySQL); node payloads join every inbound tag of a user with it. 16 MiB is
+    # far more than any user's tag list and valid on MySQL and MariaDB.
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_mysql_session(dbapi_conn, _connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("SET SESSION group_concat_max_len = 16777216")
+        cursor.close()
+
 
 SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
+
+
+async def begin_immediate_if_sqlite(db: AsyncSession) -> None:
+    """Serialize a SQLite read-then-write transaction before its first read."""
+    if db.bind is None or db.bind.dialect.name != "sqlite":
+        return
+
+    # Authentication and validation can leave a read-only implicit transaction
+    # open on the request-scoped session. End it before acquiring SQLite's single
+    # writer slot; otherwise BEGIN IMMEDIATE would be nested and fail.
+    if db.in_transaction():
+        await db.rollback()
+    await db.execute(text("BEGIN IMMEDIATE"))
+
 
 naming_convention = {
     "ix": "ix_%(column_0_label)s",

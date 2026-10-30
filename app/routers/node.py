@@ -18,6 +18,7 @@ from app.models.node import (
     NodeGeoFilesUpdate,
     NodeListQuery,
     NodeModify,
+    NodeOutboundUsageQuery,
     NodeResponse,
     NodeSettings,
     NodeSimpleListQuery,
@@ -30,8 +31,10 @@ from app.models.node import (
     UserIPList,
     UserIPListAll,
 )
+from app.models.ordering import ReorderRequest
 from app.models.stats import (
     NodeOutboundsLatencyResponse,
+    NodeOutboundUsageStatsList,
     NodeRealtimeStats,
     NodeStatsList,
     NodeUsageStatsList,
@@ -50,6 +53,7 @@ from .authentication import oauth2_scheme, require_permission, require_permissio
 from .dependencies import (
     get_node_clear_usage_query,
     get_node_list_query,
+    get_node_outbound_usage_query,
     get_node_simple_list_query,
     get_node_stats_period_query,
     get_node_usage_query,
@@ -149,6 +153,16 @@ async def get_usage(
     return await node_operator.get_usage(db=db, query=query)
 
 
+@router.get("/usage/outbounds", response_model=NodeOutboundUsageStatsList)
+async def get_outbound_usage(
+    query: Annotated[NodeOutboundUsageQuery, Depends(get_node_outbound_usage_query)],
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("nodes", "stats")),
+):
+    """Retrieve usage per outbound tag, over all nodes or one, within a date range."""
+    return await node_operator.get_outbound_usage(db=db, query=query)
+
+
 @router.get("/user_counts/{metric}", response_model=UserCountMetricStatsList)
 async def get_user_count_metric(
     metric: UserCountMetric,
@@ -202,6 +216,16 @@ async def reconnect_all_node(
     """
     await node_operator.restart_all_node(db=db, admin=admin, core_id=core_id)
     return {}
+
+
+@router.put("s/order", status_code=status.HTTP_204_NO_CONTENT)
+async def reorder_nodes(
+    payload: ReorderRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("nodes", "update")),
+):
+    """Persist the display order of nodes."""
+    await node_operator.reorder_nodes(db, payload.ordered_ids, admin)
 
 
 @router.post(
