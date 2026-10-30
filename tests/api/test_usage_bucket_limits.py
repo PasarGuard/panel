@@ -11,7 +11,7 @@ from app.models.stats import (
     Period,
     count_period_buckets,
 )
-from tests.api import client, engine
+from tests.api import client
 from tests.api.helpers import auth_headers, create_admin, create_user, delete_admin, delete_user
 
 # A window far from the rows other tests write, so the passing requests stay cheap
@@ -79,9 +79,6 @@ def test_stats_endpoint_rejects_too_many_buckets(access_token, path):
 
 @pytest.mark.parametrize("path", ADMIN_PATHS)
 def test_stats_endpoint_accepts_normal_range(access_token, path):
-    if path.endswith("/stats") and engine.dialect.name in {"mysql", "mariadb"}:
-        # Node system stats are only recorded on PostgreSQL, and their query does not run on MySQL
-        pytest.skip("node stats are PostgreSQL only")
     response = client.get(path, headers=auth_headers(access_token), params=NORMAL)
     assert response.status_code == status.HTTP_200_OK, response.text
 

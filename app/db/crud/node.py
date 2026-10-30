@@ -436,25 +436,7 @@ async def get_node_stats(
         .order_by(trunc_expr)
     )
 
-    # HAVING clause to exclude partial first bucket
-    # Only needed if start has timezone (which means we did timezone-aware grouping)
-    if start.tzinfo:
-        # Get the first COMPLETE bucket boundary
-        first_complete_bucket = _get_next_period_boundary(start, period)
-
-        # Convert to naive for comparison (represents wall-clock time in target timezone)
-        boundary_value = first_complete_bucket.replace(tzinfo=None)
-
-        # Add HAVING clause with appropriate comparison based on dialect
-        if dialect == "postgresql":
-            # PostgreSQL: trunc_expr returns timestamp, compare to timestamp
-            stmt = stmt.having(trunc_expr >= boundary_value)
-        elif dialect in ("mysql", "sqlite"):
-            # MySQL/SQLite: trunc_expr returns string, compare to string
-            # Format the boundary value as a string in the same format
-            format_str = MYSQL_FORMATS[period] if dialect == "mysql" else SQLITE_FORMATS[period]
-            boundary_str = boundary_value.strftime(format_str.replace("%i", "%M"))  # %i -> %M for Python
-            stmt = stmt.having(trunc_expr >= boundary_str)
+    stmt = _exclude_partial_first_bucket(stmt, trunc_expr, start, period, dialect)
 
     result = await db.execute(stmt)
 
