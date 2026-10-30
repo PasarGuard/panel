@@ -61,6 +61,7 @@ from app.models.admin import AdminDetails
 from app.models.proxy import ProxyTable
 from app.models.settings import HWIDSettings
 from app.models.stats import (
+    USAGE_RECORD_GRANULARITY,
     Period,
     UserCountMetric,
     UserCountMetricStatsList,
@@ -1401,7 +1402,7 @@ class UserOperation(BaseOperation):
         node_id: int | None = None,
         group_by_node: bool = False,
     ) -> UserUsageStatsList:
-        start, end = await self.validate_dates(start, end, True)
+        start, end = await self.validate_dates(start, end, True, period=period, granularity=USAGE_RECORD_GRANULARITY)
 
         if not _has_permission(admin, "nodes", "stats"):
             node_id = None
@@ -1558,7 +1559,9 @@ class UserOperation(BaseOperation):
         query: UsersUsageBreakdownQuery,
     ) -> UserUsageStatsList:
         """Get all users usage"""
-        start, end = await self.validate_dates(query.start, query.end, True)
+        start, end = await self.validate_dates(
+            query.start, query.end, True, period=query.period, granularity=USAGE_RECORD_GRANULARITY
+        )
         node_id = query.node_id
         core_id = query.core_id
         group_by_node = query.group_by_node
@@ -1594,7 +1597,9 @@ class UserOperation(BaseOperation):
         query: UsersUsageQuery,
     ) -> UserCountMetricStatsList:
         """Get one users activity/status count metric from usage rows."""
-        start, end = await self.validate_dates(query.start, query.end, True)
+        start, end = await self.validate_dates(
+            query.start, query.end, True, period=query.period, granularity=USAGE_RECORD_GRANULARITY
+        )
         node_id = query.node_id
         group_by_node = query.group_by_node
 
@@ -2112,7 +2117,7 @@ class UserOperation(BaseOperation):
         start: dt | None = None,
         end: dt | None = None,
     ) -> UserSubscriptionUpdateChart:
-        start, end = await self.validate_dates(start, end, True)
+        start, end = await self.validate_dates(start, end, True, period=period)
         resolved_user_id: int | None = None
         resolved_admin_id: int | None = None
 
