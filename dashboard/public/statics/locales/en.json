@@ -2116,6 +2116,7 @@
     "refreshNow": "Refresh now"
   },
   "statistics.system": "System",
+  "statistics.periodTooFineForRange": "Too many points for this range. Pick a shorter range.",
   "statistics.totalTraffic": "Total Traffic",
   "statistics.ramUsage": "RAM Usage",
   "statistics.cpuUsage": "CPU Usage",

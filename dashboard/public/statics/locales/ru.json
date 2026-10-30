@@ -1529,6 +1529,7 @@
     "refreshNow": "Обновить сейчас"
   },
   "statistics.system": "Система",
+  "statistics.periodTooFineForRange": "Слишком много точек для этого диапазона. Выберите более короткий диапазон.",
   "statistics.totalTraffic": "Общий трафик",
   "statistics.ramUsage": "Использование RAM",
   "statistics.cpuUsage": "Использование CPU",

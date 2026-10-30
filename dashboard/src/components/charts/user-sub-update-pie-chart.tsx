@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import UserSubUpdateStatsModal from '@/features/users/dialogs/user-sub-update-stats-modal'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
+import { useChartPeriodLimit } from '@/hooks/use-chart-period-limit'
 import {
   Period,
   type GetUsersSubUpdateChartParams,
@@ -217,9 +218,10 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(() => (adminId != null ? adminId : null))
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1m')
-  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
+  const [selectedPeriodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
+  const { allowedPeriods, periodOverride } = useChartPeriodLimit({ shortcut: selectedTime, customRange: showCustomRange ? customRange : undefined }, selectedPeriodOverride, setPeriodOverride)
   const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedData, setSelectedData] = useState<ChartDataPoint | null>(null)
@@ -518,7 +520,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
             <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full sm:w-fit" />
               <div className="flex w-full items-center gap-2 sm:w-auto">
-                <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
+                <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} allowedPeriods={allowedPeriods} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
                 <button
                   type="button"
                   aria-label={t('statistics.customRange', { defaultValue: 'Custom Range' })}
