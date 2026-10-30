@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTheme } from '@/app/providers/theme-provider'
+import { useChartPeriodLimit } from '@/hooks/use-chart-period-limit'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { Period, type NodeUsageStat, useGetOutboundUsage } from '@/service/api'
 import { getChartSeriesColor } from '@/utils/chart-colors'
@@ -18,6 +19,7 @@ import {
   getChartQueryRangeFromShortcut,
   resolvePeriodOverride,
   TrafficShortcutKey,
+  USAGE_RECORD_BUCKET_MINUTES,
 } from '@/utils/chart-period-utils'
 import { EmptyState } from './empty-state'
 import PeriodSelector from './period-selector'
@@ -64,7 +66,8 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
   const dir = useDirDetection()
   const { resolvedTheme } = useTheme()
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
-  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
+  const [selectedPeriodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
+  const { allowedPeriods, periodOverride } = useChartPeriodLimit({ shortcut: selectedTime }, selectedPeriodOverride, setPeriodOverride, { recordBucketMinutes: USAGE_RECORD_BUCKET_MINUTES })
 
   // Move the range forward while mounted; a fixed end would hide buckets recorded after the first load
   const [rangeTick, setRangeTick] = useState(0)
@@ -157,7 +160,7 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
             maxVisible={5}
             className="w-full sm:w-fit"
           />
-          <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} className="w-full sm:w-[7rem]" />
+          <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} allowedPeriods={allowedPeriods} className="w-full sm:w-[7rem]" />
         </div>
       </CardHeader>
       <CardContent dir={dir} className="px-4 pt-4 sm:px-6 sm:pt-8">
