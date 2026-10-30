@@ -1199,20 +1199,21 @@ async def _record_node_usages_impl():
         async with JOB_SEM:
             await safe_execute(system_update_stmt)
 
-        if not (await general_settings()).usage.record_node_usage:
+        usage = (await general_settings()).usage
+        if not (usage.record_node_usage or usage.record_outbound_usage):
             return
 
-        # Batch all node usage writes
         # One bucket for both histories, so a tick that crosses a boundary keeps them aligned
         created_at = _get_time_bucket()
-        await record_node_stats_batched(api_params, created_at)
+        if usage.record_node_usage:
+            await record_node_stats_batched(api_params, created_at)
 
-        try:
-            if (await general_settings()).usage.record_outbound_usage:
+        if usage.record_outbound_usage:
+            try:
                 await record_outbound_stats_batched(api_params, created_at)
-        except Exception:
-            # Node totals are already recorded; per-outbound history is optional
-            logger.exception("Failed to record node outbound usage history")
+            except Exception:
+                # Node totals are already recorded; per-outbound history is optional
+                logger.exception("Failed to record node outbound usage history")
 
         job_duration = time.time() - job_start_time
         logger.debug(

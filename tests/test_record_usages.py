@@ -1357,7 +1357,9 @@ async def _seed_outbound_nodes(session_factory) -> tuple[int, int]:
     return ids
 
 
-def _patch_outbound_job(monkeypatch: pytest.MonkeyPatch, nodes: list[int], stats_map: dict, enabled: bool) -> None:
+def _patch_outbound_job(
+    monkeypatch: pytest.MonkeyPatch, nodes: list[int], stats_map: dict, enabled: bool, node_usage: bool = True
+) -> None:
     monkeypatch.setattr(
         record_usages.node_manager,
         "get_healthy_nodes",
@@ -1368,7 +1370,7 @@ def _patch_outbound_job(monkeypatch: pytest.MonkeyPatch, nodes: list[int], stats
         return stats_map[node.node_id]
 
     monkeypatch.setattr(record_usages, "get_outbounds_stats", fake_get_outbounds_stats)
-    usage = UsageSettings(record_outbound_usage=enabled)
+    usage = UsageSettings(record_node_usage=node_usage, record_outbound_usage=enabled)
     monkeypatch.setattr(record_usages, "general_settings", AsyncMock(return_value=General(usage=usage)))
 
 
@@ -1407,6 +1409,41 @@ async def test_record_node_usages_records_outbound_history(monkeypatch: pytest.M
             node_one_id: (24, 14),
             node_two_id: (2, 2),
         }
+        # Node history is on too, so both histories get rows
+        assert await session.scalar(select(func.count()).select_from(NodeUsage)) > 0
+
+
+@pytest.mark.asyncio
+async def test_outbound_history_records_when_node_history_off(monkeypatch: pytest.MonkeyPatch, session_factory):
+    node_one_id, node_two_id = await _seed_outbound_nodes(session_factory)
+    stats_map = {node_one_id: [{"tag": "direct", "up": 5, "down": 6}], node_two_id: []}
+    _patch_outbound_job(monkeypatch, [node_one_id, node_two_id], stats_map, enabled=True, node_usage=False)
+
+    await record_usages.record_node_usages()
+
+    async with session_factory() as session:
+        rows = await session.execute(
+            select(NodeOutboundUsage.node_id, NodeOutboundUsage.uplink, NodeOutboundUsage.downlink)
+        )
+        assert [tuple(row) for row in rows.all()] == [(node_one_id, 5, 6)]
+        assert await session.scalar(select(func.count()).select_from(NodeUsage)) == 0
+        node = await session.get(Node, node_one_id)
+        assert (node.uplink, node.downlink) == (5, 6)
+
+
+@pytest.mark.asyncio
+async def test_no_history_when_both_off(monkeypatch: pytest.MonkeyPatch, session_factory):
+    node_one_id, node_two_id = await _seed_outbound_nodes(session_factory)
+    stats_map = {node_one_id: [{"tag": "direct", "up": 5, "down": 6}], node_two_id: []}
+    _patch_outbound_job(monkeypatch, [node_one_id, node_two_id], stats_map, enabled=False, node_usage=False)
+
+    await record_usages.record_node_usages()
+
+    async with session_factory() as session:
+        assert await session.scalar(select(func.count()).select_from(NodeOutboundUsage)) == 0
+        assert await session.scalar(select(func.count()).select_from(NodeUsage)) == 0
+        node = await session.get(Node, node_one_id)
+        assert (node.uplink, node.downlink) == (5, 6)
 
 
 @pytest.mark.asyncio
