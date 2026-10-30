@@ -609,7 +609,8 @@
         "expiredUsers": {
           "title": "Expired accounts",
           "description": "Delete accounts after their expired status has been kept for this many days. Per-account overrides still apply.",
-          "includeLimited": "Also delete limited users"
+          "includeLimited": "Also delete limited users",
+          "disabledHint": "No default rule. Users with their own auto delete days are still deleted."
         },
         "usageHistory": {
           "title": "Traffic history",

@@ -536,7 +536,8 @@
         "expiredUsers": {
           "title": "过期账户",
           "description": "账户保持过期状态指定天数后删除。每个账户的 auto_delete_in_days 覆盖值仍具有优先权。",
-          "includeLimited": "同时删除受限用户"
+          "includeLimited": "同时删除受限用户",
+          "disabledHint": "未设置默认规则。设置了自身自动删除天数的用户仍会被删除。"
         },
         "usageHistory": {
           "title": "流量历史",

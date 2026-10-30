@@ -416,3 +416,24 @@ async def test_cleanup_retention_job_deletes_old_usage_history(retention_db, mon
     assert deleted == {"node_user_usages": 1, "node_usages": 1, "node_outbound_usages": 1}
     for model in (NodeUserUsage, NodeUsage, NodeOutboundUsage):
         assert await retention_db.scalar(select(func.count()).select_from(model)) == 1
+
+
+def test_elapsed_seconds_binds_are_not_cached():
+    """A cached compile must not reuse the first statement's timestamp."""
+    from sqlalchemy import DateTime, literal
+    from sqlalchemy.dialects import postgresql
+
+    from app.db.compiles_types import ElapsedSeconds
+
+    first = datetime(2026, 1, 1, tzinfo=UTC)
+    second = datetime(2026, 6, 1, tzinfo=UTC)
+    statements = [
+        select(User.id).where(ElapsedSeconds(literal(value, DateTime(timezone=True)), User.last_status_change) > 0)
+        for value in (first, second)
+    ]
+    keys = [statement._generate_cache_key() for statement in statements]
+    assert keys[0] == keys[1]
+    bound = [bind.value for bind in keys[1].bindparams]
+    assert second in bound and first not in bound
+    compiled = statements[1].compile(dialect=postgresql.dialect())
+    assert second in compiled.params.values()

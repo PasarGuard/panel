@@ -200,7 +200,11 @@ export function RetentionSettingsCard({ value, isLoading, isSaving, onSave }: Re
                   )}
                   <div className="text-muted-foreground flex items-start gap-2 text-xs leading-relaxed">
                     {enabled ? <Trash2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
-                    <span>{enabled ? t('settings.cleanup.retention.cutoff', { days }) : t('settings.cleanup.retention.disabledHint')}</span>
+                    <span>
+                      {enabled
+                        ? t('settings.cleanup.retention.cutoff', { days })
+                        : t(item.key === 'expired_users_retention_days' ? 'settings.cleanup.retention.expiredUsers.disabledHint' : 'settings.cleanup.retention.disabledHint')}
+                    </span>
                   </div>
                 </div>
               </section>
