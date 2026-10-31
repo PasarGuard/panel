@@ -83,3 +83,29 @@ def test_limited_admin_cannot_raise_its_own_limits(access_token):
         assert response.status_code == status.HTTP_403_FORBIDDEN, response.text
     finally:
         _cleanup(access_token, role, admin)
+
+
+def test_limited_admin_can_resend_unchanged_non_null_override(access_token):
+    role, admin, token = _limited_admin(access_token)
+    try:
+        seed = client.put(
+            f"/api/admin/by-id/{admin['id']}",
+            headers=auth_headers(access_token),
+            json={"permission_overrides": {"max_users": 3}},
+        )
+        assert seed.status_code == status.HTTP_200_OK, seed.text
+
+        response = client.put(
+            f"/api/admin/by-id/{admin['id']}",
+            headers=auth_headers(token),
+            json={
+                "note": "edited by myself",
+                "data_limit": 0,
+                "role_id": role["id"],
+                "permission_overrides": {**DASHBOARD_EMPTY_OVERRIDES, "max_users": 3},
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["note"] == "edited by myself"
+    finally:
+        _cleanup(access_token, role, admin)
