@@ -53,8 +53,32 @@ def test_duplicate_names_get_numbered_suffixes():
 
 
 def test_names_that_collide_after_truncation_get_suffixes():
-    assert _names("a" * 64 + "-one", "a" * 64 + "-two") == ["a" * 64 + ".conf", "a" * 64 + "-2.conf"]
+    assert _names("a" * 64 + "-one", "a" * 64 + "-two") == ["a" * 64 + ".conf", "a" * 62 + "-2.conf"]
 
 
 def test_suffix_does_not_reuse_an_existing_name():
     assert _names("x-2", "x", "x") == ["x-2.conf", "x.conf", "x-3.conf"]
+
+
+@pytest.mark.parametrize(
+    ("remark", "expected"),
+    [
+        ("NUL", "_NUL.conf"),
+        (".nul", "_nul.conf"),
+        ("con.backup", "_con.backup.conf"),
+        ("COM1", "_COM1.conf"),
+        ("CONSOLE", "CONSOLE.conf"),
+    ],
+)
+def test_windows_device_names_get_a_prefix(remark, expected):
+    assert _names(remark) == [expected]
+
+
+def test_canonically_equivalent_names_collide():
+    composed, decomposed = "Caf\u00e9", "Cafe\u0301"
+    assert _names(composed, decomposed) == ["Caf\u00e9.conf", "Caf\u00e9-2.conf"]
+
+
+def test_suffix_keeps_android_length_names_within_15_characters():
+    names = _names("a" * 15, "A" * 15)
+    assert names == ["a" * 15 + ".conf", "A" * 13 + "-2.conf"]
