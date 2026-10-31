@@ -130,6 +130,7 @@ class Admin(Base, CreatedAtUTCMixin):
     profile_title: Mapped[str | None] = mapped_column(String(512), default=None)
     support_url: Mapped[str | None] = mapped_column(String(1024), default=None)
     custom_variables: Mapped[list[dict[str, str]] | None] = mapped_column(PostgresJSONB, default=None)
+    host_preferences: Mapped[dict | None] = mapped_column(PostgresJSONB, default=None)
     notification_enable: Mapped[dict | None] = mapped_column(PostgresJSONB, default=None)
     note: Mapped[str | None] = mapped_column(String(500), default=None)
     role_id: Mapped[int] = fk_id_column("admin_roles.id", default=0)

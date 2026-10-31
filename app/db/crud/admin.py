@@ -94,6 +94,7 @@ def build_admin_details(
         profile_title=db_admin.profile_title,
         support_url=db_admin.support_url,
         custom_variables=db_admin.custom_variables or [],
+        host_preferences=db_admin.host_preferences,
         note=db_admin.note,
         notification_enable=db_admin.notification_enable,
         sub_template=db_admin.sub_template,

@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.models.my_hosts import MyHostsPolicy
 from app.models.proxy import ShadowsocksMethods
 
 from .notification_enable import NotificationEnable
@@ -398,6 +399,7 @@ class NodeHealthSettings(BaseModel):
 
 
 class General(BaseModel):
+    my_hosts: MyHostsPolicy | None = None
     default_method: ShadowsocksMethods = Field(default=ShadowsocksMethods.CHACHA20_POLY1305)
     on_hold_timeout_action: OnHoldTimeoutAction = Field(default=OnHoldTimeoutAction.activate)
     custom_variables: list[CustomVariable] | None = Field(default=None)
