@@ -18,9 +18,16 @@ async def subscription_xray_templates() -> dict[int, str]:
         return await get_client_template_contents_by_type(db, ClientTemplateType.xray_subscription)
 
 
+@cached()
+async def subscription_happ_routing_templates() -> dict[int, str]:
+    async with GetDB() as db:
+        return await get_client_template_contents_by_type(db, ClientTemplateType.happ_routing)
+
+
 async def refresh_client_templates_cache() -> None:
     await subscription_client_templates.cache.clear()
     await subscription_xray_templates.cache.clear()
+    await subscription_happ_routing_templates.cache.clear()
     clear_sub_config_cache()
 
 
