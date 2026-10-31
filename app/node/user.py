@@ -111,7 +111,7 @@ async def core_users(
     allowed_protocols: frozenset[ProxyProtocol] | None = None,
     user_ids: list[int] | set[int] | None = None,
 ):
-    """Serialize the users a core should carry, optionally restricted to ``user_ids`` (one indexed query)."""
+    """Serialize users with enabled, matching inbounds, optionally restricted to ``user_ids``."""
     if user_ids is not None and not user_ids:
         return []
     dialect = db.bind.dialect.name
@@ -130,16 +130,18 @@ async def core_users(
             User.proxy_settings,
             inbound_agg,
         )
-        .outerjoin(users_groups_association, User.id == users_groups_association.c.user_id)
-        .outerjoin(
+        # Users without a matching enabled inbound are omitted from the payload below.
+        # Inner joins let the database prune unrelated memberships before aggregation.
+        .join(users_groups_association, User.id == users_groups_association.c.user_id)
+        .join(
             Group,
             and_(
                 users_groups_association.c.groups_id == Group.id,
                 Group.is_disabled.is_(False),
             ),
         )
-        .outerjoin(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
-        .outerjoin(
+        .join(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
+        .join(
             ProxyInbound,
             and_(
                 inbounds_groups_association.c.inbound_id == ProxyInbound.id,
