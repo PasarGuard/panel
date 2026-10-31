@@ -156,7 +156,9 @@ async def _prepare_subscription_inbound_data(
     masque_remote_dns = []
     if protocol == "masque":
         host_dns = ts.masque_settings.remote_dns if ts and ts.masque_settings else None
-        masque_remote_dns = [dns.strip() for dns in _string_list(host_dns or inbound_config.get("remote_dns")) if dns.strip()]
+        masque_remote_dns = [dns.strip() for dns in _string_list(host_dns) if dns.strip()]
+        if not masque_remote_dns:
+            masque_remote_dns = [dns.strip() for dns in _string_list(inbound_config.get("remote_dns")) if dns.strip()]
 
     # The host FinalMask model only accepts client mask types; the inbound finalmask is the server's config
     final_mask_settings = (
@@ -551,7 +553,8 @@ class HostManager:
     # v3: the inbound finalmask no longer carries server-only "filter" layers ("state_v2" is taken by PR #1020).
     # v4: a disabled, deleted or unserved xHTTP download host is no longer embedded in its parent.
     # v5: a disabled xHTTP download host can still supply settings to its parent.
-    STATE_CACHE_KEY = "state_v5"
+    # v6: rebuild shared inbound metadata using stable core ID precedence.
+    STATE_CACHE_KEY = "state_v6"
     KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):
