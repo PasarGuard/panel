@@ -397,8 +397,12 @@ export default function ApiKeyModal({
                                 field.onChange(null)
                                 return
                               }
-                              const numValue = parseInt(value)
-                              if (!isNaN(numValue) && numValue > 0) {
+                              const numValue = Number(value)
+                              if (
+                                Number.isSafeInteger(numValue) &&
+                                numValue > 0 &&
+                                String(numValue) === value.trim()
+                              ) {
                                 field.onChange(numValue)
                               }
                             }}

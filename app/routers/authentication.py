@@ -120,6 +120,9 @@ async def _get_admin_from_api_key_internal(
         return
 
     new_count = await increment_api_key_usage(db, db_key.id)
+    if new_count is None:
+        # The key hit its max_requests limit concurrently; treat as exhausted.
+        return
     reached_limit = db_key.max_requests is not None and db_key.max_requests > 0 and new_count >= db_key.max_requests
     if reached_limit and db_key.delete_on_limit:
         api_key_resp = APIKeyResponse.model_validate(db_key)

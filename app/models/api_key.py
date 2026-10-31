@@ -49,7 +49,7 @@ class APIKeyUpdate(BaseModel):
     inherit_permissions: bool | None = None
     expire_date: dt | None = None
     max_requests: int | None = Field(default=None, ge=1)
-    delete_on_limit: bool | None = None
+    delete_on_limit: bool = Field(default=False)
     status: APIKeyStatus | None = None
 
     @field_validator("expire_date", mode="before")

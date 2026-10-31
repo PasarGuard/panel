@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime as dt
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -102,19 +102,44 @@ async def get_api_keys(
     return rows, total
 
 
-async def increment_api_key_usage(db: AsyncSession, key_id: int) -> int:
-    """Atomically increment request_count and return the new value."""
+async def increment_api_key_usage(db: AsyncSession, key_id: int) -> int | None:
+    """Atomically increment request_count only when below max_requests.
+
+    The UPDATE is conditioned on the key still being under its limit, so
+    concurrent requests cannot race past max_requests.  The updated value is
+    read back inside the same transaction (with FOR UPDATE) before committing,
+    keeping the result consistent with what was actually written.
+
+    Returns the new request_count, or None when no row was matched (key does
+    not exist or was already at/above max_requests and the limit has been
+    reached — callers should treat None as "key exhausted / missing").
+    """
+    # Conditional increment: only touch the row when it is still below the
+    # limit (or has no limit at all).
     stmt = (
         update(APIKey)
-        .where(APIKey.id == key_id)
+        .where(
+            APIKey.id == key_id,
+            or_(
+                APIKey.max_requests.is_(None),
+                APIKey.request_count < APIKey.max_requests,
+            ),
+        )
         .values(request_count=APIKey.request_count + 1)
     )
-    await db.execute(stmt)
-    await db.commit()
+    result = await db.execute(stmt)
+    if result.rowcount == 0:
+        # Either the key doesn't exist or it has already hit its limit.
+        await db.rollback()
+        return None
+
+    # Read the committed value back inside the same transaction so we see
+    # exactly what we wrote (MySQL does not support UPDATE…RETURNING).
     new_count_row = await db.execute(
-        select(APIKey.request_count).where(APIKey.id == key_id)
+        select(APIKey.request_count).where(APIKey.id == key_id).with_for_update()
     )
     new_count = new_count_row.scalar_one()
+    await db.commit()
     return new_count
 
 
