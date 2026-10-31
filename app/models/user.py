@@ -86,6 +86,9 @@ class UserWithValidator(User):
     @classmethod
     def validate_next_plan(cls, value: NextPlanModel | None):
         # Bound on input only: responses reuse NextPlanModel and must still load rows stored before this check.
+        data_limit = value.data_limit if value is not None else None
+        if data_limit is not None and data_limit < 0:
+            raise ValueError("next_plan data_limit must be 0 or greater")
         expire = value.expire if value is not None else None
         if expire is not None and not 0 <= expire <= MAX_ON_HOLD_EXPIRE_DURATION_SECONDS:
             raise ValueError(f"next_plan expire must be between 0 and {MAX_ON_HOLD_EXPIRE_DURATION_SECONDS} seconds")

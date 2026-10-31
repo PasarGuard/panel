@@ -478,6 +478,62 @@ class UserOperation(BaseOperation):
             await self.raise_error("User Template not found", 404)
         return await self.get_validated_user_template(db, template_id)
 
+    async def _enforce_next_plan_limits(self, db: AsyncSession, limits, next_plan) -> None:
+        """The plan is applied as-is later, where 0 or a missing value means unlimited, so bound it now."""
+        if limits.data_limit_max is not None and getattr(next_plan, "add_remaining_traffic", False):
+            await self.raise_error(
+                message=f"Next plan cannot add remaining traffic; maximum is {readable_size(limits.data_limit_max)}",
+                code=400,
+                db=db,
+            )
+        # A template plan takes data limit and duration from the template, trusted like create_user_from_template.
+        uses_template = getattr(next_plan, "user_template_id", None) is not None
+        plan_data_limit = getattr(next_plan, "data_limit", None)
+        if (
+            limits.data_limit_max is not None
+            and not uses_template
+            and (plan_data_limit is None or plan_data_limit <= 0)
+        ):
+            await self.raise_error(
+                message=f"Next plan data limit cannot be unlimited; maximum is {readable_size(limits.data_limit_max)}",
+                code=400,
+                db=db,
+            )
+        if plan_data_limit is not None:
+            if limits.data_limit_min is not None and 0 < plan_data_limit < limits.data_limit_min:
+                await self.raise_error(
+                    message=f"Next plan data limit must be at least {readable_size(limits.data_limit_min)}",
+                    code=400,
+                    db=db,
+                )
+            if limits.data_limit_max is not None and plan_data_limit > limits.data_limit_max:
+                await self.raise_error(
+                    message=f"Next plan data limit cannot exceed {readable_size(limits.data_limit_max)}",
+                    code=400,
+                    db=db,
+                )
+        plan_expire = getattr(next_plan, "expire", None)
+        if limits.expire_max is not None and not uses_template and (plan_expire is None or plan_expire <= 0):
+            await self.raise_error(
+                message=f"Next plan duration cannot be unlimited; maximum is {readable_duration(limits.expire_max)}",
+                code=400,
+                db=db,
+            )
+        if plan_expire is not None:
+            # 0 means "no duration of its own": unlimited (refused above when expire_max is set) or the template's.
+            if limits.expire_min is not None and 0 < plan_expire < limits.expire_min:
+                await self.raise_error(
+                    message=f"Next plan duration must be at least {readable_duration(limits.expire_min)}",
+                    code=400,
+                    db=db,
+                )
+            if limits.expire_max is not None and plan_expire > limits.expire_max:
+                await self.raise_error(
+                    message=f"Next plan duration cannot exceed {readable_duration(limits.expire_max)}",
+                    code=400,
+                    db=db,
+                )
+
     async def _enforce_user_limits(
         self,
         db: AsyncSession,
@@ -625,6 +681,9 @@ class UserOperation(BaseOperation):
                 )
             if limits.max_hwid_per_user is not None and hwid_limit > limits.max_hwid_per_user:
                 await self.raise_error(message=f"HWID limit cannot exceed {limits.max_hwid_per_user}", code=400, db=db)
+
+        if next_plan is not None:
+            await self._enforce_next_plan_limits(db, limits, next_plan)
 
         features = admin.role.features if admin.role else None
         if features is not None:
@@ -1315,6 +1374,9 @@ class UserOperation(BaseOperation):
     async def _active_next_plan(self, db: AsyncSession, db_user: User, admin: AdminDetails) -> UserResponse:
         if db_user is None or db_user.next_plan is None:
             await self.raise_error(message="User doesn't have next plan", code=404)
+        if not admin.is_owner:
+            # Plans stored before the create/modify check must not unlock more than the actor's limits.
+            await self._enforce_next_plan_limits(db, get_effective_limits(admin), db_user.next_plan)
 
         old_status = db_user.status
         db_user = await reset_user_by_next(
