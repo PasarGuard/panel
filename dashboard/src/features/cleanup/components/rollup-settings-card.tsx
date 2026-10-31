@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import type { CleanupSettings } from '@/service/api'
-import { CalendarDays, Clock, Combine, Info, Layers, Loader2, RotateCcw, Save, SunMoon } from 'lucide-react'
+import { AlertTriangle, CalendarDays, Clock, Combine, Info, Layers, Loader2, RotateCcw, Save, SunMoon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -76,6 +76,8 @@ export function RollupSettingsCard({ value, isLoading, isSaving, onSave }: Rollu
   ]
 
   const isDirty = JSON.stringify(draft) !== JSON.stringify(savedValue)
+  // A step going from off to on starts a catch-up of all older history, which takes a while on a big panel
+  const isTurningOn = ROLLUP_KEYS.some(key => savedValue[key] === null && draft[key] !== null)
 
   /** Enable a step with its default or turn it off. */
   const setEnabled = (key: RollupKey, enabled: boolean) => {
@@ -194,6 +196,13 @@ export function RollupSettingsCard({ value, isLoading, isSaving, onSave }: Rollu
           <Info className="h-4 w-4 text-sky-600 dark:text-sky-400" />
           <AlertDescription className="text-xs leading-relaxed sm:text-sm">{t('settings.cleanup.rollup.note')}</AlertDescription>
         </Alert>
+
+        {isTurningOn && (
+          <Alert className="border-amber-500/25 bg-amber-500/5 rtl:[&>svg]:right-4 rtl:[&>svg]:left-auto rtl:[&>svg~*]:pr-7 rtl:[&>svg~*]:pl-0">
+            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="text-xs leading-relaxed sm:text-sm">{t('settings.cleanup.rollup.firstRun')}</AlertDescription>
+          </Alert>
+        )}
 
         {validationError && (
           <p role="alert" className="text-destructive text-xs font-medium">

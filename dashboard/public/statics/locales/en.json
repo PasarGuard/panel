@@ -639,10 +639,11 @@
         },
         "cutoff": "Whole days older than {{days}} days are merged.",
         "disabledHint": "This step is off.",
-        "note": "Totals stay exact: only the time detail is reduced, and charts of old data show coarser steps. Buckets are cut in UTC. The merge runs hourly after the retention cleanup, in small batches.",
+        "note": "Totals stay exact: only the time detail is reduced, and charts of old data show coarser steps. Buckets are cut in UTC. The merge runs hourly after the retention cleanup, for at most a couple of minutes each time.",
         "validation": "Enabled steps need a whole number from 1 to 36,500.",
         "orderValidation": "Days must increase from hourly to 12-hour to daily.",
-        "save": "Save detail settings"
+        "save": "Save detail settings",
+        "firstRun": "Turning this on for the first time: if the panel already has a lot of usage history, merging the older data can take from a few hours to several days. It works only a couple of minutes each hour, so the panel stays fast, and older charts keep their current detail until it reaches them."
       },
       "expiredUsers": {
         "title": "Delete Accounts by Status",

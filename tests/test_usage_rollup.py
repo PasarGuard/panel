@@ -1,5 +1,6 @@
 import importlib
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,6 +15,7 @@ from app.jobs.usage_rollup import DAY, HALF_DAY, HOUR, bucket_bounds, rollup_usa
 from app.models.settings import CleanupSettings, SettingsSchema
 
 cleanup_retention_job = importlib.import_module("app.jobs.cleanup_retention")
+usage_rollup = importlib.import_module("app.jobs.usage_rollup")
 
 NOW = datetime(2026, 10, 30, 12, 5, tzinfo=UTC)
 # A whole UTC day, 40 days before NOW
@@ -226,6 +228,43 @@ async def test_rollup_resumes_after_budget_cut(rollup_db):
 
 
 @pytest.mark.asyncio
+async def test_rollup_stops_at_the_time_limit_and_resumes(rollup_db, monkeypatch):
+    """A run stops once its time is used up; the next run continues where it stopped."""
+    await _seed_day(rollup_db, OLD_DAY)
+    before = await _totals(rollup_db)
+    settings = CleanupSettings(usage_rollup_daily_after_days=30)
+
+    # Each monotonic() call moves the clock 1 s: a 3 s limit allows a few buckets per run
+    clock = iter(range(100_000))
+    monkeypatch.setattr(usage_rollup, "time", SimpleNamespace(monotonic=lambda: next(clock)))
+
+    runs = 0
+    while True:
+        results = await rollup_usage_history(rollup_db, settings, NOW, max_seconds=3)
+        runs += 1
+        assert await _totals(rollup_db) == before
+        if not any(result.budget_reached for result in results.values()):
+            break
+
+    assert runs > 1
+    for model in (NodeUserUsage, NodeUsage, NodeOutboundUsage):
+        assert await _timestamps(rollup_db, model) == [OLD_DAY]
+
+
+@pytest.mark.asyncio
+async def test_rollup_pauses_between_buckets(rollup_db, monkeypatch):
+    await _seed_day(rollup_db, OLD_DAY)
+    sleep = AsyncMock()
+    monkeypatch.setattr(usage_rollup, "asyncio", SimpleNamespace(sleep=sleep))
+
+    await rollup_usage_history(rollup_db, CleanupSettings(usage_rollup_daily_after_days=30), NOW, pause=0.2)
+
+    # 27 buckets per table, three tables
+    assert sleep.await_count == 81
+    sleep.assert_awaited_with(0.2)
+
+
+@pytest.mark.asyncio
 async def test_rollup_leaves_recent_rows_untouched(rollup_db):
     """Rows newer than the cutoff, or in a day that is not wholly past it, are not merged."""
     yesterday = NOW.replace(hour=0, minute=0) - DAY
@@ -270,6 +309,7 @@ async def test_cleanup_job_runs_rollup_after_retention(rollup_db, monkeypatch):
         AsyncMock(return_value=CleanupSettings(usage_history_retention_days=60, usage_rollup_daily_after_days=30)),
     )
     monkeypatch.setattr(cleanup_retention_job, "GetDB", MagicMock(return_value=db_context))
+    monkeypatch.setattr(cleanup_retention_job, "ROLLUP_PAUSE_SECONDS", 0)
 
     deleted = await cleanup_retention_job.cleanup_retention_data(now=NOW)
 

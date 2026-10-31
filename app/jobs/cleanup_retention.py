@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import scheduler
 from app.db import GetDB
 from app.db.models import NodeOutboundUsage, NodeStat, NodeUsage, NodeUserUsage
-from app.jobs.usage_rollup import rollup_usage_history
+from app.jobs.usage_rollup import ROLLUP_MAX_SECONDS_PER_RUN, ROLLUP_PAUSE_SECONDS, rollup_usage_history
 from app.settings import cleanup_settings
 from app.utils.logger import get_logger
 from config import runtime_settings
@@ -87,7 +87,9 @@ async def cleanup_retention_data(*, now: datetime | None = None) -> dict[str, in
                 )
 
         # After the deletes, so rows about to expire are not merged first
-        await rollup_usage_history(db, retention, now)
+        await rollup_usage_history(
+            db, retention, now, max_seconds=ROLLUP_MAX_SECONDS_PER_RUN, pause=ROLLUP_PAUSE_SECONDS
+        )
 
     return deleted
 

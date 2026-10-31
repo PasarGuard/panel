@@ -1,3 +1,5 @@
+import asyncio
+import time
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, tzinfo
@@ -13,6 +15,10 @@ logger = get_logger("usage-rollup")
 
 # Bucket transactions per table and run; a large first run drains over several hourly runs
 ROLLUP_MAX_BUCKETS_PER_TABLE = 2000
+# Work per hourly run and the pause between buckets: a large first catch-up spreads over days at a low load
+# instead of keeping the database busy for hours (measured on 100k users: about an hour of slower charts)
+ROLLUP_MAX_SECONDS_PER_RUN = 120
+ROLLUP_PAUSE_SECONDS = 0.2
 # Rows this recent are never merged: the PostgreSQL user usage buffer and late flushes stay far below it
 ROLLUP_MIN_AGE = timedelta(days=1)
 
@@ -21,11 +27,11 @@ HALF_DAY = timedelta(hours=12)
 DAY = timedelta(days=1)
 LEVELS = (HOUR, HALF_DAY, DAY)
 
-# model, key columns, summed columns
+# model, key columns, summed columns; the small tables first, so the large user table cannot use up their time
 ROLLUP_TABLES = (
-    (NodeUserUsage, ("user_id", "node_id"), ("used_traffic",)),
     (NodeUsage, ("node_id",), ("uplink", "downlink")),
     (NodeOutboundUsage, ("node_id", "outbound_tag"), ("uplink", "downlink")),
+    (NodeUserUsage, ("user_id", "node_id"), ("used_traffic",)),
 )
 
 
@@ -121,6 +127,8 @@ async def rollup_table(
     *,
     tz: tzinfo = UTC,
     max_buckets: int = ROLLUP_MAX_BUCKETS_PER_TABLE,
+    deadline: float | None = None,
+    pause: float = 0,
 ) -> RollupResult:
     """Merge one table's old rows into the coarsest enabled bucket of each whole day."""
     result = RollupResult()
@@ -167,7 +175,7 @@ async def rollup_table(
                 if len(members) == 1 and start in members:
                     merged.add(start)
                     continue
-                if result.buckets >= max_buckets:
+                if result.buckets >= max_buckets or (deadline is not None and time.monotonic() >= deadline):
                     result.budget_reached = True
                     return result
                 if end > now - ROLLUP_MIN_AGE:
@@ -176,6 +184,9 @@ async def rollup_table(
                 result.buckets += 1
                 result.rows_after += inserted - deleted
                 merged.add(start)
+                if pause:
+                    # Leave the database to the panel's own queries between buckets
+                    await asyncio.sleep(pause)
             day_timestamps = merged
 
     return result
@@ -188,15 +199,22 @@ async def rollup_usage_history(
     *,
     tz: tzinfo = UTC,
     max_buckets: int = ROLLUP_MAX_BUCKETS_PER_TABLE,
+    max_seconds: float | None = None,
+    pause: float = 0,
 ) -> dict[str, RollupResult]:
-    """Merge old usage rows into coarser buckets for every enabled rollup step. Totals stay exact."""
+    """Merge old usage rows into coarser buckets for every enabled rollup step. Totals stay exact.
+
+    ``max_seconds`` bounds the work of one call across all tables; the rest continues on the next call."""
     levels = rollup_levels(cleanup)
     results: dict[str, RollupResult] = {}
     if not levels:
         return results
+    deadline = time.monotonic() + max_seconds if max_seconds is not None else None
 
     for model, keys, values in ROLLUP_TABLES:
-        result = await rollup_table(db, model, keys, values, levels, now, tz=tz, max_buckets=max_buckets)
+        result = await rollup_table(
+            db, model, keys, values, levels, now, tz=tz, max_buckets=max_buckets, deadline=deadline, pause=pause
+        )
         results[model.__tablename__] = result
         if result.buckets:
             logger.info(
