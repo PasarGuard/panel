@@ -475,6 +475,7 @@ class XRayConfig(dict):
         settings["xdrive_eager_window_ms"] = net_settings.get("eagerWindowMs")
         settings["xdrive_hole_timeout_ms"] = net_settings.get("holeTimeoutMs")
         settings["xdrive_template"] = net_settings.get("template")
+        settings["xdrive_s3"] = net_settings.get("s3")
 
     @staticmethod
     def _hysteria_finalmask_from_stream(stream: dict, net_settings: dict) -> dict | None:

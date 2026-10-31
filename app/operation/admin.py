@@ -37,7 +37,7 @@ from app.models.admin import (
     RemoveAdminsResponse,
 )
 from app.models.admin_role import RoleLimits
-from app.models.stats import Period, UserUsageStatsList
+from app.models.stats import USAGE_RECORD_GRANULARITY, Period, UserUsageStatsList
 from app.models.user import UserListQuery
 from app.node.sync import remove_user as sync_remove_user, sync_users
 from app.operation import BaseOperation
@@ -366,7 +366,7 @@ class AdminOperation(BaseOperation):
         group_by_node: bool = False,
     ) -> UserUsageStatsList:
         """Get aggregated usage for an admin's users."""
-        start, end = await self.validate_dates(start, end, True)
+        start, end = await self.validate_dates(start, end, True, period=period, granularity=USAGE_RECORD_GRANULARITY)
 
         is_self = db_admin.username == admin.username
         if not is_self:

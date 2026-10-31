@@ -1,4 +1,5 @@
 import io
+import re
 import zipfile
 
 from app.models.subscription import SubscriptionInboundData
@@ -64,11 +65,28 @@ class WireGuardConfiguration(BaseSubscription):
 
     def render(self) -> bytes:
         zip_buffer = io.BytesIO()
+        used_names: set[str] = set()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for remark, config_content in self.configs:
-                hostname = remark.replace(" ", "_").replace("/", "_")
-                filename = f"{hostname}.conf"
-                zip_file.writestr(filename, config_content)
+                zip_file.writestr(self._archive_name(remark, used_names), config_content)
 
         zip_buffer.seek(0)
         return zip_buffer.getvalue()
+
+    @staticmethod
+    def _archive_name(remark: str, used_names: set[str]) -> str:
+        """Turn a host remark into a unique, flat ``.conf`` file name for the archive.
+
+        Clients take the tunnel name from the file name, so spaces become ``_`` as before. Path
+        separators, ``..`` and characters invalid in file names are replaced so every entry stays a
+        plain file in the extraction folder, and names that collide get ``-2``, ``-3`` suffixes.
+        """
+        name = re.sub(r'[\\/:*?"<>| \x00-\x1f\x7f]', "_", remark or "")
+        name = name.replace("..", "_").strip(".")[:64] or "config"
+        candidate, suffix = name, 1
+        # Compare case-insensitively: Windows and macOS extract "A.conf" and "a.conf" to one file.
+        while candidate.casefold() in used_names:
+            suffix += 1
+            candidate = f"{name}-{suffix}"
+        used_names.add(candidate.casefold())
+        return f"{candidate}.conf"

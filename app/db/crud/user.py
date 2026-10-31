@@ -4,14 +4,31 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import Row, and_, bindparam, case, delete, desc, func, insert, literal, not_, or_, select, update
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    Row,
+    and_,
+    bindparam,
+    case,
+    cast,
+    delete,
+    desc,
+    func,
+    insert,
+    literal,
+    not_,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only, selectinload, with_expression
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.functions import coalesce
 
-from app.db.compiles_types import DateDiff
+from app.db.compiles_types import DateDiff, ElapsedSeconds
 from app.db.models import (
     Admin,
     AdminStatus,
@@ -56,7 +73,6 @@ from app.models.user import (
 )
 from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
 from app.subscription.sub_update_buffer import flush_user_sub_updates, queue_user_sub_update
-from config import user_cleanup_settings
 
 from .general import (
     _build_trunc_expression,
@@ -67,6 +83,7 @@ from .general import (
 )
 from .group import get_groups_by_ids
 from .wireguard import (
+    lock_users_subnets,
     release_allocations_by_user_ids,
     release_users_allocations,
     sync_user_allocations,
@@ -1204,6 +1221,16 @@ async def create_users_bulk(
     return db_users
 
 
+_USER_DEPENDENT_MODELS = (
+    NodeUserUsage,
+    UserUsageResetLogs,
+    UserSubscriptionUpdate,
+    UserHWID,
+    NextPlan,
+    NotificationReminder,
+)
+
+
 async def _delete_user_dependencies(db: AsyncSession, user_ids: list[int]):
     """Remove all rows that reference the given user IDs."""
     if not user_ids:
@@ -1212,6 +1239,13 @@ async def _delete_user_dependencies(db: AsyncSession, user_ids: list[int]):
     await db.execute(
         users_groups_association.delete().where(_explicit_ids(users_groups_association.c.user_id, user_ids))
     )
+
+    # PostgreSQL and MySQL cascade these through the foreign keys. The panel's SQLite connections do not enforce
+    # foreign keys, so the rows would stay, and a new user that gets the same id (SQLite reuses the highest id)
+    # would inherit them.
+    if db.bind.dialect.name == "sqlite":
+        for model in _USER_DEPENDENT_MODELS:
+            await db.execute(delete(model).where(_explicit_ids(model.user_id, user_ids)))
 
 
 async def remove_user(db: AsyncSession, db_user: User) -> User:
@@ -1728,8 +1762,22 @@ async def get_users_subscription_agent_stats(
     return rows
 
 
+AUTODELETE_BATCH_SIZE = 100
+AUTODELETE_MAX_USERS_PER_RUN = 1000
+AUTODELETE_MAX_RETRIES = 3
+
+
+def _wireguard_settings(proxy_settings: dict | None):
+    return (proxy_settings or {}).get("wireguard")
+
+
 async def autodelete_expired_users(
-    db: AsyncSession, include_limited_users: bool = False
+    db: AsyncSession,
+    include_limited_users: bool = False,
+    default_autodelete_days: int | None = None,
+    *,
+    batch_size: int = AUTODELETE_BATCH_SIZE,
+    max_users: int = AUTODELETE_MAX_USERS_PER_RUN,
 ) -> list[UserNotificationResponse]:
     """
     Deletes expired (optionally also limited) users whose auto-delete time has passed.
@@ -1738,39 +1786,73 @@ async def autodelete_expired_users(
         db (AsyncSession): Database session
         include_limited_users (bool, optional): Whether to delete limited users as well.
             Defaults to False.
+        default_autodelete_days (int | None): Fallback retention for users without
+            an individual policy. ``None`` or a negative value keeps them.
+        batch_size (int): Maximum users deleted in each transaction.
+        max_users (int): Maximum users deleted during this invocation.
 
     Returns:
         list[UserNotificationResponse]: List of deleted users.
     """
     target_status = [UserStatus.expired] if not include_limited_users else [UserStatus.expired, UserStatus.limited]
 
-    auto_delete = func.coalesce(User.auto_delete_in_days, literal(user_cleanup_settings.autodelete_days))
+    fallback_days = -1 if default_autodelete_days is None else default_autodelete_days
+    if batch_size <= 0 or max_users <= 0:
+        raise ValueError("batch_size and max_users must be positive")
+    auto_delete = func.coalesce(User.auto_delete_in_days, literal(fallback_days))
 
-    query = (
-        select(
-            User,
-            auto_delete,  # Use global auto-delete days as fallback
-        )
-        .where(
-            auto_delete >= 0,  # Negative values prevent auto-deletion
-            User.status.in_(target_status),
-        )
-        .options(joinedload(User.admin))
+    eligibility_conditions = (
+        auto_delete >= 0,  # Negative values prevent auto-deletion
+        User.status.in_(target_status),
+        User.last_status_change.isnot(None),
+        # Compare with the app's UTC time: NOW() on MySQL is the session time zone. The bind is time zone aware
+        # so PostgreSQL does not read it in the session time zone either.
+        ElapsedSeconds(literal(datetime.now(UTC), DateTime(timezone=True)), User.last_status_change)
+        # 36,500 days in seconds does not fit a 32-bit integer
+        >= cast(auto_delete, BigInteger) * 86_400,
     )
-
-    expired_users = [
-        user
-        for (user, auto_delete) in (await db.execute(query)).unique()
-        if user.last_status_change.replace(tzinfo=UTC) + timedelta(days=auto_delete) <= datetime.now(UTC)
-    ]
+    candidate_query = select(User.id, User.proxy_settings).where(*eligibility_conditions).order_by(User.id)
 
     result: list[UserNotificationResponse] = []
-    if expired_users:
+    retries = 0
+    while len(result) < max_users:
+        current_batch_size = min(batch_size, max_users - len(result))
+        candidates = (await db.execute(candidate_query.limit(current_batch_size))).all()
+        if not candidates:
+            break
+        candidate_ids = [candidate.id for candidate in candidates]
+        prelocked = {candidate.id: _wireguard_settings(candidate.proxy_settings) for candidate in candidates}
+        # remove_users releases WireGuard peer IPs, which locks subnet rows: take them before the user rows
+        await lock_users_subnets(db, [candidate.proxy_settings for candidate in candidates])
+
+        # Revalidate after candidate selection, then hold row locks until remove_users commits.
+        # This prevents a concurrent status or retention-policy update from racing the delete.
+        locked_query = (
+            select(User)
+            .where(User.id.in_(candidate_ids), *eligibility_conditions)
+            .options(joinedload(User.admin))
+            .order_by(User.id)
+            .with_for_update(of=User, skip_locked=True)
+        )
+        expired_users = (await db.scalars(locked_query)).unique().all()
+        if not expired_users:
+            break
+        if any(_wireguard_settings(user.proxy_settings) != prelocked[user.id] for user in expired_users):
+            # A peer IP moved after the candidates were read, so its subnet row is not locked yet: start the batch over
+            await db.rollback()
+            retries += 1
+            if retries > AUTODELETE_MAX_RETRIES:
+                break
+            continue
+
         for user in expired_users:
             await load_user_attrs(user)
             result.append(UserNotificationResponse.model_validate(user))
 
         await remove_users(db, expired_users)
+
+        if len(candidate_ids) < current_batch_size:
+            break
 
     return result
 
@@ -1908,9 +1990,10 @@ async def get_user_count_metric_stats(
 
     query_parts = _build_user_count_query_parts(db, admins, start, end, period, metric, node_id)
     count_expr = _build_user_count_metric_expression(metric).label("count")
-    total_stmt = select(count_expr).select_from(query_parts["from_clause"]).where(and_(*query_parts["conditions"]))
+    use_distinct_pairs = _user_count_buckets_from_distinct_pairs(query_parts["dialect"])
 
-    if _user_count_buckets_from_distinct_pairs(query_parts["dialect"]):
+    if use_distinct_pairs:
+        # One pass over the history rows: the bucket counts and the period total both come from the pairs
         stmt = _build_user_count_buckets_from_distinct_pairs(query_parts, metric, group_by_node)
     elif group_by_node:
         stmt = (
@@ -1933,13 +2016,17 @@ async def get_user_count_metric_stats(
             .order_by(query_parts["trunc_expr"])
         )
 
-    total_result = await db.execute(total_stmt)
+    count_during_period = 0
+    if not use_distinct_pairs:
+        total_stmt = select(count_expr).select_from(query_parts["from_clause"]).where(and_(*query_parts["conditions"]))
+        count_during_period = (await db.execute(total_stmt)).scalar_one() or 0
     result = await db.execute(stmt)
-    count_during_period = total_result.scalar_one() or 0
 
     stats = {}
     for row in result.mappings():
         row_dict = dict(row)
+        if use_distinct_pairs:
+            count_during_period = row_dict.pop("count_during_period") or 0
         node_id_val = row_dict.pop("node_id", query_parts["stats_key"])
 
         attach_timezone_to_period_start(row_dict, start.tzinfo, query_parts["dialect"])
@@ -2028,6 +2115,10 @@ def _build_user_count_buckets_from_distinct_pairs(query_parts: dict, metric: Use
 
     Same result as count(DISTINCT ...) per bucket: a NULL user id (a row the metric does not count) is kept as
     one pair, so its bucket still appears, and count() skips it.
+
+    Each row also carries count_during_period, the distinct users over the whole range. It is counted from the
+    pairs (at most buckets x users rows) instead of a second scan that sorts every history row in range.
+    PostgreSQL materializes the CTE because it is read twice, so the history rows are scanned once.
     """
     pair_columns = [query_parts["trunc_expr"].label("period_start")]
     if group_by_node:
@@ -2037,8 +2128,9 @@ def _build_user_count_buckets_from_distinct_pairs(query_parts: dict, metric: Use
         .select_from(query_parts["from_clause"])
         .where(and_(*query_parts["conditions"]))
         .distinct()
-        .subquery()
+        .cte("user_count_pairs")
     )
+    count_during_period = select(func.count(func.distinct(pairs.c.user_id))).scalar_subquery()
 
     group_columns = [pairs.c.period_start]
     output_columns = [pairs.c.period_start]
@@ -2046,7 +2138,11 @@ def _build_user_count_buckets_from_distinct_pairs(query_parts: dict, metric: Use
         group_columns.append(pairs.c.node_id)
         output_columns.append(func.coalesce(pairs.c.node_id, 0).label("node_id"))
     return (
-        select(*output_columns, func.count(pairs.c.user_id).label("count"))
+        select(
+            *output_columns,
+            func.count(pairs.c.user_id).label("count"),
+            count_during_period.label("count_during_period"),
+        )
         .group_by(*group_columns)
         .order_by(*group_columns)
     )

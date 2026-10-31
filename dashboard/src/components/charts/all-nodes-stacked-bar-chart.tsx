@@ -34,6 +34,7 @@ import NodeStatsModal from '@/features/nodes/dialogs/node-stats-modal'
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAdmin } from '@/hooks/use-admin'
+import { useChartPeriodLimit } from '@/hooks/use-chart-period-limit'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
 import TimeSelector, { TRAFFIC_TIME_SELECTOR_SHORTCUTS } from './time-selector'
 import PeriodSelector from './period-selector'
@@ -49,6 +50,7 @@ import {
   resolvePeriodOverride,
   toStatsRecord,
   TrafficShortcutKey,
+  USAGE_RECORD_BUCKET_MINUTES,
 } from '@/utils/chart-period-utils'
 import { getChartBrushWindow, getChartRenderFlags } from '@/utils/chart-performance'
 
@@ -273,9 +275,12 @@ export function AllNodesStackedBarChart() {
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null)
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
-  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
+  const [selectedPeriodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
+  const { allowedPeriods, periodOverride } = useChartPeriodLimit({ shortcut: selectedTime, customRange: showCustomRange ? customRange : undefined }, selectedPeriodOverride, setPeriodOverride, {
+    recordBucketMinutes: USAGE_RECORD_BUCKET_MINUTES,
+  })
   const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedData, setSelectedData] = useState<NodeChartDataPoint | null>(null)
@@ -744,7 +749,7 @@ export function AllNodesStackedBarChart() {
               <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full sm:w-fit" />
                 <div className="flex w-full items-center gap-2 sm:w-auto">
-                  <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
+                  <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} allowedPeriods={allowedPeriods} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
                   <button
                     type="button"
                     aria-label="Custom Range"

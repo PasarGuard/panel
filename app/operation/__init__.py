@@ -23,6 +23,7 @@ from app.db.crud.user import get_user_by_id, get_wireguard_subscription_user
 from app.db.models import Admin as DBAdmin, ClientTemplate, CoreConfig, Group, Node, ProxyHost, User, UserTemplate
 from app.models.admin import AdminDetails
 from app.models.group import BulkGroup
+from app.models.stats import BUCKET_LIMITED_PERIODS, MAX_USAGE_BUCKETS, Period, count_period_buckets
 from app.models.user import UserCreate, UserModify
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
 from app.operation.permissions import apply_group_access, get_scope_admin_id
@@ -99,10 +100,21 @@ class BaseOperation:
         code = getattr(exc, "code", 500)
         await self.raise_error(message=str(exc), code=code)
 
-    async def validate_dates(self, start: dt | None, end: dt | None, set_default_values: bool) -> tuple[dt, dt]:
+    async def validate_dates(
+        self,
+        start: dt | None,
+        end: dt | None,
+        set_default_values: bool,
+        *,
+        period: Period | None = None,
+        granularity: td = td(minutes=1),
+    ) -> tuple[dt, dt]:
         """
         Validate if start and end dates are correct and if end is after start.
         Preserves timezone information instead of converting to UTC.
+
+        With `period`, also reject ranges that would need more than
+        MAX_USAGE_BUCKETS buckets of that period (see validate_period_buckets).
         """
 
         start_date = None
@@ -129,9 +141,34 @@ class BaseOperation:
                 if end_date < start_date:
                     await self.raise_error(message="Start date must be before end date", code=400)
 
-            return start_date, end_date
         except ValueError as e:
             await self.raise_error(message=f"Invalid date range or format: {e!s}", code=400)
+
+        if period is not None and start_date and end_date:
+            await self.validate_period_buckets(start_date, end_date, period, granularity)
+
+        return start_date, end_date
+
+    async def validate_period_buckets(
+        self, start: dt, end: dt, period: Period, granularity: td = td(minutes=1)
+    ) -> None:
+        """Reject stats requests that would return more than MAX_USAGE_BUCKETS buckets.
+
+        `granularity` is the spacing of the stored rows (usage history is kept in
+        10 minute buckets, so minute buckets over it are counted per 10 minutes).
+        Only minute and hour buckets are limited (see BUCKET_LIMITED_PERIODS).
+        """
+        if period not in BUCKET_LIMITED_PERIODS:
+            return
+        buckets = count_period_buckets(start, end, period, granularity)
+        if buckets > MAX_USAGE_BUCKETS:
+            await self.raise_error(
+                message=(
+                    f"Range too long for period '{period.value}': it needs {buckets} buckets, "
+                    f"the limit is {MAX_USAGE_BUCKETS}. Use a larger period or a shorter range."
+                ),
+                code=400,
+            )
 
     async def get_validated_host(self, db: AsyncSession, host_id: int) -> ProxyHost:
         db_host = await get_host_by_id(db, host_id)

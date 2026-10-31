@@ -5,6 +5,8 @@ class InboundSummary(BaseModel):
     tag: str
     protocol: str
     network: str | None = None
+    security: str | None = None
+    fingerprint: str | None = None
 
 
 class SystemResourceStats(BaseModel):

@@ -20,7 +20,16 @@ import { DatePicker } from '@/components/common/date-picker'
 import { formatDateByLocale } from '@/utils/datePickerUtils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { useClearUsageData, useDeleteExpiredUsers, useGetAdmins, useGetCurrentAdmin, useResetUsersDataUsage, type AdminDetails, type UsageTable } from '@/service/api'
+import {
+  useClearUsageData,
+  useDeleteExpiredUsers,
+  useGetAdmins,
+  useGetCurrentAdmin,
+  useResetUsersDataUsage,
+  type AdminDetails,
+  type CleanupSettings as CleanupSettingsValue,
+  type UsageTable,
+} from '@/service/api'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { AlertTriangle, Check, ChevronDown, Database, Eye, Loader2, RotateCcw, Server, Trash2, UserCog, UserRound } from 'lucide-react'
 import { endOfDay, startOfDay } from 'date-fns'
@@ -28,6 +37,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { hasScopeAll, isOwner, roleLabel } from '@/utils/rbac'
+import { RetentionSettingsCard } from '@/features/cleanup/components/retention-settings-card'
+import { RollupSettingsCard } from '@/features/cleanup/components/rollup-settings-card'
+import { useSettingsContext } from './_dashboard.settings'
 
 const PAGE_SIZE = 20
 type CleanupDeleteTarget = 'expired' | 'limited' | 'on_hold' | 'disabled' | 'inactive'
@@ -36,6 +48,9 @@ export default function CleanupSettings() {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
   const isPersianLocale = i18n.language === 'fa'
+  const { settings, isLoading: isSettingsLoading, error: settingsError, updateSettings, isSaving } = useSettingsContext()
+  // The API replaces the whole section, so each card's save keeps the other card's saved fields
+  const saveCleanup = (cleanup: Partial<CleanupSettingsValue>) => updateSettings({ cleanup: { ...settings?.cleanup, ...cleanup } })
   const [deleteTarget, setDeleteTarget] = useState<CleanupDeleteTarget>('expired')
   const [statusChangedAfter, setStatusChangedAfter] = useState<Date | undefined>()
   const [statusChangedBefore, setStatusChangedBefore] = useState<Date | undefined>()
@@ -117,6 +132,7 @@ export default function CleanupSettings() {
   const usageDataTables = [
     { value: 'node_user_usages', label: t('settings.cleanup.clearUsageData.tables.nodeUserUsages') },
     { value: 'node_usages', label: t('settings.cleanup.clearUsageData.tables.nodeUsages') },
+    { value: 'node_outbound_usages', label: t('settings.cleanup.clearUsageData.tables.nodeOutboundUsages') },
   ]
 
   const handleDeleteExpired = async (isDryRun: boolean = false) => {
@@ -307,6 +323,18 @@ export default function CleanupSettings() {
 
   return (
     <div className="space-y-6 p-4 sm:space-y-8 sm:py-6 lg:space-y-10 lg:py-8">
+      {/* Without the stored values a save would send defaults and switch off the saved rules */}
+      {settingsError && !isSettingsLoading ? (
+        <Alert variant="destructive">
+          <AlertDescription>{t('settings.cleanup.loadError')}</AlertDescription>
+        </Alert>
+      ) : (
+        <>
+          <RetentionSettingsCard value={settings?.cleanup} isLoading={isSettingsLoading} isSaving={isSaving} onSave={saveCleanup} />
+          <RollupSettingsCard value={settings?.cleanup} isLoading={isSettingsLoading} isSaving={isSaving} onSave={saveCleanup} />
+        </>
+      )}
+
       {/* Delete Expired Users Section */}
       <Card>
         <CardHeader className="p-4 sm:p-6">

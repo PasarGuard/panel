@@ -823,6 +823,21 @@ class NodeUsage(Base, IdMixin):
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
+class NodeOutboundUsage(Base, IdMixin):
+    __tablename__ = "node_outbound_usages"
+    __table_args__ = (
+        UniqueConstraint("created_at", "node_id", "outbound_tag"),
+        # The unique constraint already serves created_at range scans
+        Index("ix_node_outbound_usages_node_id_created_at", "node_id", "created_at"),
+    )
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
+    node_id: Mapped[int] = fk_id_column("nodes.id", ondelete="CASCADE")
+    # Xray tags are case sensitive; MySQL's default collation is not
+    outbound_tag: Mapped[str] = mapped_column(CaseSensitiveString(256))
+    uplink: Mapped[int] = mapped_column(BigInteger, default=0)
+    downlink: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
 class NodeUsageResetLogs(Base, CreatedAtUTCMixin):
     __tablename__ = "node_usage_reset_logs"
     __table_args__ = (
@@ -964,6 +979,10 @@ class ClientTemplate(Base, IdMixin):
 
 class NodeStat(Base, CreatedAtUTCMixin):
     __tablename__ = "node_stats"
+    __table_args__ = (
+        Index("ix_node_stats_created_at", "created_at"),
+        Index("ix_node_stats_node_id_created_at", "node_id", "created_at"),
+    )
     node_id: Mapped[int] = fk_id_column("nodes.id")
     node: Mapped[Node] = relationship(back_populates="stats", init=False)
     mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
@@ -983,6 +1002,7 @@ class Settings(Base, IdMixin):
     subscription: Mapped[dict] = mapped_column(JSON())
     hwid: Mapped[dict] = mapped_column(JSON())
     general: Mapped[dict] = mapped_column(JSON())
+    cleanup: Mapped[dict] = mapped_column(JSON(), default_factory=dict)
 
 
 class AdminRole(Base, CreatedAtUTCMixin):
