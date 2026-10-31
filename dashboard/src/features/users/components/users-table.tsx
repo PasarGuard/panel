@@ -1001,7 +1001,6 @@ const UsersTable = memo(() => {
         dir,
         showCreatedBy: canReadAllUsers && showCreatedBy,
         showSelectionCheckbox: showSelectionCheckbox && canBulkMutateUsers,
-        showHwidCount: canReadHwids,
         handleSort,
         filters: {
           sort: filters.sort,
@@ -1176,7 +1175,6 @@ const UsersTable = memo(() => {
         autoRefetch={handleAutoRefresh}
         handleSort={handleSort}
         onClearAdvanceSearch={handleClearAdvanceSearch}
-        canSortByHwidCount={canReadHwids}
       />
       {canBulkMutateUsers && (
         <BulkActionsBar
