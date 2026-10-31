@@ -17,6 +17,7 @@ import { LoaderCircle } from 'lucide-react'
 import { getUsersAutoRefreshIntervalSeconds, setUsersAutoRefreshIntervalSeconds } from '@/utils/userPreferenceStorage'
 import { $fetch as publicFetch } from 'ofetch'
 import { resolveSubscriptionPanelBaseUrl } from '@/utils/subscription-config'
+import { RELEVANCE_USERS_SORT, toUsersQueryParams } from '@/utils/usersCache'
 import { statusColors } from '@/constants/UserSettings'
 
 // Compact sort configuration: one row per field
@@ -149,7 +150,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
   const visibleSortSections = sortSections
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<number>(() => getUsersAutoRefreshIntervalSeconds())
-  const { refetch: queryRefetch, isFetching } = useGetUsers(filters)
+  const { refetch: queryRefetch, isFetching } = useGetUsers(toUsersQueryParams(filters))
   const activeSearchValue = filters.ids?.join(', ') || filters.search || filters.proxy_id || ''
   const { search, debouncedSearch, setSearch } = useDebouncedSearch(activeSearchValue, 300)
   const prevDebouncedSearchRef = useRef<string | undefined>(activeSearchValue || undefined)
@@ -362,7 +363,10 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
     return count
   }
 
+  // While searching with the default sort the list is in best match order, so no option is shown as picked
+  const isRelevanceSort = toUsersQueryParams(filters).sort === RELEVANCE_USERS_SORT
   const getSortState = (section: (typeof sortSections)[number]) => {
+    if (isRelevanceSort) return 'none' as const
     if (filters.sort === section.desc) return 'desc' as const
     if (filters.sort === section.asc) return 'asc' as const
     return 'none' as const

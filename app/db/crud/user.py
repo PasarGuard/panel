@@ -503,6 +503,28 @@ def _build_user_sort_clauses(sort_options: list[UserSortOption]) -> list[ColumnE
     return clauses
 
 
+def _username_contains(search: str) -> ColumnElement[bool]:
+    # autoescape: "_" and "%" in usernames such as u_12345 are literal characters, not LIKE wildcards
+    return User.username.icontains(search, autoescape=True)
+
+
+def _user_search_rank(search: str, by_relevance: bool = False) -> ColumnElement[int]:
+    """Pin the user whose username is the search text on top (same case before other case: usernames are
+    case-sensitive). Every other match keeps the order of the chosen sort, unless the sort is relevance: then
+    usernames starting with the text come next, then other username matches, then users found only by their note
+    (a note often mentions other users' ids)."""
+    whens = [
+        (User.username == search, 0),
+        (func.lower(User.username) == search.lower(), 1),
+    ]
+    if by_relevance:
+        whens += [
+            (User.username.istartswith(search, autoescape=True), 2),
+            (_username_contains(search), 3),
+        ]
+    return case(*whens, else_=len(whens))
+
+
 def _build_user_count_stmt(stmt: Select) -> Select:
     """Count filtered users without carrying page ordering or wide user rows."""
     return stmt.with_only_columns(func.count(User.id)).order_by(None)
@@ -565,8 +587,9 @@ async def get_users(
         filters.append(User.username.in_(query.username))
     if query.usernames:
         filters.append(User.username.in_(query.usernames))
-    if query.search:
-        filters.append(or_(User.username.ilike(f"%{query.search}%"), User.note.ilike(f"%{query.search}%")))
+    search = (query.search or "").strip()
+    if search:
+        filters.append(or_(_username_contains(search), User.note.icontains(search, autoescape=True)))
 
     if query.status:
         if isinstance(query.status, list):
@@ -621,8 +644,18 @@ async def get_users(
     if filters:
         stmt = stmt.where(and_(*filters))
 
-    if query.sort:
-        stmt = stmt.order_by(*_build_user_sort_clauses(query.sort))
+    sort = [option for option in query.sort if option is not UserSortOption.relevance]
+    by_relevance = len(sort) < len(query.sort)
+    if by_relevance and not sort:
+        sort = [UserSortOption.desc_created_at]
+
+    if search:
+        stmt = stmt.order_by(_user_search_rank(search, by_relevance))
+    if sort:
+        stmt = stmt.order_by(*_build_user_sort_clauses(sort))
+    elif search:
+        # Stable order inside one rank, so offset pages don't repeat or skip users
+        stmt = stmt.order_by(User.id)
 
     total = None
     if return_with_count:
@@ -666,14 +699,17 @@ async def get_users_simple(
         filters.append(User.id.in_(query.ids))
     if query.usernames:
         filters.append(User.username.in_(query.usernames))
-    if query.search:
-        filters.append(User.username.ilike(f"%{query.search}%"))
+    search = (query.search or "").strip()
+    if search:
+        filters.append(_username_contains(search))
     if admin:
         filters.append(User.admin_id == admin.id)
 
     if filters:
         stmt = stmt.where(and_(*filters))
 
+    if search:
+        stmt = stmt.order_by(_user_search_rank(search))
     if query.sort:
         sort_list = []
         for sort_option in query.sort:
@@ -683,9 +719,11 @@ async def get_users_simple(
             else:
                 sort_list.append(clause)
         stmt = stmt.order_by(*sort_list)
+    elif search:
+        stmt = stmt.order_by(User.id)
 
     # Get count BEFORE pagination (always)
-    count_stmt = select(func.count()).select_from(stmt.subquery())
+    count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
     total = (await db.execute(count_stmt)).scalar()
 
     # Apply pagination or safety limit
