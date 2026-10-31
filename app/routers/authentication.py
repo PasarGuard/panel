@@ -1,5 +1,5 @@
 import hmac
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from aiogram.utils.web_app import WebAppInitData, safe_parse_webapp_init_data
@@ -24,7 +24,7 @@ from app.models.settings import Telegram
 from app.operation.permissions import PermissionDenied, enforce_permission, intersect_permissions, is_scope_all
 from app.settings import telegram_settings
 from app.utils.jwt import get_admin_payload, get_admin_token_binding, get_secret_key
-from config import auth_settings, runtime_settings
+from config import auth_settings, runtime_settings, telegram_env_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token", auto_error=False)
 
@@ -383,6 +383,21 @@ async def validate_mini_app_admin(db: AsyncSession, token: str) -> AdminValidati
             detail="invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # initData is a bearer credential, so honour a maximum age as Telegram recommends. The hash
+    # covers auth_date, so a verified payload always carries it; tolerate a missing value rather
+    # than turning it into a 500.
+    if telegram_env_settings.miniapp_init_ttl_minutes > 0:
+        auth_date = getattr(data, "auth_date", None)
+        if auth_date is not None:
+            if auth_date.tzinfo is None:
+                auth_date = auth_date.replace(tzinfo=UTC)
+            if datetime.now(UTC) - auth_date > timedelta(minutes=telegram_env_settings.miniapp_init_ttl_minutes):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="invalid token",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
 
     duplicate_admins = await find_admins_by_telegram_id(db, data.user.id, limit=2)
     if len(duplicate_admins) > 1:

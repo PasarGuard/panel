@@ -41,3 +41,11 @@ Admin management is handled from the dashboard. For owner setup, reset, delete, 
 ```bash
 pasarguard cli generate-temp-key
 ```
+
+A key can be bound to a single action with `--action` (`-a`). A bound key is accepted only by that action; a key without `--action` works for any of them.
+
+```bash
+pasarguard cli generate-temp-key --action reset_owner
+```
+
+Actions: `create_owner`, `reset_owner`, `delete_owner`, `upgrade_owner`.
