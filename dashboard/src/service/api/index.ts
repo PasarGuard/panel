@@ -296,7 +296,7 @@ export interface APIKeyUpdate {
   inherit_permissions?: boolean | null;
   expire_date?: string | null;
   max_requests?: number | null;
-  delete_on_limit?: boolean | null;
+  delete_on_limit?: boolean;
   status?: APIKeyStatus | null;
 }
 
