@@ -1848,6 +1848,21 @@
       "reserved": "Reserved（例如 0,0,0）",
       "dns": "DNS 服务器",
       "dnsHint": "留空使用系统 DNS"
+    },
+    "mtproto": {
+      "hint": "订阅页面和仪表盘会为 MTProto 主机显示 Telegram 代理链接；客户端应用永远不会收到该链接。",
+      "linkType": "链接类型",
+      "linkTypeHelp": "这里只决定用户从此主机获得哪些链接。所有类型都使用同一个用户密钥，因此只有核心的模式开关才能真正关闭某种类型。",
+      "linkTypes": {
+        "auto": "自动",
+        "tls": "Fake TLS",
+        "secure": "Secure",
+        "classic": "经典",
+        "web": "WEB"
+      },
+      "fakeTlsDomain": "Fake TLS 域名",
+      "fakeTlsDomainHelp": "必须是核心的 Fake TLS 域名之一。留空则使用核心的主域名。",
+      "webAddressHelp": "每个地址都必须是核心的 WEB vhost 域名之一。WEB 链接始终使用 443 端口，因此会忽略端口设置。"
     }
   },
   "inbound": "入站",
@@ -1909,6 +1924,8 @@
   "subscriptionModal.fetchError": "获取配置失败",
   "subscriptionModal.noConfigs": "未找到配置",
   "subscriptionModal.unknownConfig": "未知配置",
+  "subscriptionModal.telegramProxy": "Telegram 代理",
+  "subscriptionModal.telegramWebProxy": "Telegram WEB 代理",
   "subscriptionModal.qrFormat": "二维码格式",
   "subscriptionModal.qrFormatConfig": "配置",
   "configActions.copyConfig": "复制配置",
@@ -2059,6 +2076,12 @@
   "userDialog.proxySettings.wireguardPublicKey": "WireGuard 公钥",
   "userDialog.proxySettings.generateWireGuardKeyPair": "WireGuard 密钥对",
   "userDialog.proxySettings.wireguardGenerated": "WireGuard 密钥对已生成",
+  "userDialog.proxySettings.mtprotoSecret": "MTProto 密钥",
+  "userDialog.proxySettings.mtprotoSecretPlaceholder": "32 个十六进制字符，留空则保留当前密钥",
+  "userDialog.proxySettings.mtprotoSecretPlaceholderNew": "32 个十六进制字符，留空则自动生成",
+  "userDialog.proxySettings.generateMtprotoSecret": "生成 MTProto 密钥",
+  "userDialog.proxySettings.mtprotoGenerated": "MTProto 密钥已生成",
+  "userDialog.proxySettings.mtprotoSecretInvalid": "必须是 32 个十六进制字符",
   "userDialog.proxySettings.desc": "为此用户配置协议专属设置。",
   "userDialog.expireDate": "过期日期",
   "userDialog.selectedGroups": "已选择 {{count}} 个分组",
@@ -2556,7 +2579,8 @@
     "shadowsocksPasswordGenerationFailed": "密码生成失败",
     "discardChangesTitle": "放弃更改？",
     "discardChangesDescription": "如果关闭此编辑器，未保存的内核配置更改将会丢失。",
-    "scanRealityTarget": "扫描目标"
+    "scanRealityTarget": "扫描目标",
+    "mtprotoHint": "MTProto (telemt) 核心。保存前请将 censorship.tls_domain 设置为真实域名：之后再更改会使所有已分享的 ee 链接失效。请为每个 MTProto 核心设置独立的 inbound_tag。"
   },
   "coreEditor": {
     "nameRequired": "名称为必填项",
@@ -2607,7 +2631,8 @@
       "dns": "DNS",
       "bindings": "绑定",
       "advanced": "高级",
-      "interface": "接口"
+      "interface": "接口",
+      "mtproto": "MTProto 代理"
     },
     "sectionDesc": {
       "wgInterface": "WireGuard 接口与密钥",
@@ -2618,7 +2643,53 @@
       "routing": "路由规则与流量策略",
       "balancers": "负载均衡与调度策略",
       "dns": "DNS 解析与解析器",
-      "bindings": "入站标签回退与排除"
+      "bindings": "入站标签回退与排除",
+      "mtproto": "此核心的 telemt 设置。用户、控制 API 和指标由节点管理。"
+    },
+    "mtproto": {
+      "inboundTag": "入站标签",
+      "inboundTagHint": "在所有核心中必须唯一。主机和组会引用它。",
+      "port": "端口",
+      "tlsDomain": "TLS 域名",
+      "tlsDomainHint": "Fake TLS 所伪装的网站。之后再更改会使所有已分享的 ee 链接失效。",
+      "modes": "模式",
+      "modeTls": "Fake TLS（ee，推荐）",
+      "modeSecure": "安全（dd）",
+      "modeClassic": "经典",
+      "tlsDomains": "额外的 Fake TLS 域名",
+      "tlsDomainsHint": "可选。除上面的 TLS 域名外，Fake TLS 客户端还可以使用的其他站点。",
+      "tlsDomainsAdd": "添加域名",
+      "remove": "移除",
+      "webEnable": "WEB 模式",
+      "webHint": "WEB 通过 HTTPS 传输 MTProto。服务器上需要一个 HTTPS 前端（Caddy 或 nginx）来持有证书并转发到 WEB 监听器。",
+      "webOneServer": "WEB 设置只适用于一台服务器；如果有多个 MTProto 节点，请为每个节点使用一个核心。",
+      "webGuide": "如何设置 WEB",
+      "webListenerPort": "WEB 监听端口",
+      "webListenerPortHint": "前端转发到的本地端口，必须与 MTProto 端口不同。",
+      "webVhosts": "域名",
+      "webVhostAdd": "添加域名",
+      "webHost": "域名",
+      "webBasePath": "路径（可选）",
+      "webPublicAddr": "公网地址",
+      "webPublicAddrHint": "服务器的公网 IP 和 443 端口。",
+      "webDecoyUpstream": "诱饵站点 URL",
+      "webDecoyUpstreamHint": "其他访问者看到的是这个站点。其地址必须是回环或私有 IP。",
+      "webSecretMode": "密钥模式",
+      "webSecretModeDd": "dd（推荐）",
+      "webSecretModePlain": "普通",
+      "config": "配置（JSON）",
+      "invalidJson": "配置不是有效的 JSON。",
+      "issue": {
+        "inboundTag": "入站标签不能为空，也不能包含 , 或 <=>。",
+        "port": "端口必须为 1 至 65535 之间的整数。",
+        "modes": "请至少启用一种模式。",
+        "tlsDomain": "Fake TLS 需要 TLS 域名：只填写域名本身，不能使用模板中的占位符。",
+        "listenerPort": "每个 MTProxy 监听器的端口必须与服务器端口一致。",
+        "tlsDomains": "每个额外的 TLS 域名都必须是纯域名，不能是模板占位符。",
+        "webListener": "WEB 需要 web.enabled 以及一个 transport 为 \"web\" 的监听器，它位于回环或私有 IP 上，并使用与服务器端口不同的独立端口。",
+        "webBasePath": "每个域名路径必须为空，或最多 128 个字符，由以 \"/\" 分隔的若干部分组成，只能包含英文字母、数字、\"-\" 和 \"_\"，每部分以字母或数字开头，开头和结尾不能有 \"/\"（例如 tg 或 my-app/web）。",
+        "webVhost": "WEB 至少需要一个域名，每个都要有域名和位于回环或私有 IP 上的诱饵站点 URL。"
+      }
     },
     "api": {
       "title": "API 服务",

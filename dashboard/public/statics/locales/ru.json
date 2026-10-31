@@ -1399,6 +1399,8 @@
   "subscriptionModal.fetchError": "Не удалось получить конфигурации",
   "subscriptionModal.noConfigs": "Конфигурации не найдены",
   "subscriptionModal.unknownConfig": "Неизвестная конфигурация",
+  "subscriptionModal.telegramProxy": "Прокси Telegram",
+  "subscriptionModal.telegramWebProxy": "WEB-прокси Telegram",
   "subscriptionModal.qrFormat": "Формат QR-кода",
   "subscriptionModal.qrFormatConfig": "Конфиг",
   "configActions.copyConfig": "Копировать конфиг",
@@ -2075,6 +2077,21 @@
       "reserved": "Reserved (например 0,0,0)",
       "dns": "DNS серверы",
       "dnsHint": "Оставьте пустым для использования системного DNS"
+    },
+    "mtproto": {
+      "hint": "Страница подписки и панель показывают для хостов MTProto ссылку на прокси Telegram; клиентские приложения её никогда не получают.",
+      "linkType": "Тип ссылки",
+      "linkTypeHelp": "Здесь выбирается только то, какие ссылки пользователи получат от этого хоста. Все типы используют один и тот же секрет пользователя, поэтому по-настоящему отключить тип можно только переключателями режимов в ядре.",
+      "linkTypes": {
+        "auto": "Авто",
+        "tls": "Fake TLS",
+        "secure": "Secure",
+        "classic": "Классический",
+        "web": "WEB"
+      },
+      "fakeTlsDomain": "Домен Fake TLS",
+      "fakeTlsDomainHelp": "Должен быть одним из доменов Fake TLS ядра. Оставьте пустым, чтобы использовать основной домен ядра.",
+      "webAddressHelp": "Каждый адрес должен быть одним из доменов WEB vhost ядра. Ссылки WEB всегда используют порт 443, поэтому порт не учитывается."
     }
   },
   "enable": "Включить",
@@ -2488,7 +2505,8 @@
     "shadowsocksPasswordGenerationFailed": "Не удалось сгенерировать пароль",
     "discardChangesTitle": "Отменить изменения?",
     "discardChangesDescription": "Несохранённые изменения конфигурации ядра будут потеряны, если закрыть редактор.",
-    "scanRealityTarget": "Сканировать цель"
+    "scanRealityTarget": "Сканировать цель",
+    "mtprotoHint": "Ядро MTProto (telemt). Перед сохранением укажите в censorship.tls_domain реальный домен: его последующее изменение сломает все уже отправленные ссылки ee. Задайте каждому ядру MTProto собственный inbound_tag."
   },
   "coreEditor": {
     "nameRequired": "Укажите имя",
@@ -2539,7 +2557,8 @@
       "dns": "DNS",
       "bindings": "Привязки",
       "advanced": "Дополнительно",
-      "interface": "Интерфейс"
+      "interface": "Интерфейс",
+      "mtproto": "Прокси MTProto"
     },
     "sectionDesc": {
       "wgInterface": "Интерфейс WireGuard и ключи",
@@ -2550,7 +2569,53 @@
       "routing": "Правила маршрутизации трафика",
       "balancers": "Стратегии балансировки нагрузки",
       "dns": "Настройки DNS и резолвера",
-      "bindings": "Резервные и исключённые теги входящих"
+      "bindings": "Резервные и исключённые теги входящих",
+      "mtproto": "Настройки telemt для этого ядра. Пользователями, управляющим API и метриками управляет узел."
+    },
+    "mtproto": {
+      "inboundTag": "Тег входящего",
+      "inboundTagHint": "Должен быть уникальным среди всех ядер. На него ссылаются хосты и группы.",
+      "port": "Порт",
+      "tlsDomain": "Домен TLS",
+      "tlsDomainHint": "Сайт, под который маскируется Fake TLS. Его последующее изменение сломает все уже отправленные ссылки ee.",
+      "modes": "Режимы",
+      "modeTls": "Fake TLS (ee, рекомендуется)",
+      "modeSecure": "Защищённый (dd)",
+      "modeClassic": "Классический",
+      "tlsDomains": "Дополнительные домены Fake TLS",
+      "tlsDomainsHint": "Необязательно. Другие сайты, которые могут указывать клиенты Fake TLS, помимо домена TLS выше.",
+      "tlsDomainsAdd": "Добавить домен",
+      "remove": "Удалить",
+      "webEnable": "Режим WEB",
+      "webHint": "WEB передаёт MTProto через HTTPS. Для него на сервере нужен HTTPS-фронт (Caddy или nginx), который хранит сертификат и перенаправляет запросы на слушатель WEB.",
+      "webOneServer": "Настройки WEB относятся к одному серверу; при нескольких узлах MTProto используйте отдельное ядро для каждого узла.",
+      "webGuide": "Как настроить WEB",
+      "webListenerPort": "Порт слушателя WEB",
+      "webListenerPortHint": "Локальный порт, на который перенаправляет фронт. Он должен отличаться от порта MTProto.",
+      "webVhosts": "Домены",
+      "webVhostAdd": "Добавить домен",
+      "webHost": "Домен",
+      "webBasePath": "Путь (необязательно)",
+      "webPublicAddr": "Публичный адрес",
+      "webPublicAddrHint": "Публичный IP сервера и порт 443.",
+      "webDecoyUpstream": "URL сайта-приманки",
+      "webDecoyUpstreamHint": "Этот сайт видят остальные посетители. Его адрес должен быть loopback или частным IP.",
+      "webSecretMode": "Режим секрета",
+      "webSecretModeDd": "dd (рекомендуется)",
+      "webSecretModePlain": "Обычный",
+      "config": "Конфигурация (JSON)",
+      "invalidJson": "Конфигурация не является корректным JSON.",
+      "issue": {
+        "inboundTag": "Тег входящего не должен быть пустым или содержать , или <=>.",
+        "port": "Порт должен быть целым числом от 1 до 65535.",
+        "modes": "Включите хотя бы один режим.",
+        "tlsDomain": "Для Fake TLS нужен домен TLS: только имя домена, а не заполнитель из шаблона.",
+        "listenerPort": "Порт каждого слушателя (listener) MTProxy должен совпадать с портом сервера.",
+        "tlsDomains": "Каждый дополнительный домен TLS должен быть просто доменным именем, а не заглушкой из шаблона.",
+        "webListener": "Для WEB нужны web.enabled и один слушатель с transport \"web\" на loopback или частном IP, со своим портом, отличным от порта сервера.",
+        "webBasePath": "Путь домена должен быть пустым или содержать до 128 символов: латинские буквы, цифры, \"-\" и \"_\" в частях, разделённых \"/\". Каждая часть начинается с буквы или цифры, \"/\" в начале и в конце не допускается (например, tg или my-app/web).",
+        "webVhost": "Для WEB нужен хотя бы один домен, у каждого должно быть доменное имя и URL сайта-приманки на loopback или частном IP."
+      }
     },
     "api": {
       "title": "Сервисы API",
@@ -3518,6 +3583,12 @@
     "proxySettings.wireguardPublicKey": "Публичный ключ WireGuard",
     "proxySettings.generateWireGuardKeyPair": "Пара ключей WireGuard",
     "proxySettings.wireguardGenerated": "Пара ключей WireGuard сгенерирована",
+    "proxySettings.mtprotoSecret": "Секрет MTProto",
+    "proxySettings.mtprotoSecretPlaceholder": "32 шестнадцатеричных символа или пусто, чтобы оставить текущий",
+    "proxySettings.mtprotoSecretPlaceholderNew": "32 шестнадцатеричных символа или пусто, чтобы сгенерировать новый",
+    "proxySettings.generateMtprotoSecret": "Сгенерировать секрет MTProto",
+    "proxySettings.mtprotoGenerated": "Секрет MTProto сгенерирован",
+    "proxySettings.mtprotoSecretInvalid": "Нужно ровно 32 шестнадцатеричных символа",
     "proxySettings.desc": "Настройте параметры протокола для этого пользователя.",
     "selectNode": "Выберите узел",
     "allNodes": "Все узлы",

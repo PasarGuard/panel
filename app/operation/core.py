@@ -24,6 +24,7 @@ from app.db.crud.wireguard import (
     wg_core_interfaces,
     wg_core_subnets,
 )
+from app.db.models import CoreType
 from app.models.admin import AdminDetails
 from app.models.core import (
     BulkCoreSelection,
@@ -101,6 +102,25 @@ class CoreOperation(BaseOperation):
                             db=db,
                         )
 
+    async def _ensure_unique_mtproto_tags(
+        self, db: AsyncSession, validated_core, *, exclude_core_id: int | None
+    ) -> None:
+        """Inbounds are keyed by tag panel-wide, so a tag shared with an MTProto core would silently
+        replace one core's port and modes in every host. Xray and WireGuard collisions keep today's behavior."""
+        tags = set(validated_core.inbounds)
+        is_mtproto = validated_core.type == CoreType.mtproto
+        for other_id, other in (await core_manager.get_cores()).items():
+            if other_id == exclude_core_id or not (is_mtproto or other.type == CoreType.mtproto):
+                continue
+            shared = sorted(tags.intersection(other.inbounds))
+            if shared:
+                other_core = await self.get_validated_core_config(db, other_id)
+                await self.raise_error(
+                    message=f'inbound tag "{shared[0]}" is already used by core "{other_core.name}"',
+                    code=400,
+                    db=db,
+                )
+
     async def _ensure_wireguard_pools(self, db: AsyncSession) -> None:
         """Create pool rows for WG namespaces without scanning users (O(subnets))."""
         await ensure_wireguard_subnet_pools(db)
@@ -134,6 +154,7 @@ class CoreOperation(BaseOperation):
             )
         except Exception as e:
             await self.raise_error(message=e, code=400, db=db)
+        await self._ensure_unique_mtproto_tags(db, validated_core, exclude_core_id=None)
         await self._validate_wireguard_subnet(db, new_core, exclude_core_id=None)
         try:
             db_core = await create_core_config(db, new_core)
@@ -168,6 +189,10 @@ class CoreOperation(BaseOperation):
         self, db: AsyncSession, core_id: int, modified_core: CoreCreate, admin: AdminDetails
     ) -> CoreModification:
         db_core = await self.get_validated_core_config(db, core_id)
+        # A request without type (the cores list's enable toggle sends none) keeps the stored type, so
+        # validation, the WireGuard subnet check and the write all see it.
+        if modified_core.type is None:
+            modified_core.type = db_core.type
         was_wg = bool(wg_core_interfaces(db_core))
         # What nodes run now, read before update_core replaces it.
         before = node_facing(await core_manager.get_core(db_core.id))
@@ -180,6 +205,7 @@ class CoreOperation(BaseOperation):
             )
         except Exception as e:
             await self.raise_error(message=e, code=400, db=db)
+        await self._ensure_unique_mtproto_tags(db, validated_core, exclude_core_id=db_core.id)
         await self._validate_wireguard_subnet(db, modified_core, exclude_core_id=db_core.id)
         try:
             db_core = await modify_core_config(db, db_core, modified_core)

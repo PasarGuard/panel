@@ -25,6 +25,7 @@ from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import hwid_settings, subscription_settings
 from app.subscription import sub_update_buffer as _sub_update_buffer  # noqa: F401  # registers per-worker flush loop
 from app.subscription.share import (
+    TELEGRAM_PAGE_LINKS_FORMAT,
     apply_custom_format_variables,
     encode_title,
     generate_subscription,
@@ -352,6 +353,17 @@ class SubscriptionOperation(BaseOperation):
             config["media_type"],
         )
 
+    async def fetch_page_links(self, user: UsersResponseWithInbounds) -> list[str]:
+        """Share links for the subscription page and the dashboard, including Telegram proxy links."""
+        sub_settings = await subscription_settings()
+        conf = await generate_subscription(
+            user=user,
+            config_format=TELEGRAM_PAGE_LINKS_FORMAT,
+            as_base64=False,
+            randomize_order=sub_settings.randomize_order,
+        )
+        return conf.splitlines()
+
     @staticmethod
     def is_hwid_enabled(
         global_hwid_conf: HWIDSettings,
@@ -491,11 +503,7 @@ class SubscriptionOperation(BaseOperation):
             )
             links = []
             if is_allow_browser_config:
-                conf, media_type = await self.fetch_config(
-                    user,
-                    ConfigFormat.links,
-                )
-                links = conf.splitlines()
+                links = await self.fetch_page_links(user)
 
             format_variables = await self.get_format_variables(user)
             formatted_announce = self._format_announce(sub_settings, format_variables)
@@ -708,8 +716,7 @@ class SubscriptionOperation(BaseOperation):
         if sub_settings.allow_browser_config and (
             not is_hwid_enabled or not global_hwid_conf.require_hwid_for_manual_sub
         ):
-            conf, _ = await self.fetch_config(user, ConfigFormat.links)
-            links = conf.splitlines()
+            links = await self.fetch_page_links(user)
         format_variables = await self.get_format_variables(user)
         formatted_announce = self._format_announce(sub_settings, format_variables)
         response_headers = self.create_response_headers(user, request_url, sub_settings)
@@ -757,7 +764,12 @@ class SubscriptionOperation(BaseOperation):
             response_headers = self.sanitize_response_headers(response_headers)
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
-        conf, media_type = await self.fetch_config(user, client_type)
+        if client_type == ConfigFormat.links:
+            # The dashboard reads this endpoint, so it gets the page links with Telegram proxy links.
+            conf = "\n".join(await self.fetch_page_links(user))
+            media_type = client_config[client_type]["media_type"]
+        else:
+            conf, media_type = await self.fetch_config(user, client_type)
 
         response_headers, body_lines = self._split_headers_for_placement(
             response_headers, sub_settings.header_placement, client_type

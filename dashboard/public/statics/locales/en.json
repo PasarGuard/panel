@@ -1882,6 +1882,21 @@
       "reserved": "Reserved (e.g. 0,0,0)",
       "dns": "DNS servers",
       "dnsHint": "Leave empty to use system DNS"
+    },
+    "mtproto": {
+      "hint": "The subscription page and the dashboard show a Telegram proxy link for MTProto hosts; client apps never receive it.",
+      "linkType": "Link type",
+      "linkTypeHelp": "This only picks which links users get from this host. Every type uses the same user secret, so only the core's mode switches really turn a type off.",
+      "linkTypes": {
+        "auto": "Auto",
+        "tls": "Fake TLS",
+        "secure": "Secure",
+        "classic": "Classic",
+        "web": "WEB"
+      },
+      "fakeTlsDomain": "Fake TLS domain",
+      "fakeTlsDomainHelp": "Must be one of the core's fake TLS domains. Leave empty to use the core's main domain.",
+      "webAddressHelp": "Each address must be one of the core's WEB vhost domains. WEB links always use port 443, so the port is ignored."
     }
   },
   "inbound": "Inbound",
@@ -1936,6 +1951,8 @@
   "subscriptionModal.fetchError": "Failed to fetch configurations",
   "subscriptionModal.noConfigs": "No configurations found",
   "subscriptionModal.unknownConfig": "Unknown Config",
+  "subscriptionModal.telegramProxy": "Telegram proxy",
+  "subscriptionModal.telegramWebProxy": "Telegram WEB proxy",
   "subscriptionModal.qrFormat": "QR Code Format",
   "subscriptionModal.qrFormatConfig": "Config",
   "configActions.copyConfig": "Copy Config",
@@ -2097,6 +2114,12 @@
     "proxySettings.wireguardPublicKey": "WireGuard Public key",
     "proxySettings.generateWireGuardKeyPair": "WireGuard keypair",
     "proxySettings.wireguardGenerated": "WireGuard keypair generated",
+    "proxySettings.mtprotoSecret": "MTProto secret",
+    "proxySettings.mtprotoSecretPlaceholder": "32 hex characters, or empty to keep the current one",
+    "proxySettings.mtprotoSecretPlaceholderNew": "32 hex characters, or empty to generate one",
+    "proxySettings.generateMtprotoSecret": "Generate MTProto secret",
+    "proxySettings.mtprotoGenerated": "MTProto secret generated",
+    "proxySettings.mtprotoSecretInvalid": "Must be 32 hex characters",
     "proxySettings.desc": "Configure protocol-specific settings for this user.",
     "selectNode": "Select Node",
     "allNodes": "All Nodes",
@@ -2603,7 +2626,8 @@
     "shadowsocksPasswordGenerationFailed": "Failed to generate password",
     "discardChangesTitle": "Discard changes?",
     "discardChangesDescription": "Your unsaved kernel configuration changes will be lost if you close this editor.",
-    "scanRealityTarget": "Scan target"
+    "scanRealityTarget": "Scan target",
+    "mtprotoHint": "MTProto (telemt) core. Set censorship.tls_domain to a real domain before saving: changing it later breaks every ee link already shared. Give each MTProto core its own inbound_tag."
   },
   "coreEditor": {
     "nameRequired": "Name is required",
@@ -2655,7 +2679,8 @@
       "dns": "DNS",
       "bindings": "Bindings",
       "advanced": "Advanced",
-      "interface": "Interface"
+      "interface": "Interface",
+      "mtproto": "MTProto proxy"
     },
     "sectionDesc": {
       "wgInterface": "WireGuard interface and keys",
@@ -2666,7 +2691,53 @@
       "routing": "Traffic rules and routing",
       "balancers": "Outbound load balancing setup",
       "dns": "DNS resolver and server config",
-      "bindings": "Inbound tag fallbacks and exclusions"
+      "bindings": "Inbound tag fallbacks and exclusions",
+      "mtproto": "telemt settings for this core. The node manages users, the control API and metrics."
+    },
+    "mtproto": {
+      "inboundTag": "Inbound tag",
+      "inboundTagHint": "Unique across all cores. Hosts and groups refer to it.",
+      "port": "Port",
+      "tlsDomain": "TLS domain",
+      "tlsDomainHint": "The site fake TLS imitates. Changing it later breaks every ee link already shared.",
+      "modes": "Modes",
+      "modeTls": "Fake TLS (ee, recommended)",
+      "modeSecure": "Secure (dd)",
+      "modeClassic": "Classic",
+      "tlsDomains": "Extra fake TLS domains",
+      "tlsDomainsHint": "Optional. More sites fake TLS clients can present, next to the TLS domain above.",
+      "tlsDomainsAdd": "Add domain",
+      "remove": "Remove",
+      "webEnable": "WEB mode",
+      "webHint": "WEB carries MTProto over HTTPS. It needs an HTTPS front (Caddy or nginx) on the server that holds the certificate and forwards to the WEB listener.",
+      "webOneServer": "WEB settings are for one server; with several MTProto nodes, use one core per node.",
+      "webGuide": "How to set up WEB",
+      "webListenerPort": "WEB listener port",
+      "webListenerPortHint": "The local port the front forwards to. It must differ from the MTProto port.",
+      "webVhosts": "Domains",
+      "webVhostAdd": "Add domain",
+      "webHost": "Domain",
+      "webBasePath": "Path (optional)",
+      "webPublicAddr": "Public address",
+      "webPublicAddrHint": "The server's public IP and port 443.",
+      "webDecoyUpstream": "Decoy site URL",
+      "webDecoyUpstreamHint": "Other visitors see this site. Its address must be a loopback or private IP.",
+      "webSecretMode": "Secret mode",
+      "webSecretModeDd": "dd (recommended)",
+      "webSecretModePlain": "Plain",
+      "config": "Config (JSON)",
+      "invalidJson": "The config is not valid JSON.",
+      "issue": {
+        "inboundTag": "The inbound tag must not be empty or contain , or <=>.",
+        "port": "The port must be a whole number from 1 to 65535.",
+        "modes": "Enable at least one mode.",
+        "tlsDomain": "Fake TLS needs a TLS domain: a bare domain name, not the template placeholder.",
+        "listenerPort": "Every MTProxy listener port must equal the server port.",
+        "tlsDomains": "Each extra TLS domain must be a bare domain name, not the template placeholder.",
+        "webListener": "WEB needs web.enabled and one listener with transport \"web\" on a loopback or private IP, with its own port that differs from the server port.",
+        "webBasePath": "Each domain path must be empty or up to 128 characters of Latin letters, digits, \"-\" and \"_\" in parts separated by \"/\", each part starting with a letter or digit, with no \"/\" at the start or end (for example tg or my-app/web).",
+        "webVhost": "WEB needs at least one domain, each with a domain name and a decoy URL on a loopback or private IP."
+      }
     },
     "api": {
       "title": "API Services",

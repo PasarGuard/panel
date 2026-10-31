@@ -1,5 +1,6 @@
 import { CodeEditorPanel } from '@/components/common/code-editor-panel'
 import { CopyButton } from '@/components/common/copy-button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -13,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { DEFAULT_XRAY_CORE_CONFIG_JSON } from '@/lib/default-xray-core-config'
+import { DEFAULT_MTPROTO_CORE_CONFIG_JSON } from '@/lib/default-mtproto-core-config'
 import {
   canGenerateShadowsocksPassword,
   createWireGuardCoreConfigJson,
@@ -38,6 +40,8 @@ import { toast } from 'sonner'
 import type { CoreBackendType, CoreConfigFormValues } from '@/features/nodes/forms/core-config-form'
 import { VlessAdvancedGenerationModal, type VlessKeyVariant } from '@/features/core-editor/components/shared/vless-advanced-generation-modal'
 import { XrayInboundTagPicker } from '@/features/core-editor/components/shared/xray-inbound-tag-selectors'
+import { isXrayCoreType } from '@/features/core-editor/kit/core-kind'
+import { mtprotoConfigIssues } from '@/features/core-editor/kit/mtproto-config'
 
 interface CoreConfigModalProps {
   isDialogOpen: boolean
@@ -65,7 +69,9 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
   const dir = useDirDetection()
   const isMobile = useIsMobile()
   const backendType = (form.watch('type') ?? 'xray') as CoreBackendType
-  const isXrayBackend = backendType !== 'wg'
+  const isXrayBackend = isXrayCoreType(backendType)
+  const isWireGuardBackend = backendType === 'wg'
+  const isMtprotoBackend = backendType === 'mtproto'
   const [validation, setValidation] = useState<ValidationResult>({ isValid: true })
   const createCoreMutation = useCreateCoreConfig()
   const modifyCoreMutation = useModifyCoreConfig()
@@ -206,6 +212,9 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         if (selectedBackendType === 'wg') {
           const interfaceName = typeof parsedConfig.interface_name === 'string' ? parsedConfig.interface_name.trim() : ''
           setInboundTags(interfaceName ? [interfaceName] : [])
+        } else if (selectedBackendType === 'mtproto') {
+          const inboundTag = typeof parsedConfig.inbound_tag === 'string' && parsedConfig.inbound_tag.trim() ? parsedConfig.inbound_tag.trim() : 'mtproto'
+          setInboundTags([inboundTag])
         } else if (parsedConfig.inbounds && Array.isArray(parsedConfig.inbounds)) {
           const tags = parsedConfig.inbounds.filter((inbound: any) => typeof inbound.tag === 'string' && inbound.tag.trim() !== '').map((inbound: any) => inbound.tag)
           setInboundTags(tags)
@@ -302,6 +311,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         const keyPair = generateWireGuardKeyPair()
         setGeneratedWireGuardKeyPair(keyPair)
         defaultTemplate = createWireGuardCoreConfigJson(keyPair)
+      } else if (nextBackendType === 'mtproto') {
+        defaultTemplate = DEFAULT_MTPROTO_CORE_CONFIG_JSON
       } else {
         defaultTemplate = DEFAULT_XRAY_CORE_CONFIG_JSON
       }
@@ -377,8 +388,19 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
 
       const backendType = values.type ?? 'xray'
 
-      // api.services is Xray-only; never block a WireGuard config on Xray rules.
-      if (backendType !== 'wg') {
+      // The panel's MTProto rules, checked here so the admin sees the problem next to the JSON.
+      if (backendType === 'mtproto' && configObj !== null && typeof configObj === 'object' && !Array.isArray(configObj)) {
+        const [firstIssue] = mtprotoConfigIssues(configObj)
+        if (firstIssue) {
+          const message = t(`coreEditor.mtproto.issue.${firstIssue}`)
+          form.setError('config', { type: 'manual', message })
+          toast.error(message)
+          return
+        }
+      }
+
+      // api.services is Xray-only; never block a WireGuard or MTProto config on Xray rules.
+      if (isXrayCoreType(backendType)) {
         const unknownServices = findUnknownApiServices(configObj)
         if (unknownServices.length > 0) {
           const message = apiServicesUnknownMessage(unknownServices)
@@ -388,8 +410,8 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
         }
       }
 
-      const fallbackTags = backendType !== 'wg' ? values.fallback_id || [] : []
-      const excludeInboundTags = backendType !== 'wg' ? values.excluded_inbound_ids || [] : []
+      const fallbackTags = isXrayCoreType(backendType) ? values.fallback_id || [] : []
+      const excludeInboundTags = isXrayCoreType(backendType) ? values.excluded_inbound_ids || [] : []
 
       if (editingCore && editingCoreId) {
         // Update existing core
@@ -913,7 +935,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                       <FormField
                         control={form.control}
                         name="config"
-                        render={({ field }) => (
+                        render={({ field, fieldState }) => (
                           <FormItem className="md:flex md:h-full md:flex-col">
                             <FormControl className="md:flex md:flex-1">
                               <CodeEditorPanel
@@ -927,7 +949,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                                 embeddedContainerClassName="h-[calc(50vh-1rem)] sm:h-[calc(55vh-1rem)] md:h-[600px]"
                               />
                             </FormControl>
-                            {validation.error && !validation.isValid && <FormMessage>{validation.error}</FormMessage>}
+                            {((validation.error && !validation.isValid) || fieldState.error) && <FormMessage>{fieldState.error?.message ?? validation.error}</FormMessage>}
                           </FormItem>
                         )}
                       />
@@ -977,16 +999,27 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                               <SelectContent>
                                 <SelectItem value="xray">Xray</SelectItem>
                                 <SelectItem value="wg">WireGuard</SelectItem>
+                                <SelectItem value="mtproto">MTProto</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormControl>
                           <FormMessage />
+                          {isMtprotoBackend && (
+                            <Alert>
+                              <AlertDescription>
+                                {t('coreConfigModal.mtprotoHint', {
+                                  defaultValue:
+                                    'MTProto (telemt) core. Set censorship.tls_domain to a real domain before saving: changing it later breaks every ee link already shared. Give each MTProto core its own inbound_tag.',
+                                })}
+                              </AlertDescription>
+                            </Alert>
+                          )}
                         </FormItem>
                       )}
                     />
 
                     <div>
-                      {!isXrayBackend && (
+                      {isWireGuardBackend && (
                         <LoaderButton type="button" onClick={viewWireGuardKeys} className="h-10 w-full text-sm font-medium transition-all hover:shadow-md sm:h-11" isLoading={false}>
                           <span className="flex items-center gap-2 truncate">
                             {generatedWireGuardKeyPair && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 ring-2 ring-green-500/20" />}

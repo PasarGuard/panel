@@ -1,12 +1,25 @@
 import json
+import re
+import secrets
 from enum import StrEnum
-from ipaddress import ip_address, ip_network
+from ipaddress import ip_network
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.utils.crypto import get_wireguard_public_key, validate_wireguard_key
 from app.utils.system import random_password
+
+_MTPROTO_SECRET_RE = re.compile(r"^[0-9a-fA-F]{32}$")
+
+
+def generate_mtproto_secret() -> str:
+    """Return a new random MTProto user secret: 32 lowercase hex characters.
+
+    This is the single server-side source of new secrets. The backfill migration
+    d5e1f3a7b9c2 inlines the same ``secrets.token_hex(16)``; change both together.
+    """
+    return secrets.token_hex(16)
 
 
 class VMessSettings(BaseModel):
@@ -68,6 +81,40 @@ class WireGuardPeerIPs(BaseModel):
         return normalized
 
 
+class MtprotoSettings(BaseModel):
+    # None means "no secret yet": the read path never invents one; write paths assign it.
+    secret: str | None = Field(default=None, min_length=32, max_length=32, pattern=r"^[0-9a-f]{32}$")
+    user_ad_tag: str = ""
+    max_tcp_conns: int = Field(default=0, ge=0, le=4294967295, strict=True)
+    max_unique_ips: int = Field(default=0, ge=0, le=4294967295, strict=True)
+
+    @field_validator("secret", mode="before")
+    @classmethod
+    def validate_secret(cls, value):
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("mtproto secret must be a string")  # noqa: TRY004
+        value = value.strip()
+        if not value:
+            return None
+        if not _MTPROTO_SECRET_RE.fullmatch(value):
+            raise ValueError("mtproto secret must be 32 hex characters")
+        return value.lower()
+
+    @field_validator("user_ad_tag", mode="before")
+    @classmethod
+    def validate_user_ad_tag(cls, value):
+        if value is None:
+            return ""
+        if not isinstance(value, str):
+            raise ValueError("mtproto user_ad_tag must be a string")  # noqa: TRY004
+        value = value.strip()
+        if value and not _MTPROTO_SECRET_RE.fullmatch(value):
+            raise ValueError("mtproto user_ad_tag must be empty or 32 hex characters")
+        return value.lower()
+
+
 class WireGuardSettings(BaseModel):
     private_key: str | None = None
     public_key: str | None = None
@@ -123,6 +170,7 @@ class ProxyTable(BaseModel):
     wireguard: WireGuardSettings = Field(default_factory=WireGuardSettings)
     hysteria: HysteriaSettings = Field(default_factory=HysteriaSettings)
     masque: MasqueSettings = Field(default_factory=MasqueSettings)
+    mtproto: MtprotoSettings = Field(default_factory=MtprotoSettings)
 
     def dict(self, *, no_obj=True, **kwargs):
         if no_obj:

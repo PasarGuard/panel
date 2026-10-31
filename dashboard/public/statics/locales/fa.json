@@ -1696,6 +1696,21 @@
       "reserved": "Reserved (مثلاً 0,0,0)",
       "dns": "سرور DNS",
       "dnsHint": "خالی بگذارید تا از DNS سیستم استفاده شود"
+    },
+    "mtproto": {
+      "hint": "صفحه اشتراک و داشبورد برای هاست‌های MTProto یک لینک پروکسی تلگرام نشان می‌دهند؛ برنامه‌های کلاینت هرگز آن را دریافت نمی‌کنند.",
+      "linkType": "نوع لینک",
+      "linkTypeHelp": "این گزینه فقط تعیین می‌کند کاربران کدام لینک‌ها را از این هاست دریافت کنند. همه نوع‌ها از کلید مخفی یکسان کاربر استفاده می‌کنند، پس فقط کلیدهای حالت در هسته واقعاً یک نوع را غیرفعال می‌کنند.",
+      "linkTypes": {
+        "auto": "خودکار",
+        "tls": "Fake TLS",
+        "secure": "امن",
+        "classic": "کلاسیک",
+        "web": "WEB"
+      },
+      "fakeTlsDomain": "دامنه Fake TLS",
+      "fakeTlsDomainHelp": "باید یکی از دامنه‌های Fake TLS هسته باشد. برای استفاده از دامنه اصلی هسته، خالی بگذارید.",
+      "webAddressHelp": "هر آدرس باید یکی از دامنه‌های vhost در بخش WEB هسته باشد. لینک‌های WEB همیشه از پورت ۴۴۳ استفاده می‌کنند، پس پورت نادیده گرفته می‌شود."
     }
   },
   "inbound": "ورودی",
@@ -1760,6 +1775,8 @@
   "subscriptionModal.fetchError": "دریافت کانفیگ‌ها ناموفق بود",
   "subscriptionModal.noConfigs": "کانفیگی یافت نشد",
   "subscriptionModal.unknownConfig": "کانفیگ ناشناخته",
+  "subscriptionModal.telegramProxy": "پروکسی تلگرام",
+  "subscriptionModal.telegramWebProxy": "پروکسی WEB تلگرام",
   "subscriptionModal.qrFormat": "فرمت کد QR",
   "subscriptionModal.qrFormatConfig": "کانفیگ",
   "configActions.copyConfig": "کپی کانفیگ",
@@ -1910,6 +1927,12 @@
   "userDialog.proxySettings.wireguardPublicKey": "کلید عمومی وایرگارد",
   "userDialog.proxySettings.generateWireGuardKeyPair": "جفت‌کلید وایرگارد",
   "userDialog.proxySettings.wireguardGenerated": "جفت‌کلید وایرگارد تولید شد",
+  "userDialog.proxySettings.mtprotoSecret": "کلید مخفی MTProto",
+  "userDialog.proxySettings.mtprotoSecretPlaceholder": "۳۲ کاراکتر هگزادسیمال، یا خالی برای حفظ کلید فعلی",
+  "userDialog.proxySettings.mtprotoSecretPlaceholderNew": "۳۲ کاراکتر هگزادسیمال، یا خالی برای تولید یک کلید جدید",
+  "userDialog.proxySettings.generateMtprotoSecret": "تولید کلید مخفی MTProto",
+  "userDialog.proxySettings.mtprotoGenerated": "کلید مخفی MTProto تولید شد",
+  "userDialog.proxySettings.mtprotoSecretInvalid": "باید ۳۲ کاراکتر هگزادسیمال باشد",
   "userDialog.proxySettings.desc": "تنظیمات اختصاصی پروتکل برای این کاربر را پیکربندی کنید.",
   "userDialog.expireDate": "تاریخ انقضا",
   "username": "نام کاربری",
@@ -2513,7 +2536,8 @@
     "shadowsocksPasswordGenerationFailed": "تولید رمز عبور ناموفق بود",
     "discardChangesTitle": "لغو تغییرات؟",
     "discardChangesDescription": "اگر این ویرایشگر را ببندید، تغییرات ذخیره‌نشدهٔ پیکربندی هسته از بین خواهد رفت.",
-    "scanRealityTarget": "اسکن هدف"
+    "scanRealityTarget": "اسکن هدف",
+    "mtprotoHint": "هسته MTProto (telemt). پیش از ذخیره، censorship.tls_domain را روی یک دامنه واقعی تنظیم کنید: تغییر آن در آینده همه لینک‌های ee را که پیش‌تر به اشتراک گذاشته شده‌اند از کار می‌اندازد. برای هر هسته MTProto یک inbound_tag جداگانه تعیین کنید."
   },
   "coreEditor": {
     "nameRequired": "نام الزامی است",
@@ -2564,7 +2588,8 @@
       "dns": "DNS",
       "bindings": "اتصال‌ها",
       "advanced": "پیشرفته",
-      "interface": "رابط"
+      "interface": "رابط",
+      "mtproto": "پروکسی MTProto"
     },
     "sectionDesc": {
       "wgInterface": "تنظیمات رابط و کلیدهای وایرگارد",
@@ -2575,7 +2600,53 @@
       "routing": "قوانین مسیریابی و ترافیک",
       "balancers": "استراتژی‌های متعادل‌سازی بار",
       "dns": "پیکربندی DNS و حل‌کننده",
-      "bindings": "پشتیبان و مستثنا برای برچسب‌های ورودی"
+      "bindings": "پشتیبان و مستثنا برای برچسب‌های ورودی",
+      "mtproto": "تنظیمات telemt برای این هسته. کاربران، API کنترل و متریک‌ها را گره مدیریت می‌کند."
+    },
+    "mtproto": {
+      "inboundTag": "برچسب ورودی",
+      "inboundTagHint": "باید در میان همه هسته‌ها یکتا باشد. هاست‌ها و گروه‌ها به آن ارجاع می‌دهند.",
+      "port": "پورت",
+      "tlsDomain": "دامنه TLS",
+      "tlsDomainHint": "سایتی که Fake TLS از آن تقلید می‌کند. تغییر آن در آینده همه لینک‌های ee را که پیش‌تر به اشتراک گذاشته شده‌اند از کار می‌اندازد.",
+      "modes": "حالت‌ها",
+      "modeTls": "Fake TLS (ee، پیشنهادی)",
+      "modeSecure": "امن (dd)",
+      "modeClassic": "کلاسیک",
+      "tlsDomains": "دامنه‌های اضافی Fake TLS",
+      "tlsDomainsHint": "اختیاری. سایت‌های بیشتری که کلاینت‌های Fake TLS می‌توانند ارائه کنند، در کنار دامنه TLS بالا.",
+      "tlsDomainsAdd": "افزودن دامنه",
+      "remove": "حذف",
+      "webEnable": "حالت WEB",
+      "webHint": "WEB پروتکل MTProto را روی HTTPS منتقل می‌کند. به یک سرور جلویی HTTPS (Caddy یا nginx) روی همین سرور نیاز دارد که گواهی را نگه دارد و ترافیک را به شنونده WEB هدایت کند.",
+      "webOneServer": "تنظیمات WEB برای یک سرور است؛ اگر چند گره MTProto دارید، برای هر گره یک هسته جداگانه استفاده کنید.",
+      "webGuide": "راهنمای راه‌اندازی WEB",
+      "webListenerPort": "پورت شنونده WEB",
+      "webListenerPortHint": "پورت محلی که سرور جلویی ترافیک را به آن هدایت می‌کند. باید با پورت MTProto متفاوت باشد.",
+      "webVhosts": "دامنه‌ها",
+      "webVhostAdd": "افزودن دامنه",
+      "webHost": "دامنه",
+      "webBasePath": "مسیر (اختیاری)",
+      "webPublicAddr": "آدرس عمومی",
+      "webPublicAddrHint": "IP عمومی سرور و پورت ۴۴۳.",
+      "webDecoyUpstream": "URL سایت استتار",
+      "webDecoyUpstreamHint": "سایر بازدیدکنندگان این سایت را می‌بینند. آدرس آن باید یک IP از نوع loopback یا خصوصی باشد.",
+      "webSecretMode": "حالت کلید مخفی",
+      "webSecretModeDd": "dd (پیشنهادی)",
+      "webSecretModePlain": "ساده",
+      "config": "پیکربندی (JSON)",
+      "invalidJson": "پیکربندی یک JSON معتبر نیست.",
+      "issue": {
+        "inboundTag": "برچسب ورودی نباید خالی باشد یا , یا <=> داشته باشد.",
+        "port": "پورت باید عدد صحیح از ۱ تا ۶۵۵۳۵ باشد.",
+        "modes": "دست‌کم یک حالت را فعال کنید.",
+        "tlsDomain": "Fake TLS به یک دامنه TLS نیاز دارد: فقط نام دامنه، نه مقدار نمونه قالب.",
+        "listenerPort": "پورت همه شنونده‌های MTProxy باید با پورت سرور برابر باشد.",
+        "tlsDomains": "هر دامنه TLS اضافی باید فقط نام دامنه باشد، نه مقدار نمونه قالب.",
+        "webListener": "WEB به web.enabled و یک شنونده با transport \"web\" روی یک IP از نوع loopback یا خصوصی نیاز دارد که پورت مخصوص خودش را داشته باشد و با پورت سرور متفاوت باشد.",
+        "webBasePath": "مسیر هر دامنه باید خالی باشد یا حداکثر ۱۲۸ نویسه از حروف انگلیسی، رقم، \"-\" و \"_\" در بخش‌هایی که با \"/\" جدا می‌شوند داشته باشد؛ هر بخش با حرف یا رقم شروع شود و \"/\" در ابتدا یا انتها نباشد (مثلاً tg یا my-app/web).",
+        "webVhost": "WEB دست‌کم به یک دامنه نیاز دارد که هر کدام یک نام دامنه و یک URL استتار روی یک IP از نوع loopback یا خصوصی داشته باشد."
+      }
     },
     "api": {
       "title": "سرویس‌های API",

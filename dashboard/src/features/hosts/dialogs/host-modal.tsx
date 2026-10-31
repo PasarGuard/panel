@@ -315,7 +315,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const [openSection, setOpenSection] = useState<string | undefined>(undefined)
   const [wireguardOpenSection, setWireguardOpenSection] = useState<string | undefined>(undefined)
   const [isTransportOpen, setIsTransportOpen] = useState(false)
-  const [resolvedHostMode, setResolvedHostMode] = useState<'xray' | 'wireguard'>('xray')
+  const [resolvedHostMode, setResolvedHostMode] = useState<'xray' | 'wireguard' | 'mtproto'>('xray')
   const { t } = useTranslation()
   const dir = useDirDetection()
   const isMobile = useIsMobile()
@@ -708,8 +708,12 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const usesReality = selectedSecurity === 'inbound_default' && selectedInbound?.security === 'reality'
   const effectiveFingerprint = selectedFingerprint && selectedFingerprint !== 'none' ? selectedFingerprint : selectedInbound?.fingerprint || 'chrome'
   const isWireGuardInbound = selectedInbound?.protocol === 'wireguard'
+  const isMtprotoInbound = selectedInbound?.protocol === 'mtproto'
+  const isSimpleInbound = isWireGuardInbound || isMtprotoInbound
   const isInboundModeResolved = !isDialogOpen || !selectedInboundTag || !!selectedInbound || !isLoadingInbounds
   const shouldRenderWireGuardLayout = resolvedHostMode === 'wireguard'
+  const shouldRenderMtprotoLayout = resolvedHostMode === 'mtproto'
+  const mtprotoLinkType = form.watch('transport_settings.mtproto_settings.link_type') ?? 'auto'
 
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
@@ -752,7 +756,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     }
 
     if (selectedInbound) {
-      setResolvedHostMode(selectedInbound.protocol === 'wireguard' ? 'wireguard' : 'xray')
+      setResolvedHostMode(selectedInbound.protocol === 'wireguard' ? 'wireguard' : selectedInbound.protocol === 'mtproto' ? 'mtproto' : 'xray')
       return
     }
 
@@ -766,7 +770,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       return
     }
 
-    if (resolvedHostMode === 'wireguard') {
+    if (resolvedHostMode === 'wireguard' || resolvedHostMode === 'mtproto') {
       setOpenSection(undefined)
     } else {
       setWireguardOpenSection(undefined)
@@ -774,7 +778,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   }, [resolvedHostMode, isDialogOpen])
 
   useEffect(() => {
-    if (!isWireGuardInbound) {
+    if (!isSimpleInbound) {
       return
     }
 
@@ -807,7 +811,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     form.setValue('noise_settings', undefined, { shouldDirty: true })
     form.setValue('mux_settings', undefined, { shouldDirty: true })
     form.setValue('transport_settings', undefined, { shouldDirty: true })
-  }, [form, isWireGuardInbound, selectedInboundTag, editingHost])
+  }, [form, isSimpleInbound, selectedInboundTag, editingHost])
 
   useEffect(() => {
     if (!isWireGuardInbound) {
@@ -832,9 +836,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       // Clean the payload before sending
       const payload = { ...data }
 
-      if (isWireGuardInbound) {
+      if (isSimpleInbound) {
+        // MTProto keeps only its link type, plus the SNI as the fake TLS domain of a tls host; missing means auto
+        const linkType = isMtprotoInbound ? (data.transport_settings?.mtproto_settings?.link_type ?? 'auto') : 'auto'
         payload.host = []
-        payload.sni = []
+        payload.sni = linkType === 'tls' ? data.sni : []
         payload.path = ''
         payload.http_headers = {}
         payload.security = 'inbound_default'
@@ -854,8 +860,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         payload.pinned_peer_cert_sha256 = undefined
         payload.verify_peer_cert_by_name = []
         payload.mux_settings = undefined
-        payload.transport_settings = undefined
-        if (payload.wireguard_overrides) {
+        payload.transport_settings = linkType === 'auto' ? undefined : { mtproto_settings: { link_type: linkType } }
+        if (isWireGuardInbound && payload.wireguard_overrides) {
           const wg = payload.wireguard_overrides
           const next: NonNullable<HostFormValues['wireguard_overrides']> = {}
           if (wg.allowed_ips?.length) next.allowed_ips = wg.allowed_ips
@@ -866,6 +872,8 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
           }
           if (wg.dns?.length) next.dns = wg.dns
           payload.wireguard_overrides = Object.keys(next).length > 0 ? next : undefined
+        } else {
+          payload.wireguard_overrides = undefined
         }
       } else {
         payload.wireguard_overrides = undefined
@@ -946,99 +954,101 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="subscription_templates.xray"
-                render={({ field }) => {
-                  const rawXray = field.value as number | string | undefined | null
-                  const parsedXrayTemplateId =
-                    rawXray == null
-                      ? null
-                      : (() => {
-                          const n = typeof rawXray === 'number' ? rawXray : Number(rawXray)
-                          return Number.isFinite(n) && n > 0 ? n : null
-                        })()
+              {!shouldRenderMtprotoLayout && (
+                <FormField
+                  control={form.control}
+                  name="subscription_templates.xray"
+                  render={({ field }) => {
+                    const rawXray = field.value as number | string | undefined | null
+                    const parsedXrayTemplateId =
+                      rawXray == null
+                        ? null
+                        : (() => {
+                            const n = typeof rawXray === 'number' ? rawXray : Number(rawXray)
+                            return Number.isFinite(n) && n > 0 ? n : null
+                          })()
 
-                  const hasSelectedTemplate = parsedXrayTemplateId != null && xrayTemplates.some(template => Number(template.id) === parsedXrayTemplateId)
+                    const hasSelectedTemplate = parsedXrayTemplateId != null && xrayTemplates.some(template => Number(template.id) === parsedXrayTemplateId)
 
-                  return (
-                    <FormItem>
-                      <div className="flex items-center gap-2">
-                        <FormLabel>{t('hostsDialog.xrayTemplate')}</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                              <Info className="text-muted-foreground h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.xrayTemplateInfo')}</p>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <Select
-                        dir={dir}
-                        value={parsedXrayTemplateId != null ? String(parsedXrayTemplateId) : XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE}
-                        onValueChange={value => {
-                          if (value === XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE) {
-                            form.setValue('subscription_templates.xray', null, {
-                              shouldDirty: true,
-                              shouldTouch: true,
-                              shouldValidate: true,
-                            })
-                            return
-                          }
-                          const n = Number.parseInt(value, 10)
-                          if (!Number.isFinite(n)) {
-                            return
-                          }
-                          form.setValue(
-                            'subscription_templates',
-                            { xray: n },
-                            {
-                              shouldDirty: true,
-                              shouldTouch: true,
-                              shouldValidate: true,
-                            },
-                          )
-                        }}
-                        disabled={isXrayTemplateSelectDisabled}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="py-5" disabled={isXrayTemplateSelectDisabled}>
-                            <SelectValue placeholder={xrayTemplatePlaceholder} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent dir={dir}>
-                          <SelectItem className="cursor-pointer px-4" value={XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE}>
-                            {t('hostsDialog.inboundDefault')}
-                          </SelectItem>
-                          {!hasSelectedTemplate && parsedXrayTemplateId != null ? (
-                            <SelectItem className="px-4" value={String(parsedXrayTemplateId)}>
-                              {t('hostsDialog.unknownXrayTemplate', { id: parsedXrayTemplateId })}
+                    return (
+                      <FormItem>
+                        <div className="flex items-center gap-2">
+                          <FormLabel>{t('hostsDialog.xrayTemplate')}</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                <Info className="text-muted-foreground h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                              <p className="text-muted-foreground text-[11px]">{t('hostsDialog.xrayTemplateInfo')}</p>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <Select
+                          dir={dir}
+                          value={parsedXrayTemplateId != null ? String(parsedXrayTemplateId) : XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE}
+                          onValueChange={value => {
+                            if (value === XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE) {
+                              form.setValue('subscription_templates.xray', null, {
+                                shouldDirty: true,
+                                shouldTouch: true,
+                                shouldValidate: true,
+                              })
+                              return
+                            }
+                            const n = Number.parseInt(value, 10)
+                            if (!Number.isFinite(n)) {
+                              return
+                            }
+                            form.setValue(
+                              'subscription_templates',
+                              { xray: n },
+                              {
+                                shouldDirty: true,
+                                shouldTouch: true,
+                                shouldValidate: true,
+                              },
+                            )
+                          }}
+                          disabled={isXrayTemplateSelectDisabled}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="py-5" disabled={isXrayTemplateSelectDisabled}>
+                              <SelectValue placeholder={xrayTemplatePlaceholder} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent dir={dir}>
+                            <SelectItem className="cursor-pointer px-4" value={XRAY_TEMPLATE_INBOUND_DEFAULT_VALUE}>
+                              {t('hostsDialog.inboundDefault')}
                             </SelectItem>
-                          ) : null}
-                          {isLoadingXrayTemplates ? (
-                            <SelectItem className="px-4" value="__loading_xray_templates__" disabled>
-                              <span className="flex items-center gap-2">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                {t('loading', { defaultValue: 'Loading...' })}
-                              </span>
-                            </SelectItem>
-                          ) : (
-                            xrayTemplates.map(template => (
-                              <SelectItem className="cursor-pointer px-4" key={template.id} value={String(template.id)}>
-                                {template.name}
+                            {!hasSelectedTemplate && parsedXrayTemplateId != null ? (
+                              <SelectItem className="px-4" value={String(parsedXrayTemplateId)}>
+                                {t('hostsDialog.unknownXrayTemplate', { id: parsedXrayTemplateId })}
                               </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )
-                }}
-              />
+                            ) : null}
+                            {isLoadingXrayTemplates ? (
+                              <SelectItem className="px-4" value="__loading_xray_templates__" disabled>
+                                <span className="flex items-center gap-2">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  {t('loading', { defaultValue: 'Loading...' })}
+                                </span>
+                              </SelectItem>
+                            ) : (
+                              xrayTemplates.map(template => (
+                                <SelectItem className="cursor-pointer px-4" key={template.id} value={String(template.id)}>
+                                  {template.name}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
+                />
+              )}
 
               <FormField
                 control={form.control}
@@ -1189,6 +1199,70 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span>{t('loading', { defaultValue: 'Loading...' })}</span>
                   </div>
+                </div>
+              ) : shouldRenderMtprotoLayout ? (
+                <div className="mb-6 space-y-4 rounded-sm border px-4 py-3">
+                  <p className="text-muted-foreground text-sm">
+                    {t('hostsDialog.mtproto.hint', {
+                      defaultValue: 'The subscription page and the dashboard show a Telegram proxy link for MTProto hosts; client apps never receive it.',
+                    })}
+                  </p>
+                  <FormField
+                    control={form.control}
+                    name="transport_settings.mtproto_settings.link_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('hostsDialog.mtproto.linkType', { defaultValue: 'Link type' })}</FormLabel>
+                        <Select dir={dir} onValueChange={field.onChange} value={field.value ?? 'auto'}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="auto">{t('hostsDialog.mtproto.linkTypes.auto', { defaultValue: 'Auto' })}</SelectItem>
+                            <SelectItem value="tls">{t('hostsDialog.mtproto.linkTypes.tls', { defaultValue: 'Fake TLS' })}</SelectItem>
+                            <SelectItem value="secure">{t('hostsDialog.mtproto.linkTypes.secure', { defaultValue: 'Secure' })}</SelectItem>
+                            <SelectItem value="classic">{t('hostsDialog.mtproto.linkTypes.classic', { defaultValue: 'Classic' })}</SelectItem>
+                            <SelectItem value="web">{t('hostsDialog.mtproto.linkTypes.web', { defaultValue: 'WEB' })}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-muted-foreground text-xs">
+                          {t('hostsDialog.mtproto.linkTypeHelp', {
+                            defaultValue: "This only picks which links users get from this host. Every type uses the same user secret, so only the core's mode switches really turn a type off.",
+                          })}
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {mtprotoLinkType === 'tls' && (
+                    <FormField
+                      control={form.control}
+                      name="sni"
+                      render={({ field }) => (
+                        <ArrayInput
+                          field={field}
+                          placeholder="example.com"
+                          label={t('hostsDialog.mtproto.fakeTlsDomain', { defaultValue: 'Fake TLS domain' })}
+                          infoContent={
+                            <p className="text-muted-foreground text-[11px]">
+                              {t('hostsDialog.mtproto.fakeTlsDomainHelp', {
+                                defaultValue: "Must be one of the core's fake TLS domains. Leave empty to use the core's main domain.",
+                              })}
+                            </p>
+                          }
+                        />
+                      )}
+                    />
+                  )}
+                  {mtprotoLinkType === 'web' && (
+                    <p className="text-muted-foreground text-xs">
+                      {t('hostsDialog.mtproto.webAddressHelp', {
+                        defaultValue: "Each address must be one of the core's WEB vhost domains. WEB links always use port 443, so the port is ignored.",
+                      })}
+                    </p>
+                  )}
                 </div>
               ) : shouldRenderWireGuardLayout ? (
                 <Accordion type="single" collapsible value={wireguardOpenSection} onValueChange={handleWireguardAccordionChange} className="!mt-0 mb-6 flex w-full flex-col gap-y-6">

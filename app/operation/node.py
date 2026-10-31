@@ -96,10 +96,46 @@ logger = get_logger("node-operation")
 _MAINTENANCE_RPC_TIMEOUT = 340.0
 
 
+# The node gives telemt up to 90 s to start and keeps starting after the panel's call times out.
+MTPROTO_START_TIMEOUT = 100
+MTPROTO_UNSUPPORTED_NODE_MESSAGE = (
+    'This node does not support MTProto cores (it answered "invalid backend type"). '
+    "Update the node to the next node release or newer."
+)
+MTPROTO_SYNC_PENDING_MESSAGE = "The node is still applying the users and finishes on its own. Check again in a minute."
+_MTPROTO_RETRY_LATER_MARKERS = ("the users are still being applied", "context deadline exceeded")
+
+_BACKEND_TYPES: dict[CoreType, int] = {
+    CoreType.xray: service.BackendType.XRAY,
+    CoreType.wg: service.BackendType.WIREGUARD,
+    CoreType.mtproto: service.BackendType.MTPROTO,
+}
+
+
+def backend_type_for_core(core_type: CoreType | None) -> int | None:
+    """The node backend that runs ``core_type``: ``None`` means Xray, and ``None`` is returned for unknown types."""
+    return _BACKEND_TYPES.get(core_type or CoreType.xray)
+
+
+def is_mtproto_retry_later_error(error: NodeAPIError) -> bool:
+    """Whether an MTProto node error means "still applying, check later" rather than a node failure.
+
+    A client-side timeout is code -1: "Request timed out" over gRPC, "Timeout error: ..." over REST.
+    """
+    detail = error.detail or ""
+    if error.code == -1 and (detail == "Request timed out" or detail.startswith("Timeout error")):
+        return True
+    detail = detail.lower()
+    return error.code in (503, 504) or any(marker in detail for marker in _MTPROTO_RETRY_LATER_MARKERS)
+
+
 class NodeOperation(BaseOperation):
     # Local Start RPCs in progress on this process. Health checks must not fire a
     # second Start just because pg-node still returns "core is not started yet".
     _in_flight_connects: ClassVar[set[int]] = set()
+    # Node id to consecutive MTProto Start timeouts. The first one is retried on the
+    # next check instead of failing the node, since the node keeps starting telemt.
+    _mtproto_start_timeouts: ClassVar[dict[int, int]] = {}
 
     def __init__(self, operator_type: OperatorType):
         """Select local or remote node-operation handlers for this process role."""
@@ -261,8 +297,9 @@ class NodeOperation(BaseOperation):
 
     @staticmethod
     async def _get_core_users_map(
-        db: AsyncSession, core_ids: set[int], *, lazy: bool = False
+        db: AsyncSession, core_ids: set[int], *, lazy: bool = False, lock: asyncio.Lock | None = None
     ) -> tuple[dict[int, object | None], dict[int, CoreUsers]]:
+        """Resolve each core and its users; deferred reads hold ``lock``, which callers share for other ``db`` work."""
         if not core_ids:
             return {}, {}
 
@@ -271,7 +308,7 @@ class NodeOperation(BaseOperation):
         cores_by_id: dict[int, object | None] = {}
         users_by_core: dict[int, CoreUsers] = {}
         loaded_users: dict[int, list] = {}
-        load_lock = asyncio.Lock()
+        load_lock = lock or asyncio.Lock()
 
         def user_loader(core_id, core):
             async def load():
@@ -305,6 +342,12 @@ class NodeOperation(BaseOperation):
             await pg_node._ensure_sync_worker_running()
 
     @staticmethod
+    def _drop_mtproto_start_timeouts(node_id: object) -> None:
+        """Forget a node's MTProto Start timeouts; bridge nodes carry the panel id as a string."""
+        with contextlib.suppress(TypeError, ValueError):
+            NodeOperation._mtproto_start_timeouts.pop(int(node_id), None)
+
+    @staticmethod
     async def _attach_if_running(pg_node: PasarGuardNode, node_name: str):
         """Attach to an already-started remote core without calling Start RPC."""
         try:
@@ -333,6 +376,8 @@ class NodeOperation(BaseOperation):
             await NodeOperation._resume_shared_sync(pg_node)
             if state is not None:
                 await pg_node.update_observed_lifecycle(LifecycleStatus.HEALTHY, expected_epoch=state.epoch)
+            # The health checker attaches a late-started core directly, so connect_node never sees it.
+            NodeOperation._drop_mtproto_start_timeouts(getattr(pg_node, "node_id", None))
             logger.debug(
                 f'Attached to already-running "{node_name}" node v{info.node_version}, core v{info.core_version}'
             )
@@ -391,6 +436,8 @@ class NodeOperation(BaseOperation):
             }
             if core.type == CoreType.xray:
                 start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
+            elif core.type == CoreType.mtproto:
+                start_kwargs["timeout"] = max(getattr(db_node, "default_timeout", 0) or 0, MTPROTO_START_TIMEOUT)
 
             if force_start and stop_first:
                 try:
@@ -474,6 +521,10 @@ class NodeOperation(BaseOperation):
             return None
 
         old_status = db_node.status
+        # A first MTProto Start timeout is seen only by the next attempt, so every other outcome
+        # drops it. An admin restart or core apply (force_start) starts a fresh sequence.
+        mtproto_start_timeouts = 0 if force_start else NodeOperation._mtproto_start_timeouts.get(db_node.id, 0)
+        NodeOperation._mtproto_start_timeouts.pop(db_node.id, None)
         if not force_start:
             try:
                 if await pg_node.get_health() == Health.HEALTHY:
@@ -491,7 +542,19 @@ class NodeOperation(BaseOperation):
             except Exception:
                 pass
 
-        type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
+        type = backend_type_for_core(core.type)
+        if type is None:
+            message = f'core type "{getattr(core.type, "value", core.type)}" is not supported by nodes'
+            logger.error(f"Failed to connect node {db_node.name} with id {db_node.id}, Error: {message}")
+            return {
+                "node_id": db_node.id,
+                "status": NodeStatus.error,
+                "message": message,
+                "xray_version": "",
+                "node_version": "",
+                "old_status": old_status,
+            }
+        is_mtproto = core.type == CoreType.mtproto
         NodeOperation._in_flight_connects.add(db_node.id)
 
         try:
@@ -554,8 +617,18 @@ class NodeOperation(BaseOperation):
                         "node_version": attached.node_version,
                         "old_status": old_status,
                     }
+                if is_mtproto and mtproto_start_timeouts == 0:
+                    # The node holds its lock while telemt starts, so the probe above times out too.
+                    NodeOperation._mtproto_start_timeouts[db_node.id] = 1
+                    logger.warning(
+                        f'"{db_node.name}" MTProto node is still starting after the Start timeout; '
+                        "retrying on the next check"
+                    )
+                    return None
 
             detail = e.detail[:1020] + "..." if len(e.detail) > 1024 else e.detail
+            if is_mtproto and "invalid backend type" in e.detail.lower():
+                detail = MTPROTO_UNSUPPORTED_NODE_MESSAGE
 
             logger.error(f"Failed to connect node {db_node.name} with id {db_node.id}, Error: {detail}")
 
@@ -899,6 +972,7 @@ class NodeOperation(BaseOperation):
     async def _remove_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
         await clear_bridge_memory_for_node(node_id)
+        NodeOperation._drop_mtproto_start_timeouts(node_id)
 
     async def _remove_node_sync(self, node_id: int) -> None:
         await self._remove_node_local(node_id)
@@ -914,7 +988,9 @@ class NodeOperation(BaseOperation):
             return
 
         core_ids = {node.core_config_id or 1 for node in nodes}
-        cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids, lazy=True)
+        # The node groups below write statuses while the other group may still read users on this session.
+        db_lock = asyncio.Lock()
+        cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids, lazy=True, lock=db_lock)
         sem = asyncio.Semaphore(CONNECT_CONCURRENCY)
 
         async def connect_single(node: Node) -> dict | None:
@@ -943,45 +1019,59 @@ class NodeOperation(BaseOperation):
                     stop_first=stop_first,
                 )
 
-        results = await asyncio.gather(*[connect_single(node) for node in nodes])
-
-        # Filter out None results
-        valid_results = [r for r in results if r is not None]
-
         nodes_dict = {node.id: node for node in nodes}
 
-        notifications_to_send = []
-        for result in valid_results:
-            node = nodes_dict.get(result["node_id"])
-            if not node:
-                continue
+        async def connect_group(group: list[Node]) -> None:
+            results = await asyncio.gather(*[connect_single(node) for node in group])
 
-            # Create lightweight notification object
-            node_notif = NodeNotification(
-                id=result["node_id"],
-                name=node.name,
-                xray_version=result.get("xray_version"),
-                node_version=result.get("node_version"),
-                message=result.get("message"),
-            )
+            # Filter out None results
+            valid_results = [r for r in results if r is not None]
 
-            notifications_to_send.append(
-                {
-                    "node": node_notif,
-                    "status": result["status"],
-                    "old_status": result["old_status"],
-                }
-            )
+            notifications_to_send = []
+            for result in valid_results:
+                node = nodes_dict.get(result["node_id"])
+                if not node:
+                    continue
 
-        # Bulk update all statuses in ONE query
-        await bulk_update_node_status(db, valid_results)
+                # Create lightweight notification object
+                node_notif = NodeNotification(
+                    id=result["node_id"],
+                    name=node.name,
+                    xray_version=result.get("xray_version"),
+                    node_version=result.get("node_version"),
+                    message=result.get("message"),
+                )
 
-        # Send notifications using pre-built objects
-        for notif in notifications_to_send:
-            if notif["status"] == NodeStatus.connected and notif["old_status"] != NodeStatus.connected:
-                asyncio.create_task(notification.connect_node(notif["node"]))
-            elif notif["status"] == NodeStatus.error and notif["old_status"] != NodeStatus.error:
-                asyncio.create_task(notification.error_node(notif["node"]))
+                notifications_to_send.append(
+                    {
+                        "node": node_notif,
+                        "status": result["status"],
+                        "old_status": result["old_status"],
+                    }
+                )
+
+            # Bulk update the group's statuses in ONE query
+            async with db_lock:
+                await bulk_update_node_status(db, valid_results)
+
+            # Send notifications using pre-built objects
+            for notif in notifications_to_send:
+                if notif["status"] == NodeStatus.connected and notif["old_status"] != NodeStatus.connected:
+                    asyncio.create_task(notification.connect_node(notif["node"]))
+                elif notif["status"] == NodeStatus.error and notif["old_status"] != NodeStatus.error:
+                    asyncio.create_task(notification.error_node(notif["node"]))
+
+        # An MTProto Start can take up to MTPROTO_START_TIMEOUT, so MTProto nodes get their own
+        # status write instead of holding back the status and notifications of every other node.
+        def is_mtproto(node: Node) -> bool:
+            core = cores_by_id.get(node.core_config_id or 1)
+            return getattr(core, "type", None) == CoreType.mtproto
+
+        groups = [
+            [node for node in nodes if not is_mtproto(node)],
+            [node for node in nodes if is_mtproto(node)],
+        ]
+        await asyncio.gather(*[connect_group(group) for group in groups if group])
 
     async def _connect_nodes_bulk_sync(
         self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False, stop_first: bool = True
@@ -1094,6 +1184,7 @@ class NodeOperation(BaseOperation):
 
     async def _disconnect_single_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
+        NodeOperation._drop_mtproto_start_timeouts(node_id)
 
     async def _disconnect_single_node_sync(self, node_id: int) -> None:
         await self._disconnect_single_node_local(node_id)
@@ -1315,8 +1406,8 @@ class NodeOperation(BaseOperation):
         if pg_node is None:
             await self.raise_error(message="Node is not connected", code=409)
 
+        core_id = db_node.core_config_id or 1
         try:
-            core_id = db_node.core_config_id or 1
             # Defer the snapshot read: sync_full takes it inside the node's
             # fence, after any queued deltas were drained, so nothing created
             # between the read and the flush can be lost.
@@ -1336,6 +1427,17 @@ class NodeOperation(BaseOperation):
             # still in flight past their lease (503); nothing reached the node.
             await self.raise_error(message=e.detail, code=e.code)
         except NodeAPIError as e:
+            core = await core_manager.get_core(core_id)
+            if core is not None and core.type == CoreType.mtproto and is_mtproto_retry_later_error(e):
+                # The node keeps applying the users after this call returns: not a node failure.
+                logger.info(f'"{db_node.name}" MTProto node is still applying the users: {e.detail}')
+                node_answer = (e.detail or "").strip()
+                message = (
+                    f"{MTPROTO_SYNC_PENDING_MESSAGE} Node: {node_answer}"
+                    if node_answer
+                    else MTPROTO_SYNC_PENDING_MESSAGE
+                )
+                await self.raise_error(message=message, code=409)
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
 

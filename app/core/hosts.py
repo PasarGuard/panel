@@ -43,6 +43,28 @@ from app.utils.logger import get_logger
 from config import runtime_settings
 from role import Role
 
+logger = get_logger("host-manager")
+
+
+def _mtproto_unserved_reason(
+    link_type: str, inbound_config: dict, link_domains: list[str], addresses: list[str]
+) -> str:
+    """Why the core no longer serves an MTProto host's link type ("" when it does); saving refuses these."""
+    if link_type == "web":
+        vhosts = {str(vhost.get("host") or "").strip().lower() for vhost in inbound_config.get("web_vhosts") or []}
+        if not any(address.strip().lower() in vhosts for address in addresses):
+            return "no WEB vhost of the core matches its address"
+        return ""
+    if not inbound_config.get("native", True):
+        return "the core has no native listener"
+    if link_type == "auto":
+        return ""
+    if not (inbound_config.get("modes") or {}).get(link_type):
+        return f'mode "{link_type}" is off in the core'
+    if link_type == "tls" and not link_domains:
+        return "none of its SNI values is a fake TLS domain of the core"
+    return ""
+
 
 def _string_list(value) -> list[str]:
     if value is None:
@@ -156,7 +178,9 @@ async def _prepare_subscription_inbound_data(
     masque_remote_dns = []
     if protocol == "masque":
         host_dns = ts.masque_settings.remote_dns if ts and ts.masque_settings else None
-        masque_remote_dns = [dns.strip() for dns in _string_list(host_dns or inbound_config.get("remote_dns")) if dns.strip()]
+        masque_remote_dns = [
+            dns.strip() for dns in _string_list(host_dns or inbound_config.get("remote_dns")) if dns.strip()
+        ]
 
     # The host FinalMask model only accepts client mask types; the inbound finalmask is the server's config
     final_mask_settings = (
@@ -209,6 +233,39 @@ async def _prepare_subscription_inbound_data(
             noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
             finalmask=final_mask_settings,
             finalmask_link=finalmask_link,
+            priority=host.priority,
+            status=list(host.status) if host.status else None,
+            subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
+            if host.subscription_templates
+            else None,
+        )
+
+    if protocol == "mtproto":
+        listen_port = inbound_config.get("listen_port") or inbound_config.get("port")
+        link_type = ts.mtproto_settings.link_type if ts and ts.mtproto_settings else "auto"
+        tls_domain = str(inbound_config.get("tls_domain") or "")
+        # A host SNI the core no longer serves as a fake TLS domain would give a dead link
+        core_domains = {domain.lower() for domain in inbound_config.get("tls_domains") or []}
+        link_domains = _string_list(host.sni) if host.sni else [tls_domain]
+        link_domains = [domain for domain in link_domains if domain and domain.lower() in core_domains]
+        if reason := _mtproto_unserved_reason(link_type, inbound_config, link_domains, _string_list(host.address)):
+            logger.warning(f'MTProto host "{host.id}" gives no link: {reason}')
+        return SubscriptionInboundData(
+            remark=host.remark,
+            inbound_tag=host.inbound_tag,
+            protocol=protocol,
+            address=list(host.address) if host.address else ["{SERVER_IP}"],
+            port=[host.port] if host.port else [listen_port],
+            network="tcp",
+            tls_config=TLSConfig(),
+            transport_config=TCPTransportConfig(path="", host=[]),
+            mux_settings=None,
+            mtproto_modes=dict(inbound_config.get("modes") or {}),
+            mtproto_tls_domain=tls_domain,
+            mtproto_link_type=link_type,
+            mtproto_link_domains=link_domains,
+            mtproto_native=bool(inbound_config.get("native", True)),
+            mtproto_web_vhosts=list(inbound_config.get("web_vhosts") or []),
             priority=host.priority,
             status=list(host.status) if host.status else None,
             subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
