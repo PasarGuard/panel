@@ -230,6 +230,8 @@ export interface APIKeyCreate {
   permissions?: RolePermissions;
   inherit_permissions?: boolean;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   admin_id?: number | null;
 }
 
@@ -251,6 +253,8 @@ export interface APIKeyCreateResponse {
   permissions?: RolePermissions;
   inherit_permissions?: boolean;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   id: number;
   admin_id: number;
   created_at: string;
@@ -258,6 +262,7 @@ export interface APIKeyCreateResponse {
   revoked_at?: string | null;
   status?: APIKeyStatus;
   is_expired?: boolean;
+  request_count?: number;
   api_key: string;
 }
 
@@ -271,6 +276,8 @@ export interface APIKeyResponse {
   permissions?: RolePermissions;
   inherit_permissions?: boolean;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   id: number;
   admin_id: number;
   created_at: string;
@@ -278,6 +285,7 @@ export interface APIKeyResponse {
   revoked_at?: string | null;
   status?: APIKeyStatus;
   is_expired?: boolean;
+  request_count?: number;
 }
 
 export interface APIKeyUpdate {
@@ -287,6 +295,8 @@ export interface APIKeyUpdate {
   permissions?: RolePermissions | null;
   inherit_permissions?: boolean | null;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean | null;
   status?: APIKeyStatus | null;
 }
 
@@ -2203,34 +2213,12 @@ export interface RemoveClientTemplatesResponse {
   count: number;
 }
 
-export type APIKeyUpdateStatus = APIKeyStatus | null
-
-export type APIKeyUpdateDeleteOnLimit = boolean | null
-
-export type APIKeyUpdateMaxRequests = number | null
-
-export type APIKeyUpdateExpireDate = string | null
-
-export type APIKeyUpdateInheritPermissions = boolean | null
-
-export type APIKeyUpdatePermissions = RolePermissions | null
-
-export type APIKeyUpdateNote = string | null
-
-export type APIKeyUpdateName = string | null
-
-export type APIKeyUpdateAdminId = number | null
-
-export interface APIKeyUpdate {
-  admin_id?: APIKeyUpdateAdminId
-  name?: APIKeyUpdateName
-  note?: APIKeyUpdateNote
-  permissions?: APIKeyUpdatePermissions
-  inherit_permissions?: APIKeyUpdateInheritPermissions
-  expire_date?: APIKeyUpdateExpireDate
-  max_requests?: APIKeyUpdateMaxRequests
-  delete_on_limit?: APIKeyUpdateDeleteOnLimit
-  status?: APIKeyUpdateStatus
+/**
+ * Response model for bulk core deletion
+ */
+export interface RemoveCoresResponse {
+  cores: string[];
+  count: number;
 }
 
 /**
@@ -3117,33 +3105,9 @@ expired_before?: string | null;
 dry_run?: boolean;
 };
 
-export type APIKeyResponseMaxRequests = number | null
-
-export type APIKeyResponseExpireDate = string | null
 export type DeleteExpiredUsersTarget = typeof DeleteExpiredUsersTarget[keyof typeof DeleteExpiredUsersTarget];
 
 
-export interface APIKeyResponse {
-  /**
-   * @minLength 1
-   * @maxLength 128
-   */
-  name: string
-  note?: APIKeyResponseNote
-  permissions?: RolePermissions
-  inherit_permissions?: boolean
-  expire_date?: APIKeyResponseExpireDate
-  max_requests?: APIKeyResponseMaxRequests
-  delete_on_limit?: boolean
-  id: number
-  admin_id: number
-  created_at: string
-  api_key_trimmed: string
-  revoked_at?: APIKeyResponseRevokedAt
-  status?: APIKeyStatus
-  is_expired?: boolean
-  request_count?: number
-}
 export const DeleteExpiredUsersTarget = {
   expired: 'expired',
   limited: 'limited',
@@ -3158,9 +3122,6 @@ start?: string | null;
 end?: string | null;
 };
 
-export type APIKeyCreateResponseMaxRequests = number | null
-
-export type APIKeyCreateResponseExpireDate = string | null
 export type GetUserTemplatesParams = {
 ids?: number[] | null;
 offset?: number | null;
@@ -3176,34 +3137,9 @@ sort?: string | null;
 all?: boolean;
 };
 
-export interface APIKeyCreateResponse {
-  /**
-   * @minLength 1
-   * @maxLength 128
-   */
-  name: string
-  note?: APIKeyCreateResponseNote
-  permissions?: RolePermissions
-  inherit_permissions?: boolean
-  expire_date?: APIKeyCreateResponseExpireDate
-  max_requests?: APIKeyCreateResponseMaxRequests
-  delete_on_limit?: boolean
-  id: number
-  admin_id: number
-  created_at: string
-  api_key_trimmed: string
-  revoked_at?: APIKeyCreateResponseRevokedAt
-  status?: APIKeyStatus
-  is_expired?: boolean
-  request_count?: number
-  api_key: string
-}
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
-export type APIKeyCreateMaxRequests = number | null
-
-export type APIKeyCreateExpireDate = string | null
 
 const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKey: K } => {
   const result = { queryKey } as T & { queryKey: K };
@@ -3220,19 +3156,6 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export interface APIKeyCreate {
-  /**
-   * @minLength 1
-   * @maxLength 128
-   */
-  name: string
-  note?: APIKeyCreateNote
-  permissions?: RolePermissions
-  inherit_permissions?: boolean
-  expire_date?: APIKeyCreateExpireDate
-  max_requests?: APIKeyCreateMaxRequests
-  delete_on_limit?: boolean
-  admin_id?: APIKeyCreateAdminId
 export const getBaseUrl = () => {
 
 
