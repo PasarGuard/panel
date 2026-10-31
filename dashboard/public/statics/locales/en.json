@@ -621,6 +621,30 @@
           "description": "Retention for CPU, memory and bandwidth-speed samples."
         }
       },
+      "rollup": {
+        "title": "Usage history detail",
+        "description": "Merge older traffic rows into coarser time buckets so the usage tables stop growing at 10-minute detail.",
+        "off": "Off",
+        "hourlyStep": {
+          "title": "Hourly",
+          "description": "Rows older than this are merged into one row per hour."
+        },
+        "halfDayStep": {
+          "title": "12-hour",
+          "description": "Rows older than this are merged into one row per 12 hours."
+        },
+        "dailyStep": {
+          "title": "Daily",
+          "description": "Rows older than this are merged into one row per day."
+        },
+        "cutoff": "Whole days older than {{days}} days are merged.",
+        "disabledHint": "This step is off.",
+        "note": "Totals stay exact: only the time detail is reduced, and charts of old data show coarser steps. Buckets are cut in UTC. The merge runs hourly after the retention cleanup, for at most a couple of minutes each time.",
+        "validation": "Enabled steps need a whole number from 1 to 36,500.",
+        "orderValidation": "Days must increase from hourly to 12-hour to daily.",
+        "save": "Save detail settings",
+        "firstRun": "Turning this on for the first time: if the panel already has a lot of usage history, merging the older data can take from a few hours to several days. It works only a couple of minutes each hour, so the panel stays fast, and older charts keep their current detail until it reaches them."
+      },
       "expiredUsers": {
         "title": "Delete Accounts by Status",
         "description": "Remove accounts matching a specific status, optionally filtered by date",

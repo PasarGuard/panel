@@ -82,7 +82,7 @@ def test_settings_update_rejects_invalid_nested_values(access_token):
         json={"general": {"node_health": {"fail_threshold": 0}}},
     )
 
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
 def test_cleanup_settings_round_trip(access_token):
@@ -96,6 +96,9 @@ def test_cleanup_settings_round_trip(access_token):
         "include_limited_users": True,
         "usage_history_retention_days": 120,
         "node_stats_retention_days": None,
+        "usage_rollup_hourly_after_days": 7,
+        "usage_rollup_half_day_after_days": None,
+        "usage_rollup_daily_after_days": 60,
     }
 
     try:
@@ -121,3 +124,13 @@ def test_cleanup_settings_round_trip(access_token):
         restored_response = client.get("/api/settings", headers=auth_headers(access_token))
         assert restored_response.status_code == status.HTTP_200_OK
         assert restored_response.json()["cleanup"] == original_cleanup
+
+
+def test_cleanup_settings_reject_rollup_out_of_order(access_token):
+    """Rollup steps must get coarser as rows get older."""
+    response = client.put(
+        "/api/settings",
+        headers=auth_headers(access_token),
+        json={"cleanup": {"usage_rollup_hourly_after_days": 30, "usage_rollup_daily_after_days": 7}},
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
