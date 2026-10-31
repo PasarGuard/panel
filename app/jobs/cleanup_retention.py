@@ -77,7 +77,7 @@ async def cleanup_retention_data(*, now: datetime | None = None) -> dict[str, in
         usage_cutoff = now - timedelta(days=retention.usage_history_retention_days)
         if rollup_levels(retention):
             # A rolled row is stamped at its bucket start; keep it until its whole bucket (at most a UTC day) is past
-            usage_cutoff = usage_cutoff.replace(hour=0, minute=0, second=0, microsecond=0)
+            usage_cutoff = usage_cutoff.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         targets.extend(((NodeUserUsage, usage_cutoff), (NodeUsage, usage_cutoff), (NodeOutboundUsage, usage_cutoff)))
     if retention.node_stats_retention_days is not None:
         targets.append((NodeStat, now - timedelta(days=retention.node_stats_retention_days)))
