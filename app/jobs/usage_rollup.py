@@ -138,6 +138,10 @@ async def rollup_table(
     cutoff = now - timedelta(days=min(days for _, days in levels))
     if cutoff > now - ROLLUP_MIN_AGE:
         raise RuntimeError("Usage rollup must not touch rows newer than one day")
+    if deadline is not None and time.monotonic() >= deadline:
+        # Skip the timestamp scan too, so a used-up run starts no new queries
+        result.budget_reached = True
+        return result
 
     timestamps = (
         await db.execute(

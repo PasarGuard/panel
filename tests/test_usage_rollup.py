@@ -234,13 +234,14 @@ async def test_rollup_stops_at_the_time_limit_and_resumes(rollup_db, monkeypatch
     before = await _totals(rollup_db)
     settings = CleanupSettings(usage_rollup_daily_after_days=30)
 
-    # Each monotonic() call moves the clock 1 s: a 3 s limit allows a few buckets per run
+    # Each monotonic() call moves the clock 1 s: a 5 s limit allows a few buckets per run
+    # (each table also takes one tick for its start check)
     clock = iter(range(100_000))
     monkeypatch.setattr(usage_rollup, "time", SimpleNamespace(monotonic=lambda: next(clock)))
 
     runs = 0
     while True:
-        results = await rollup_usage_history(rollup_db, settings, NOW, max_seconds=3)
+        results = await rollup_usage_history(rollup_db, settings, NOW, max_seconds=5)
         runs += 1
         assert await _totals(rollup_db) == before
         if not any(result.budget_reached for result in results.values()):
@@ -315,6 +316,50 @@ async def test_cleanup_job_runs_rollup_after_retention(rollup_db, monkeypatch):
 
     assert deleted["node_usages"] == 144 * 2
     assert await _timestamps(rollup_db, NodeUsage) == [OLD_DAY]
+
+
+@pytest.mark.asyncio
+async def test_rollup_skips_tables_once_the_time_is_used_up(rollup_db, monkeypatch):
+    """No timestamp scan starts after the deadline."""
+    await _seed_day(rollup_db, OLD_DAY)
+    monkeypatch.setattr(usage_rollup, "time", SimpleNamespace(monotonic=iter([0, 5, 5, 5]).__next__))
+    execute = AsyncMock(wraps=rollup_db.execute)
+    monkeypatch.setattr(rollup_db, "execute", execute)
+
+    results = await rollup_usage_history(
+        rollup_db, CleanupSettings(usage_rollup_daily_after_days=30), NOW, max_seconds=3
+    )
+
+    assert all(result.budget_reached and result.buckets == 0 for result in results.values())
+    execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_retention_keeps_a_rolled_day_until_the_whole_day_is_past(rollup_db, monkeypatch):
+    """With rollup on, a daily row at midnight stays while the end of its day is inside retention."""
+    db_context = MagicMock()
+    db_context.__aenter__.return_value = rollup_db
+    monkeypatch.setattr(cleanup_retention_job, "GetDB", MagicMock(return_value=db_context))
+    monkeypatch.setattr(cleanup_retention_job, "ROLLUP_PAUSE_SECONDS", 0)
+    retention_day = (NOW - timedelta(days=60)).replace(hour=0, minute=0)
+    rollup_db.add_all(
+        [
+            NodeUsage(created_at=retention_day, node_id=1, uplink=1, downlink=1),
+            NodeUsage(created_at=retention_day - DAY, node_id=1, uplink=1, downlink=1),
+        ]
+    )
+    await rollup_db.commit()
+
+    for rollup_days, kept in ((30, [retention_day]), (None, [])):
+        monkeypatch.setattr(
+            cleanup_retention_job,
+            "cleanup_settings",
+            AsyncMock(
+                return_value=CleanupSettings(usage_history_retention_days=60, usage_rollup_daily_after_days=rollup_days)
+            ),
+        )
+        await cleanup_retention_job.cleanup_retention_data(now=NOW)
+        assert await _timestamps(rollup_db, NodeUsage) == kept
 
 
 def test_bucket_bounds_cut_in_utc_and_other_zones():

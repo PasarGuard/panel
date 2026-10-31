@@ -6,7 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import scheduler
 from app.db import GetDB
 from app.db.models import NodeOutboundUsage, NodeStat, NodeUsage, NodeUserUsage
-from app.jobs.usage_rollup import ROLLUP_MAX_SECONDS_PER_RUN, ROLLUP_PAUSE_SECONDS, rollup_usage_history
+from app.jobs.usage_rollup import (
+    ROLLUP_MAX_SECONDS_PER_RUN,
+    ROLLUP_PAUSE_SECONDS,
+    rollup_levels,
+    rollup_usage_history,
+)
 from app.settings import cleanup_settings
 from app.utils.logger import get_logger
 from config import runtime_settings
@@ -70,6 +75,9 @@ async def cleanup_retention_data(*, now: datetime | None = None) -> dict[str, in
     targets = []
     if retention.usage_history_retention_days is not None:
         usage_cutoff = now - timedelta(days=retention.usage_history_retention_days)
+        if rollup_levels(retention):
+            # A rolled row is stamped at its bucket start; keep it until its whole bucket (at most a UTC day) is past
+            usage_cutoff = usage_cutoff.replace(hour=0, minute=0, second=0, microsecond=0)
         targets.extend(((NodeUserUsage, usage_cutoff), (NodeUsage, usage_cutoff), (NodeOutboundUsage, usage_cutoff)))
     if retention.node_stats_retention_days is not None:
         targets.append((NodeStat, now - timedelta(days=retention.node_stats_retention_days)))
