@@ -77,10 +77,33 @@ from app.node.heartbeat import heartbeat_interval, keep_alive_too_short, shortes
 from app.node.manager_sync import publish_node_sync
 from app.node.nats_memory import clear_bridge_memory_for_node
 from app.operation import BaseOperation, OperatorType
+from app.operation.permissions import PermissionDenied, enforce_permission
 from app.utils.logger import get_logger
 from config import runtime_settings
 
 MAX_MESSAGE_LENGTH = 128
+
+
+def _can_view_node_secrets(admin: AdminDetails | None) -> bool:
+    """The node api_key is a credential: only node managers may read it."""
+    if admin is None:
+        return False
+    if admin.is_owner:
+        return True
+    for action in ("create", "update"):
+        try:
+            enforce_permission(admin, "nodes", action)
+        except PermissionDenied:
+            continue
+        return True
+    return False
+
+
+def _hide_node_secrets(node: NodeResponse) -> NodeResponse:
+    node.api_key = None
+    return node
+
+
 # Cap parallel start/attach so ~100 nodes don't stampede NATS lifecycle KV.
 CONNECT_CONCURRENCY = 10
 NODE_RESTART_FIELDS = frozenset({"core_config_id", "keep_alive"})
@@ -155,6 +178,7 @@ class NodeOperation(BaseOperation):
         self,
         db: AsyncSession,
         query: NodeListQuery,
+        admin: AdminDetails | None = None,
     ) -> NodesResponse:
         db_nodes, count = await get_nodes(
             db=db,
@@ -163,7 +187,18 @@ class NodeOperation(BaseOperation):
             load_lifetime_usage=True,
         )
         node_responses = [NodeResponse.model_validate(node) for node in db_nodes]
+        if not _can_view_node_secrets(admin):
+            for node in node_responses:
+                _hide_node_secrets(node)
         return NodesResponse(nodes=node_responses, total=count)
+
+    async def get_node_response(
+        self, db: AsyncSession, node_id: int, admin: AdminDetails | None = None
+    ) -> NodeResponse:
+        """Single-node read response with the node credential hidden from read-only roles."""
+        db_node = await self.get_validated_node(db=db, node_id=node_id)
+        response = NodeResponse.model_validate(db_node)
+        return response if _can_view_node_secrets(admin) else _hide_node_secrets(response)
 
     async def get_nodes_simple(
         self,
