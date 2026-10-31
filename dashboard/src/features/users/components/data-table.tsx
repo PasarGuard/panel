@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { UserResponse } from '@/service/api'
-import { getSelectedRowIds, nextRowSelection } from '@/utils/rowSelection'
+import { getSelectedRowIds } from '@/utils/rowSelection'
 import { ChevronDown, Rss } from 'lucide-react'
 import ActionButtons from './action-buttons'
 import { OnlineStatus } from './online-status'
@@ -19,8 +19,8 @@ interface DataTableProps<TData extends UserResponse, TValue> {
   isLoading?: boolean
   isFetching?: boolean
   onEdit?: (user: UserResponse) => void
-  onSelectionChange?: (selectedIds: number[]) => void
-  resetSelectionKey?: number
+  selectedUserIds: number[]
+  onSelectionChange: (selectedIds: number[]) => void
 }
 
 const SCROLLBAR_HIDE_DELAY = 900
@@ -173,11 +173,11 @@ const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) =
 ))
 
 export const DataTable = memo(
-  <TData extends UserResponse, TValue>({ columns, data, isLoading = false, isFetching = false, onEdit, onSelectionChange, resetSelectionKey = 0 }: DataTableProps<TData, TValue>) => {
+  <TData extends UserResponse, TValue>({ columns, data, isLoading = false, isFetching = false, onEdit, selectedUserIds, onSelectionChange }: DataTableProps<TData, TValue>) => {
     const { t } = useTranslation()
     const [expandedRow, setExpandedRow] = useState<number | null>(null)
     /** CSS :hover can stick after closing portaled menus; drive md+ row bg with pointer events instead. */
-    const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+    const rowSelection = useMemo<RowSelectionState>(() => Object.fromEntries(selectedUserIds.map(id => [String(id), true])), [selectedUserIds])
     const dir = useDirDetection()
     const isRTL = dir === 'rtl'
     const { scrollRef, headerRef, trackRef, thumbRef, onScroll, onThumbPointerDown, onThumbPointerMove, onThumbPointerUp, layout } = useTableOverlayScrollbar()
@@ -185,13 +185,10 @@ export const DataTable = memo(
 
     const handleRowSelectionChange = useCallback(
       (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
-        setRowSelection(prev => {
-          const next = typeof updater === 'function' ? updater(prev) : updater
-          onSelectionChange?.(getSelectedRowIds(next))
-          return next
-        })
+        const next = typeof updater === 'function' ? updater(rowSelection) : updater
+        onSelectionChange(getSelectedRowIds(next))
       },
-      [onSelectionChange],
+      [onSelectionChange, rowSelection],
     )
 
     // Memoize table configuration to prevent unnecessary re-renders
@@ -211,24 +208,6 @@ export const DataTable = memo(
     )
 
     const table = useReactTable(tableConfig)
-
-    // The reset key the selection was last cleared for; null so the first run clears it, as on every key change
-    const resetSelectionKeyRef = useRef<number | null>(null)
-
-    // Bulk actions must only target rows on screen: drop selected rows that a page, search or filter change, or a refresh, took away.
-    // A reset is handled in the same effect and wins, so pruning cannot bring back a selection the caller just cleared.
-    useEffect(() => {
-      const reset = resetSelectionKeyRef.current !== resetSelectionKey
-      resetSelectionKeyRef.current = resetSelectionKey
-      const next = nextRowSelection(
-        rowSelection,
-        data.map(row => String(row.id)),
-        reset,
-      )
-      if (next === rowSelection) return
-      setRowSelection(next)
-      onSelectionChange?.(getSelectedRowIds(next))
-    }, [data, onSelectionChange, resetSelectionKey, rowSelection])
 
     const handleRowToggle = useCallback((rowId: number) => {
       setExpandedRow(prev => (prev === rowId ? null : rowId))

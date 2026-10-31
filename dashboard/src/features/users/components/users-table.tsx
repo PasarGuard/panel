@@ -211,8 +211,9 @@ const UsersTable = memo(() => {
   const [isEditModalOpen, setEditModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const clearSelectedUserTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([])
-  const [resetSelectionKey, setResetSelectionKey] = useState(0)
+  const [selectedUsersById, setSelectedUsersById] = useState<Record<number, UserResponse>>({})
+  const selectedUsers = useMemo(() => Object.values(selectedUsersById), [selectedUsersById])
+  const selectedUserIds = useMemo(() => selectedUsers.map(user => user.id), [selectedUsers])
   const [bulkAction, setBulkAction] = useState<'delete' | 'reset' | 'revoke' | 'disable' | 'enable' | 'apply_template' | null>(null)
   const [isBulkSetOwnerModalOpen, setIsBulkSetOwnerModalOpen] = useState(false)
   const [isBulkApplyTemplateModalOpen, setIsBulkApplyTemplateModalOpen] = useState(false)
@@ -738,16 +739,56 @@ const UsersTable = memo(() => {
   }
 
   const clearSelection = useCallback(() => {
-    setResetSelectionKey(prev => prev + 1)
-    setSelectedUserIds([])
+    setSelectedUsersById({})
   }, [])
+
+  const handleUserDeleted = useCallback((userId: number) => {
+    setSelectedUsersById(previous => {
+      if (!previous[userId]) return previous
+      const next = { ...previous }
+      delete next[userId]
+      return next
+    })
+  }, [])
+
+  // Keep selections across pages, page sizes, sorting and refreshes, but start over for a different search or filter.
+  const selectionFilterKey = JSON.stringify({ ...filters, offset: undefined, limit: undefined, sort: undefined })
+  useEffect(clearSelection, [clearSelection, selectionFilterKey])
+
+  const handleSelectionChange = useCallback(
+    (ids: number[]) => {
+      const visibleUsers = new Map(usersData?.users.map(user => [user.id, user]))
+      setSelectedUsersById(previous => {
+        const next: Record<number, UserResponse> = {}
+        for (const id of ids) {
+          const user = visibleUsers.get(id) ?? previous[id]
+          if (user) next[id] = user
+        }
+        return next
+      })
+    },
+    [usersData],
+  )
+
+  // Retain off-page users for bulk eligibility and cache updates, and refresh their details when shown again.
+  useEffect(() => {
+    setSelectedUsersById(previous => {
+      let next = previous
+      for (const user of usersData?.users ?? []) {
+        if (previous[user.id] && previous[user.id] !== user) {
+          if (next === previous) next = { ...previous }
+          next[user.id] = user
+        }
+      }
+      return next
+    })
+  }, [usersData])
 
   const invalidateUsers = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['/api/users'] })
   }, [queryClient])
 
   const selectedCount = selectedUserIds.length
-  const selectedUsers = (usersData?.users || []).filter(user => selectedUserIds.includes(user.id))
   const selectedDisableEligibleIds = selectedUsers.filter(user => user.status !== 'disabled').map(user => user.id)
   const selectedEnableEligibleIds = selectedUsers.filter(user => user.status === 'disabled').map(user => user.id)
   const disableEligibleCount = selectedDisableEligibleIds.length
@@ -1180,7 +1221,7 @@ const UsersTable = memo(() => {
         <BulkActionsBar
           selectedCount={selectedCount}
           onClear={clearSelection}
-          // While the table shows loading rows the selected users are out of sight, so no bulk action until they are back
+          // Wait for the current page to finish loading before applying the selection.
           actions={isPageLoading ? bulkActions.map(action => ({ ...action, disabled: true })) : bulkActions}
         />
       )}
@@ -1221,8 +1262,8 @@ const UsersTable = memo(() => {
           isLoading={true}
           isFetching={false}
           onEdit={canUpdateUsers ? handleEdit : undefined}
-          onSelectionChange={setSelectedUserIds}
-          resetSelectionKey={resetSelectionKey}
+          selectedUserIds={selectedUserIds}
+          onSelectionChange={handleSelectionChange}
         />
       )}
       {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
@@ -1232,8 +1273,8 @@ const UsersTable = memo(() => {
           isLoading={false}
           isFetching={isPageLoading}
           onEdit={canUpdateUsers ? handleEdit : undefined}
-          onSelectionChange={setSelectedUserIds}
-          resetSelectionKey={resetSelectionKey}
+          selectedUserIds={selectedUserIds}
+          onSelectionChange={handleSelectionChange}
         />
       )}
       <PaginationControls
@@ -1340,7 +1381,7 @@ const UsersTable = memo(() => {
           }}
         />
       )}
-      <ActionButtonsModalHost />
+      <ActionButtonsModalHost onDeleted={handleUserDeleted} />
     </div>
   )
 })
