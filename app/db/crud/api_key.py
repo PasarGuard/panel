@@ -108,11 +108,13 @@ async def increment_api_key_usage(db: AsyncSession, key_id: int) -> int:
         update(APIKey)
         .where(APIKey.id == key_id)
         .values(request_count=APIKey.request_count + 1)
-        .returning(APIKey.request_count)
     )
-    result = await db.execute(stmt)
-    new_count = result.scalar_one()
+    await db.execute(stmt)
     await db.commit()
+    new_count_row = await db.execute(
+        select(APIKey.request_count).where(APIKey.id == key_id)
+    )
+    new_count = new_count_row.scalar_one()
     return new_count
 
 
