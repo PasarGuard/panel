@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createUserTemplate, useRemoveUserTemplate, UserTemplateCreate, UserTemplateResponse } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
+import { translateHtml } from '@/utils/html-translation'
 
 interface UserTemplateActionsMenuProps {
   template: UserTemplateResponse
@@ -30,7 +31,7 @@ const DeleteAlertDialog = ({ userTemplate, isOpen, onClose, onConfirm }: { userT
         <AlertDialogHeader>
           <AlertDialogTitle>{t('templates.deleteUserTemplateTitle')}</AlertDialogTitle>
           <AlertDialogDescription>
-            <span dir={dir} dangerouslySetInnerHTML={{ __html: t('templates.deleteUserTemplatePrompt', { name: userTemplate.name }) }} />
+            <span dir={dir} dangerouslySetInnerHTML={{ __html: translateHtml(t, 'templates.deleteUserTemplatePrompt', { name: userTemplate.name }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

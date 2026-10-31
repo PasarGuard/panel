@@ -204,7 +204,7 @@ async def start_job_leader() -> bool:
     elif won:
         logger.debug("Scheduler leadership not required; running jobs in this process")
     else:
-        logger.info(
+        logger.debug(
             "Not scheduler leader; skipping APScheduler in this worker (role=%s key=%s)",
             runtime_settings.role.value,
             leader_key(),

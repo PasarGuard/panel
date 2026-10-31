@@ -2,16 +2,18 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { SubscriptionFormActions } from '@/features/subscriptions/components/subscription-form-actions'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { DEFAULT_SHADOWSOCKS_METHOD } from '@/constants/Proxies'
-import { ShadowsocksMethods, useGetGeneralSettings, useReconnectAllNode } from '@/service/api'
+import { type General as GeneralSettingsResponse, OnHoldTimeoutAction, ShadowsocksMethods, useGetGeneralSettings, useReconnectAllNode } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, RefreshCcw } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { type FieldPath, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -20,9 +22,55 @@ import { useSettingsContext } from './_dashboard.settings'
 // general settings validation schema
 const generalSettingsSchema = z.object({
   default_method: z.string().default(''),
+  on_hold_timeout_action: z.nativeEnum(OnHoldTimeoutAction).default(OnHoldTimeoutAction.activate),
+  usage: z.object({
+    record_node_usage: z.boolean(),
+    record_node_stats: z.boolean(),
+    reset_usage_clean_chart_data: z.boolean(),
+    record_outbound_usage: z.boolean(),
+  }),
+  node_health: z.object({
+    fail_threshold: z.number().int().min(1),
+    recover_threshold: z.number().int().min(1),
+    probe_timeout: z.number().int().min(1),
+    max_backoff: z.number().int().min(0),
+  }),
+  stop_nodes_on_shutdown: z.boolean(),
 })
 
 type GeneralSettingsFormInput = z.input<typeof generalSettingsSchema>
+
+const DEFAULT_GENERAL_FORM_VALUES: GeneralSettingsFormInput = {
+  default_method: '',
+  on_hold_timeout_action: OnHoldTimeoutAction.activate,
+  usage: {
+    record_node_usage: true,
+    record_node_stats: false,
+    reset_usage_clean_chart_data: false,
+    record_outbound_usage: false,
+  },
+  node_health: {
+    fail_threshold: 3,
+    recover_threshold: 2,
+    probe_timeout: 5,
+    max_backoff: 60,
+  },
+  stop_nodes_on_shutdown: true,
+}
+
+function toGeneralFormValues(settings?: GeneralSettingsResponse): GeneralSettingsFormInput {
+  if (!settings) return DEFAULT_GENERAL_FORM_VALUES
+  return {
+    default_method: settings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
+    on_hold_timeout_action: settings.on_hold_timeout_action || OnHoldTimeoutAction.activate,
+    usage: { ...DEFAULT_GENERAL_FORM_VALUES.usage, ...settings.usage },
+    node_health: { ...DEFAULT_GENERAL_FORM_VALUES.node_health, ...settings.node_health },
+    stop_nodes_on_shutdown: settings.stop_nodes_on_shutdown ?? DEFAULT_GENERAL_FORM_VALUES.stop_nodes_on_shutdown,
+  }
+}
+
+type SwitchFieldName = 'usage.record_node_usage' | 'usage.record_node_stats' | 'usage.reset_usage_clean_chart_data' | 'usage.record_outbound_usage' | 'stop_nodes_on_shutdown'
+type NumberFieldName = Extract<FieldPath<GeneralSettingsFormInput>, `node_health.${string}`>
 
 export default function General() {
   const { t } = useTranslation()
@@ -31,17 +79,7 @@ export default function General() {
   const [isReconnectAllDialogOpen, setIsReconnectAllDialogOpen] = useState(false)
   const reconnectAllNodeMutation = useReconnectAllNode()
 
-  const generalFormValues = useMemo<GeneralSettingsFormInput>(
-    () =>
-      generalSettings
-        ? {
-            default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
-          }
-        : {
-            default_method: '',
-          },
-    [generalSettings?.default_method],
-  )
+  const generalFormValues = useMemo<GeneralSettingsFormInput>(() => toGeneralFormValues(generalSettings), [generalSettings])
 
   const form = useForm<GeneralSettingsFormInput>({
     resolver: zodResolver(generalSettingsSchema),
@@ -54,6 +92,10 @@ export default function General() {
       const filteredData: any = {
         general: {
           default_method: data.default_method || DEFAULT_SHADOWSOCKS_METHOD,
+          on_hold_timeout_action: data.on_hold_timeout_action || OnHoldTimeoutAction.activate,
+          usage: data.usage,
+          node_health: data.node_health,
+          stop_nodes_on_shutdown: data.stop_nodes_on_shutdown,
         },
       }
 
@@ -65,9 +107,7 @@ export default function General() {
 
   const handleCancel = () => {
     if (!generalSettings) return
-    form.reset({
-      default_method: generalSettings.default_method || DEFAULT_SHADOWSOCKS_METHOD,
-    })
+    form.reset(toGeneralFormValues(generalSettings))
     toast.success(t('settings.general.cancelSuccess'))
   }
 
@@ -100,6 +140,49 @@ export default function General() {
       })
     }
   }
+
+  const renderSwitchField = (name: SwitchFieldName, labelKey: string) => (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => (
+        <FormItem className="bg-card hover:bg-accent/50 flex flex-row items-center justify-between gap-3 space-y-0 rounded-lg border p-3 transition-colors sm:p-4">
+          <div className="space-y-0.5">
+            <FormLabel className="cursor-pointer text-xs font-medium sm:text-sm">{t(`${labelKey}.title`)}</FormLabel>
+            <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t(`${labelKey}.description`)}</FormDescription>
+          </div>
+          <FormControl>
+            <Switch checked={field.value} onCheckedChange={field.onChange} />
+          </FormControl>
+        </FormItem>
+      )}
+    />
+  )
+
+  const renderNumberField = (name: NumberFieldName, labelKey: string, min: number) => (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => (
+        <FormItem className="space-y-2">
+          <FormLabel className="text-xs font-medium sm:text-sm">{t(`${labelKey}.title`)}</FormLabel>
+          <FormControl>
+            <Input
+              type="number"
+              step="1"
+              min={min}
+              {...field}
+              value={field.value ?? ''}
+              onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+              className="text-xs sm:text-sm"
+            />
+          </FormControl>
+          <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t(`${labelKey}.description`)}</FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
 
   const loadError = error || generalError
 
@@ -187,7 +270,65 @@ export default function General() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="on_hold_timeout_action"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">{t('settings.general.onHoldTimeoutAction.title')}</FormLabel>
+                    <FormControl>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger className="text-xs sm:text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={OnHoldTimeoutAction.activate} className="text-xs sm:text-sm">
+                            {t('settings.general.onHoldTimeoutAction.activate')}
+                          </SelectItem>
+                          <SelectItem value={OnHoldTimeoutAction.disable} className="text-xs sm:text-sm">
+                            {t('settings.general.onHoldTimeoutAction.disable')}
+                          </SelectItem>
+                          <SelectItem value={OnHoldTimeoutAction.delete} className="text-xs sm:text-sm">
+                            {t('settings.general.onHoldTimeoutAction.delete')}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.general.onHoldTimeoutAction.description')}</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
+          </div>
+
+          {/* Usage recording */}
+          <div className="mb-4 space-y-3 sm:mb-6">
+            <div className="space-y-1">
+              <h3 className="text-base font-semibold sm:text-lg">{t('settings.general.usage.title')}</h3>
+              <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.general.usage.description')}</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
+              {renderSwitchField('usage.record_node_usage', 'settings.general.usage.recordNodeUsage')}
+              {renderSwitchField('usage.record_node_stats', 'settings.general.usage.recordNodeStats')}
+              {renderSwitchField('usage.reset_usage_clean_chart_data', 'settings.general.usage.resetUsageCleanChartData')}
+              {renderSwitchField('usage.record_outbound_usage', 'settings.general.usage.recordOutboundUsage')}
+            </div>
+          </div>
+
+          {/* Node health checks */}
+          <div className="mb-4 space-y-3 sm:mb-6">
+            <div className="space-y-1">
+              <h3 className="text-base font-semibold sm:text-lg">{t('settings.general.nodeHealth.title')}</h3>
+              <p className="text-muted-foreground text-xs sm:text-sm">{t('settings.general.nodeHealth.description')}</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
+              {renderNumberField('node_health.fail_threshold', 'settings.general.nodeHealth.failThreshold', 1)}
+              {renderNumberField('node_health.recover_threshold', 'settings.general.nodeHealth.recoverThreshold', 1)}
+              {renderNumberField('node_health.probe_timeout', 'settings.general.nodeHealth.probeTimeout', 1)}
+              {renderNumberField('node_health.max_backoff', 'settings.general.nodeHealth.maxBackoff', 0)}
+            </div>
+            {renderSwitchField('stop_nodes_on_shutdown', 'settings.general.stopNodesOnShutdown')}
           </div>
 
           <Separator className="my-3" />

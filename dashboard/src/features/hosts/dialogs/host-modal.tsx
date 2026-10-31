@@ -10,12 +10,13 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CustomVariablesPopover, VariablesList, VariablesPopover } from '@/components/ui/variables-popover'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
-import { ClientTemplateType, UserStatus, getHosts, useGetClientTemplatesSimple } from '@/service/api'
+import { ClientTemplateType, type InboundSummary, UserStatus, getGetHostsQueryKey, getHosts, useGetClientTemplatesSimple } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Cable, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X, ListTodo } from 'lucide-react'
@@ -24,7 +25,8 @@ import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { hostFormDefaultValues, type HostFormValues } from '@/features/hosts/forms/host-form'
 import { LoaderButton } from '@/components/ui/loader-button'
-import { FinalMaskSettings } from '../components/finalmask-settings'
+import { XrayStreamFinalmaskFields } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'
+import { FormRealityFingerprintWarning as RealityFingerprintWarning } from '@/components/common/reality-fingerprint-warning'
 
 // Predefined sessionIDTable aliases recognized by Xray 26.6.22+.
 const SESSION_ID_TABLE_PRESETS = ['ALPHABET', 'Alphabet', 'BASE36', 'Base62', 'HEX', 'alphabet', 'base36', 'hex', 'number']
@@ -103,7 +105,7 @@ interface HostModalProps {
   onSubmit: (data: HostFormValues) => Promise<{ status: number }>
   editingHost?: boolean
   form: UseFormReturn<HostFormValues>
-  inboundDetails?: Array<{ tag: string; protocol: string }>
+  inboundDetails?: InboundSummary[]
   isLoadingInbounds?: boolean
 }
 
@@ -220,7 +222,13 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <Input placeholder={t('hostsDialog.noise.packetPlaceholder')} {...field} value={field.value || ''} className="h-8" />
+                <Input
+                  placeholder={t('hostsDialog.noise.packetPlaceholder')}
+                  {...field}
+                  // Xray noise packets are strings; show a list packet stored through the API as JSON.
+                  value={Array.isArray(field.value) ? JSON.stringify(field.value) : (field.value ?? '')}
+                  className="h-8"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -232,7 +240,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value || ''} className="h-8" />
+                <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value ?? ''} className="h-8" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -242,6 +250,7 @@ const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t 
     </div>
   )
 })
+
 
 NoiseItem.displayName = 'NoiseItem'
 
@@ -316,6 +325,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const selectedFragmentSettings = form.watch('fragment_settings.xray')
   const xPaddingObfsEnabled = form.watch('transport_settings.xhttp_settings.x_padding_obfs_mode') === true
   const selectedFingerprint = form.watch('fingerprint')
+  const selectedSecurity = form.watch('security')
   const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
   const infoPopoverAlign = isMobile ? 'center' : 'start'
   const hasFragmentPopulated = Boolean(
@@ -346,7 +356,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                     <AlertDescription className="text-xs sm:text-sm">
                       {t('hostsDialog.fragmentNoiseDeprecated', {
-                        defaultValue: '`noise` and `fragment` are being removed in newer versions — use `finalMask` instead.',
+                        defaultValue: '`noise` and `fragment` are being removed in newer versions â€” use `finalMask` instead.',
                       })}
                     </AlertDescription>
                   </Alert>
@@ -485,7 +495,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     />
                   </div>
                   {form.watch('final_mask_settings') !== undefined && form.watch('final_mask_settings') !== null && (
-                    <FinalMaskSettings form={form} />
+                    <XrayStreamFinalmaskFields
+                      value={form.watch('final_mask_settings')}
+                      onChange={next => form.setValue('final_mask_settings', next, { shouldDirty: true, shouldTouch: true })}
+                      t={t}
+                    />
                   )}
                 </div>
               </div>
@@ -691,13 +705,15 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
 
   const inbounds = useMemo(() => inboundDetails?.map(inbound => inbound.tag) || [], [inboundDetails])
   const selectedInbound = useMemo(() => inboundDetails?.find(inbound => inbound.tag === selectedInboundTag), [inboundDetails, selectedInboundTag])
+  const usesReality = selectedSecurity === 'inbound_default' && selectedInbound?.security === 'reality'
+  const effectiveFingerprint = selectedFingerprint && selectedFingerprint !== 'none' ? selectedFingerprint : selectedInbound?.fingerprint || 'chrome'
   const isWireGuardInbound = selectedInbound?.protocol === 'wireguard'
   const isInboundModeResolved = !isDialogOpen || !selectedInboundTag || !!selectedInbound || !isLoadingInbounds
   const shouldRenderWireGuardLayout = resolvedHostMode === 'wireguard'
 
   // Update the hosts query to refetch only when needed (not on dialog open)
   const { data: hosts = [], isLoading: isLoadingHosts } = useQuery({
-    queryKey: ['getHostsQueryKey'],
+    queryKey: getGetHostsQueryKey(),
     queryFn: () => getHosts(),
     enabled: isDialogOpen && isTransportOpen,
     select: (data: any[]) => data.filter((host: any) => host.id != null),
@@ -781,6 +797,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     form.setValue('vless_route', '', { shouldDirty: true })
     form.setValue('ech_config_list', undefined, { shouldDirty: true })
     form.setValue('ech_query_strategy', undefined, { shouldDirty: true })
+    form.setValue('mihomo_ech_config', undefined, { shouldDirty: true })
+    form.setValue('mihomo_ech_query_server_name', undefined, { shouldDirty: true })
+    form.setValue('sing_box_ech_config', undefined, { shouldDirty: true })
+    form.setValue('sing_box_ech_query_server_name', undefined, { shouldDirty: true })
     form.setValue('pinned_peer_cert_sha256', undefined, { shouldDirty: true })
     form.setValue('verify_peer_cert_by_name', [], { shouldDirty: true })
     form.setValue('fragment_settings', undefined, { shouldDirty: true })
@@ -827,6 +847,10 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         payload.vless_route = ''
         payload.ech_config_list = undefined
         payload.ech_query_strategy = undefined
+        payload.mihomo_ech_config = undefined
+        payload.mihomo_ech_query_server_name = undefined
+        payload.sing_box_ech_config = undefined
+        payload.sing_box_ech_query_server_name = undefined
         payload.pinned_peer_cert_sha256 = undefined
         payload.verify_peer_cert_by_name = []
         payload.mux_settings = undefined
@@ -868,9 +892,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
         throw new Error(`Operation failed with status: ${response.status}`)
       }
       handleModalOpenChange(false)
-      queryClient.invalidateQueries({
-        queryKey: ['getHostsQueryKey'],
-      })
     } catch (error) {
       console.error(error)
     } finally {
@@ -1041,7 +1062,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     field.onChange(field.value.filter(s => s !== status))
                                   }}
                                 >
-                                  ×
+                                  أ—
                                 </button>
                               </span>
                             )
@@ -1202,14 +1223,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <FormControl>
                                   <Input
                                     type="number"
-                                    placeholder="1280"
+                                    placeholder={t('default')}
                                     min={576}
                                     max={9000}
                                     {...field}
                                     value={field.value ?? ''}
                                     onChange={e => {
                                       const v = e.target.value
-                                      field.onChange(v === '' ? undefined : Number.parseInt(v, 10))
+                                      field.onChange(v === '' ? null : Number.parseInt(v, 10))
                                     }}
                                   />
                                 </FormControl>
@@ -1568,7 +1589,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <FormLabel>{t('hostsDialog.fingerprint')}</FormLabel>
                                 <Select onValueChange={value => field.onChange(value === 'default' ? '' : value)} value={field.value || 'default'}>
                                   <FormControl>
-                                    <SelectTrigger>
+                                    <SelectTrigger ref={field.ref}>
                                       <SelectValue placeholder={t('hostsDialog.fingerprint')} />
                                     </SelectTrigger>
                                   </FormControl>
@@ -1588,6 +1609,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     <SelectItem value="unsafe">{t('unsafe')}</SelectItem>
                                   </SelectContent>
                                 </Select>
+                                {usesReality && (
+                                  <RealityFingerprintWarning
+                                    fingerprint={effectiveFingerprint}
+                                    onUseChrome={() => {
+                                      form.setValue('fingerprint', 'chrome', { shouldDirty: true, shouldTouch: true, shouldValidate: true })
+                                    }}
+                                  />
+                                )}
                                 <FormMessage />
                               </FormItem>
                             )}
@@ -1644,71 +1673,195 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                           )}
                         />
 
-                        <FormField
-                          control={form.control}
-                          name="ech_config_list"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex items-center gap-2">
-                                <FormLabel>{t('hostsDialog.echConfigList')}</FormLabel>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                      <Info className="text-muted-foreground h-4 w-4" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                    <p className="text-muted-foreground text-[11px]">{t('hostsDialog.echConfigList.info')}</p>
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                              <FormControl>
-                                <Input placeholder={t('hostsDialog.echConfigListPlaceholder')} {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                        <Tabs dir={dir} defaultValue="xray" className="w-full">
+                          <TabsList className="mb-4 grid w-full grid-cols-3">
+                            <TabsTrigger value="xray">Xray</TabsTrigger>
+                            <TabsTrigger value="mihomo">Mihomo</TabsTrigger>
+                            <TabsTrigger value="singbox">Sing-box</TabsTrigger>
+                          </TabsList>
 
-                        <FormField
-                          control={form.control}
-                          name="ech_query_strategy"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex items-center gap-2">
-                                <FormLabel>{t('hostsDialog.echQueryStrategy', { defaultValue: 'ECH Query Strategy' })}</FormLabel>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                                      <Info className="text-muted-foreground h-4 w-4" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                                    <p className="text-muted-foreground text-[11px]">
-                                      {t('hostsDialog.echQueryStrategy.info', {
-                                        defaultValue: 'ECH query strategy. Available values: none, half, full.',
-                                      })}
-                                    </p>
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                              <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value || '__default'}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="__default">{t('default')}</SelectItem>
-                                  <SelectItem value="none">none</SelectItem>
-                                  <SelectItem value="half">half</SelectItem>
-                                  <SelectItem value="full">full</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                          <TabsContent dir={dir} value="xray">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                              <FormField
+                                control={form.control}
+                                name="ech_config_list"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <FormLabel>{t('hostsDialog.echConfigList')}</FormLabel>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                            <Info className="text-muted-foreground h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                          <p className="text-muted-foreground text-[11px]">{t('hostsDialog.echConfigList.info')}</p>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <FormControl>
+                                      <Input placeholder={t('hostsDialog.echConfigListPlaceholder')} {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name="ech_query_strategy"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <FormLabel>{t('hostsDialog.echQueryStrategy', { defaultValue: 'ECH Query Strategy' })}</FormLabel>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                            <Info className="text-muted-foreground h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                          <p className="text-muted-foreground text-[11px]">
+                                            {t('hostsDialog.echQueryStrategy.info', {
+                                              defaultValue: 'ECH query strategy. Available values: none, half, full.',
+                                            })}
+                                          </p>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <Select onValueChange={value => field.onChange(value === '__default' ? undefined : value)} value={field.value || '__default'}>
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        <SelectItem value="__default">{t('default')}</SelectItem>
+                                        <SelectItem value="none">none</SelectItem>
+                                        <SelectItem value="half">half</SelectItem>
+                                        <SelectItem value="full">full</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent dir={dir} value="mihomo">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                              <FormField
+                                control={form.control}
+                                name="mihomo_ech_config"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <FormLabel>{t('hostsDialog.mihomoEchConfig')}</FormLabel>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                            <Info className="text-muted-foreground h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                          <p className="text-muted-foreground text-[11px]">{t('hostsDialog.mihomoEchConfig.info')}</p>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <FormControl>
+                                      <Input placeholder={t('hostsDialog.mihomoEchConfigPlaceholder')} {...field} value={field.value ?? ''} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name="mihomo_ech_query_server_name"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <FormLabel>{t('hostsDialog.mihomoEchQueryServerName')}</FormLabel>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                            <Info className="text-muted-foreground h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                          <p className="text-muted-foreground text-[11px]">{t('hostsDialog.mihomoEchQueryServerName.info')}</p>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <FormControl>
+                                      <Input maxLength={255} placeholder={t('hostsDialog.echQueryServerNamePlaceholder')} {...field} value={field.value ?? ''} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent dir={dir} value="singbox">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                              <FormField
+                                control={form.control}
+                                name="sing_box_ech_config"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <FormLabel>{t('hostsDialog.singBoxEchConfig')}</FormLabel>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                            <Info className="text-muted-foreground h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                          <p className="text-muted-foreground text-[11px]">{t('hostsDialog.singBoxEchConfig.info')}</p>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <FormControl>
+                                      <Textarea className="min-h-24 font-mono text-xs" dir="ltr" placeholder={t('hostsDialog.singBoxEchConfigPlaceholder')} {...field} value={field.value ?? ''} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name="sing_box_ech_query_server_name"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <FormLabel>{t('hostsDialog.singBoxEchQueryServerName')}</FormLabel>
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
+                                            <Info className="text-muted-foreground h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
+                                          <p className="text-muted-foreground text-[11px]">{t('hostsDialog.singBoxEchQueryServerName.info')}</p>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                    <FormControl>
+                                      <Input maxLength={255} placeholder={t('hostsDialog.echQueryServerNamePlaceholder')} {...field} value={field.value ?? ''} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </TabsContent>
+                        </Tabs>
 
                         <FormField
                           control={form.control}
@@ -1800,8 +1953,102 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <span className="hidden sm:inline">WebSocket</span>
                                 <span className="text-[11.5px] sm:hidden">WS</span>
                               </TabsTrigger>
+                              <TabsTrigger className="flex-1 px-1 text-xs sm:flex-none sm:px-2 sm:text-sm" value="masque">
+                                MASQUE
+                              </TabsTrigger>
                             </TabsList>
                           </div>
+
+                          <TabsContent dir={dir} value="masque" className="space-y-4 p-2">
+                            <FormField
+                              control={form.control}
+                              name="transport_settings.masque_settings.remote_dns"
+                              render={({ field }) => (
+                                <ArrayInput
+                                  field={{ ...field, value: field.value ?? [] }}
+                                  placeholder="1.1.1.1"
+                                  label={t('hostsDialog.masque.remoteDns', { defaultValue: 'MASQUE remote DNS servers' })}
+                                  infoContent={<p className="text-muted-foreground text-[11px]">{t('hostsDialog.masque.remoteDnsHint', { defaultValue: 'Leave empty to use the inbound DNS servers' })}</p>}
+                                />
+                              )}
+                            />
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-medium">{t('hostsDialog.xhttp.xmux')}</h4>
+                              <p className="text-muted-foreground text-xs">{t('hostsDialog.masque.xmuxHint')}</p>
+                              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.masque_settings.xmux.max_connections"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.maxConnections')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="1 or 1-3" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.masque_settings.xmux.max_concurrency"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.maxConcurrency')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="8 or 8-16" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.masque_settings.xmux.c_max_reuse_times"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.cMaxReuseTimes')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="1 or 1-3" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.masque_settings.xmux.h_max_reusable_secs"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.hMaxReusableSecs')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="1800-3000" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.masque_settings.xmux.h_keep_alive_period"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.hKeepAlivePeriod')}</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="number"
+                                          {...field}
+                                          value={field.value ?? ''}
+                                          onChange={event => field.onChange(event.target.value === '' ? null : Number(event.target.value))}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            </div>
+                          </TabsContent>
 
                           {/* XHTTP Settings */}
                           <TabsContent dir={dir} value="xhttp" className="space-y-4 p-2">
@@ -2061,12 +2308,12 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                       <FormLabel>{t('hostsDialog.xhttp.uplinkChunkSize')}</FormLabel>
                                       <FormControl>
                                         <Input
-                                          type="number"
+                                          type="text"
                                           {...field}
                                           value={field.value ?? ''}
                                           onChange={e => {
                                             const value = e.target.value
-                                            field.onChange(value === '' ? null : parseInt(value, 10))
+                                            field.onChange(value === '' ? undefined : value)
                                           }}
                                         />
                                       </FormControl>
@@ -2296,7 +2543,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                           // Refresh hosts list when dropdown is opened
                                           if (open) {
                                             queryClient.invalidateQueries({
-                                              queryKey: ['getHostsQueryKey'],
+                                              queryKey: getGetHostsQueryKey(),
                                             })
                                           }
                                         }}
@@ -2420,7 +2667,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                   <FormItem>
                                     <FormLabel>{t('hostsDialog.kcp.mtu')}</FormLabel>
                                     <FormControl>
-                                      <Input type="number" {...field} onChange={e => field.onChange(e.target.value ? Number(e.target.value) : 0)} value={field.value} />
+                                      <Input type="number" {...field} onChange={e => field.onChange(e.target.value === '' ? null : Number(e.target.value))} value={field.value ?? ''} />
                                     </FormControl>
                                     <FormMessage />
                                   </FormItem>

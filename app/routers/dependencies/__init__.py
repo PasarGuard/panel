@@ -8,6 +8,7 @@ from .host import get_host_list_query
 from .node import (
     get_node_clear_usage_query,
     get_node_list_query,
+    get_node_outbound_usage_query,
     get_node_simple_list_query,
     get_node_stats_period_query,
     get_node_usage_query,
@@ -18,6 +19,7 @@ from .user import (
     get_user_list_query,
     get_user_simple_list_query,
     get_user_usage_query,
+    get_users_usage_breakdown_query,
     get_users_usage_query,
 )
 from .user_template import get_user_template_list_query, get_user_template_simple_list_query
@@ -47,6 +49,7 @@ __all__ = [
     # node
     "get_node_clear_usage_query",
     "get_node_list_query",
+    "get_node_outbound_usage_query",
     "get_node_simple_list_query",
     "get_node_stats_period_query",
     "get_node_usage_query",
@@ -59,5 +62,6 @@ __all__ = [
     "get_user_template_list_query",
     "get_user_template_simple_list_query",
     "get_user_usage_query",
+    "get_users_usage_breakdown_query",
     "get_users_usage_query",
 ]

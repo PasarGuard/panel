@@ -1,4 +1,5 @@
-from sqlalchemy import BigInteger, Numeric, String, TypeDecorator
+from sqlalchemy import BigInteger, LargeBinary, Numeric, String, TypeDecorator
+from sqlalchemy.dialects import mysql
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.expression import FunctionElement
 
@@ -10,6 +11,55 @@ class CaseSensitiveString(String):
 
 class SqliteCompatibleBigInteger(BigInteger):
     pass
+
+
+class WebAuthnBinary(TypeDecorator):
+    """Binary storage that preserves MySQL's compact blob type for challenges."""
+
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            blob_type = mysql.TINYBLOB() if self.length <= 255 else mysql.BLOB()
+            return dialect.type_descriptor(blob_type)
+        return dialect.type_descriptor(LargeBinary(self.length))
+
+
+class WebAuthnCredentialId(TypeDecorator):
+    """Binary credential IDs that remain indexable on MySQL."""
+
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int = 1024):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            return dialect.type_descriptor(mysql.VARBINARY(self.length))
+        return dialect.type_descriptor(LargeBinary(self.length))
+
+
+class WebAuthnChallenge(TypeDecorator):
+    """Short binary challenges that remain indexable on MySQL."""
+
+    impl = LargeBinary
+    cache_ok = True
+
+    def __init__(self, length: int = 128):
+        self.length = length
+        super().__init__(length=length)
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "mysql":
+            return dialect.type_descriptor(mysql.VARBINARY(self.length))
+        return dialect.type_descriptor(LargeBinary(self.length))
 
 
 @compiles(SqliteCompatibleBigInteger, "sqlite")
@@ -126,9 +176,44 @@ def compile_date_diff_postgresql(element, compiler, **kw):
 
 @compiles(DateDiff, "mysql")
 def compile_date_diff_mysql(element, compiler, **kw):
-    return f"DATEDIFF({compiler.process(element.date1)}, {compiler.process(element.date2)})"
+    # Elapsed days like the other dialects: DATEDIFF() counts calendar dates, so 10 seconds across midnight would be
+    # a whole day and a reset cycle could end minutes after it started
+    return f"TIMESTAMPDIFF(SECOND, {compiler.process(element.date2)}, {compiler.process(element.date1)}) / 86400"
 
 
 @compiles(DateDiff, "sqlite")
 def compile_date_diff_sqlite(element, compiler, **kw):
     return f"julianday({compiler.process(element.date1)}) - julianday({compiler.process(element.date2)})"
+
+
+class ElapsedSeconds(FunctionElement):
+    """Return the exact elapsed seconds between two database timestamps."""
+
+    type = Numeric()
+    name = "elapsed_seconds"
+    inherit_cache = True
+
+    def __init__(self, date1, date2):
+        """Store the newer and older timestamp expressions as clauses, so they are part of the cache key."""
+        super().__init__(date1, date2)
+
+
+@compiles(ElapsedSeconds, "postgresql")
+def compile_elapsed_seconds_postgresql(element, compiler, **kw):
+    """Compile an exact timestamp difference for PostgreSQL."""
+    date1, date2 = element.clauses.clauses
+    return f"EXTRACT(EPOCH FROM ({compiler.process(date1, **kw)} - {compiler.process(date2, **kw)}))"
+
+
+@compiles(ElapsedSeconds, "mysql")
+def compile_elapsed_seconds_mysql(element, compiler, **kw):
+    """Compile an exact timestamp difference for MySQL."""
+    date1, date2 = element.clauses.clauses
+    return f"TIMESTAMPDIFF(SECOND, {compiler.process(date2, **kw)}, {compiler.process(date1, **kw)})"
+
+
+@compiles(ElapsedSeconds, "sqlite")
+def compile_elapsed_seconds_sqlite(element, compiler, **kw):
+    """Compile an exact timestamp difference for SQLite."""
+    date1, date2 = element.clauses.clauses
+    return f"(julianday({compiler.process(date1, **kw)}) - julianday({compiler.process(date2, **kw)})) * 86400"

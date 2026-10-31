@@ -28,11 +28,11 @@ export function SinceLogsFilter({ value, onValueChange, showTimestamp, onTimesta
   ]
 
   return (
-    <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground text-sm whitespace-nowrap">{t('nodes.logs.sinceLabel')}</span>
+    <>
+      <div className="flex w-full min-w-0 items-center gap-2 lg:w-auto">
+        <span className="text-muted-foreground shrink-0 text-sm whitespace-nowrap">{t('nodes.logs.sinceLabel')}</span>
         <Select value={value} onValueChange={value => onValueChange(value as TimeFilter)}>
-          <SelectTrigger className="h-9 w-32">
+          <SelectTrigger className="h-9 min-w-0 flex-1 lg:w-32 lg:flex-none">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -44,11 +44,11 @@ export function SinceLogsFilter({ value, onValueChange, showTimestamp, onTimesta
           </SelectContent>
         </Select>
       </div>
-      <div className="flex items-center gap-2">
-        <Clock size={14} className="text-muted-foreground flex-shrink-0" />
-        <span className="text-muted-foreground text-sm whitespace-nowrap">{t('nodes.logs.timestamps')}</span>
-        <Switch checked={showTimestamp} onCheckedChange={onTimestampChange} className="flex-shrink-0 scale-75" />
+      <div className="flex w-full min-w-0 items-center gap-2 lg:w-auto">
+        <Clock size={14} className="text-muted-foreground shrink-0" />
+        <span className="text-muted-foreground min-w-0 truncate text-sm">{t('nodes.logs.timestamps')}</span>
+        <Switch checked={showTimestamp} onCheckedChange={onTimestampChange} className="shrink-0 scale-75" />
       </div>
-    </div>
+    </>
   )
 }

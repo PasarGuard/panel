@@ -16,6 +16,12 @@ on:
 jobs:
     test-sqlite:
         runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                shard: [0, 1]
+        env:
+            PYTEST_ADDOPTS: "--shard-index=${{ matrix.shard }} --shard-count=2"
         steps:
             - uses: actions/checkout@v7
             - uses: actions/setup-python@v7
@@ -42,6 +48,12 @@ jobs:
 
     test-postgres:
         runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                shard: [0, 1]
+        env:
+            PYTEST_ADDOPTS: "--shard-index=${{ matrix.shard }} --shard-count=2"
         services:
             postgres:
                 image: postgres:latest
@@ -81,6 +93,12 @@ jobs:
 
     test-timescaledb:
         runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                shard: [0, 1]
+        env:
+            PYTEST_ADDOPTS: "--shard-index=${{ matrix.shard }} --shard-count=2"
         services:
             timescaledb:
                 image: timescale/timescaledb:latest-pg17
@@ -160,6 +178,12 @@ jobs:
 
     test-mysql:
         runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                shard: [0, 1]
+        env:
+            PYTEST_ADDOPTS: "--shard-index=${{ matrix.shard }} --shard-count=2"
         services:
             mysql:
                 image: mysql:latest
@@ -199,6 +223,12 @@ jobs:
 
     test-mariadb:
         runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                shard: [0, 1]
+        env:
+            PYTEST_ADDOPTS: "--shard-index=${{ matrix.shard }} --shard-count=2"
         services:
             mariadb:
                 image: mariadb:10.6

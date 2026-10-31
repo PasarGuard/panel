@@ -14,6 +14,13 @@ from app.models.subscription import SubscriptionInboundData
 from app.models.user import UsersResponseWithInbounds
 from app.settings import subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
+from app.subscription.config_cache import (
+    get_or_create_sub_config,
+    get_sub_config,
+    make_sub_config_key,
+    put_sub_config,
+)
+from app.utils.helpers import has_markup_unsafe_chars, has_oversized_format_spec
 from app.utils.system import readable_size
 
 from . import (
@@ -28,6 +35,9 @@ from . import (
 
 SERVER_IP = "127.0.0.1"
 SERVER_IPV6 = "[::1]"
+
+# Transports only the Xray JSON format can express.
+XRAY_ONLY_NETWORKS = frozenset({"xdrive"})
 
 
 def _build_subscription_config(
@@ -83,30 +93,55 @@ async def generate_subscription(
     as_base64: bool,
     randomize_order: bool = False,
 ) -> str | bytes:
-    client_templates = await subscription_client_templates()
-    xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
-    conf = _build_subscription_config(config_format, client_templates)
-    if conf is None:
-        raise ValueError(f'Unsupported format "{config_format}"')
+    cache_key = make_sub_config_key(user, config_format, as_base64, randomize_order)
+    async def render() -> str | bytes:
+        client_templates = await subscription_client_templates()
+        xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
+        conf = _build_subscription_config(config_format, client_templates)
+        if conf is None:
+            raise ValueError(f'Unsupported format "{config_format}"')
 
-    sub_settings = await subscription_settings()
-    custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
-    format_variables = setup_format_variables(user, sub_settings.custom_variables)
+        sub_settings = await subscription_settings()
+        custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
+        format_variables = setup_format_variables(user, sub_settings.custom_variables)
+        config = await process_inbounds_and_tags(
+            user,
+            format_variables,
+            conf,
+            client_templates,
+            xray_template_overrides=xray_template_overrides,
+            randomize_order=randomize_order,
+            custom_variables=custom_variables,
+        )
+        if as_base64 and not isinstance(config, bytes):
+            config = base64.b64encode(config.encode()).decode()
+        return config
 
-    config = await process_inbounds_and_tags(
-        user,
-        format_variables,
-        conf,
-        client_templates,
-        xray_template_overrides=xray_template_overrides,
-        randomize_order=randomize_order,
-        custom_variables=custom_variables,
-    )
+    if config_format != "wireguard":
+        cached = get_sub_config(cache_key)
+        if cached is not None:
+            return cached
+        config = await render()
+        put_sub_config(cache_key, config)
+        return config
 
-    if as_base64 and not isinstance(config, bytes):
-        config = base64.b64encode(config.encode()).decode()
+    return await get_or_create_sub_config(cache_key, render)
 
-    return config
+
+def inject_body_placement(conf: str | bytes, lines: list[str], placement: str, as_base64: bool) -> str | bytes:
+    if isinstance(conf, bytes) or not lines:
+        return conf
+
+    block = "\n".join(lines)
+    if as_base64:
+        try:
+            decoded = base64.b64decode(conf).decode()
+        except (ValueError, UnicodeDecodeError):
+            return conf
+        merged = f"{block}\n{decoded}" if placement == "body_start" else f"{decoded}\n{block}"
+        return base64.b64encode(merged.encode()).decode()
+
+    return f"{block}\n{conf}" if placement == "body_start" else f"{conf}\n{block}"
 
 
 def format_time_left(seconds_left: int) -> str:
@@ -173,9 +208,13 @@ def apply_custom_format_variables(format_variables: dict, custom_variables: list
 
 def _format_dynamic_value(value, format_variables: dict):
     if isinstance(value, str):
+        if has_oversized_format_spec(value):
+            # Formatting would build the padded result first; a value saved before the size check stays raw text
+            return value
         try:
             return value.format_map(format_variables)
-        except ValueError, KeyError:
+        except ValueError, KeyError, AttributeError, IndexError, TypeError:
+            # A value the variables cannot fill (stray brace, {0}, {X.y}) is kept as it is
             return value
     if isinstance(value, list):
         return [_format_dynamic_value(item, format_variables) for item in value]
@@ -309,14 +348,14 @@ async def process_host(
     if isinstance(inbound.tls_config.sni, list) and inbound.tls_config.sni:
         sni = random.choice(inbound.tls_config.sni)
     sni = sni.replace("*", salt)
-    sni = sni.format_map(format_variables) if sni else ""
+    sni = _format_dynamic_value(sni, format_variables) if sni else ""
 
     req_host = ""
     host_list = inbound.transport_config.host
     if isinstance(host_list, list) and host_list:
         req_host = random.choice(host_list)
     req_host = req_host.replace("*", salt)
-    req_host = req_host.format_map(format_variables) if req_host else ""
+    req_host = _format_dynamic_value(req_host, format_variables) if req_host else ""
 
     address = ""
     if inbound.address:
@@ -332,42 +371,36 @@ async def process_host(
         reality_sid = inbound.tls_config.reality_short_id
 
     # Format path with variables
-    path = inbound.transport_config.path.format_map(format_variables) if inbound.transport_config.path else ""
+    path = (
+        _format_dynamic_value(inbound.transport_config.path, format_variables) if inbound.transport_config.path else ""
+    )
 
     # Apply use_sni_as_host override
     if inbound.use_sni_as_host and sni:
         req_host = sni
 
-    # Create a copy of the inbound data with selected random values
-    # Deep copy tls_config and transport_config to avoid mutating cached host data
+    # Copy only the nested models we mutate so cached host objects stay intact.
+    transport_update: dict = {"host": req_host, "path": path}
+    if getattr(inbound.transport_config, "request", None):
+        transport_update["request"] = _format_dynamic_value(
+            inbound.transport_config.request,
+            format_variables,
+        )
+    if getattr(inbound.transport_config, "response", None):
+        transport_update["response"] = _format_dynamic_value(
+            inbound.transport_config.response,
+            format_variables,
+        )
     inbound_copy = inbound.model_copy(
         update={
-            "tls_config": inbound.tls_config.model_copy(deep=True),
-            "transport_config": inbound.transport_config.model_copy(deep=True),
+            "tls_config": inbound.tls_config.model_copy(
+                update={"sni": sni, "reality_short_id": reality_sid},
+            ),
+            "transport_config": inbound.transport_config.model_copy(update=transport_update),
+            "address": address,
+            "port": port,
         }
     )
-
-    # Update TLS config with selected values
-    inbound_copy.tls_config.sni = sni
-    inbound_copy.tls_config.reality_short_id = reality_sid
-
-    # Update transport config with selected host
-    inbound_copy.transport_config.host = req_host
-    inbound_copy.transport_config.path = path
-    if getattr(inbound_copy.transport_config, "request", None):
-        inbound_copy.transport_config.request = _format_dynamic_value(
-            inbound_copy.transport_config.request,
-            format_variables,
-        )
-    if getattr(inbound_copy.transport_config, "response", None):
-        inbound_copy.transport_config.response = _format_dynamic_value(
-            inbound_copy.transport_config.response,
-            format_variables,
-        )
-
-    # Update address and port with selected values
-    inbound_copy.address = address
-    inbound_copy.port = port
 
     return inbound_copy, settings
 
@@ -395,7 +428,7 @@ async def _prepare_download_settings(
     download_copy, _ = result
 
     if isinstance(download_copy.address, str):
-        download_copy.address = download_copy.address.format_map(format_variables)
+        download_copy.address = _format_dynamic_value(download_copy.address, format_variables)
 
     if isinstance(conf, StandardLinks):
         xc = XrayConfiguration(
@@ -440,6 +473,9 @@ async def process_inbounds_and_tags(
         return xray_template_overrides.get(template_id)
 
     for host_data in hosts:
+        if host_data.network in XRAY_ONLY_NETWORKS and not isinstance(conf, XrayConfiguration):
+            # Links, sing-box, Clash and Outline cannot carry these transports.
+            continue
         result = await process_host(host_data, format_variables, user.inbounds, proxy_settings, custom_variables)
         if not result:
             continue
@@ -448,8 +484,12 @@ async def process_inbounds_and_tags(
         inbound_copy, settings = result
 
         # Format remark and address with user variables
-        remark = inbound_copy.remark.format_map(format_variables)
-        formatted_address = inbound_copy.address.format_map(format_variables)
+        remark = _format_dynamic_value(inbound_copy.remark, format_variables)
+        formatted_address = _format_dynamic_value(inbound_copy.address, format_variables)
+        if has_markup_unsafe_chars(formatted_address):
+            # Never valid, and links print the address unencoded; covers hosts saved before
+            # address validation existed and values that came in through a format variable.
+            continue
 
         download_settings = getattr(inbound_copy.transport_config, "download_settings", None)
         if download_settings:

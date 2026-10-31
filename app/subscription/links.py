@@ -324,7 +324,7 @@ class StandardLinks(BaseSubscription):
         if obfs_password:
             payload["obfs"] = "salamander"
             payload["obfs-password"] = obfs_password
-        payload["mports"] = quic_params.get("udpHop", {}).get("ports", "")
+        payload["mports"] = (quic_params.get("udpHop") or {}).get("ports", "")
 
         self._apply_finalmask(payload, "hysteria", inbound)
         if inbound.tls_config.tls in ("tls", "reality"):
@@ -332,7 +332,8 @@ class StandardLinks(BaseSubscription):
             self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
 
         payload = self._normalize_and_remove_none_values(payload)
-        return f"hysteria2://{settings['auth']}@{address}:{inbound.port}?{urlparse.urlencode(payload, quote_via=urlparse.quote)}#{urlparse.quote(remark)}"
+        auth = urlparse.quote(settings["auth"], safe=":")
+        return f"hysteria2://{auth}@{address}:{inbound.port}?{urlparse.urlencode(payload, quote_via=urlparse.quote)}#{urlparse.quote(remark)}"
 
     def _build_wireguard(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build WireGuard link"""

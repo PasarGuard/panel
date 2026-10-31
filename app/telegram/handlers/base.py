@@ -1,3 +1,5 @@
+from html import escape
+
 from aiogram import F, Router, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
@@ -57,4 +59,4 @@ async def command_start_handler(
             ).as_markup(),
         )
     else:
-        await message.answer(f"Hello, {event.from_user.full_name}!")
+        await message.answer(f"Hello, {escape(event.from_user.full_name)}!")

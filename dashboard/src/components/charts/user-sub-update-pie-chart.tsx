@@ -4,7 +4,8 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAx
 import { DateRange } from 'react-day-picker'
 import { AlertTriangle, BarChart3, Calendar, PieChart as PieChartIcon, TrendingUp, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useTheme } from 'next-themes'
+import { useTheme } from '@/app/providers/theme-provider'
+import { getChartSeriesColor } from '@/utils/chart-colors'
 
 import AdminFilterCombobox from '@/components/common/admin-filter-combobox'
 import { TimeRangeSelector } from '@/components/common/time-range-selector'
@@ -15,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import UserSubUpdateStatsModal from '@/features/users/dialogs/user-sub-update-stats-modal'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
+import { useChartPeriodLimit } from '@/hooks/use-chart-period-limit'
 import {
   Period,
   type GetUsersSubUpdateChartParams,
@@ -80,22 +82,6 @@ const buildSegmentKey = (name: string, index: number) => {
     .replace(/^-+|-+$/g, '')
 
   return sanitized || `segment-${index}`
-}
-
-const generateDistinctColor = (index: number, isDark: boolean): string => {
-  const distinctHues = [0, 30, 60, 120, 180, 210, 240, 270, 300, 330, 15, 45, 75, 150, 200, 225, 255, 285, 315, 345]
-  const hue = distinctHues[index % distinctHues.length]
-  const saturationVariations = [65, 75, 85, 70, 80, 60, 90, 55, 95, 50]
-  const lightnessVariations = isDark ? [45, 55, 35, 50, 40, 60, 30, 65, 25, 70] : [40, 50, 30, 45, 35, 55, 25, 60, 20, 65]
-  const saturation = saturationVariations[index % saturationVariations.length]
-  const lightness = lightnessVariations[index % lightnessVariations.length]
-  return `hsl(${hue}, ${saturation}%, ${lightness}%)`
-}
-
-const getSegmentColor = (index: number, isDark: boolean) => {
-  if (index === 0) return 'hsl(var(--primary))'
-  if (index < 5) return `hsl(var(--chart-${index + 1}))`
-  return generateDistinctColor(index, isDark)
 }
 
 const formatPercentage = (value: number) => {
@@ -231,10 +217,11 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
   const [chartView, setChartView] = useState<'bar' | 'pie'>('pie')
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(() => (adminId != null ? adminId : null))
-  const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('all')
-  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
+  const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1m')
+  const [selectedPeriodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
+  const { allowedPeriods, periodOverride } = useChartPeriodLimit({ shortcut: selectedTime, customRange: showCustomRange ? customRange : undefined }, selectedPeriodOverride, setPeriodOverride)
   const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedData, setSelectedData] = useState<ChartDataPoint | null>(null)
@@ -301,7 +288,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
         key,
         percentage: safePercentage,
         count: safeCount,
-        color: getSegmentColor(index, isDark),
+        color: getChartSeriesColor(index, isDark),
       }
     })
   }, [data?.segments, resolvedTheme])
@@ -327,7 +314,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
         seen.set(key, {
           key,
           label: name,
-          color: getSegmentColor(seen.size, isDark),
+          color: getChartSeriesColor(seen.size, isDark),
         })
       }
     })
@@ -524,9 +511,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
               <span>
                 {t('statistics.subscriptionDistributionRetentionNote', {
                   limit: 10,
-                  env: 'USER_SUBSCRIPTION_CLIENTS_LIMIT',
-                  defaultValue:
-                    'By default only the latest {{limit}} subscription updates are kept per user. Change this with {{env}} in your environment.',
+                  defaultValue: 'By default only the latest {{limit}} subscription updates are kept per user. Change this in the subscription settings.',
                 })}
               </span>
             </p>
@@ -535,7 +520,7 @@ function UserSubUpdatePieChart({ username, adminId }: UserSubUpdatePieChartProps
             <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full sm:w-fit" />
               <div className="flex w-full items-center gap-2 sm:w-auto">
-                <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
+                <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} allowedPeriods={allowedPeriods} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
                 <button
                   type="button"
                   aria-label={t('statistics.customRange', { defaultValue: 'Custom Range' })}

@@ -1,27 +1,52 @@
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import and_, case, delete, desc, func, literal, not_, or_, select, update
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    Row,
+    and_,
+    bindparam,
+    case,
+    cast,
+    delete,
+    desc,
+    func,
+    insert,
+    literal,
+    not_,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload, with_expression
+from sqlalchemy.orm import joinedload, load_only, selectinload, with_expression
 from sqlalchemy.sql import Select
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.functions import coalesce
 
-from app.db.compiles_types import DateDiff
+from app.db.compiles_types import DateDiff, ElapsedSeconds
 from app.db.models import (
     Admin,
+    AdminStatus,
     DataLimitResetStrategy,
     Group,
     NextPlan,
+    Node,
     NodeUserUsage,
     NotificationReminder,
+    ProxyInbound,
     ReminderType,
     User,
+    UserHWID,
     UserStatus,
+    UserStatusCreate,
     UserSubscriptionUpdate,
     UserUsageResetLogs,
+    inbounds_groups_association,
     users_groups_association,
 )
 from app.models.proxy import ProxyTable
@@ -47,7 +72,7 @@ from app.models.user import (
     UserSortOption,
 )
 from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
-from config import user_cleanup_settings
+from app.subscription.sub_update_buffer import flush_user_sub_updates, queue_user_sub_update
 
 from .general import (
     _build_trunc_expression,
@@ -58,6 +83,7 @@ from .general import (
 )
 from .group import get_groups_by_ids
 from .wireguard import (
+    lock_users_subnets,
     release_allocations_by_user_ids,
     release_users_allocations,
     sync_user_allocations,
@@ -65,9 +91,39 @@ from .wireguard import (
     tags_from_groups,
 )
 
-_USER_AGENT_MAX_LEN = UserSubscriptionUpdate.__table__.columns.user_agent.type.length or 512
-_SUBSCRIPTION_UPDATE_IP_MAX_LEN = UserSubscriptionUpdate.__table__.columns.ip.type.length or 64
 _ONLINE_USERS_WINDOW = timedelta(minutes=2)
+
+
+def _review_user_select_stmt(*, load_groups: bool = True) -> Select:
+    """Load relations needed for status review jobs without materializing usage logs."""
+    return _build_user_select_stmt(
+        load_admin=True,
+        load_admin_role=True,
+        load_next_plan=True,
+        load_usage_logs=False,
+        load_groups=load_groups,
+        load_lifetime_used_traffic=True,
+    )
+
+
+def _user_reset_traffic_subquery():
+    return (
+        select(func.coalesce(func.sum(UserUsageResetLogs.used_traffic_at_reset), 0))
+        .where(UserUsageResetLogs.user_id == User.id)
+        .correlate(User)
+        .scalar_subquery()
+    )
+
+
+def _snapshot_reseted_usage(users: list[User]) -> dict[int, int]:
+    """Keep the already-loaded lifetime aggregate across bulk UPDATEs."""
+    return {user.id: int(user.reseted_usage) for user in users}
+
+
+def _restore_reseted_usage(users: list[User], reseted_usage: dict[int, int]) -> None:
+    for user in users:
+        if user.id in reseted_usage:
+            user.__dict__["_reseted_usage_query"] = reseted_usage[user.id]
 
 
 def _safe_on_hold_expire_duration(duration: int | None) -> int | None:
@@ -87,6 +143,13 @@ def _resolve_enabled_user_status(user: User) -> UserStatus:
     return UserStatus.active
 
 
+def _explicit_ids(column, ids: Sequence[int]):
+    """`column IN (...)` for ids taken from the request body. The ids are rendered into the statement at execution
+    time instead of bound one by one, so a statement never exceeds asyncpg's 32767 bind parameters (a filter that is
+    OR-combined with other conditions cannot be split into chunks)."""
+    return column.in_(bindparam(None, list(ids), expanding=True, literal_execute=True))
+
+
 def _build_user_select_stmt(
     *,
     load_admin: bool = True,
@@ -95,6 +158,7 @@ def _build_user_select_stmt(
     load_usage_logs: bool = True,
     load_groups: bool = True,
     join_groups: bool = False,
+    load_group_inbounds: bool = False,
     load_lifetime_used_traffic: bool = False,
 ) -> Select:
     """Build a user select statement with eager-load options."""
@@ -110,17 +174,17 @@ def _build_user_select_stmt(
     if load_usage_logs:
         options.append(selectinload(User.usage_logs))
     if load_groups:
-        options.append(joinedload(User.groups) if join_groups else selectinload(User.groups))
+        if join_groups:
+            groups_loader = joinedload(User.groups)
+        else:
+            groups_loader = selectinload(User.groups)
+            if load_group_inbounds:
+                groups_loader = groups_loader.selectinload(Group.inbounds)
+        options.append(groups_loader)
     if options:
         stmt = stmt.options(*options)
     if load_lifetime_used_traffic:
-        reset_traffic = (
-            select(func.coalesce(func.sum(UserUsageResetLogs.used_traffic_at_reset), 0))
-            .where(UserUsageResetLogs.user_id == User.id)
-            .correlate(User)
-            .scalar_subquery()
-        )
-        stmt = stmt.options(with_expression(User._reseted_usage_query, reset_traffic))
+        stmt = stmt.options(with_expression(User._reseted_usage_query, _user_reset_traffic_subquery()))
     return stmt
 
 
@@ -246,6 +310,42 @@ async def get_user_by_id(
     return (await db.execute(stmt)).unique().scalar_one_or_none()
 
 
+async def get_wireguard_subscription_user(
+    db: AsyncSession,
+    user_id: int,
+    *,
+    load_admin_role: bool = True,
+    admin_id: int | None = None,
+) -> User | None:
+    """Load only the ORM state required to render a WireGuard subscription."""
+    stmt = _build_user_select_stmt(
+        load_admin=True,
+        load_admin_role=load_admin_role,
+        load_next_plan=False,
+        load_usage_logs=False,
+        load_groups=False,
+        load_lifetime_used_traffic=False,
+    ).where(User.id == user_id)
+    if admin_id is not None:
+        stmt = stmt.where(User.admin_id == admin_id)
+
+    user = (await db.execute(stmt)).unique().scalar_one_or_none()
+    if user is None:
+        return None
+
+    tags_stmt = (
+        select(ProxyInbound.tag)
+        .select_from(users_groups_association)
+        .join(Group, users_groups_association.c.groups_id == Group.id)
+        .join(inbounds_groups_association, Group.id == inbounds_groups_association.c.group_id)
+        .join(ProxyInbound, inbounds_groups_association.c.inbound_id == ProxyInbound.id)
+        .where(users_groups_association.c.user_id == user_id, Group.is_disabled.is_(False))
+        .distinct()
+    )
+    user.__dict__["_wireguard_inbounds"] = list((await db.execute(tags_stmt)).scalars().all())
+    return user
+
+
 async def get_user_lifetime_used_traffic(db: AsyncSession, user_id: int) -> int:
     stmt = (
         select(
@@ -289,7 +389,69 @@ async def get_users_with_proxy_settings(
     return list(result.scalars().all())
 
 
+def _user_hwid_count_subquery():
+    return select(func.count(UserHWID.id)).where(UserHWID.user_id == User.id).correlate(User).scalar_subquery()
+
+
+async def get_admin_users_for_node_sync(
+    db: AsyncSession,
+    admin_id: int,
+    *,
+    statuses: Sequence[UserStatus] | None = None,
+) -> list[User]:
+    """Load an admin's users for node dispatch, without response-only fields or history."""
+    return await _get_users_for_node_sync(db, User.admin_id == admin_id, statuses=statuses)
+
+
+async def get_role_users_for_node_sync(
+    db: AsyncSession,
+    role_id: int,
+    admin_statuses: Sequence[AdminStatus],
+    *,
+    after_user_id: int = 0,
+    limit: int = 500,
+) -> list[User]:
+    """Load one ID-ordered batch of connectable users of affected admins in a role."""
+    admin_ids = select(Admin.id).where(Admin.role_id == role_id, Admin.status.in_(admin_statuses))
+    return await _get_users_for_node_sync(
+        db,
+        User.admin_id.in_(admin_ids),
+        statuses=[UserStatus.active, UserStatus.on_hold],
+        after_user_id=after_user_id,
+        limit=limit,
+    )
+
+
+async def _get_users_for_node_sync(
+    db: AsyncSession,
+    admin_filter: ColumnElement[bool],
+    *,
+    statuses: Sequence[UserStatus] | None = None,
+    after_user_id: int = 0,
+    limit: int | None = None,
+) -> list[User]:
+    """Load node-dispatch state, optionally restricted to a bounded ID-ordered page."""
+    stmt = (
+        select(User)
+        .where(admin_filter)
+        .options(
+            load_only(User.id, User.admin_id, User.status, User.proxy_settings),
+            joinedload(User.admin).joinedload(Admin.role),
+            selectinload(User.groups).selectinload(Group.inbounds),
+        )
+    )
+    if statuses is not None:
+        stmt = stmt.where(User.status.in_(statuses))
+    if limit is not None:
+        stmt = stmt.where(User.id > after_user_id).order_by(User.id).limit(limit)
+    return list((await db.scalars(stmt)).all())
+
+
 def _build_user_sort_clause(sort_option: UserSortOption):
+    if sort_option.field == UserSortField.hwid_count:
+        count = _user_hwid_count_subquery()
+        return count.desc() if sort_option.value.startswith("-") else count.asc()
+
     field_map = {
         UserSortField.username: User.username,
         UserSortField.used_traffic: User.used_traffic,
@@ -322,12 +484,40 @@ def _build_user_simple_sort_clause(sort_option: UserSimpleSortOption):
     return column.desc() if sort_option.value.startswith("-") else column.asc()
 
 
+def _build_user_sort_clauses(sort_options: list[UserSortOption]) -> list[ColumnElement]:
+    clauses = []
+    for sort_option in sort_options:
+        clause = _build_user_sort_clause(sort_option)
+        if isinstance(clause, tuple):
+            clauses.extend(clause)
+        else:
+            clauses.append(clause)
+
+    if sort_options:
+        # Keep offset pagination deterministic when multiple users share the
+        # same value for the requested sort field. Matching the last direction
+        # also lets the default created_at sort use (created_at, id) directly.
+        last_sort_descending = sort_options[-1].value.startswith("-")
+        clauses.append(User.id.desc() if last_sort_descending else User.id.asc())
+
+    return clauses
+
+
+def _build_user_count_stmt(stmt: Select) -> Select:
+    """Count filtered users without carrying page ordering or wide user rows."""
+    return stmt.with_only_columns(func.count(User.id)).order_by(None)
+
+
 async def get_users(
     db: AsyncSession,
     query: UserListQuery,
     admin: Admin | None = None,
     return_with_count: bool = False,
     load_admin_role: bool = False,
+    load_usage_logs: bool = True,
+    load_lifetime_used_traffic: bool = False,
+    load_group_inbounds: bool = False,
+    load_hwid_count: bool = False,
 ) -> list[User] | tuple[list[User], int]:
     """
     Retrieves users based on various filters.
@@ -337,6 +527,10 @@ async def get_users(
         query: Structured user list query filters.
         admin: Admin filter.
         return_with_count: Whether to return total count.
+        load_usage_logs: Whether to materialize reset-history rows.
+        load_lifetime_used_traffic: Whether to calculate lifetime usage with an aggregate.
+        load_group_inbounds: Whether to eager-load each user's groups' inbounds (avoids a query per user when
+            serializing users for nodes).
 
     Returns:
         List of users or tuple with (users, count) if return_with_count is True.
@@ -345,16 +539,28 @@ async def get_users(
     if load_admin_role:
         admin_loader = admin_loader.selectinload(Admin.role)
 
-    stmt = select(User).options(
+    groups_loader = selectinload(User.groups)
+    if load_group_inbounds:
+        groups_loader = groups_loader.selectinload(Group.inbounds)
+
+    options = [
         admin_loader,
         selectinload(User.next_plan),
-        selectinload(User.usage_logs),
-        selectinload(User.groups),
-    )
+        groups_loader,
+    ]
+    if load_usage_logs:
+        options.append(selectinload(User.usage_logs))
+    if load_lifetime_used_traffic:
+        options.append(with_expression(User._reseted_usage_query, _user_reset_traffic_subquery()))
+    stmt = select(User).options(*options)
+    if load_lifetime_used_traffic:
+        stmt = stmt.execution_options(populate_existing=True)
+    if load_hwid_count:
+        stmt = stmt.options(with_expression(User.hwid_count, _user_hwid_count_subquery()))
 
     filters = []
     if query.ids:
-        filters.append(User.id.in_(query.ids))
+        filters.append(_explicit_ids(User.id, query.ids))
     if query.username:
         filters.append(User.username.in_(query.username))
     if query.usernames:
@@ -416,18 +622,11 @@ async def get_users(
         stmt = stmt.where(and_(*filters))
 
     if query.sort:
-        sort_clauses = []
-        for sort_option in query.sort:
-            clause = _build_user_sort_clause(sort_option)
-            if isinstance(clause, tuple):
-                sort_clauses.extend(clause)
-            else:
-                sort_clauses.append(clause)
-        stmt = stmt.order_by(*sort_clauses)
+        stmt = stmt.order_by(*_build_user_sort_clauses(query.sort))
 
     total = None
     if return_with_count:
-        count_stmt = select(func.count()).select_from(stmt.subquery())
+        count_stmt = _build_user_count_stmt(stmt)
         result = await db.execute(count_stmt)
         total = result.scalar()
 
@@ -520,7 +719,7 @@ def _cleanup_target_user_conditions(
     expired_after: datetime | None = None,
     expired_before: datetime | None = None,
     admin_id: int | None = None,
-    target: Literal["expired", "limited", "on_hold", "disabled"] = "expired",
+    target: Literal["expired", "limited", "on_hold", "disabled", "inactive"] = "expired",
 ):
     if target == "expired":
         # Time-expired users: date range filters on the expiration date.
@@ -529,6 +728,15 @@ def _cleanup_target_user_conditions(
             conditions.append(User.expire >= expired_after)
         if expired_before:
             conditions.append(User.expire <= expired_before)
+    elif target == "inactive":
+        # Fall back to account creation for users that have never connected,
+        # so newly created accounts are not treated as long-term inactive.
+        last_activity = func.coalesce(User.online_at, User.created_at)
+        conditions = []
+        if expired_after:
+            conditions.append(last_activity >= expired_after)
+        if expired_before:
+            conditions.append(last_activity <= expired_before)
     else:
         # For limited / on_hold / disabled: date range filters apply to
         # last_status_change (i.e. when the user entered that status).
@@ -554,21 +762,27 @@ async def remove_expired_users(
     expired_after: datetime | None = None,
     expired_before: datetime | None = None,
     admin_id: int | None = None,
-    target: Literal["expired", "limited", "on_hold", "disabled"] = "expired",
+    target: Literal["expired", "limited", "on_hold", "disabled", "inactive"] = "expired",
     dry_run: bool = False,
-) -> list[str]:
+) -> tuple[list[str], list[Row]]:
+    """
+    Delete the users matching a cleanup target.
+
+    Returns the usernames, plus the deleted users that nodes still serve (active and on_hold,
+    as `id`/`proxy_settings` rows) so the caller can remove them from the nodes.
+    """
     conditions = _cleanup_target_user_conditions(expired_after, expired_before, admin_id, target)
 
-    rows = (await db.execute(select(User.id, User.username).where(*conditions))).all()
+    rows = (await db.execute(select(User.id, User.username, User.status, User.proxy_settings).where(*conditions))).all()
     if not rows:
-        return []
+        return [], []
 
-    usernames = [username for _, username in rows]
+    usernames = [row.username for row in rows]
 
     if dry_run:
-        return usernames
+        return usernames, []
 
-    user_ids = [user_id for user_id, _ in rows]
+    user_ids = [row.id for row in rows]
 
     for start in range(0, len(user_ids), 1000):
         chunk = user_ids[start : start + 1000]
@@ -577,25 +791,33 @@ async def remove_expired_users(
         await db.execute(delete(User).where(User.id.in_(chunk)))
     await db.commit()
 
-    return usernames
+    return usernames, [row for row in rows if row.status in (UserStatus.active, UserStatus.on_hold)]
 
 
 async def get_active_to_expire_users(db: AsyncSession) -> list[User]:
-    stmt = _build_user_select_stmt().where(User.status == UserStatus.active).where(User.is_expired)
+    stmt = _review_user_select_stmt().where(User.status == UserStatus.active).where(User.is_expired)
 
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
 async def get_active_to_limited_users(db: AsyncSession) -> list[User]:
-    stmt = _build_user_select_stmt().where(User.status == UserStatus.active).where(User.is_limited)
+    stmt = _review_user_select_stmt().where(User.status == UserStatus.active).where(User.is_limited)
 
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
 async def get_on_hold_to_active_users(db: AsyncSession) -> list[User]:
-    stmt = _build_user_select_stmt().where(User.status == UserStatus.on_hold).where(User.become_online)
+    stmt = _review_user_select_stmt().where(User.status == UserStatus.on_hold).where(User.become_online)
 
     return list((await db.execute(stmt)).unique().scalars().all())
+
+
+async def reload_review_users(db: AsyncSession, user_ids: list[int]) -> None:
+    """Load users picked by a review query again in place, e.g. after a rollback expired them."""
+    if not user_ids:
+        return
+    stmt = _review_user_select_stmt().where(_explicit_ids(User.id, user_ids))
+    (await db.execute(stmt.execution_options(populate_existing=True))).unique().scalars().all()
 
 
 async def get_users_to_reset_data_usage(db: AsyncSession) -> list[User]:
@@ -626,7 +848,7 @@ async def get_users_to_reset_data_usage(db: AsyncSession) -> list[User]:
     )
 
     stmt = (
-        _build_user_select_stmt()
+        _review_user_select_stmt()
         .outerjoin(last_reset_subq, User.id == last_reset_subq.c.user_id)
         .where(
             User.status.in_([UserStatus.active, UserStatus.limited]),
@@ -655,14 +877,13 @@ async def get_usage_percentage_reached_users(db: AsyncSession, percentage: int) 
     )
 
     stmt = (
-        _build_user_select_stmt()
+        _review_user_select_stmt()
         .options(joinedload(User.notification_reminders))
         .where(User.status == UserStatus.active)
         .where(User.usage_percentage >= percentage)
         .where(not_(existing_reminder_subq))  # Only users without existing reminders
     )
 
-    # All relations (admin, next_plan, usage_logs, groups) eagerly loaded via _build_user_select_stmt
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
@@ -683,7 +904,7 @@ async def get_days_left_reached_users(db: AsyncSession, days: int) -> list[User]
     )
 
     stmt = (
-        _build_user_select_stmt()
+        _review_user_select_stmt()
         .options(joinedload(User.notification_reminders))
         .where(User.status == UserStatus.active)
         .where(User.expire.isnot(None))
@@ -691,7 +912,6 @@ async def get_days_left_reached_users(db: AsyncSession, days: int) -> list[User]
         .where(not_(existing_reminder_subq))  # Only users without existing reminders
     )
 
-    # All relations (admin, next_plan, usage_logs, groups) eagerly loaded via _build_user_select_stmt
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
@@ -781,11 +1001,21 @@ async def get_users_count_by_admin(db: AsyncSession, admin_id: int | None) -> in
 
 
 async def lock_admin_quota_row(db: AsyncSession, admin_id: int) -> None:
-    """Lock an admin row before quota-sensitive user creation."""
-    if db.bind.dialect.name == "sqlite":
+    """Lock an admin row before quota-sensitive user creation.
+
+    Call it before the transaction writes anything: the user count that follows must see the users
+    committed by the previous holder of the lock.
+    """
+    dialect = db.bind.dialect.name
+    if dialect == "sqlite":
         await db.execute(update(Admin).where(Admin.id == admin_id).values(id=Admin.id))
         return
 
+    if dialect in ("mysql", "mariadb") and db.in_transaction():
+        # REPEATABLE READ keeps the snapshot of the transaction's first read (authentication,
+        # validation), so a count after the lock would miss users committed while waiting for it.
+        # Nothing is written yet, so end that read-only transaction and let the count take a new one.
+        await db.commit()
     await db.execute(select(Admin.id).where(Admin.id == admin_id).with_for_update())
 
 
@@ -810,11 +1040,22 @@ async def get_users_by_ids(
     user_ids: Sequence[int],
     *,
     load_admin_role: bool = False,
+    load_group_inbounds: bool = False,
+    load_usage_logs: bool = True,
+    load_lifetime_used_traffic: bool = False,
+    populate_existing: bool = False,
 ) -> list[User]:
+    """Load users in request order with optional history, aggregates and refreshed state."""
     if not user_ids:
         return []
 
-    result = await db.execute(_build_user_select_stmt(load_admin_role=load_admin_role).where(User.id.in_(user_ids)))
+    stmt = _build_user_select_stmt(
+        load_admin_role=load_admin_role,
+        load_group_inbounds=load_group_inbounds,
+        load_usage_logs=load_usage_logs,
+        load_lifetime_used_traffic=load_lifetime_used_traffic,
+    ).execution_options(populate_existing=populate_existing)
+    result = await db.execute(stmt.where(_explicit_ids(User.id, user_ids)))
     users_by_id = {user.id: user for user in result.unique().scalars().all()}
     return [users_by_id[user_id] for user_id in user_ids if user_id in users_by_id]
 
@@ -980,12 +1221,31 @@ async def create_users_bulk(
     return db_users
 
 
+_USER_DEPENDENT_MODELS = (
+    NodeUserUsage,
+    UserUsageResetLogs,
+    UserSubscriptionUpdate,
+    UserHWID,
+    NextPlan,
+    NotificationReminder,
+)
+
+
 async def _delete_user_dependencies(db: AsyncSession, user_ids: list[int]):
     """Remove all rows that reference the given user IDs."""
     if not user_ids:
         return
 
-    await db.execute(users_groups_association.delete().where(users_groups_association.c.user_id.in_(user_ids)))
+    await db.execute(
+        users_groups_association.delete().where(_explicit_ids(users_groups_association.c.user_id, user_ids))
+    )
+
+    # PostgreSQL and MySQL cascade these through the foreign keys. The panel's SQLite connections do not enforce
+    # foreign keys, so the rows would stay, and a new user that gets the same id (SQLite reuses the highest id)
+    # would inherit them.
+    if db.bind.dialect.name == "sqlite":
+        for model in _USER_DEPENDENT_MODELS:
+            await db.execute(delete(model).where(_explicit_ids(model.user_id, user_ids)))
 
 
 async def remove_user(db: AsyncSession, db_user: User) -> User:
@@ -1021,7 +1281,7 @@ async def remove_users(db: AsyncSession, db_users: list[User]):
 
     await release_users_allocations(db, db_users)
     await _delete_user_dependencies(db, user_ids)
-    await db.execute(delete(User).where(User.id.in_(user_ids)))
+    await db.execute(delete(User).where(_explicit_ids(User.id, user_ids)))
     await db.commit()
 
 
@@ -1107,16 +1367,17 @@ async def modify_user(
     if modify.hwid_limit is not None:
         db_user.hwid_limit = modify.hwid_limit
 
-    if modify.next_plan is not None:
-        db_user.next_plan = NextPlan(
-            user_id=db_user.id,
-            user_template_id=modify.next_plan.user_template_id,
-            data_limit=modify.next_plan.data_limit,
-            expire=modify.next_plan.expire,
-            add_remaining_traffic=modify.next_plan.add_remaining_traffic,
-        )
-    elif db_user.next_plan is not None:
-        await db.delete(db_user.next_plan)
+    if "next_plan" in modify.model_fields_set:
+        if modify.next_plan is not None:
+            db_user.next_plan = NextPlan(
+                user_id=db_user.id,
+                user_template_id=modify.next_plan.user_template_id,
+                data_limit=modify.next_plan.data_limit,
+                expire=modify.next_plan.expire,
+                add_remaining_traffic=modify.next_plan.add_remaining_traffic,
+            )
+        elif db_user.next_plan is not None:
+            await db.delete(db_user.next_plan)
 
     db_user.edit_at = datetime.now(UTC)
 
@@ -1136,20 +1397,45 @@ async def modify_user(
     return db_user
 
 
-async def _reset_user_traffic_and_log(db: AsyncSession, db_user: User):
-    """Helper to reset user traffic and log the action."""
-    await db_user.awaitable_attrs.next_plan
-    usage_log = UserUsageResetLogs(
-        user_id=db_user.id,
-        used_traffic_at_reset=db_user.used_traffic,
+async def _reset_users_traffic_and_log(
+    db: AsyncSession, user_ids: Sequence[int], *, clean_chart_data: bool = False
+) -> None:
+    """Log and zero the users' traffic, drop their next plans and passed data-usage reminders, and reactivate
+    limited users, with the same few statements for any number of users.
+
+    The traffic is logged from the row as the reset writes it, not from the copy loaded before: record_usages keeps
+    adding to `used_traffic` meanwhile, and logging a stale value then writing 0 drops that traffic from both the
+    new period and the lifetime total. The rows are locked first (PostgreSQL/MySQL); on SQLite the INSERT is the
+    first write, so it takes the write lock before it reads them."""
+    if not user_ids:
+        return
+    selected = _explicit_ids(User.id, user_ids)
+    await db.execute(select(User.id).where(selected).order_by(User.id).with_for_update())
+
+    reset_at = bindparam("reset_at", datetime.now(UTC), type_=UserUsageResetLogs.reset_at.type)
+    await db.execute(
+        insert(UserUsageResetLogs.__table__).from_select(
+            ["user_id", "used_traffic_at_reset", "reset_at"],
+            select(User.id, User.used_traffic, reset_at).where(selected),
+        )
     )
-    db.add(usage_log)
-
-    if db_user.next_plan:
-        await db.delete(db_user.next_plan)
-        db_user.next_plan = None
-
-    db_user.used_traffic = 0
+    reset_status = case((User.status == UserStatus.limited, UserStatus.active), else_=User.status)
+    await db.execute(
+        update(User)
+        .where(selected)
+        .values(used_traffic=0, status=reset_status)
+        .execution_options(synchronize_session=False)
+    )
+    await db.execute(delete(NextPlan).where(_explicit_ids(NextPlan.user_id, user_ids)))
+    await db.execute(
+        delete(NotificationReminder).where(
+            _explicit_ids(NotificationReminder.user_id, user_ids),
+            NotificationReminder.type == ReminderType.data_usage,
+            NotificationReminder.threshold > 0,
+        )
+    )
+    if clean_chart_data:
+        await db.execute(delete(NodeUserUsage).where(_explicit_ids(NodeUserUsage.user_id, user_ids)))
 
 
 async def clear_user_node_usages(db: AsyncSession, user_id: int, *, before: datetime | None = None) -> None:
@@ -1172,17 +1458,14 @@ async def reset_user_data_usage(
     Returns:
         User: The updated user object.
     """
-    await _reset_user_traffic_and_log(db, db_user)
-    await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
-    if clean_chart_data:
-        await clear_user_node_usages(db, db_user.id)
-
-    if db_user.status == UserStatus.limited:
-        db_user.status = UserStatus.active
+    await _reset_users_traffic_and_log(db, [db_user.id], clean_chart_data=clean_chart_data)
 
     if commit:
         await db.commit()
         await refresh_and_load_user(db, db_user)
+    else:
+        # The reset ran in SQL: reload what it changed so the caller keeps editing an up-to-date user
+        await db.refresh(db_user, attribute_names=["used_traffic", "status", "next_plan"])
     return db_user
 
 
@@ -1192,6 +1475,9 @@ async def bulk_reset_user_data_usage(
     """
     Resets the data usage for a list of users and logs the reset.
 
+    The users are reloaded with `populate_existing`: with `commit=False`, pending in-memory changes on them are
+    discarded, so flush them first.
+
     Args:
         db (AsyncSession): Database session.
         users (list[User]): The list of user objects whose data usage is to be reset.
@@ -1199,18 +1485,20 @@ async def bulk_reset_user_data_usage(
     Returns:
         list[User]: The updated list of user objects.
     """
-    for db_user in users:
-        await _reset_user_traffic_and_log(db, db_user)
-        await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
-        if clean_chart_data:
-            await clear_user_node_usages(db, db_user.id)
-        if db_user.status == UserStatus.limited:
-            db_user.status = UserStatus.active
+    user_ids = [db_user.id for db_user in users]
+    await _reset_users_traffic_and_log(db, user_ids, clean_chart_data=clean_chart_data)
     if commit:
         await db.commit()
-        for user in users:
-            await refresh_and_load_user(db, user, load_admin_role=True)
-    return users
+    # One reload for all users (with the node-sync relations), without materializing their reset history
+    return await get_users_by_ids(
+        db,
+        user_ids,
+        load_admin_role=True,
+        load_group_inbounds=True,
+        load_usage_logs=False,
+        load_lifetime_used_traffic=True,
+        populate_existing=True,
+    )
 
 
 def build_revoked_proxy_settings(db_user: User) -> dict:
@@ -1233,14 +1521,17 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
     Returns:
         User: The updated user object.
     """
+    now = datetime.now(UTC)
+    db_user.status = UserStatus.active
+    db_user.on_hold_expire_duration = None
+    db_user.on_hold_timeout = None
+    db_user.edit_at = now
     remaining_traffic = (db_user.data_limit or 0) - db_user.used_traffic
     if db_user.next_plan.user_template_id is None:
         db_user.data_limit = db_user.next_plan.data_limit + (
             0 if not db_user.next_plan.add_remaining_traffic else remaining_traffic
         )
-        db_user.expire = (
-            timedelta(seconds=db_user.next_plan.expire) + datetime.now(UTC) if db_user.next_plan.expire else None
-        )
+        db_user.expire = now + timedelta(seconds=db_user.next_plan.expire) if db_user.next_plan.expire else None
     else:
         await db_user.next_plan.awaitable_attrs.user_template
         await db_user.next_plan.user_template.awaitable_attrs.groups
@@ -1249,14 +1540,20 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
         db_user.data_limit = db_user.next_plan.user_template.data_limit + (
             0 if not db_user.next_plan.add_remaining_traffic else remaining_traffic
         )
-        if db_user.next_plan.user_template.status is UserStatus.on_hold:
+        if db_user.next_plan.user_template.status is UserStatusCreate.on_hold:
             db_user.status = UserStatus.on_hold
             db_user.on_hold_expire_duration = db_user.next_plan.user_template.expire_duration
-            db_user.on_hold_timeout = db_user.next_plan.user_template.on_hold_timeout
+            db_user.on_hold_timeout = (
+                now + timedelta(seconds=db_user.next_plan.user_template.on_hold_timeout)
+                if db_user.next_plan.user_template.on_hold_timeout
+                else None
+            )
+            # Only connections after renewal may start this plan.
+            db_user.online_at = None
             db_user.expire = None
         else:
             db_user.expire = (
-                timedelta(seconds=db_user.next_plan.user_template.expire_duration) + datetime.now(UTC)
+                now + timedelta(seconds=db_user.next_plan.user_template.expire_duration)
                 if db_user.next_plan.user_template.expire_duration
                 else None
             )
@@ -1271,12 +1568,7 @@ async def reset_user_by_next(db: AsyncSession, db_user: User, *, clean_chart_dat
             db_user.proxy_settings = proxy_settings
         db_user.data_limit_reset_strategy = db_user.next_plan.user_template.data_limit_reset_strategy
 
-    await _reset_user_traffic_and_log(db, db_user)
-    await delete_user_passed_notification_reminders(db, db_user.id, ReminderType.data_usage, 0)
-    if clean_chart_data:
-        await clear_user_node_usages(db, db_user.id)
-    db_user.status = UserStatus.active
-
+    await _reset_users_traffic_and_log(db, [db_user.id], clean_chart_data=clean_chart_data)
     await db.commit()
     await refresh_and_load_user(db, db_user)
     return db_user
@@ -1328,28 +1620,33 @@ async def bulk_revoke_user_sub(
     return users
 
 
+@asynccontextmanager
+async def _subscription_update_read_session(db: AsyncSession) -> AsyncIterator[AsyncSession]:
+    """Read committed updates without reusing the caller's pre-flush snapshot."""
+    await flush_user_sub_updates()
+    # MySQL/MariaDB REPEATABLE READ may already have a snapshot from the
+    # authorization/user lookup. A separate session sees the flushed rows
+    # without committing or rolling back any work owned by the caller.
+    async with AsyncSession(bind=db.bind, expire_on_commit=False) as read_db:
+        yield read_db
+
+
 async def user_sub_update(
     db: AsyncSession, user_id: int, user_agent: str, ip: str | None = None, hwid: str | None = None
 ) -> None:
     """
-    Updates the user's subscription details.
+    Queue a subscription-update row. The request session is unused; writes are
+    flushed in the background so the public /sub path stays read-mostly.
 
     Args:
-        db (AsyncSession): Database session.
+        db (AsyncSession): Database session (unused; kept for call-site compatibility).
         user_id (int): The user id whose subscription is to be updated.
         user_agent (str): The user agent string.
         ip (str | None): The client IP address.
         hwid (str | None): The hardware ID of the client.
     """
-    # Clamp to column length; some clients send very long strings (e.g. encoded configs) as User-Agent.
-    sanitized_user_agent = (user_agent or "")[:_USER_AGENT_MAX_LEN]
-    sanitized_ip = (ip or "")[:_SUBSCRIPTION_UPDATE_IP_MAX_LEN] or None
-    sanitized_hwid = (hwid or "")[:256] or None
-    agent = UserSubscriptionUpdate(
-        user_id=user_id, user_agent=sanitized_user_agent, ip=sanitized_ip, hwid=sanitized_hwid
-    )
-    db.add(agent)
-    await db.commit()
+    _ = db
+    await queue_user_sub_update(user_id, user_agent, ip=ip, hwid=hwid)
 
 
 async def get_users_sub_update_list(
@@ -1361,15 +1658,16 @@ async def get_users_sub_update_list(
         .order_by(desc(UserSubscriptionUpdate.created_at))
     )
 
-    result = await db.execute(select(func.count()).select_from(stmt.subquery()))
-    count = result.scalar() or 0
+    async with _subscription_update_read_session(db) as read_db:
+        result = await read_db.execute(select(func.count()).select_from(stmt.subquery()))
+        count = result.scalar() or 0
 
-    if offset:
-        stmt = stmt.offset(offset)
-    if limit:
-        stmt = stmt.limit(limit)
+        if offset:
+            stmt = stmt.offset(offset)
+        if limit:
+            stmt = stmt.limit(limit)
 
-    result = (await db.execute(stmt)).unique().scalars().all()
+        result = (await read_db.execute(stmt)).unique().scalars().all()
 
     return result, count
 
@@ -1382,10 +1680,13 @@ def _subscription_update_from_clause(
     if user_id is not None:
         conditions.append(UserSubscriptionUpdate.user_id == user_id)
         from_clause = UserSubscriptionUpdate.__table__
-    else:
+    elif admin_id is not None:
         from_clause = UserSubscriptionUpdate.__table__.join(User, UserSubscriptionUpdate.user_id == User.id)
-        if admin_id:
-            conditions.append(User.admin_id == admin_id)
+        conditions.append(User.admin_id == admin_id)
+    else:
+        # The owner-wide chart does not read any users columns. Keeping this
+        # history-only lets the created_at index drive the global time range.
+        from_clause = UserSubscriptionUpdate.__table__
     return from_clause, conditions
 
 
@@ -1413,7 +1714,8 @@ async def get_users_subscription_agent_counts(
         stmt = stmt.where(and_(*conditions))
     stmt = stmt.group_by(UserSubscriptionUpdate.user_agent)
 
-    result = await db.execute(stmt)
+    async with _subscription_update_read_session(db) as read_db:
+        result = await read_db.execute(stmt)
     return [(agent, count) for agent, count in result.all()]
 
 
@@ -1449,7 +1751,8 @@ async def get_users_subscription_agent_stats(
         .order_by(trunc_expr)
     )
 
-    result = await db.execute(stmt)
+    async with _subscription_update_read_session(db) as read_db:
+        result = await read_db.execute(stmt)
     dialect = db.bind.dialect.name
     rows = []
     for row in result.mappings():
@@ -1459,8 +1762,22 @@ async def get_users_subscription_agent_stats(
     return rows
 
 
+AUTODELETE_BATCH_SIZE = 100
+AUTODELETE_MAX_USERS_PER_RUN = 1000
+AUTODELETE_MAX_RETRIES = 3
+
+
+def _wireguard_settings(proxy_settings: dict | None):
+    return (proxy_settings or {}).get("wireguard")
+
+
 async def autodelete_expired_users(
-    db: AsyncSession, include_limited_users: bool = False
+    db: AsyncSession,
+    include_limited_users: bool = False,
+    default_autodelete_days: int | None = None,
+    *,
+    batch_size: int = AUTODELETE_BATCH_SIZE,
+    max_users: int = AUTODELETE_MAX_USERS_PER_RUN,
 ) -> list[UserNotificationResponse]:
     """
     Deletes expired (optionally also limited) users whose auto-delete time has passed.
@@ -1469,39 +1786,73 @@ async def autodelete_expired_users(
         db (AsyncSession): Database session
         include_limited_users (bool, optional): Whether to delete limited users as well.
             Defaults to False.
+        default_autodelete_days (int | None): Fallback retention for users without
+            an individual policy. ``None`` or a negative value keeps them.
+        batch_size (int): Maximum users deleted in each transaction.
+        max_users (int): Maximum users deleted during this invocation.
 
     Returns:
         list[UserNotificationResponse]: List of deleted users.
     """
     target_status = [UserStatus.expired] if not include_limited_users else [UserStatus.expired, UserStatus.limited]
 
-    auto_delete = func.coalesce(User.auto_delete_in_days, literal(user_cleanup_settings.autodelete_days))
+    fallback_days = -1 if default_autodelete_days is None else default_autodelete_days
+    if batch_size <= 0 or max_users <= 0:
+        raise ValueError("batch_size and max_users must be positive")
+    auto_delete = func.coalesce(User.auto_delete_in_days, literal(fallback_days))
 
-    query = (
-        select(
-            User,
-            auto_delete,  # Use global auto-delete days as fallback
-        )
-        .where(
-            auto_delete >= 0,  # Negative values prevent auto-deletion
-            User.status.in_(target_status),
-        )
-        .options(joinedload(User.admin))
+    eligibility_conditions = (
+        auto_delete >= 0,  # Negative values prevent auto-deletion
+        User.status.in_(target_status),
+        User.last_status_change.isnot(None),
+        # Compare with the app's UTC time: NOW() on MySQL is the session time zone. The bind is time zone aware
+        # so PostgreSQL does not read it in the session time zone either.
+        ElapsedSeconds(literal(datetime.now(UTC), DateTime(timezone=True)), User.last_status_change)
+        # 36,500 days in seconds does not fit a 32-bit integer
+        >= cast(auto_delete, BigInteger) * 86_400,
     )
-
-    expired_users = [
-        user
-        for (user, auto_delete) in (await db.execute(query)).unique()
-        if user.last_status_change.replace(tzinfo=UTC) + timedelta(days=auto_delete) <= datetime.now(UTC)
-    ]
+    candidate_query = select(User.id, User.proxy_settings).where(*eligibility_conditions).order_by(User.id)
 
     result: list[UserNotificationResponse] = []
-    if expired_users:
+    retries = 0
+    while len(result) < max_users:
+        current_batch_size = min(batch_size, max_users - len(result))
+        candidates = (await db.execute(candidate_query.limit(current_batch_size))).all()
+        if not candidates:
+            break
+        candidate_ids = [candidate.id for candidate in candidates]
+        prelocked = {candidate.id: _wireguard_settings(candidate.proxy_settings) for candidate in candidates}
+        # remove_users releases WireGuard peer IPs, which locks subnet rows: take them before the user rows
+        await lock_users_subnets(db, [candidate.proxy_settings for candidate in candidates])
+
+        # Revalidate after candidate selection, then hold row locks until remove_users commits.
+        # This prevents a concurrent status or retention-policy update from racing the delete.
+        locked_query = (
+            select(User)
+            .where(User.id.in_(candidate_ids), *eligibility_conditions)
+            .options(joinedload(User.admin))
+            .order_by(User.id)
+            .with_for_update(of=User, skip_locked=True)
+        )
+        expired_users = (await db.scalars(locked_query)).unique().all()
+        if not expired_users:
+            break
+        if any(_wireguard_settings(user.proxy_settings) != prelocked[user.id] for user in expired_users):
+            # A peer IP moved after the candidates were read, so its subnet row is not locked yet: start the batch over
+            await db.rollback()
+            retries += 1
+            if retries > AUTODELETE_MAX_RETRIES:
+                break
+            continue
+
         for user in expired_users:
             await load_user_attrs(user)
             result.append(UserNotificationResponse.model_validate(user))
 
         await remove_users(db, expired_users)
+
+        if len(candidate_ids) < current_batch_size:
+            break
 
     return result
 
@@ -1514,6 +1865,8 @@ async def get_all_users_usages(
     period: Period = Period.hour,
     node_id: int | None = None,
     group_by_node: bool = False,
+    core_id: int | None = None,
+    group_by_admin: bool = False,
 ) -> UserUsageStatsList:
     """
     Retrieves aggregated usage data for all users of an admin within a specified time range,
@@ -1527,6 +1880,9 @@ async def get_all_users_usages(
         end (datetime): End of the period (with timezone).
         period (Period): Time period to group by ('minute', 'hour', 'day', 'month').
         node_id (Optional[int]): Filter results by specific node ID if provided
+        group_by_node (bool): Whether to group results by node.
+        core_id (Optional[int]): Filter results by the nodes of a specific core config if provided
+        group_by_admin (bool): Whether to group results by the users' admin (0 for users without admin).
 
     Returns:
         UserUsageStatsList: Aggregated usage data for each period.
@@ -1546,13 +1902,18 @@ async def get_all_users_usages(
     if admins_filter:
         conditions.append(Admin.username.in_(admins_filter))
 
+    if core_id is not None:
+        conditions.append(NodeUserUsage.node_id.in_(select(Node.id).where(Node.core_config_id == core_id)))
+
     if node_id is not None:
         conditions.append(NodeUserUsage.node_id == node_id)
     else:
         node_id = -1
 
     dialect = db.bind.dialect.name
-    from_clause = NodeUserUsage.__table__.join(User, User.id == NodeUserUsage.user_id)
+    from_clause = NodeUserUsage.__table__
+    if _usage_history_needs_users_join(dialect, admins_filter, group_by_admin):
+        from_clause = from_clause.join(User, User.id == NodeUserUsage.user_id)
     if admins_filter:
         from_clause = from_clause.join(Admin, Admin.id == User.admin_id)
 
@@ -1566,6 +1927,18 @@ async def get_all_users_usages(
             .select_from(from_clause)
             .where(and_(*conditions))
             .group_by(trunc_expr, NodeUserUsage.node_id)
+            .order_by(trunc_expr)
+        )
+    elif group_by_admin:
+        stmt = (
+            select(
+                trunc_expr.label("period_start"),
+                func.coalesce(User.admin_id, 0).label("admin_id"),
+                func.sum(NodeUserUsage.used_traffic).label("total_traffic"),
+            )
+            .select_from(from_clause)
+            .where(and_(*conditions))
+            .group_by(trunc_expr, User.admin_id)
             .order_by(trunc_expr)
         )
     else:
@@ -1583,15 +1956,23 @@ async def get_all_users_usages(
     for row in result.mappings():
         row_dict = dict(row)
         node_id_val = row_dict.pop("node_id", node_id)
+        # Stats are keyed by admin id instead of node id when grouped by admin
+        stats_key = row_dict.pop("admin_id", node_id_val)
 
         # Attach timezone info to period_start
         attach_timezone_to_period_start(row_dict, start.tzinfo, dialect)
 
-        if node_id_val not in stats:
-            stats[node_id_val] = []
-        stats[node_id_val].append(UserUsageStat(**row_dict))
+        if stats_key not in stats:
+            stats[stats_key] = []
+        stats[stats_key].append(UserUsageStat(**row_dict))
 
     return UserUsageStatsList(period=period, start=start, end=end, stats=stats)
+
+
+def _usage_history_needs_users_join(dialect: str, admins_filter: Sequence[str] | None, group_by_admin: bool) -> bool:
+    # PostgreSQL, MySQL and MariaDB delete a user's history rows through ON DELETE CASCADE, so joining every row to
+    # users only matters for admin scoping. SQLite does not enforce foreign keys and keeps orphan rows to filter out.
+    return bool(admins_filter) or group_by_admin or dialect == "sqlite"
 
 
 async def get_user_count_metric_stats(
@@ -1607,11 +1988,14 @@ async def get_user_count_metric_stats(
     """Retrieves one distinct user count metric from node_user_usages."""
     validate_user_count_metric_scope(metric, node_id=node_id, group_by_node=group_by_node)
 
-    query_parts = _build_user_count_query_parts(db, admins, start, end, period, node_id)
+    query_parts = _build_user_count_query_parts(db, admins, start, end, period, metric, node_id)
     count_expr = _build_user_count_metric_expression(metric).label("count")
-    total_stmt = select(count_expr).select_from(query_parts["from_clause"]).where(and_(*query_parts["conditions"]))
+    use_distinct_pairs = _user_count_buckets_from_distinct_pairs(query_parts["dialect"])
 
-    if group_by_node:
+    if use_distinct_pairs:
+        # One pass over the history rows: the bucket counts and the period total both come from the pairs
+        stmt = _build_user_count_buckets_from_distinct_pairs(query_parts, metric, group_by_node)
+    elif group_by_node:
         stmt = (
             select(
                 query_parts["trunc_expr"].label("period_start"),
@@ -1632,13 +2016,17 @@ async def get_user_count_metric_stats(
             .order_by(query_parts["trunc_expr"])
         )
 
-    total_result = await db.execute(total_stmt)
+    count_during_period = 0
+    if not use_distinct_pairs:
+        total_stmt = select(count_expr).select_from(query_parts["from_clause"]).where(and_(*query_parts["conditions"]))
+        count_during_period = (await db.execute(total_stmt)).scalar_one() or 0
     result = await db.execute(stmt)
-    count_during_period = total_result.scalar_one() or 0
 
     stats = {}
     for row in result.mappings():
         row_dict = dict(row)
+        if use_distinct_pairs:
+            count_during_period = row_dict.pop("count_during_period") or 0
         node_id_val = row_dict.pop("node_id", query_parts["stats_key"])
 
         attach_timezone_to_period_start(row_dict, start.tzinfo, query_parts["dialect"])
@@ -1663,6 +2051,7 @@ def _build_user_count_query_parts(
     start: datetime,
     end: datetime,
     period: Period,
+    metric: UserCountMetric,
     node_id: int | None,
 ) -> dict:
     admins_filter = admins or None
@@ -1683,7 +2072,11 @@ def _build_user_count_query_parts(
     else:
         stats_key = -1
 
-    from_clause = NodeUserUsage.__table__.join(User, User.id == NodeUserUsage.user_id)
+    # Online counts only read node_user_usages. Avoid joining every history row
+    # to users unless a status metric or an admin scope actually needs it.
+    from_clause = NodeUserUsage.__table__
+    if metric != UserCountMetric.online or admins_filter:
+        from_clause = from_clause.join(User, User.id == NodeUserUsage.user_id)
     if admins_filter:
         from_clause = from_clause.join(Admin, Admin.id == User.admin_id)
 
@@ -1697,13 +2090,62 @@ def _build_user_count_query_parts(
 
 
 def _build_user_count_metric_expression(metric: UserCountMetric):
+    return func.count(func.distinct(_user_count_metric_user_id(metric)))
+
+
+def _user_count_metric_user_id(metric: UserCountMetric):
+    """The user id a history row counts for in this metric, NULL when the row does not count."""
     if metric == UserCountMetric.online:
-        return func.count(func.distinct(NodeUserUsage.user_id))
+        return NodeUserUsage.user_id
     if metric == UserCountMetric.expired:
-        return func.count(func.distinct(case((User.status == UserStatus.expired, NodeUserUsage.user_id), else_=None)))
+        return case((User.status == UserStatus.expired, NodeUserUsage.user_id), else_=None)
     if metric == UserCountMetric.limited:
-        return func.count(func.distinct(case((User.status == UserStatus.limited, NodeUserUsage.user_id), else_=None)))
+        return case((User.status == UserStatus.limited, NodeUserUsage.user_id), else_=None)
     raise ValueError(f"Unsupported user count metric: {metric}")
+
+
+def _user_count_buckets_from_distinct_pairs(dialect: str) -> bool:
+    # PostgreSQL cannot hash count(DISTINCT ...), so a per-bucket count sorts every history row in range.
+    # MySQL and MariaDB are faster with plain count(DISTINCT ...).
+    return dialect == "postgresql"
+
+
+def _build_user_count_buckets_from_distinct_pairs(query_parts: dict, metric: UserCountMetric, group_by_node: bool):
+    """Per-bucket distinct user counts as a count over DISTINCT (bucket, [node,] user) rows.
+
+    Same result as count(DISTINCT ...) per bucket: a NULL user id (a row the metric does not count) is kept as
+    one pair, so its bucket still appears, and count() skips it.
+
+    Each row also carries count_during_period, the distinct users over the whole range. It is counted from the
+    pairs (at most buckets x users rows) instead of a second scan that sorts every history row in range.
+    PostgreSQL materializes the CTE because it is read twice, so the history rows are scanned once.
+    """
+    pair_columns = [query_parts["trunc_expr"].label("period_start")]
+    if group_by_node:
+        pair_columns.append(NodeUserUsage.node_id.label("node_id"))
+    pairs = (
+        select(*pair_columns, _user_count_metric_user_id(metric).label("user_id"))
+        .select_from(query_parts["from_clause"])
+        .where(and_(*query_parts["conditions"]))
+        .distinct()
+        .cte("user_count_pairs")
+    )
+    count_during_period = select(func.count(func.distinct(pairs.c.user_id))).scalar_subquery()
+
+    group_columns = [pairs.c.period_start]
+    output_columns = [pairs.c.period_start]
+    if group_by_node:
+        group_columns.append(pairs.c.node_id)
+        output_columns.append(func.coalesce(pairs.c.node_id, 0).label("node_id"))
+    return (
+        select(
+            *output_columns,
+            func.count(pairs.c.user_id).label("count"),
+            count_during_period.label("count_during_period"),
+        )
+        .group_by(*group_columns)
+        .order_by(*group_columns)
+    )
 
 
 async def update_users_status(db: AsyncSession, users: list[User], status: UserStatus) -> list[User]:
@@ -1723,7 +2165,13 @@ async def update_users_status(db: AsyncSession, users: list[User], status: UserS
 
     user_ids = [user.id for user in users]
     changed_at = datetime.now(UTC)
-    stmt = update(User).where(User.id.in_(user_ids)).values(status=status, last_status_change=changed_at)
+    reseted_usage = _snapshot_reseted_usage(users)
+    stmt = (
+        update(User)
+        .where(User.id.in_(user_ids))
+        .values(status=status, last_status_change=changed_at)
+        .execution_options(synchronize_session=False)
+    )
     await db.execute(stmt)
     await db.commit()
 
@@ -1732,6 +2180,7 @@ async def update_users_status(db: AsyncSession, users: list[User], status: UserS
     for user in users:
         user.status = status
         user.last_status_change = changed_at
+    _restore_reseted_usage(users, reseted_usage)
     return users
 
 
@@ -1778,11 +2227,12 @@ async def bulk_set_owner(db: AsyncSession, users: list[User], admin: Admin) -> l
 
     for user in users:
         old_admin = user.admin
+        # Only traffic that moves from another admin counts, like set_owner.
         if old_admin and old_admin.id != admin.id:
             if old_admin.id not in admin_traffic_changes:
                 admin_traffic_changes[old_admin.id] = 0
             admin_traffic_changes[old_admin.id] -= user.used_traffic
-        total_traffic_to_add += user.used_traffic
+            total_traffic_to_add += user.used_traffic
         user.admin = admin
 
     # Update old admins' traffic
@@ -1814,7 +2264,14 @@ async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:
     Returns:
         list[User]: The updated users list.
     """
+    if not users:
+        return []
+
     now = datetime.now(UTC)
+    params = []
+    # Core UPDATE expires mapped state, including query_expression. Keep the
+    # already-loaded lifetime aggregate so later pydantic validation stays async-safe.
+    reseted_usage = _snapshot_reseted_usage(users)
     for user in users:
         duration = _safe_on_hold_expire_duration(user.on_hold_expire_duration)
         expire_time = now + timedelta(seconds=duration) if duration is not None else None
@@ -1822,16 +2279,22 @@ async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:
         user.on_hold_expire_duration = None
         user.on_hold_timeout = None
         user.status = UserStatus.active
-        stmt = (
-            update(User)
-            .where(User.id == user.id)
-            .values(expire=expire_time, on_hold_expire_duration=None, on_hold_timeout=None, status=UserStatus.active)
-        )
-        await db.execute(stmt)
+        params.append({"u_id": user.id, "u_expire": expire_time})
 
+    await db.execute(
+        update(User.__table__)
+        .where(User.__table__.c.id == bindparam("u_id"))
+        .values(
+            expire=bindparam("u_expire"),
+            on_hold_expire_duration=None,
+            on_hold_timeout=None,
+            status=UserStatus.active,
+        )
+        .execution_options(synchronize_session=False),
+        params,
+    )
     await db.commit()
-    for user in users:
-        await refresh_and_load_user(db, user)
+    _restore_reseted_usage(users, reseted_usage)
     return users
 
 

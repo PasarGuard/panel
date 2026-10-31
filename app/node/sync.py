@@ -1,14 +1,23 @@
 import asyncio
 
+from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_object_session
 
+from app.db import GetDB
 from app.db.models import Admin, AdminRole, AdminStatus, User
 from app.models.user import UserNotificationResponse
 from app.nats.node_rpc import encode_node_command, node_nats_client
 from app.nats.proto_utils import serialize_proto_message, serialize_proto_messages
 from app.node import node_manager
-from app.node.user import _serialize_user_for_node, serialize_user, serialize_users_for_node
+from app.node.bridge import register_refresh_handler
+from app.node.user import (
+    _serialize_user_for_node,
+    core_users,
+    removal_users,
+    serialize_user,
+    serialize_users_for_node,
+)
 from app.utils.logger import get_logger
 from config import nats_settings, runtime_settings
 
@@ -23,19 +32,23 @@ def _chunk_serialized_users_for_nats(users: list[dict]) -> list[list[dict]]:
     max_batch_size = max(1, nats_settings.node_update_users_batch_size)
     chunks: list[list[dict]] = []
     current: list[dict] = []
+    envelope_bytes = len(encode_node_command("update_users", {"users": []}))
+    current_bytes = envelope_bytes
 
     for user in users:
-        candidate = [*current, user]
-        if current and (
-            len(candidate) > max_batch_size
-            or len(encode_node_command("update_users", {"users": candidate})) > max_payload_bytes
-        ):
+        # Reuse the wire encoder so JSON escaping and the command envelope are counted exactly.
+        single_user_bytes = len(encode_node_command("update_users", {"users": [user]}))
+        user_bytes = single_user_bytes - envelope_bytes
+        candidate_bytes = current_bytes + user_bytes + (1 if current else 0)  # JSON array comma
+        if current and (len(current) >= max_batch_size or candidate_bytes > max_payload_bytes):
             chunks.append(current)
-            current = [user]
-        else:
-            current = candidate
+            current = []
+            candidate_bytes = single_user_bytes
 
-        if len(current) == 1 and len(encode_node_command("update_users", {"users": current})) > max_payload_bytes:
+        current.append(user)
+        current_bytes = candidate_bytes
+
+        if single_user_bytes > max_payload_bytes:
             logger.warning(
                 "Single serialized user update exceeds configured NATS node command payload limit: user=%s",
                 user.get("email") or user.get("id") or "unknown",
@@ -130,8 +143,12 @@ if runtime_settings.role.runs_node:
     async def _dispatch_user_update(proto_user):
         await node_manager.update_user(proto_user)
 
-    async def _dispatch_users_update(proto_users):
-        await node_manager.update_users(proto_users)
+    async def _dispatch_users_update(proto_users, *, await_dispatch: bool = False):
+        """Dispatch a batch locally, optionally waiting for node queue acceptance."""
+        if await_dispatch:
+            await node_manager.update_users(proto_users, await_dispatch=True)
+        else:
+            await node_manager.update_users(proto_users)
 
 else:
 
@@ -139,10 +156,110 @@ else:
         user_dict = serialize_proto_message(proto_user)
         await node_nats_client.publish("update_user", {"user": user_dict})
 
-    async def _dispatch_users_update(proto_users):
+    async def _dispatch_users_update(proto_users, *, await_dispatch: bool = False):
+        """Publish bounded batches to the node worker before returning."""
         users_dicts = serialize_proto_messages(proto_users)
         for users_chunk in _chunk_serialized_users_for_nats(users_dicts):
             await node_nats_client.publish("update_users", {"users": users_chunk})
+
+
+class CurrentStateReader:
+    """Coalesces concurrent current-state reads into indexed queries, one per gather window.
+
+    A query starts only after every request it serves was registered, so a
+    delivery is never answered from a read that began before its own claim (and
+    therefore before the enqueue and commit that triggered it). Requests that
+    arrive while a query is running are served by the next query; the reader
+    keeps draining until nothing is pending. There is no cache. Each query
+    carries at most ``max_ids_per_query`` ids.
+    """
+
+    def __init__(self, gather_seconds: float = 0.005, max_ids_per_query: int = 400, query_timeout: float = 20.0):
+        self._gather_seconds = gather_seconds
+        self._max_ids = max(1, max_ids_per_query)
+        # A hung database call must fail its own batch, not block every later
+        # request behind it; waiters see a TimeoutError and their delivery is requeued.
+        self._query_timeout = query_timeout
+        self._pending: dict[int, list[asyncio.Future]] = {}
+        self._task: asyncio.Task | None = None
+
+    async def get(self, user_ids: list[int]) -> dict[int, ProtoUser | None]:
+        """Current node payload per id; a removal carries no inbounds, and ``None`` means the user is gone."""
+        if not user_ids:
+            return {}
+        future: asyncio.Future = asyncio.get_running_loop().create_future()
+        for user_id in user_ids:
+            self._pending.setdefault(user_id, []).append(future)
+        if self._task is None or self._task.done():
+            self._task = asyncio.create_task(self._run(), name="node-current-state-reader")
+        result = await future
+        return {user_id: result.get(user_id) for user_id in user_ids}
+
+    async def _query(self, user_ids: list[int]) -> dict[int, ProtoUser | None]:
+        result: dict[int, ProtoUser | None] = dict.fromkeys(user_ids)
+        async with asyncio.timeout(self._query_timeout), GetDB() as db:
+            for start in range(0, len(user_ids), self._max_ids):
+                chunk = user_ids[start : start + self._max_ids]
+                for proto in await core_users(db, user_ids=chunk):
+                    result[int(proto.email)] = proto
+                # Users a core must not carry are removals that keep their stored credentials.
+                if missing := [user_id for user_id in chunk if result[user_id] is None]:
+                    for proto in await removal_users(db, missing):
+                        result[int(proto.email)] = proto
+        return result
+
+    async def _run(self) -> None:
+        while True:
+            await asyncio.sleep(self._gather_seconds)
+            # Snapshot the requests registered so far; later ones wait for the
+            # next query. Nothing awaits between an empty check and returning,
+            # so a request registered after this point always finds a task to
+            # start or a loop that will pick it up.
+            pending, self._pending = self._pending, {}
+            if not pending:
+                return
+            futures = {future for waiters in pending.values() for future in waiters}
+            try:
+                result = await self._query(list(pending))
+            except asyncio.CancelledError:
+                for future in futures:
+                    if not future.done():
+                        future.cancel()
+                raise
+            except Exception as exc:
+                for future in futures:
+                    if not future.done():
+                        future.set_exception(exc)
+                continue
+            for future in futures:
+                if not future.done():
+                    future.set_result(result)
+
+
+_current_state = CurrentStateReader()
+
+
+async def refresh_node_users(node_id: str, emails: list[str]) -> list[ProtoUser]:
+    """Return the current database state of users, as node payloads, for delivery or refresh markers.
+
+    Called by the queue worker right before a claimed batch is sent (so what
+    reaches a node is the state committed at that moment, whatever order the
+    updates were queued in) and when a refresh marker is resolved. Users that
+    no longer exist, are not active/on-hold, have no inbounds, or whose admin
+    blocks synchronization resolve to removals, matching a full snapshot.
+    Removals keep the stored credentials. A user that no longer exists has
+    none, so its removal carries no ``proxies`` and the queue keeps the
+    credentials of the payload it holds. Non-numeric emails (not panel users)
+    are not answered; callers keep their queued payload for those.
+    """
+    ids = [int(email) for email in dict.fromkeys(emails) if email.isdigit()]
+    if not ids:
+        return []
+    state = await _current_state.get(ids)
+    return [proto if proto is not None else ProtoUser(email=str(user_id)) for user_id, proto in state.items()]
+
+
+register_refresh_handler(refresh_node_users)
 
 
 async def sync_user(db_user: User) -> None:
@@ -158,17 +275,34 @@ async def remove_user(user: UserNotificationResponse) -> None:
     asyncio.create_task(_dispatch_user_update(proto_user))
 
 
-async def remove_users(users: list[User]) -> None:
-    """Batch-remove users from nodes (serialized without inbounds so nodes drop them)."""
+async def remove_user_awaited(user: UserNotificationResponse) -> None:
+    """Remove a user from nodes and await confirmation before returning.
+
+    Unlike :func:`remove_user`, this coroutine directly awaits the node
+    dispatch so callers can be sure the node update completed (or raised)
+    before committing the corresponding database deletion.
+    """
+    proto_user = _serialize_user_for_node(user.id, user.proxy_settings.dict())
+    await _dispatch_user_update(proto_user)
+
+
+async def remove_users(users: list[User], *, await_dispatch: bool = False) -> None:
+    """Batch-remove users, optionally awaiting dispatch before loading the next batch."""
     if not users:
         return
     proto_users = [_serialize_user_for_node(u.id, u.proxy_settings) for u in users]
-    asyncio.create_task(_dispatch_users_update(proto_users))
+    if await_dispatch:
+        await _dispatch_users_update(proto_users, await_dispatch=True)
+    else:
+        asyncio.create_task(_dispatch_users_update(proto_users))
 
 
-async def sync_users(users: list[User]) -> None:
-    """Sync users to nodes, excluding users whose admin has users_sync_blocked."""
+async def sync_users(users: list[User], *, await_dispatch: bool = False) -> None:
+    """Sync eligible users, optionally awaiting dispatch before loading the next batch."""
     blocked_admin_ids = await _blocked_admin_ids_for_users(users)
     filtered = [user for user in users if user.admin_id not in blocked_admin_ids]
     proto_users = await serialize_users_for_node(filtered)
-    asyncio.create_task(_dispatch_users_update(proto_users))
+    if await_dispatch:
+        await _dispatch_users_update(proto_users, await_dispatch=True)
+    else:
+        asyncio.create_task(_dispatch_users_update(proto_users))

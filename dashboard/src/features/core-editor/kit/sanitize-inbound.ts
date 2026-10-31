@@ -1,11 +1,5 @@
 import type { Inbound, Profile } from '@pasarguard/xray-config-kit'
-
-/** Loopback values often come from Xray samples, browser autofill, or legacy defaults — not a meaningful rewrite target in the editor. */
-export function isPlaceholderTunnelRewriteAddress(v: unknown): boolean {
-  if (typeof v !== 'string') return false
-  const t = v.trim().toLowerCase()
-  return t === '127.0.0.1' || t === 'localhost' || t === '::1'
-}
+import { coerceVerifyPeerCertByNameList } from '@/features/core-editor/kit/xray-parity-value'
 
 /** xray-config-kit strict schema allows only these; empty or unknown values break compile. */
 export function normalizeTunnelNetworkForKit(v: unknown): 'tcp' | 'udp' | 'tcp,udp' {
@@ -45,7 +39,6 @@ export function normalizeTunnelInboundForKit(ib: Inbound): Inbound {
   const legacy = draft.settings
   if (!legacy || typeof legacy !== 'object' || Array.isArray(legacy)) {
     delete draft.settings
-    if (isPlaceholderTunnelRewriteAddress(draft.address)) delete draft.address
     draft.network = normalizeTunnelNetworkForKit(draft.network)
     return draft as unknown as Inbound
   }
@@ -56,7 +49,7 @@ export function normalizeTunnelInboundForKit(ib: Inbound): Inbound {
     const a = s.rewriteAddress ?? s.address
     if (typeof a === 'string') {
       const trimmed = a.trim()
-      if (trimmed !== '' && !isPlaceholderTunnelRewriteAddress(trimmed)) draft.address = trimmed
+      if (trimmed !== '') draft.address = trimmed
     }
   }
 
@@ -88,7 +81,6 @@ export function normalizeTunnelInboundForKit(ib: Inbound): Inbound {
   }
 
   delete draft.settings
-  if (isPlaceholderTunnelRewriteAddress(draft.address)) delete draft.address
   draft.network = normalizeTunnelNetworkForKit(draft.network)
   return draft as unknown as Inbound
 }
@@ -133,6 +125,12 @@ function sanitizeSecurityArrays(inbound: Inbound): Inbound {
     }
   }
 
+  if ('verifyPeerCertByName' in sanitized) {
+    const names = coerceVerifyPeerCertByNameList(sanitized.verifyPeerCertByName)
+    if (names === undefined) delete sanitized.verifyPeerCertByName
+    else sanitized.verifyPeerCertByName = names
+  }
+
   // REALITY: never persist invalid `publicKey` (kit validates when set). Empty / legacy placeholder / bad encoding → omit.
   if (security.type === 'reality') {
     const privateKeyValue = String(sanitized.privateKey ?? '').trim()
@@ -162,12 +160,23 @@ function sanitizeSecurityArrays(inbound: Inbound): Inbound {
   return { ...inbound, security: sanitized } as Inbound
 }
 
-function sanitizeWireguardEmptyAddress(inbound: Inbound): Inbound {
+function isStreamPartOfType(value: unknown, type: string): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && (value as Record<string, unknown>).type === type
+}
+
+function sanitizeWireguardInbound(inbound: Inbound): Inbound {
   if (inbound.protocol !== 'wireguard') return inbound
-  const draft = { ...inbound } as Record<string, unknown>
+  // The kit requires an array, but user peers are supplied by the backend.
+  const draft = { ...inbound, peers: [] } as Record<string, unknown>
   if (Array.isArray(draft.address) && draft.address.length === 0) {
     delete draft.address
   }
+  // The kit compiles `streamSettings` (and with it sockopt and finalmask) only when both transport and security
+  // exist, and old editors could leave ws/tls behind on WireGuard inbounds, so pin them to tcp / none. A tcp or none
+  // record is kept as it is, extras such as a tcp header included (the adapter strips tcpSettings from WireGuard
+  // output), so an unedited import keeps its fingerprint and the verbatim source passthrough.
+  if (!isStreamPartOfType(draft.transport, 'tcp')) draft.transport = { type: 'tcp' }
+  if (!isStreamPartOfType(draft.security, 'none')) draft.security = { type: 'none' }
   return draft as unknown as Inbound
 }
 
@@ -175,6 +184,6 @@ function sanitizeWireguardEmptyAddress(inbound: Inbound): Inbound {
 export function sanitizeProfileInbounds(profile: Profile): Profile {
   return {
     ...profile,
-    inbounds: profile.inbounds.map(ib => sanitizeWireguardEmptyAddress(sanitizeSecurityArrays(normalizeTunnelInboundForKit(ib)))),
+    inbounds: profile.inbounds.map(ib => sanitizeWireguardInbound(sanitizeSecurityArrays(normalizeTunnelInboundForKit(ib)))),
   }
 }

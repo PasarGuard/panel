@@ -10,8 +10,126 @@ on:
 
 jobs:
   notify:
-    uses: PasarGuard/.github/.github/workflows/telegram-notify.yml@main
-    secrets:
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-    with:
-      telegram_targets: ${{ vars.TELEGRAM_TARGETS }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    env:
+      BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_TARGETS: ${{ vars.TELEGRAM_TARGETS }}
+      EVENT_NAME: ${{ github.event_name }}
+      EVENT_ACTION: ${{ github.event.action }}
+      ACTOR: ${{ github.actor }}
+      REF_NAME: ${{ github.ref_name }}
+      COMPARE_URL: ${{ github.event.compare }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_MERGED: ${{ github.event.pull_request.merged }}
+      PR_COMMITS: ${{ github.event.pull_request.commits }}
+      REPOSITORY: ${{ github.repository }}
+      COMMITS_JSON: ${{ toJSON(github.event.commits) }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Send Telegram notification
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          html_escape() {
+            printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g; s/'"'"'/\&#39;/g'
+          }
+
+          # Reads a JSON array of {sha, message} and prints one line per commit
+          # (subject and linked short SHA). The rest of the message goes into a
+          # collapsed quote, unwrapped and without trailers, so long squash-merge
+          # bodies stay out of the way. $1 is the total commit count; at most 10
+          # are listed and the details share a budget that keeps the message
+          # under Telegram's 4096 character limit.
+          format_commits() {
+            jq -r --arg base "https://github.com/$REPOSITORY/commit/" --argjson total "$1" '
+              def unwrap:
+                reduce .[] as $line ([];
+                  if length == 0 or ($line | test("^\\s*([-*+]|[0-9]+[.)])\\s")) then . + [$line]
+                  else .[length - 1] += " " + ($line | sub("^\\s+"; "")) end);
+              def details:
+                split("\n") | .[1:]
+                | map(sub("\\s+$"; ""))
+                | map(select(test("^(co-authored-by|signed-off-by):"; "i") or test("^-{3,}$") | not))
+                | join("\n")
+                | [splits("\n{2,}")]
+                | map(split("\n") | map(select(length > 0)) | select(length > 0) | unwrap | .[])
+                | join("\n");
+              def cut($n): if length > $n then .[0:$n - 1] + "…" else . end;
+              def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+              [limit(10; (. // [])[] | .message |= ((. // "") | gsub("\r"; "")))] as $shown
+              | ([$shown[] | .message | details | select(length > 0)] | length) as $with_details
+              | (if $with_details > 0 then 2000 / $with_details | floor else 0 end) as $budget
+              | [$shown[]
+                  | (.message | details | cut($budget)) as $body
+                  | "• " + (.message | split("\n") | .[0] // "" | sub("^\\s+"; "") | sub("\\s+$"; "") | cut(100) | esc)
+                    + " (<a href=\"" + $base + .sha + "\">" + .sha[0:7] + "</a>)"
+                    + (if $body == "" then "" else "\n<blockquote expandable>" + ($body | esc) + "</blockquote>" end)]
+              | join("\n")
+                + (if $total > ($shown | length) then "\n…and \($total - ($shown | length)) more" else "" end)
+            '
+          }
+
+          actor=$(html_escape "$ACTOR")
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            branch=$(html_escape "$REF_NAME")
+            commits_json=$(jq '[(. // [])[] | {sha: .id, message}]' <<< "$COMMITS_JSON")
+            total=$(jq 'length' <<< "$commits_json")
+            message="🔔 <b>New Push to $branch</b>"
+            message+=$'\n\n👤 By: '
+            message+="$actor"
+            message+=$'\n🔗 <a href="'
+            message+="$COMPARE_URL"
+            message+='">View Commits</a>'
+          else
+            title=$(html_escape "$PR_TITLE")
+            if [[ "$EVENT_ACTION" == "opened" ]]; then
+              status='📢 <b>New Pull Request Opened</b>'
+            elif [[ "$PR_MERGED" == "true" ]]; then
+              status='✅ <b>Pull Request Merged</b>'
+            else
+              status='🚫 <b>Pull Request Closed</b>'
+            fi
+            commits_json=$(curl --fail --silent \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H 'Accept: application/vnd.github.v3+json' \
+              "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER/commits?per_page=10" \
+              | jq '[.[] | {sha, message: .commit.message}]')
+            total="${PR_COMMITS:-0}"
+            message="$status"
+            message+=$'\n\n👤 By: '
+            message+="$actor"
+            message+=$'\nTitle: '
+            message+="$title"
+            message+=$'\n🔗 <a href="'
+            message+="$PR_URL"
+            message+='">View Pull Request</a>'
+          fi
+
+          commits=$(format_commits "$total" <<< "$commits_json")
+          if [[ -n "$commits" ]]; then
+            message+=$'\n\n<b>Commits ('"$total"$'):</b>\n'
+            message+="$commits"
+          fi
+
+          IFS=',' read -r -a targets <<< "$TELEGRAM_TARGETS"
+          for target in "${targets[@]}"; do
+            chat_id="${target%%^*}"
+            topic_id=''
+            if [[ "$target" == *'^'* ]]; then
+              topic_id="${target#*^}"
+            fi
+
+            curl_args=(-sS --fail -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+              -d "chat_id=$chat_id" -d 'parse_mode=HTML' \
+              --data-urlencode 'link_preview_options={"is_disabled":true}' --data-urlencode "text=$message")
+            if [[ -n "$topic_id" ]]; then
+              curl_args+=(-d "message_thread_id=$topic_id")
+            fi
+            curl "${curl_args[@]}" >/dev/null
+            echo "Notification sent to $chat_id."
+          done

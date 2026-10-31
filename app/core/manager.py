@@ -18,6 +18,7 @@ from app.db.models import CoreConfig, CoreType
 from app.models.core import CoreListQuery
 from app.nats import is_multi_worker, is_nats_enabled
 from app.nats.client import setup_nats_kv
+from app.nats.kv_cas import is_kv_miss
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.utils.logger import get_logger
@@ -61,9 +62,8 @@ class CoreManager:
         if not self._kv:
             return
         state = await self._snapshot_state()
-        # State is already serialized by _snapshot_state; just encode
-        state_bytes = json.dumps(state).encode("utf-8")
         try:
+            state_bytes = json.dumps(state).encode("utf-8")
             await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
         except Exception as exc:
             self._logger.warning(f"Failed to persist core state to NATS KV: {exc}")
@@ -93,15 +93,19 @@ class CoreManager:
                     self._logger.warning(f"Failed to reconstruct core {core_id} from JSON: {exc}")
                     continue
 
+            inbounds_by_tag = self._build_inbound_index(cores)
             async with self._lock:
                 self._cores = cores
-                self._inbounds = cached_state.get("inbounds", [])
-                self._inbounds_by_tag = cached_state.get("inbounds_by_tag", {})
+                self._inbounds = list(inbounds_by_tag)
+                self._inbounds_by_tag = inbounds_by_tag
 
             await self.get_inbounds.cache.clear()
             await self.get_inbounds_by_tag.cache.clear()
             return True
         except Exception as exc:
+            if is_kv_miss(exc):
+                self._logger.debug("Core manager state cache is empty")
+                return False
             self._logger.error(f"Error loading core state from cache: {exc}")
             return False
 
@@ -230,12 +234,19 @@ class CoreManager:
         await self.update_inbounds()
         await self._persist_state()
 
+    @staticmethod
+    def _build_inbound_index(cores: dict[int, AbstractCore]) -> dict:
+        # Hosts select inbounds by tag across all cores. Keep the last-core-wins
+        # rule in ID order so display order and NATS message order cannot change
+        # shared tags' encryption or other subscription settings after a restart.
+        inbounds_by_tag = {}
+        for core_id in sorted(cores):
+            inbounds_by_tag.update(cores[core_id].inbounds_by_tag)
+        return inbounds_by_tag
+
     async def update_inbounds(self):
         async with self._lock:
-            new_inbounds = {}
-            for core in self._cores.values():
-                new_inbounds.update(core.inbounds_by_tag)
-
+            new_inbounds = self._build_inbound_index(self._cores)
             self._inbounds_by_tag = new_inbounds
             self._inbounds = list(self._inbounds_by_tag.keys())
 

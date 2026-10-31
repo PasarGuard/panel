@@ -3,6 +3,7 @@ from app.models.user import UserNotificationResponse
 from app.notification.client import send_telegram_message
 from app.notification.helpers import get_telegram_channel, should_send_admin_notification
 from app.settings import notification_settings
+from app.utils.helpers import escape_tg_html
 from app.utils.system import readable_size
 
 from . import messages
@@ -42,7 +43,7 @@ async def create_user(user: UserNotificationResponse, by: str):
         data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
         expire_date=user.expire if user.expire else "Never",
         data_limit_reset_strategy=user.data_limit_reset_strategy.value,
-        groups=", ".join(user.group_names),
+        groups=", ".join(escape_tg_html(tuple(user.group_names or ()))),
         has_next_plan=bool(user.next_plan),
         admin_username=admin_username,
         by=by,
@@ -62,7 +63,7 @@ async def modify_user(user: UserNotificationResponse, by: str):
         data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
         expire_date=user.expire if user.expire else "Never",
         data_limit_reset_strategy=user.data_limit_reset_strategy.value,
-        groups=", ".join(user.group_names),
+        groups=", ".join(escape_tg_html(tuple(user.group_names or ()))),
         has_next_plan=bool(user.next_plan),
         admin_username=admin_username,
         by=by,

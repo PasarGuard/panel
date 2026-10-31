@@ -1,4 +1,5 @@
 from datetime import UTC, datetime as dt, timedelta as td
+from html import escape
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
@@ -149,7 +150,7 @@ async def bulk_template_sequence_username(event: Message, db: AsyncSession, stat
     try:
         UserValidator.validate_username(base_username)
     except ValueError as e:
-        msg = await event.reply(f"❌ {e}", reply_markup=CancelKeyboard().as_markup())
+        msg = await event.reply(f"❌ {escape(str(e))}", reply_markup=CancelKeyboard().as_markup())
         await add_to_messages_to_delete(state, msg)
         return
 
@@ -235,7 +236,7 @@ async def _perform_bulk_creation(
         result = await user_operations.bulk_create_users_from_template(db, payload, admin)
     except Exception as e:
         await state.clear()
-        return await target.answer(f"❌ {e}")
+        return await target.answer(f"❌ {escape(str(e))}")
     await state.clear()
 
     if result.created == 0:
@@ -346,7 +347,8 @@ async def process_expiry(event: Message, state: FSMContext):
 async def modify_expiry_done(
     event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: BulkActionPanel.Callback
 ):
-    result = await user_operations.bulk_modify_expire(db, BulkUser(amount=int(callback_data.amount) * 86400))
+    """Apply a confirmed expiry adjustment with the authenticated admin's limits."""
+    result = await user_operations.bulk_modify_expire(db, BulkUser(amount=int(callback_data.amount) * 86400), admin)
     await event.answer(Texts.users_expiry_changed(result, int(callback_data.amount)))
     await event.message.edit_text(Texts.choose_action, reply_markup=BulkActionPanel().as_markup())
 
@@ -397,6 +399,9 @@ async def process_data_limit(event: Message, state: FSMContext):
 async def modify_data_limit_done(
     event: CallbackQuery, db: AsyncSession, admin: AdminDetails, callback_data: BulkActionPanel.Callback
 ):
-    result = await user_operations.bulk_modify_datalimit(db, BulkUser(amount=int(callback_data.amount) * (1024**3)))
+    """Apply a confirmed quota adjustment with the authenticated admin's limits."""
+    result = await user_operations.bulk_modify_datalimit(
+        db, BulkUser(amount=int(callback_data.amount) * (1024**3)), admin
+    )
     await event.answer(Texts.users_data_limit_changed(result, int(callback_data.amount)))
     await event.message.edit_text(Texts.choose_action, reply_markup=BulkActionPanel().as_markup())

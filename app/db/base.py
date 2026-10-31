@@ -1,32 +1,89 @@
-from sqlalchemy import MetaData
-from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
+from typing import Any
+
+from sqlalchemy import MetaData, event, text
+from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 
-from config import database_settings
+from config import DatabaseSettings, database_settings
 
-IS_SQLITE = database_settings.is_sqlite
 
-connect_args = {}
-if IS_SQLITE:
-    connect_args["check_same_thread"] = False
-elif database_settings.is_mysql:
-    connect_args["connect_timeout"] = database_settings.connect_timeout
+def build_engine_options(settings: DatabaseSettings) -> dict[str, Any]:
+    """Build dialect-aware SQLAlchemy engine options."""
+    connect_args: dict[str, Any] = {}
+    if settings.is_sqlite:
+        connect_args["check_same_thread"] = False
+    elif settings.is_mysql:
+        connect_args["connect_timeout"] = settings.connect_timeout
 
-if IS_SQLITE:
-    engine = create_async_engine(database_settings.url, connect_args=connect_args, echo=database_settings.echo_queries)
-else:
-    engine = create_async_engine(
-        database_settings.url,
-        connect_args=connect_args,
-        pool_size=database_settings.pool_size,
-        max_overflow=database_settings.max_overflow,
-        pool_recycle=database_settings.pool_recycle,
-        pool_timeout=5,
-        pool_pre_ping=True,
-        echo=database_settings.echo_queries,
+    options: dict[str, Any] = {
+        "connect_args": connect_args,
+        "echo": settings.echo_queries,
+    }
+    if not settings.is_sqlite:
+        options.update(
+            pool_size=settings.pool_size,
+            max_overflow=settings.max_overflow,
+            pool_recycle=settings.pool_recycle,
+            pool_timeout=settings.pool_timeout,
+            pool_pre_ping=True,
+        )
+    return options
+
+
+def database_pool_summary(settings: DatabaseSettings, process_count: int = 1) -> str:
+    """Describe the effective connection budget without exposing the database URL."""
+    if settings.is_sqlite:
+        return "Database pool: SQLite driver-managed connections in WAL mode (QueuePool settings do not apply)."
+
+    per_process = settings.connection_ceiling()
+    service_ceiling = settings.connection_ceiling(process_count)
+    return (
+        "Database pool: "
+        f"size={settings.pool_size}, max_overflow={settings.max_overflow}, timeout={settings.pool_timeout}s; "
+        f"ceiling={per_process} connections/process, {service_ceiling} across {process_count} configured process(es). "
+        "Independently replicated services add their own pools."
     )
 
+
+engine = create_async_engine(database_settings.url, **build_engine_options(database_settings))
+
+if database_settings.is_sqlite:
+    # WAL mode lets readers proceed concurrently with the single writer, preventing
+    # "database is locked" errors under async workloads. busy_timeout makes SQLite
+    # retry for up to 5 s on a locked write instead of failing immediately.
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_sqlite_pragmas(dbapi_conn, _connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
+
+elif database_settings.is_mysql:
+    # GROUP_CONCAT output is cut at group_concat_max_len (1024 bytes by default on
+    # MySQL); node payloads join every inbound tag of a user with it. 16 MiB is
+    # far more than any user's tag list and valid on MySQL and MariaDB.
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_mysql_session(dbapi_conn, _connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("SET SESSION group_concat_max_len = 16777216")
+        cursor.close()
+
+
 SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
+
+
+async def begin_immediate_if_sqlite(db: AsyncSession) -> None:
+    """Serialize a SQLite read-then-write transaction before its first read."""
+    if db.bind is None or db.bind.dialect.name != "sqlite":
+        return
+
+    # Authentication and validation can leave a read-only implicit transaction
+    # open on the request-scoped session. End it before acquiring SQLite's single
+    # writer slot; otherwise BEGIN IMMEDIATE would be nested and fail.
+    if db.in_transaction():
+        await db.rollback()
+    await db.execute(text("BEGIN IMMEDIATE"))
+
 
 naming_convention = {
     "ix": "ix_%(column_0_label)s",

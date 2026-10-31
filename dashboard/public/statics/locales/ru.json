@@ -27,7 +27,7 @@
   "statistics.subscriptionDistribution": "Распределение клиентов подписки",
   "statistics.subscriptionDistributionDetails": "Детали клиентов подписки",
   "statistics.subscriptionDistributionDescription": "Доля обновлений подписки по агентам и приложениям.",
-  "statistics.subscriptionDistributionRetentionNote": "По умолчанию для каждого пользователя хранятся только последние {{limit}} обновлений подписки. Измените это через {{env}} в окружении.",
+  "statistics.subscriptionDistributionRetentionNote": "По умолчанию для каждого пользователя хранятся только последние {{limit}} обновлений подписки. Измените это в настройках подписки.",
   "statistics.totalSubscriptions": "Всего обновлений",
   "statistics.percentage": "Процент",
   "statistics.adminFilterLabel": "Фильтр по администратору",
@@ -106,6 +106,8 @@
     "bulkReconnectPrompt": "Вы уверены, что хотите переподключить выбранные узлы ({{count}})?",
     "bulkUpdateSuccess": "{{count}} узлов успешно обновлено.",
     "bulkUpdateFailed": "Не удалось обновить выбранные узлы.",
+    "orderUpdated": "Порядок узлов обновлён",
+    "orderUpdateFailed": "Не удалось обновить порядок узлов",
     "bulkUpdateTitle": "Обновить выбранные узлы",
     "bulkUpdatePrompt": "Вы уверены, что хотите обновить выбранные узлы ({{count}})?",
     "enableSuccess": "Узел «{{name}}» успешно включен",
@@ -292,7 +294,9 @@
         "disableSubTemplate": "Отключить шаблон подписки",
         "disableSubTemplateDescription": "При отключении запросы браузера будут возвращать ответы API вместо HTML-страниц подписки",
         "randomizeOrder": "Случайный порядок конфигов",
-        "randomizeOrderDescription": "Перемешивать порядок конфигураций при каждом запросе подписки"
+        "randomizeOrderDescription": "Перемешивать порядок конфигураций при каждом запросе подписки",
+        "clientsLimit": "Хранить обновлений на пользователя",
+        "clientsLimitDescription": "Сколько последних обновлений подписки (клиентских приложений) хранить для каждого пользователя. 0 или меньше хранит все"
       },
       "responseHeaders": {
         "title": "Заголовки ответа",
@@ -553,6 +557,60 @@
       "saveSuccess": "Операция очистки выполнена успешно",
       "saveFailed": "Не удалось завершить операцию очистки",
       "cancelSuccess": "Операция очистки отменена",
+      "retention": {
+        "title": "Автоматическое хранение",
+        "description": "Храните нужные свежие данные, а старые удаляйте небольшими безопасными пакетами.",
+        "hourly": "Ежечасно",
+        "days": "дней",
+        "purge": "Старые данные",
+        "forever": "Хранить всегда",
+        "today": "Сегодня",
+        "cutoff": "Записи старше {{days}} дней удаляются автоматически.",
+        "disabledHint": "Автоочистка этих данных отключена.",
+        "cascadeWarning": "При удалении просроченной учётной записи удаляется и её индивидуальная история трафика. Системные и узловые итоги доступны только в пределах настроенного срока хранения.",
+        "validation": "Для истёкших аккаунтов допустим 0; для остальных активных правил укажите целое число от 1 до 36 500.",
+        "save": "Сохранить",
+        "saving": "Сохранение...",
+        "reset": "Отменить изменения",
+        "expiredUsers": {
+          "title": "Просроченные аккаунты",
+          "description": "Удалять аккаунты через указанное число дней после истечения. Индивидуальное значение auto_delete_in_days для аккаунта по-прежнему имеет приоритет.",
+          "includeLimited": "Также удалять ограниченных пользователей",
+          "disabledHint": "Общее правило отключено. Пользователи с собственным сроком автоудаления по-прежнему удаляются."
+        },
+        "usageHistory": {
+          "title": "История трафика",
+          "description": "Срок хранения графиков трафика пользователей, нод и исходящих подключений."
+        },
+        "nodeStats": {
+          "title": "Системные метрики узлов",
+          "description": "Срок хранения данных CPU, памяти и скорости."
+        }
+      },
+      "rollup": {
+        "title": "Детализация истории трафика",
+        "description": "Старые записи трафика объединяются в более крупные интервалы, чтобы таблицы не росли с 10-минутной детализацией.",
+        "off": "Выключено",
+        "hourlyStep": {
+          "title": "По часам",
+          "description": "Записи старше этого срока объединяются в одну запись за час."
+        },
+        "halfDayStep": {
+          "title": "По 12 часов",
+          "description": "Записи старше этого срока объединяются в одну запись за 12 часов."
+        },
+        "dailyStep": {
+          "title": "По дням",
+          "description": "Записи старше этого срока объединяются в одну запись за день."
+        },
+        "cutoff": "Полные дни старше {{days}} дн. объединяются.",
+        "disabledHint": "Этот шаг отключен.",
+        "note": "Итоги остаются точными: уменьшается только детализация по времени, и графики старых данных показывают более крупные шаги. Интервалы режутся по UTC. Объединение запускается каждый час после очистки по сроку хранения и работает не дольше пары минут.",
+        "validation": "Для включенных шагов нужно целое число от 1 до 36 500.",
+        "orderValidation": "Число дней должно расти: по часам, затем по 12 часов, затем по дням.",
+        "save": "Сохранить детализацию",
+        "firstRun": "Первое включение: если в панели уже много истории трафика, объединение старых данных может занять от нескольких часов до нескольких дней. Работа идёт лишь пару минут каждый час, поэтому панель остаётся быстрой, а старые графики сохраняют текущую детализацию, пока обработка до них не дойдёт."
+      },
       "expiredUsers": {
         "title": "Удаление аккаунтов по статусу",
         "description": "Удаление аккаунтов с выбранным статусом, с возможностью фильтрации по дате",
@@ -562,10 +620,12 @@
           "expired": "По сроку",
           "limited": "По трафику",
           "on_hold": "На удержании",
-          "disabled": "Отключённые"
+          "disabled": "Отключённые",
+          "inactive": "Неактивные пользователи"
         },
         "statusChangedAfter": "Статус изменён после",
         "statusChangedBefore": "Статус изменён до",
+        "lastActivityBefore": "Последняя активность до",
         "expiredAfterPlaceholder": "Выберите дату начала",
         "expiredBeforePlaceholder": "Выберите дату окончания",
         "dateRange": "Диапазон дат",
@@ -576,27 +636,33 @@
         "deleteLimited": "Удалить ограниченные",
         "deleteOnHold": "Удалить на удержании",
         "deleteDisabled": "Удалить отключённые",
+        "deleteInactive": "Удалить неактивные",
         "deleting": "Удаление...",
         "deleteSuccess": "{{count}} просроченных аккаунтов успешно удалено",
         "deleteLimitedSuccess": "Успешно удалено {{count}} ограниченных аккаунтов",
         "deleteOnHoldSuccess": "Успешно удалено {{count}} аккаунтов на удержании",
         "deleteDisabledSuccess": "Успешно удалено {{count}} отключённых аккаунтов",
+        "deleteInactiveSuccess": "Успешно удалено {{count}} неактивных аккаунтов",
         "dryRunSuccess": "Тестовый запуск: {{count}} аккаунтов будет удалено",
         "deleteFailed": "Не удалось удалить просроченные аккаунты",
         "deleteLimitedFailed": "Не удалось удалить ограниченные аккаунты",
         "deleteOnHoldFailed": "Не удалось удалить аккаунты на удержании",
         "deleteDisabledFailed": "Не удалось удалить отключённые аккаунты",
+        "deleteInactiveFailed": "Не удалось удалить неактивные аккаунты",
         "confirmDelete": "Удалить просроченные аккаунты",
         "confirmDeleteLimited": "Удалить ограниченные аккаунты",
         "confirmDeleteOnHold": "Удалить аккаунты на удержании",
         "confirmDeleteDisabled": "Удалить отключённые аккаунты",
+        "confirmDeleteInactive": "Удалить неактивные аккаунты",
         "confirmDeleteMessage": "Вы уверены, что хотите удалить все просроченные аккаунты в выбранном диапазоне дат? Это действие нельзя отменить.",
         "confirmDeleteLimitedMessage": "Вы уверены, что хотите удалить все ограниченные аккаунты в выбранном диапазоне дат? Это действие нельзя отменить.",
         "confirmDeleteOnHoldMessage": "Вы уверены, что хотите удалить все аккаунты на удержании в выбранном диапазоне дат? Это действие нельзя отменить.",
         "confirmDeleteDisabledMessage": "Вы уверены, что хотите удалить все отключённые аккаунты в выбранном диапазоне дат? Это действие нельзя отменить.",
+        "confirmDeleteInactiveMessage": "Удалить аккаунты, последняя активность которых была до выбранной даты? Это действие нельзя отменить.",
         "noDateSelected": "Пожалуйста, выберите хотя бы одну дату",
         "selectDateRange": "Фильтровать по дате истечения срока. Если обе даты пусты, будут удалены все подходящие аккаунты.",
         "selectStatusChangedDateRange": "Фильтровать по дате, когда пользователь получил этот статус. Если обе даты пусты, будут удалены все подходящие аккаунты.",
+        "selectInactiveDate": "Выберите дату отсечения. Будут выбраны аккаунты, которые последний раз были онлайн до неё; для аккаунтов, которые ещё не были онлайн, используется дата создания.",
         "selectLimitedInfo": "Удаляются все аккаунты с ограничением по трафику в выбранной области администратора."
       },
       "resetUsage": {
@@ -630,7 +696,8 @@
         "warning": "Предупреждение: Это действие окончательно удалит все данные использования из выбранной таблицы. Это действие нельзя отменить.",
         "tables": {
           "nodeUserUsages": "Использование пользователей узла",
-          "nodeUsages": "Использование узла"
+          "nodeUsages": "Использование узла",
+          "nodeOutboundUsages": "Использование outbound узлов"
         }
       }
     },
@@ -648,7 +715,58 @@
         "title": "Метод Shadowsocks по умолчанию",
         "description": "Автоматически заполнять метод шифрования для новых пользователей Shadowsocks"
       },
-      "errorLoadingSettings": "Ошибка загрузки настроек"
+      "onHoldTimeoutAction": {
+        "title": "Действие по истечении отложенного статуса",
+        "description": "Выберите, что произойдёт с пользователем, когда истечёт время ожидания (on-hold)",
+        "activate": "Активировать пользователя (по умолчанию)",
+        "disable": "Отключить пользователя",
+        "delete": "Удалить пользователя"
+      },
+      "errorLoadingSettings": "Ошибка загрузки настроек",
+      "usage": {
+        "title": "Учёт трафика",
+        "description": "Выберите, какие данные об использовании сохраняет панель",
+        "recordNodeUsage": {
+          "title": "Учитывать трафик по нодам",
+          "description": "Сохранять трафик по каждой ноде для пользователей и нод. Трафик пользователей и админов учитывается в любом случае"
+        },
+        "recordNodeStats": {
+          "title": "Сохранять системную статистику нод",
+          "description": "Сохранять историю CPU, памяти и пропускной способности нод. Только PostgreSQL и TimescaleDB"
+        },
+        "resetUsageCleanChartData": {
+          "title": "Очищать графики при сбросе трафика",
+          "description": "Удалять историю графика трафика пользователя при сбросе его трафика"
+        },
+        "recordOutboundUsage": {
+          "title": "Учитывать трафик по outbound",
+          "description": "Сохранять трафик по каждому тегу outbound для каждого узла, чтобы показывать график. Добавляет строки в базу данных, больше при многих outbound."
+        }
+      },
+      "nodeHealth": {
+        "title": "Проверки состояния нод",
+        "description": "Когда нода считается недоступной или снова рабочей",
+        "failThreshold": {
+          "title": "Порог ошибок",
+          "description": "Сколько неудачных проверок подряд нужно, чтобы нода получила статус ошибки"
+        },
+        "recoverThreshold": {
+          "title": "Порог восстановления",
+          "description": "Сколько успешных проверок подряд нужно, чтобы нода снова считалась подключённой"
+        },
+        "probeTimeout": {
+          "title": "Тайм-аут проверки (секунды)",
+          "description": "Сколько проверка ждёт ответа ноды, не дольше собственного тайм-аута ноды"
+        },
+        "maxBackoff": {
+          "title": "Максимальная пауза (секунды)",
+          "description": "Наибольшая пауза между проверками ноды в ошибке. 0 проверяет её при каждом запуске"
+        }
+      },
+      "stopNodesOnShutdown": {
+        "title": "Останавливать ядра нод при выключении",
+        "description": "Останавливать ядра всех нод при выключении панели. Только с одним воркером"
+      }
     }
   },
   "saving": "Сохранение...",
@@ -671,6 +789,23 @@
   "admins": {
     "title": "Администраторы",
     "description": "Управление системными администраторами",
+    "passkeys": "Ключи доступа",
+    "passkey": "Ключ доступа",
+    "passkeyReady": "Готов для входа",
+    "passkeyDevicesTitle": "Устройства входа",
+    "passkeyDevicesHint": "Добавьте несколько ключей доступа для этого администратора: ноутбук, телефон или ключ безопасности.",
+    "manageOwnPasskeys": "Управление моими ключами доступа",
+    "passkeySelfServiceHint": "Добавьте несколько устройств для входа без пароля.",
+    "passkeyName": "Название устройства",
+    "passkeyViewOnlyHint": "Здесь можно просматривать и удалять ключи доступа. Добавить новый ключ может только сам администратор.",
+    "passkeyReadyHint": "Используйте отпечаток, распознавание лица, PIN-код или ключ безопасности для входа.",
+    "passkeyEmptyHint": "Добавьте ключ доступа для быстрого входа без пароля на этом устройстве.",
+    "addPasskey": "Добавить ключ доступа",
+    "passkeyAdded": "Ключ доступа добавлен",
+    "passkeyAddFailed": "Не удалось добавить ключ доступа",
+    "passkeyRemoved": "Ключ доступа удалён",
+    "passkeyRemoveFailed": "Не удалось удалить ключ доступа",
+    "passkeyUnsupported": "Этот браузер не поддерживает ключи доступа.",
     "createAdmin": "Создать администратора",
     "editAdmin": "Редактировать администратора",
     "profileSection": "Профиль и контакты",
@@ -772,7 +907,7 @@
       "traffic": "Мониторинг использования трафика администратором во времени",
       "no_traffic": "Данные о трафике отсутствуют"
     },
-    "disabled": "????????"
+    "disabled": "Отключен"
   },
   "apiKeys": {
     "title": "API ключи",
@@ -920,7 +1055,8 @@
         "activate_next_plan": "Активировать следующий план"
       },
       "admins": {
-        "reset_usage": "Сброс трафика администратора"
+        "reset_usage": "Сброс трафика администратора",
+        "passkeys": "Управление ключами доступа администраторов"
       },
       "settings": {
         "read": "Просмотр настроек",
@@ -1246,6 +1382,9 @@
   "login.fieldRequired": "Это поле обязательно для заполнения",
   "login.loginYourAccount": "Войдите в свой аккаунт",
   "login.welcomeBack": "Пожалуйста, введите свои данные",
+  "login.usePasskey": "Войти с ключом доступа",
+  "login.passkeyUnsupported": "Этот браузер не поддерживает ключи доступа.",
+  "login.passkeyFailed": "Не удалось войти с ключом доступа",
   "login.backToLogin": "Вернуться ко входу",
   "memoryUsage": "Память",
   "next": "Вперед",
@@ -1310,6 +1449,8 @@
   "revokeUserSub.success": "Подписка пользователя {{username}} успешно отозвана.",
   "revokeUserSub.title": "Отозвать подписку пользователя",
   "hwids": {
+    "count": "HWID",
+    "registeredCount": "Количество зарегистрированных HWID",
     "title": "Аппаратные ID",
     "description": "Управляйте зарегистрированными аппаратными ID этого пользователя.",
     "copy": "Скопировать аппаратный ID",
@@ -1452,6 +1593,7 @@
     "refreshNow": "Обновить сейчас"
   },
   "statistics.system": "Система",
+  "statistics.periodTooFineForRange": "Слишком много точек для этого диапазона. Выберите более короткий диапазон.",
   "statistics.totalTraffic": "Общий трафик",
   "statistics.ramUsage": "Использование RAM",
   "statistics.cpuUsage": "Использование CPU",
@@ -1469,6 +1611,14 @@
     "saveEdit": "Сохранить изменения",
     "cancelEdit": "Отменить редактирование",
     "clickToEdit": "Нажмите для редактирования"
+  },
+  "realityFingerprint": {
+    "title": "Совместимость отпечатка с REALITY",
+    "tls13": "Этот профиль не поддерживает рукопожатие TLS 1.3, необходимое для Xray REALITY. Выберите chrome или firefox.",
+    "modern": "Этот профиль может не предоставлять X25519MLKEM768, который требуется новым серверам Xray REALITY. Используйте chrome или firefox и обновлённый клиент.",
+    "random": "Случайные профили могут создавать рукопожатия, которые отклоняют новые серверы Xray REALITY. Выберите chrome или firefox для постоянного профиля и обновляйте клиент.",
+    "unsafe": "Параметр unsafe не является профилем uTLS и не подходит для Xray REALITY. Выберите chrome или firefox.",
+    "useChrome": "Использовать Chrome"
   },
   "hostsDialog": {
     "addHost": "Добавить хост",
@@ -1497,6 +1647,11 @@
     "path": "Путь",
     "selectAlpn": "Выберите ALPN",
     "networkSettings": "Сетевые настройки",
+    "masque": {
+      "remoteDns": "Удалённые DNS-серверы MASQUE",
+      "remoteDnsHint": "Оставьте пустым, чтобы использовать DNS-серверы входящего подключения",
+      "xmuxHint": "Требуется Xray 26.10.21 или новее на клиенте. Оставьте все поля пустыми для значений Xray по умолчанию: один туннель, повторное использование в течение 1800-3000 секунд. При задании любого поля эти значения заменяются. Максимум соединений и максимум параллельных потоков нельзя задавать одновременно."
+    },
     "transportSettings": "Настройки транспорта",
     "transportType": "Тип транспорта",
     "selectTransport": "Выберите тип транспорта",
@@ -1517,17 +1672,28 @@
     "muxEnable": "Включить MUX",
     "randomUserAgent": "Использовать случайный User-Agent",
     "useSniAsHost": "Использовать SNI как хост",
-    "echConfigList": "Список конфигураций ECH",
-    "echQueryStrategy": "Стратегия ECH-запроса",
+    "echConfigList": "Список конфигураций ECH для Xray",
+    "echQueryStrategy": "Стратегия ECH-запроса Xray",
     "echQueryStrategy.info": "Стратегия ECH-запроса. Доступные значения: none, half, full.",
+    "mihomoEchConfig": "Конфигурация ECH для Mihomo",
+    "mihomoEchConfig.info": "Необязательная конфигурация ECH в base64 для Mihomo. Оставьте пустой, чтобы получать актуальную конфигурацию через DNS.",
+    "mihomoEchConfigPlaceholder": "Введите конфигурацию ECH для Mihomo",
+    "mihomoEchQueryServerName": "Имя сервера ECH-запроса Mihomo",
+    "mihomoEchQueryServerName.info": "Необязательный домен для DNS-запросов ECH в Mihomo. Это также включает ECH без статической конфигурации.",
+    "singBoxEchConfig": "Конфигурация ECH для Sing-box",
+    "singBoxEchConfig.info": "Необязательная конфигурация ECH в base64 или PEM для Sing-box. Base64 преобразуется в массив строк PEM; оставьте пустой для DNS-запроса.",
+    "singBoxEchConfigPlaceholder": "Введите конфигурацию ECH для Sing-box",
+    "singBoxEchQueryServerName": "Имя сервера ECH-запроса Sing-box",
+    "singBoxEchQueryServerName.info": "Необязательный домен для запросов HTTPS-записей ECH в Sing-box. Это также включает ECH без статической конфигурации. Требуется Sing-box 1.13.0 или новее.",
+    "echQueryServerNamePlaceholder": "ech.example.com",
     "pinnedPeerCertSha256": "SHA256 закреплённого сертификата узла",
     "pinnedPeerCertSha256.info": "Необязательный пин публичного ключа сертификата (SHA-256) для TLS pinning.",
     "pinnedPeerCertSha256Placeholder": "Введите SHA-256 пин",
     "verifyPeerCertByName": "Проверка имени сертификата узла",
     "verifyPeerCertByName.info": "Необязательные имена, которые должны совпадать с сертификатом узла при проверке TLS.",
     "verifyPeerCertByNamePlaceholder": "example.com",
-    "echConfigList.info": "Список конфигураций Encrypted Client Hello (ECH). Это строка, закодированная в base64.",
-    "echConfigListPlaceholder": "Введите список конфигураций ECH",
+    "echConfigList.info": "Конфигурация ECH для Xray в base64 или выражение DNS, например example.com+https://1.1.1.1/dns-query.",
+    "echConfigListPlaceholder": "Введите конфигурацию ECH для Xray",
     "inboundDefault": "По умолчанию",
     "xrayTemplate": "Шаблон Xray",
     "xrayTemplateInfo": "Переопределяет шаблон Xray-подписки только для этого хоста. Оставьте значение По умолчанию, чтобы использовать глобальный шаблон Xray.",
@@ -1674,6 +1840,10 @@
       "invalidJson": "Неверный JSON: {{error}}",
       "tcpLayers": "Слои TCP",
       "addTcpLayer": "Добавить слой TCP",
+      "filterHint": "Только для входящего трафика. Разместите фильтр последним, чтобы он был внешним слоем TCP. Заблокированные IP имеют приоритет над разрешёнными.",
+      "allowedSourceIPs": "Разрешённые IP-адреса источника",
+      "blockedSourceIPs": "Заблокированные IP-адреса источника",
+      "sourceIPsPlaceholder": "Добавьте CIDR или geoip:cn",
       "noTcpLayers": "Слои TCP не настроены",
       "udpLayers": "Слои UDP",
       "addUdpLayer": "Добавить слой UDP",
@@ -1688,6 +1858,13 @@
       "realmUrlPlaceholder": "realm[+http]://token@host[:port]/id",
       "stunServers": "STUN-серверы",
       "stunServersPlaceholder": "например stun.nextcloud.com:3478",
+      "udphopMode": "Режим",
+      "udphopRemotePorts": "Удалённые порты",
+      "udphopRemoteIps": "Удалённые IP",
+      "udphopRemoteIpsPlaceholder": "например 203.0.113.0/24",
+      "udphopLastLayerHint": "Должен быть последним UDP-слоем; несовместим с xicmp.",
+      "udphopVersionHint": "Требуется Xray 26.9.9 или новее (предварительная версия); более старый Xray отклоняет всю конфигурацию.",
+      "noiseExpVersionHint": "exp требует Xray 26.9.30 или новее (предварительная версия); более старый Xray отклоняет всю конфигурацию.",
       "tlsConfig": "Конфигурация TLS (JSON-объект, необязательно)",
       "mustBeJsonObject": "Должен быть JSON-объектом",
       "invalidJsonObject": "Неверный JSON",
@@ -1695,12 +1872,17 @@
       "serverDomainsPlaceholder": "например t.example.com или t.example.com:txt",
       "clientResolvers": "Резолверы клиента",
       "clientResolversPlaceholder": "например t.example.com+udp://8.8.8.8:53",
+      "xdnsDomainsHint": "Массив JSON-объектов, например [{\"names\":[\"t.example.com\"]}]. Дополнительно: lenLimit, labelLimit, types, edns0.",
+      "xdnsResolversHint": "Массив JSON-объектов, например [{\"addrs\":[\"https://dns.example/dns-query\"],\"tlsConfig\":{}}]. Дополнительно: worker, quicConfig. Для HTTP/3 задайте tlsConfig.alpn=[\"h3\"].",
+      "xdnsExtraPoll": "Extra Poll (0–3)",
+      "xdnsInvalidArray": "Введите JSON-массив объектов",
       "domain": "Домен",
       "domainPlaceholder": "например example.com",
       "password": "Пароль",
       "packetSize": "Размер пакета (Gecko, макс. 2048)",
       "packetSizePlaceholder": "например 512-1200",
       "dgramMode": "Режим DGRAM (только клиент, Linux/macOS/iOS)",
+      "xicmpIpsHint": "Необязательные IP-адреса: адреса назначения клиента или разрешённые адреса источника сервера. Поддерживаются несколько IPv4 и IPv6 адресов.",
       "ips": "IP-адреса",
       "ipsPlaceholder": "Добавить IP (например 1.1.1.1)",
       "reset": "Сброс (секунды / диапазон)",
@@ -1740,6 +1922,7 @@
       "brutalDown": "Brutal вниз",
       "mbpsPlaceholder": "например 60 mbps",
       "udpHop": "UDP Hop",
+      "udpHopLegacyHint": "Клиенты на Xray 26.9.9+ это игнорируют и используют UDP-маску udphop; ссылки Hysteria2, sing-box и Clash по-прежнему это читают.",
       "ports": "Порты",
       "portsPlaceholder": "например 20000-50000 или 11,13,15-17",
       "interval": "Интервал (секунды, мин. 5)",
@@ -1761,7 +1944,19 @@
       "keepAlivePeriodPlaceholder": "например 0",
       "disablePmtuDiscovery": "Отключить обнаружение PMTU",
       "noiseRandPlaceholder": "например 1-8192",
-      "noiseRandRangePlaceholder": "например 0-255"
+      "noiseRandRange": "Случайный диапазон",
+      "noiseRandRangePlaceholder": "например 0-255",
+      "noiseExpPlaceholder": "например <b 0d0a><t><r 24-48>",
+      "noiseExpSyntaxTitle": "Синтаксис выражения пакета",
+      "noiseExpSyntaxIntro": "Соедините эти части по порядку для создания одного пакета. Выражение вычисляется заново при каждой отправке.",
+      "noiseExpBytes": "заданные байты в hex (префикс 0x необязателен)",
+      "noiseExpRandom": "N случайных байт или случайное количество от A до B",
+      "noiseExpLetters": "случайные буквы (a-zA-Z)",
+      "noiseExpDigits": "случайные цифры (0-9)",
+      "noiseExpTime": "текущее время Unix в секундах, 4 байта, порядок big endian",
+      "noiseExpCounter": "4-байтовый счётчик, увеличивается при каждой отправке",
+      "noiseExpNonce": "8 случайных байт",
+      "noiseExpExample": "Пример:"
     },
     "muxSettings": "Настройки Mux",
     "enableMux": "Включить Mux",
@@ -2247,6 +2442,9 @@
     "excludedInbound": "Исключенные входящие",
     "selectInbound": "Выберите входящий",
     "inbound": "Входящий",
+    "apiServices": "Сервисы API",
+    "apiServiceAlwaysOn": "всегда включён",
+    "apiServicesUnknown": "Нераспознанные сервисы API: {{names}}. Удалите или исправьте их, чтобы сохранить.",
     "generateKeyPair": "Пара ключей",
     "backendType": "Тип",
     "generateWireGuardKeyPair": "Пара ключей WireGuard",
@@ -2258,7 +2456,7 @@
     "copyPublicKey": "Копировать публичный ключ",
     "copyPrivateKey": "Копировать приватный ключ",
     "copyShortId": "Копировать короткий ID",
-    "restartNodes": "Перезапустить узлы",
+    "restartNodes": "Синхронизировать узлы",
     "generateShadowsocksPassword": "Пароль Shadowsocks",
     "generatingShadowsocksPassword": "Генерация пароля...",
     "shadowsocksPassword": "Пароль Shadowsocks",
@@ -2362,6 +2560,7 @@
     },
     "section": {
       "label": "Раздел",
+      "api": "API",
       "inbounds": "Входящие",
       "outbounds": "Исходящие",
       "routing": "Маршрутизация",
@@ -2373,6 +2572,7 @@
     },
     "sectionDesc": {
       "wgInterface": "Интерфейс WireGuard и ключи",
+      "api": "Сервисы gRPC API Xray",
       "advanced": "Редактирование JSON и диагностика",
       "inbounds": "Входящие слушатели и протоколы",
       "outbounds": "Исходящие подключения и апстрим",
@@ -2380,6 +2580,12 @@
       "balancers": "Стратегии балансировки нагрузки",
       "dns": "Настройки DNS и резолвера",
       "bindings": "Резервные и исключённые теги входящих"
+    },
+    "api": {
+      "title": "Сервисы API",
+      "hint": "Сервисы gRPC API, предоставляемые этим ядром. Узел всегда включает обязательные сервисы; необязательные включайте по мере необходимости.",
+      "alwaysOn": "всегда включён",
+      "unknown": "Нераспознанные сервисы API: {{names}}. Исправьте их на вкладке «Дополнительно»."
     },
     "wg": {
       "interfaceBlurb": "Настройки интерфейса WireGuard и ключи для этого ядра.",
@@ -2389,7 +2595,10 @@
       "generatePreSharedKey": "Сгенерировать предварительный общий ключ",
       "preSharedKeyGenerated": "Предварительный общий ключ сгенерирован",
       "preSharedKeyFailed": "Не удалось сгенерировать предварительный общий ключ",
+      "mtuPlaceholder": "По умолчанию на узле",
+      "mtuDescription": "Необязательно, 576–9000 байт. Требуется узел с поддержкой MTU ядра. MTU клиента настраивается отдельно в хостах.",
       "fields": {
+        "mtu": "MTU интерфейса сервера",
         "interfaceName": "Имя интерфейса",
         "privateKey": "Приватный ключ",
         "publicKey": "Публичный ключ",
@@ -2582,6 +2791,90 @@
       "customSockoptInvalid": "customSockopt должен быть корректным JSON-массивом.",
       "addCustomSockopt": "Добавить опцию"
     },
+    "masque": {
+      "title": "MASQUE",
+      "addressPool": "Пул адресов сервера",
+      "addressPoolHint": "Собственный адрес сервера с префиксом, не более одного IPv4 и одного IPv6 (например, 10.14.0.1/16 и fd14::1/64). Клиенты получают адреса из этих подсетей.",
+      "mtu": "MTU",
+      "mtuHint": "Пусто или 0 означает 1280. Иначе от 1280 до 65535.",
+      "mtuInvalid": "MTU должен быть 0 или целым числом от 1280 до 65535.",
+      "clientDns": "DNS клиентов",
+      "clientDnsHint": "DNS-серверы, которые панель добавляет в конфигурации клиентов. Только IP-адреса; Xray это поле не читает.",
+      "serverAddress": "Адрес сервера",
+      "serverPort": "Порт сервера",
+      "portInvalid": "Введите один порт от 1 до 65535.",
+      "remoteDns": "Удалённый DNS",
+      "remoteDnsHint": "Только IP-адреса. Если пусто, используются {{servers}}.",
+      "httpVersion": "Версия HTTP",
+      "httpBoth": "HTTP/3 и HTTP/2 (h3, h2)",
+      "httpH3": "HTTP/3 поверх UDP (h3)",
+      "httpH2": "HTTP/2 поверх TCP (h2)",
+      "httpServerHint": "Сохраняется как TLS ALPN. h3 слушает UDP, h2 слушает TCP, а вариант с обоими слушает оба.",
+      "httpClientHint": "Сохраняется как TLS ALPN. Сервер должен принимать ту же версию.",
+      "httpNeedsTls": "Чтобы выбрать версию HTTP, установите для безопасности значение TLS.",
+      "pathHint": "Начинается с /. Допустимы только переменные {target} и {ipproto}.",
+      "host": "Хост",
+      "hostHint": "Необязательное имя хоста или host:port, без схемы и пути.",
+      "headers": "Заголовки (JSON-объект)",
+      "headersHint": "Host и Capsule-Protocol не допускаются, а Authorization не допускается вместе с пользователем или паролем.",
+      "headersInvalid": "Заголовки должны быть JSON-объектом со строковыми значениями.",
+      "xmux": "XMUX (JSON-объект)",
+      "xmuxHint": "Необязательные ограничения повторного использования соединений, как в XHTTP. Задайте maxConnections или maxConcurrency, но не оба.",
+      "xmuxInvalid": "XMUX должен быть JSON-объектом.",
+      "auth": "Аутентификация",
+      "authNone": "Нет",
+      "authBasic": "Пользователь и пароль",
+      "authWarp": "Ключи Cloudflare WARP",
+      "user": "Пользователь",
+      "userHint": "Передаётся как HTTP Basic auth, поэтому не может содержать двоеточие.",
+      "warpPrivateKey": "Приватный ключ WARP",
+      "warpPublicKey": "Публичный ключ WARP",
+      "warpKeysHint": "Из вашей регистрации WARP MASQUE: ключи P-256 в формате PEM или DER в base64.",
+      "warpAddress": "Адреса туннеля WARP",
+      "warpAddressHint": "Адреса из регистрации, не более одного IPv4 и одного IPv6.",
+      "warpDefaultsHint": "С WARP пустой хост означает {{host}}, а пустой путь означает {{path}}.",
+      "removeClientOnly": "Удалить настройки только для клиента"
+    },
+    "xdrive": {
+      "title": "XDrive",
+      "tlsHint": "С XDrive настройки TLS влияют только на HTTPS-клиент, который обращается к API хранилища.",
+      "service": "Сервис хранилища",
+      "serviceLocal": "Локальная папка (local)",
+      "serviceTemplate": "Свой шаблон (template)",
+      "folderLocal": "Путь к папке",
+      "folderLocalHint": "Каталог, доступный обеим сторонам, в основном для тестов.",
+      "folderGoogleDrive": "ID папки",
+      "folderGoogleDriveHint": "ID папки Drive, общей для обеих сторон.",
+      "folderTemplate": "Папка",
+      "folderTemplateHint": "Необязательно. Шаблон получает её как {folder}.",
+      "clientId": "ID клиента",
+      "clientSecret": "Секрет клиента",
+      "refreshToken": "Токен обновления",
+      "googleDriveHint": "Учётные данные OAuth аккаунта Google, которому принадлежит папка.",
+      "secrets": "Секреты",
+      "secretsHint": "Шаблон получает их как {secret0}, {secret1} и так далее.",
+      "template": "Шаблон (JSON-объект)",
+      "templateHint": "Описывает запросы к API хранилища.",
+      "templateInvalid": "Шаблон должен быть JSON-объектом.",
+      "tuning": "Тонкая настройка",
+      "tuningHint": "Пусто или 0: используется значение Xray по умолчанию, указанное в каждом поле.",
+      "segmentBytes": "Размер сегмента (байты)",
+      "flushIntervalMs": "Интервал сброса (мс)",
+      "pollIntervalMs": "Интервал опроса (мс)",
+      "maxPollIntervalMs": "Максимальный интервал опроса (мс)",
+      "sessionTtlSeconds": "TTL сессии (секунды)",
+      "concurrency": "Параллелизм",
+      "eagerWindowMs": "Окно частого опроса (мс)",
+      "holeTimeoutMs": "Тайм-аут пропущенного сегмента (мс)",
+      "numberInvalid": "Введите целое число от 0 до 4294967295.",
+      "capHint": "Xray ограничивает это значение до {{max}}.",
+      "flowNotSupported": "XDrive не поддерживает flow в VLESS, а пользователи этого входящего наследуют его. Установите для поля «Поток (Flow)» значение «По умолчанию».",
+      "decryptionHint": "Нажмите кнопку «Шифрование VLESS» ниже, чтобы сгенерировать согласованную пару шифрования и расшифровки."
+    },
+    "streamForms": {
+      "invalidInputs": "В некоторых полях значения, которые нельзя сохранить. Исправьте поля, отмеченные красным.",
+      "blockingTitle": "Сначала исправьте эти настройки MASQUE или XDrive"
+    },
     "inbound": {
       "add": "Добавить входящий",
       "addToList": "Добавить в список",
@@ -2650,7 +2943,7 @@
         "secretKey": "Секретный ключ",
         "generateSecretKey": "Сгенерировать секретный ключ",
         "address": "Адрес сервера",
-        "addressHint": "Пример: 10.0.0.1/128",
+        "addressHint": "Пример: 10.0.0.1/24",
         "addressAddPlaceholder": "Добавить адрес",
         "addItem": "Добавить",
         "addressItems": "Адреса",
@@ -2672,9 +2965,21 @@
         "allowedIPsAddPlaceholder": "Добавить CIDR",
         "allowedIPsItems": "Разрешённые IP",
         "noAllowedIPs": "CIDR не добавлен.",
+        "publicKeyHint": "Вычисляется из секретного ключа. Панель добавляет его в конфигурации клиентов.",
+        "publicKeyUnavailable": "Введите корректный секретный ключ, чтобы увидеть публичный ключ.",
+        "addressPoolHint": "Клиенты получают IP из подсетей минимум на 4 адреса (IPv4 /30 и шире, IPv6 /126 и шире). Одиночные IP и /31, /32, /127, /128 остаются в конфигурации Xray, но не дают пула адресов для клиентов.",
+        "addressNoPool": "Нет подсети для клиентов: панель не будет управлять этим входящим, и пользователи не получат из него конфигурацию WireGuard.",
+        "addressInvalid": "Не IP-адрес и не CIDR: {{values}}",
+        "mtuHint": "От 576 до 9000. Оставьте пустым для 1420.",
+        "reserved": "Зарезервировано",
+        "reservedHint": "Необязательно. Три байта от 0 до 255, которые клиенты добавляют в каждый пакет, например 1, 2, 3 или [1,2,3].",
         "validation": {
           "peerRequired": "Требуется хотя бы один пир.",
-          "peerPublicKeyRequired": "У каждого пира должен быть публичный ключ."
+          "peerPublicKeyRequired": "У каждого пира должен быть публичный ключ.",
+          "secretKeyInvalid": "Секретный ключ должен быть 32-байтным ключом WireGuard (base64 или 64 шестнадцатеричных символа).",
+          "portSingle": "Для WireGuard нужен один порт от 1 до 65535.",
+          "mtuRange": "MTU должен быть целым числом от 576 до 9000.",
+          "reservedFormat": "Поле «Зарезервировано» должно содержать три числа от 0 до 255, например 1, 2, 3."
         }
       },
       "hysteria": {
@@ -2857,7 +3162,19 @@
         "allowedIPs": "Разрешённые IP",
         "allowedIPsAddPlaceholder": "Добавить CIDR",
         "allowedIPsItems": "Разрешённые IP",
-        "noAllowedIPs": "CIDR не добавлен."
+        "noAllowedIPs": "CIDR не добавлен.",
+        "kernelModeKernel": "TUN ядра",
+        "kernelModeUserspace": "Пользовательский режим (gVisor)",
+        "kernelModeHint": "Сохраняется как noKernelTun. Для TUN ядра нужны Linux и CAP_NET_ADMIN; иначе Xray работает в пользовательском режиме. Значение по умолчанию ведет себя как TUN ядра: Xray использует TUN ядра, если он поддерживается, иначе пользовательский режим.",
+        "legacyFieldHint": "Это поле читают только Xray {{lastRelease}} и более ранние версии; в {{removedIn}} оно удалено.",
+        "dnsHint": "Только IP-адреса. Поддерживается Xray v26.9.8 и новее.",
+        "dnsAddPlaceholder": "Добавить DNS-сервер",
+        "dnsItems": "DNS-серверы",
+        "noDns": "DNS-сервер не добавлен.",
+        "dnsInvalid": "DNS-серверы должны быть IP-адресами: {{values}}",
+        "dnsNotList": "DNS-серверы должны быть списком IP-адресов. Измените список, чтобы сохранить его как список.",
+        "reservedHint": "Три байта от 0 до 255, например 1, 2, 3 или [1,2,3].",
+        "reservedInvalid": "Поле «Зарезервировано» должно содержать три числа от 0 до 255, например 1, 2, 3."
       },
       "dns": {
         "blurb": "Исходящий DNS обрабатывает обычные DNS-запросы из маршрутизации. Перезапись и правила опциональны; редкие случаи — во вкладке JSON.",
@@ -3182,6 +3499,8 @@
   "settings.cores.deleteFailed": "Не удалось удалить ядро",
   "settings.cores.delete": "Удалить ядро",
   "settings.cores.coreNotFound": "Ядро не найдено",
+  "settings.cores.orderUpdated": "Порядок конфигураций ядер обновлён",
+  "settings.cores.orderUpdateFailed": "Не удалось обновить порядок конфигураций ядер",
   "createdAt": "Дата создания",
   "toggle": "Переключить статус",
   "close": "Закрыть",
@@ -3223,6 +3542,7 @@
     "proxySettings.method": "Метод",
     "proxySettings.hysteria": "Hysteria",
     "proxySettings.hysteriaAuth": "Аутентификация Hysteria",
+    "proxySettings.masque": "MASQUE",
     "proxySettings.wireguardPrivateKey": "Приватный ключ WireGuard",
     "proxySettings.wireguardPublicKey": "Публичный ключ WireGuard",
     "proxySettings.generateWireGuardKeyPair": "Пара ключей WireGuard",
@@ -3250,6 +3570,10 @@
   "usersTable.delete": "Удалить",
   "usersTable.cancel": "Отмена",
   "statistics.trafficUsage": "Использование трафика",
+  "statistics.outboundUsage": "Использование outbound",
+  "statistics.outboundUsageDescription": "Трафик по тегам outbound (direct, warp, block и т. д.)",
+  "statistics.outboundUsageEmpty": "За этот период нет данных по outbound. Они записываются, только пока включено «Учитывать трафик по outbound» в Настройки > Общие.",
+  "statistics.outboundUsageOther": "Другое",
   "statistics.trafficUsageDescription": "Общее использование трафика на всех серверах",
   "statistics.usageDuringPeriod": "Использование за период",
   "statistics.users": "Пользователи",
@@ -3258,6 +3582,24 @@
   "statistics.userCountChartDescription": "Количество онлайн, истекших и ограниченных пользователей во времени",
   "statistics.userCountChartAccuracyNote": "Смена статуса может исказить историю. Сброс использования очищает историю графика только при включенной очистке данных.",
   "statistics.groupByNode": "Группировать по узлу",
+  "statistics.breakdown": "Разбивка",
+  "statistics.breakdownByNode": "По узлам",
+  "statistics.breakdownByCore": "По ядрам",
+  "statistics.breakdownByAdmin": "По администраторам",
+  "statistics.usageScope": "Фильтр по ядру или узлу",
+  "statistics.scopeAllNodes": "Все узлы",
+  "statistics.scopeAllCores": "Все ядра",
+  "statistics.scopeCores": "Ядра",
+  "statistics.scopeNodes": "Узлы",
+  "statistics.noCore": "Без ядра",
+  "statistics.noAdmin": "Без администратора",
+  "statistics.otherAdmins": "Другие администраторы",
+  "statistics.coreStats": "Статистика ядер",
+  "statistics.coreTrafficDistribution": "Распределение трафика ядер",
+  "statistics.coreStatsDescription": "Подробная статистика трафика для каждого ядра в этот период времени. Нажмите на столбцы диаграммы, чтобы просмотреть дополнительные детали.",
+  "statistics.adminStats": "Статистика администраторов",
+  "statistics.adminTrafficDistribution": "Распределение трафика администраторов",
+  "statistics.adminStatsDescription": "Подробная статистика трафика для каждого администратора в этот период времени. Нажмите на столбцы диаграммы, чтобы просмотреть дополнительные детали.",
   "statistics.countDuringPeriod": "Количество за период",
   "workersHealth.title": "Состояние воркеров",
   "workersHealth.subtitle": "Статус планировщика и воркера узла",

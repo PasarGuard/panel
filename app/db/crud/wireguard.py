@@ -10,6 +10,7 @@ from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.xray import xray_wireguard_allocatable_addresses
 from app.db.models import (
     CoreConfig,
     CoreType,
@@ -20,6 +21,7 @@ from app.db.models import (
     inbounds_groups_association,
     users_groups_association,
 )
+from app.subscription.config_cache import clear_sub_config_cache
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from app.utils.logger import get_logger
 
@@ -43,6 +45,44 @@ def core_config_dict(core: CoreConfig) -> dict:
     if isinstance(cfg, str):
         cfg = json.loads(cfg)
     return cfg
+
+
+def wg_core_interfaces(core: CoreConfig) -> list[dict]:
+    """Allocation interfaces for kernel WG or managed Xray WG inbounds.
+
+    Xray outbounds and excluded inbounds never participate in user allocation.
+    Only this view uses interface_name; the Xray config sent to nodes is unchanged.
+    """
+    config = core_config_dict(core)
+    if core.type == CoreType.wg:
+        return [config]
+    if core.type not in (None, CoreType.xray):
+        return []
+    excluded = set(core.exclude_inbound_tags or []) | set(core.fallbacks_inbound_tags or [])
+    interfaces = []
+    for inbound in config.get("inbounds", []):
+        if inbound.get("protocol") != "wireguard" or inbound.get("tag") in excluded:
+            continue
+        settings = inbound.get("settings") or {}
+        if not isinstance(settings, dict):
+            continue
+        # Same rule as the core parser: only client subnets make an inbound managed.
+        try:
+            addresses = xray_wireguard_allocatable_addresses(inbound.get("tag"), settings.get("address"))
+        except ValueError:
+            # The core parser rejects this inbound, so it is never served.
+            continue
+        if addresses:
+            interfaces.append(
+                {
+                    "interface_name": inbound.get("tag"),
+                    "address": addresses,
+                    # Xray binds every entry, host addresses included, as a server
+                    # address of the inbound; none of them may go to a client.
+                    "server_addresses": [str(ip_interface(address)) for address in settings["address"]],
+                }
+            )
+    return interfaces
 
 
 def wg_core_subnets(config: dict) -> list[IpNetwork]:
@@ -88,9 +128,9 @@ class WgNamespace:
 def wg_namespaces(cores: Iterable[CoreConfig]) -> dict[str, WgNamespace]:
     by_key: dict[str, list[tuple[dict, IpNetwork]]] = {}
     for core in cores:
-        cfg = core_config_dict(core)
-        for subnet in wg_core_subnets(cfg):
-            by_key.setdefault(str(subnet), []).append((cfg, subnet))
+        for cfg in wg_core_interfaces(core):
+            for subnet in wg_core_subnets(cfg):
+                by_key.setdefault(str(subnet), []).append((cfg, subnet))
 
     namespaces: dict[str, WgNamespace] = {}
     for key, entries in by_key.items():
@@ -102,7 +142,8 @@ def wg_namespaces(cores: Iterable[CoreConfig]) -> dict[str, WgNamespace]:
             tag = str(cfg.get("interface_name") or "").strip()
             if tag:
                 tags.add(tag)
-            for cidr in cfg.get("address") or []:
+            # Kernel WireGuard configs have no server_addresses and reserve their interface addresses.
+            for cidr in cfg.get("server_addresses") or cfg.get("address") or []:
                 try:
                     iface = ip_interface(str(cidr).strip())
                 except ValueError:
@@ -158,9 +199,10 @@ def wg_core_tags(cores: Iterable[CoreConfig]) -> set[str]:
     """Interface names (= inbound tags) of all WG cores, subnet or not."""
     tags: set[str] = set()
     for core in cores:
-        tag = str(core_config_dict(core).get("interface_name") or "").strip()
-        if tag:
-            tags.add(tag)
+        for cfg in wg_core_interfaces(core):
+            tag = str(cfg.get("interface_name") or "").strip()
+            if tag:
+                tags.add(tag)
     return tags
 
 
@@ -242,17 +284,45 @@ async def tags_from_groups(groups: Iterable) -> set[str]:
     return tags
 
 
-def _ensure_wireguard_keys(db_user: User) -> bool:
-    """Fill missing WG keys in proxy_settings. Returns True if the user was changed."""
+def _wireguard_candidate_public_key(settings: dict | None) -> str | None:
+    wg = (settings or {}).get("wireguard") or {}
+    private_key = wg.get("private_key")
+    public_key = wg.get("public_key")
+    if private_key:
+        return public_key or get_wireguard_public_key(private_key)
+    return public_key or None
+
+
+def _ensure_wireguard_keys(
+    db_user: User,
+    *,
+    shared_keys: set[str] | frozenset[str] = frozenset(),
+    occupied_keys: set[str] | None = None,
+) -> bool:
+    """Fill WG keys and repair keys known to collide with another peer.
+
+    ``shared_keys`` contains public keys already held by another user in the
+    current allocation operation or by an existing database user. Only the
+    user currently being reconciled is rotated; existing outside users keep
+    their stable key and will be considered when they are next reconciled.
+    """
     proxy_settings = dict(db_user.proxy_settings or {})
     wg = dict(proxy_settings.get("wireguard") or {})
     private_key = wg.get("private_key")
-    if private_key and wg.get("public_key"):
+    public_key = _wireguard_candidate_public_key(proxy_settings)
+    if private_key and wg.get("public_key") and public_key not in shared_keys:
         return False
-    if private_key:
-        wg["public_key"] = get_wireguard_public_key(private_key)
+
+    if private_key and not wg.get("public_key") and public_key not in shared_keys:
+        wg["public_key"] = public_key
     else:
-        wg["private_key"], wg["public_key"] = generate_wireguard_keypair()
+        occupied = occupied_keys if occupied_keys is not None else set()
+        while True:
+            new_private, new_public = generate_wireguard_keypair()
+            if new_public not in occupied:
+                break
+        wg["private_key"], wg["public_key"] = new_private, new_public
+        occupied.add(new_public)
     proxy_settings["wireguard"] = wg
     db_user.proxy_settings = proxy_settings
     return True
@@ -279,8 +349,9 @@ def _peer_sort_key(entry: str) -> tuple[int, int]:
 
 
 async def get_wg_cores(db: AsyncSession) -> list[CoreConfig]:
-    result = await db.execute(select(CoreConfig).where(CoreConfig.type == CoreType.wg))
-    return list(result.scalars().all())
+    """Cores with managed WireGuard interfaces, across both backend types."""
+    result = await db.execute(select(CoreConfig))
+    return [core for core in result.scalars().all() if wg_core_interfaces(core)]
 
 
 def _accessible_tags_stmt(*, tags: Iterable[str] | None = None, user_ids: Iterable[int] | None = None):
@@ -308,18 +379,19 @@ def _accessible_tags_stmt(*, tags: Iterable[str] | None = None, user_ids: Iterab
 
 
 async def get_users_accessible_tags(db: AsyncSession, user_ids: list[int]) -> dict[int, set[str]]:
-    """user_id -> inbound tags reachable through enabled groups. One joined SELECT."""
+    """user_id -> inbound tags reachable through enabled groups. One joined SELECT per 10k ids."""
     if not user_ids:
         return {}
     tags_by_user: dict[int, set[str]] = {}
-    for user_id, tag in (await db.execute(_accessible_tags_stmt(user_ids=user_ids))).all():
-        tags_by_user.setdefault(user_id, set()).add(tag)
+    # asyncpg caps a statement at 32767 bind parameters, so a big group can't go into one IN (...).
+    for start in range(0, len(user_ids), 10_000):
+        stmt = _accessible_tags_stmt(user_ids=user_ids[start : start + 10_000])
+        for user_id, tag in (await db.execute(stmt)).all():
+            tags_by_user.setdefault(user_id, set()).add(tag)
     return tags_by_user
 
 
-async def get_users_accessible_tags_by_inbound_tags(
-    db: AsyncSession, tags: Iterable[str]
-) -> dict[int, set[str]]:
+async def get_users_accessible_tags_by_inbound_tags(db: AsyncSession, tags: Iterable[str]) -> dict[int, set[str]]:
     """Like get_users_accessible_tags but for all users that can reach any of `tags` (no giant IN)."""
     tag_list = list(tags)
     if not tag_list:
@@ -330,6 +402,27 @@ async def get_users_accessible_tags_by_inbound_tags(
     return tags_by_user
 
 
+async def _stored_wireguard_keys_in_use(
+    db: AsyncSession,
+    public_keys: Iterable[str],
+    excluded_user_ids: Iterable[int],
+) -> set[str]:
+    """Find stored public keys held by users outside the current allocation batch."""
+    keys = sorted({key for key in public_keys if key})
+    excluded = set(excluded_user_ids)
+    if not keys:
+        return set()
+
+    public_key = User.proxy_settings["wireguard"]["public_key"].as_string()
+    found: set[str] = set()
+    for start in range(0, len(keys), 500):
+        stmt = select(User.id, public_key).where(public_key.in_(keys[start : start + 500]))
+        for user_id, stored_key in (await db.execute(stmt)).all():
+            if user_id not in excluded and stored_key:
+                found.add(stored_key)
+    return found
+
+
 def _peer_ips_present_clause():
     """Users with a non-empty wireguard.peer_ips array (dialect-portable JSON path)."""
     peer_ips = User.proxy_settings["wireguard"]["peer_ips"]
@@ -338,9 +431,7 @@ def _peer_ips_present_clause():
 
 async def _user_ids_with_peer_ips(db: AsyncSession) -> list[int]:
     """Return user ids that have a non-empty wireguard.peer_ips array."""
-    rows = (
-        await db.execute(select(User.id).where(_peer_ips_present_clause()).order_by(User.id))
-    ).scalars().all()
+    rows = (await db.execute(select(User.id).where(_peer_ips_present_clause()).order_by(User.id))).scalars().all()
     return list(rows)
 
 
@@ -367,6 +458,8 @@ async def ensure_wireguard_subnet_pools(db: AsyncSession) -> None:
 
     Used on core create so we do not run a full user reconcile; allocations happen when
     groups gain the inbound via sync_users_allocations.
+    The rows stay locked until commit: a transaction that locks user rows before it allocates
+    calls this first, to keep the pool -> users lock order of every other writer.
     """
     namespaces = wg_namespaces(await get_wg_cores(db))
     if not namespaces:
@@ -424,6 +517,25 @@ async def sync_users_allocations(
     if tags_by_user is None:
         tags_by_user = await get_users_accessible_tags(db, [user.id for user in users])
 
+    targets_by_user = {
+        user.id: {ns.key for ns in namespaces.values() if ns.tags & tags_by_user.get(user.id, set())} for user in users
+    }
+    candidate_keys = {
+        candidate
+        for user in users
+        if targets_by_user[user.id] and (candidate := _wireguard_candidate_public_key(user.proxy_settings)) is not None
+    }
+    outside_keys = await _stored_wireguard_keys_in_use(db, candidate_keys, [user.id for user in users])
+    by_candidate: dict[str, list[int]] = {}
+    for user in users:
+        if not targets_by_user[user.id]:
+            continue
+        candidate = _wireguard_candidate_public_key(user.proxy_settings)
+        if candidate:
+            by_candidate.setdefault(candidate, []).append(user.id)
+    shared_keys = outside_keys | {key for key, ids in by_candidate.items() if len(ids) > 1}
+    occupied_keys = candidate_keys | outside_keys
+
     touched_keys: set[str] = set()
     for user in users:
         tags = tags_by_user.get(user.id, set())
@@ -436,8 +548,7 @@ async def sync_users_allocations(
 
     changed: list[User] = []
     for user in users:
-        tags = tags_by_user.get(user.id, set())
-        targets = {ns.key for ns in namespaces.values() if ns.tags & tags}
+        targets = targets_by_user[user.id]
         old_ips = _user_peer_ips(user.proxy_settings)
 
         kept: dict[str, int] = {}
@@ -465,13 +576,15 @@ async def sync_users_allocations(
         if new_ips != old_ips:
             _set_user_peer_ips(user, new_ips)
             user_changed = True
-        if targets and _ensure_wireguard_keys(user):
+        if targets and _ensure_wireguard_keys(user, shared_keys=shared_keys, occupied_keys=occupied_keys):
             user_changed = True
         if user_changed:
             changed.append(user)
 
     if changed or rows:
         await db.flush()
+    if changed:
+        clear_sub_config_cache()
     return changed
 
 
@@ -499,6 +612,20 @@ async def _release_proxy_settings(db: AsyncSession, settings_list: Iterable[dict
     for key, offsets in releases.items():
         _give_back(rows[key], offsets)
     await db.flush()
+
+
+async def lock_users_subnets(db: AsyncSession, settings_list: Iterable[dict | None]) -> None:
+    """Lock the subnet rows these users' peer IPs belong to. Callers that lock user rows take this first, in the
+    same order as the allocation paths (subnet rows, then users), so the two cannot deadlock."""
+    namespaces = wg_namespaces(await get_wg_cores(db))
+    keys = set()
+    for proxy_settings in settings_list:
+        for entry in _user_peer_ips(proxy_settings):
+            host = peer_host(entry)
+            if host is not None and (ns := match_namespace(namespaces, *host)):
+                keys.add(ns.key)
+    if keys:
+        await _lock_subnet_rows(db, keys)
 
 
 async def release_users_allocations(db: AsyncSession, users: list[User]) -> None:

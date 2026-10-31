@@ -5,10 +5,12 @@ from app import notification, scheduler
 from app.db import GetDB
 from app.db.crud.user import bulk_reset_user_data_usage, get_users_to_reset_data_usage
 from app.jobs.dependencies import SYSTEM_ADMIN
+from app.node.sync import sync_users
 from app.operation import OperatorType
 from app.operation.user import UserOperation
+from app.settings import general_settings
 from app.utils.logger import get_logger
-from config import job_settings, runtime_settings, usage_settings
+from config import job_settings, runtime_settings
 
 logger = get_logger("jobs")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
@@ -22,11 +24,12 @@ async def reset_data_usage():
         updated_users = await bulk_reset_user_data_usage(
             db,
             users,
-            clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+            clean_chart_data=(await general_settings()).usage.reset_usage_clean_chart_data,
         )
 
+        await sync_users(updated_users)
         for db_user in updated_users:
-            user = await user_operator.update_user(db_user)
+            user = await user_operator.validate_user(db_user)
             asyncio.create_task(notification.reset_user_data_usage(user, SYSTEM_ADMIN))
 
             if old_statuses.get(user.id) != user.status:

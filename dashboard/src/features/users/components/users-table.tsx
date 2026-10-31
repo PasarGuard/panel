@@ -16,7 +16,6 @@ import {
   useGetUsers,
   UserResponse,
   UserStatus,
-  UsersResponse,
 } from '@/service/api'
 
 import { useAdmin } from '@/hooks/use-admin'
@@ -37,7 +36,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Layers, Link2Off, Power, PowerOff, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
-import UserModal from '../dialogs/user-modal'
+import UserModal from '../dialogs/user-modal.lazy'
 import { PaginationControls } from './filters'
 import AdvanceSearchModal from '@/features/users/dialogs/advance-search-modal'
 import type { AdvanceSearchFormValue } from '@/features/users/forms/advance-search-form'
@@ -164,6 +163,7 @@ const UsersTable = memo(() => {
   const isInitializingFromURLRef = useRef(false)
   const { admin } = useAdmin()
   const canReadAllUsers = hasScopeAll(admin, 'users', 'read')
+  const canReadHwids = hasPermission(admin, 'hwids', 'read')
   const canUpdateUsers = hasPermission(admin, 'users', 'update')
   const canUpdateAllUsers = hasScopeAll(admin, 'users', 'update')
   const canDeleteUsers = hasPermission(admin, 'users', 'delete')
@@ -954,23 +954,8 @@ const UsersTable = memo(() => {
       clearSelectedUserTimeoutRef.current = null
     }
 
-    const cachedData = queryClient.getQueriesData<UsersResponse>({
-      queryKey: ['/api/users'],
-      exact: false,
-    })
-
-    let latestUser = user
-    for (const [, data] of cachedData) {
-      if (data?.users) {
-        const foundUser = data.users.find(u => u.id === user.id)
-        if (foundUser) {
-          latestUser = foundUser
-          break
-        }
-      }
-    }
-
-    setSelectedUser(latestUser)
+    // Edit the copy the clicked row shows: it comes from the query on screen, while other cached pages or searches can hold older copies.
+    setSelectedUser(user)
     setEditModalOpen(true)
   }
 
@@ -1023,7 +1008,7 @@ const UsersTable = memo(() => {
         },
         handleStatusFilter,
       }),
-    [t, dir, canReadAllUsers, showCreatedBy, showSelectionCheckbox, canBulkMutateUsers, handleSort, filters.sort, filters.status, handleStatusFilter],
+    [t, dir, canReadAllUsers, showCreatedBy, showSelectionCheckbox, canBulkMutateUsers, canReadHwids, handleSort, filters.sort, filters.status, handleStatusFilter],
   )
 
   const handleAdvanceSearchSubmit = async (values: AdvanceSearchFormValue) => {
@@ -1191,7 +1176,14 @@ const UsersTable = memo(() => {
         handleSort={handleSort}
         onClearAdvanceSearch={handleClearAdvanceSearch}
       />
-      {canBulkMutateUsers && <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />}
+      {canBulkMutateUsers && (
+        <BulkActionsBar
+          selectedCount={selectedCount}
+          onClear={clearSelection}
+          // While the table shows loading rows the selected users are out of sight, so no bulk action until they are back
+          actions={isPageLoading ? bulkActions.map(action => ({ ...action, disabled: true })) : bulkActions}
+        />
+      )}
       {isEmpty && (
         <Card className="mb-12">
           <CardContent className="p-8 text-center">

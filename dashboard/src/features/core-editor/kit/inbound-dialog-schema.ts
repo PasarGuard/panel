@@ -1,6 +1,7 @@
 import { getInboundFormCapabilities } from '@pasarguard/xray-config-kit'
 import type { TFunction } from 'i18next'
 import { z } from 'zod'
+import { parseWireguardInboundPort, parseWireguardKey, parseWireguardMtuInput, parseWireguardReservedInput } from '@/features/core-editor/kit/wireguard-xray-fields'
 import { isValidXrayPortList } from '@/features/core-editor/kit/xray-port-list-validation'
 import { validateMldsa65Seed, validateMldsa65Verify } from '@/utils/mldsa65'
 type Caps = ReturnType<typeof getInboundFormCapabilities>
@@ -13,6 +14,9 @@ export const INBOUND_FORM_FIELD_SEC_TARGET = 'sec_target' as const
 
 export const INBOUND_FORM_FIELD_SEC_MLDSA65_SEED = 'sec_mldsa65Seed' as const
 export const INBOUND_FORM_FIELD_SEC_MLDSA65_VERIFY = 'sec_mldsa65Verify' as const
+
+/** WireGuard form keys to `form.trigger` before commit, besides `protocol`, `tag` and `port`. */
+export const WIREGUARD_INBOUND_FORM_FIELDS = ['wgSecretKey', 'wgMtu', 'wgReserved'] as const
 
 /** Form keys to `form.trigger` when validating REALITY before commit (matches Zod `path` entries). */
 export function realityInboundZodTriggerFieldNames(): string[] {
@@ -96,6 +100,9 @@ export function createInboundDialogSchema(caps: Caps, t: TFunction) {
     })
     .passthrough()
     .superRefine((data, ctx) => {
+      // WireGuard takes exactly one port; its own check below owns `port`.
+      const p = typeof data.protocol === 'string' ? data.protocol.trim() : ''
+      if (p === 'wireguard') return
       const rawPort = typeof data.port === 'string' ? data.port.trim() : ''
       // Inbound port is optional; only validate format when a value is provided.
       if (rawPort.length === 0) return
@@ -265,25 +272,53 @@ export function createInboundDialogSchema(caps: Caps, t: TFunction) {
           message: required(secretKeyLabel),
           path: ['wgSecretKey'],
         })
+      } else if (parseWireguardKey(keyValue) === null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('coreEditor.inbound.wireguard.validation.secretKeyInvalid', {
+            defaultValue: 'Secret key must be a 32-byte WireGuard key (base64 or 64 hex characters).',
+          }),
+          path: ['wgSecretKey'],
+        })
+      }
+
+      if (parseWireguardInboundPort(data.port) === null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('coreEditor.inbound.wireguard.validation.portSingle', {
+            defaultValue: 'WireGuard needs one port from 1 to 65535.',
+          }),
+          path: ['port'],
+        })
+      }
+
+      if (!parseWireguardMtuInput(typeof raw.wgMtu === 'string' ? raw.wgMtu : '').ok) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('coreEditor.inbound.wireguard.validation.mtuRange', {
+            defaultValue: 'MTU must be a whole number from 576 to 9000.',
+          }),
+          path: ['wgMtu'],
+        })
+      }
+
+      if (!parseWireguardReservedInput(typeof raw.wgReserved === 'string' ? raw.wgReserved : '').ok) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t('coreEditor.inbound.wireguard.validation.reservedFormat', {
+            defaultValue: 'Reserved must be three numbers from 0 to 255, for example 1, 2, 3.',
+          }),
+          path: ['wgReserved'],
+        })
       }
     })
     .superRefine((data, ctx) => {
       const p = typeof data.protocol === 'string' ? data.protocol.trim() : ''
       if (p !== 'tunnel' && p !== 'dokodemo-door') return
 
-      const targetLabel = t('coreEditor.inbound.tunnel.targetAddress', { defaultValue: 'Target address' })
       const destPortLabel = t('coreEditor.inbound.tunnel.destinationPort', { defaultValue: 'Destination port' })
 
       const raw = data as Record<string, unknown>
-      const addr = typeof raw.tunnelRewriteAddress === 'string' ? raw.tunnelRewriteAddress.trim() : ''
-      if (addr === '') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: required(targetLabel),
-          path: ['tunnelRewriteAddress'],
-        })
-      }
-
       const portRaw = typeof raw.tunnelRewritePort === 'string' ? raw.tunnelRewritePort.trim() : ''
       if (portRaw === '') {
         ctx.addIssue({

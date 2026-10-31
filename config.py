@@ -30,9 +30,10 @@ runtime_settings = RuntimeSettings()
 
 class DatabaseSettings(EnvSettings):
     url: str = Field(default="sqlite+aiosqlite:///db.sqlite3", validation_alias="SQLALCHEMY_DATABASE_URL")
-    pool_size: int = Field(default=25, validation_alias="SQLALCHEMY_POOL_SIZE")
-    max_overflow: int = Field(default=60, validation_alias="SQLALCHEMY_MAX_OVERFLOW")
-    pool_recycle: int = Field(default=300, validation_alias="SQLALCHEMY_POOL_RECYCLE")
+    pool_size: int = Field(default=5, ge=1, validation_alias="SQLALCHEMY_POOL_SIZE")
+    max_overflow: int = Field(default=5, ge=0, validation_alias="SQLALCHEMY_MAX_OVERFLOW")
+    pool_recycle: int = Field(default=300, ge=-1, validation_alias="SQLALCHEMY_POOL_RECYCLE")
+    pool_timeout: int = Field(default=5, gt=0, validation_alias="SQLALCHEMY_POOL_TIMEOUT")
     connect_timeout: int = Field(default=5, gt=0, validation_alias="SQLALCHEMY_CONNECT_TIMEOUT")
     echo_queries: bool = Field(default=False, validation_alias="ECHO_SQL_QUERIES")
 
@@ -48,6 +49,14 @@ class DatabaseSettings(EnvSettings):
     def is_sqlite(self) -> bool:
         return self.url.startswith("sqlite")
 
+    def connection_ceiling(self, process_count: int = 1) -> int:
+        """Return the configured QueuePool connection ceiling across processes."""
+        if process_count < 1:
+            raise ValueError("process_count must be at least 1")
+        if self.is_sqlite:
+            return 0
+        return (self.pool_size + self.max_overflow) * process_count
+
 
 class ServerSettings(EnvSettings):
     host: str = Field(default="0.0.0.0", validation_alias="UVICORN_HOST")
@@ -60,6 +69,8 @@ class ServerSettings(EnvSettings):
     loop: str = Field(default="auto", validation_alias="UVICORN_LOOP")
     proxy_headers: bool = Field(default=False, validation_alias="UVICORN_PROXY_HEADERS")
     forwarded_allow_ips: str | list[str] = Field(default="127.0.0.1", validation_alias="UVICORN_FORWARDED_ALLOW_IPS")
+    gzip_enabled: bool = Field(default=True, validation_alias="GZIP_ENABLED")
+    gzip_minimum_size: int = Field(default=1000, ge=1, validation_alias="GZIP_MINIMUM_SIZE")
 
     @field_validator("ssl_ca_type")
     @classmethod
@@ -121,7 +132,6 @@ class CorsSettings(EnvSettings):
 class SubscriptionEnvSettings(EnvSettings):
     xray_path: str = Field(default="", validation_alias="XRAY_SUBSCRIPTION_PATH")
     fallback_path: str = Field(default="sub", validation_alias="SUBSCRIPTION_PATH")
-    clients_limit: int = Field(default=10, validation_alias="USER_SUBSCRIPTION_CLIENTS_LIMIT")
     external_config: str = Field(default="", validation_alias="EXTERNAL_CONFIG")
 
     @cached_property
@@ -139,11 +149,6 @@ class TemplateSettings(EnvSettings):
         default="subscription/index.html", validation_alias="SUBSCRIPTION_PAGE_TEMPLATE"
     )
     home_page_template: str = Field(default="home/index.html", validation_alias="HOME_PAGE_TEMPLATE")
-
-
-class UserCleanupSettings(EnvSettings):
-    autodelete_days: int = Field(default=-1, validation_alias="USERS_AUTODELETE_DAYS")
-    include_limited_accounts: bool = Field(default=False, validation_alias="USER_AUTODELETE_INCLUDE_LIMITED_ACCOUNTS")
 
 
 class TelegramEnvSettings(EnvSettings):
@@ -170,6 +175,8 @@ class LoggingSettings(EnvSettings):
 class AuthSettings(EnvSettings):
     sudo_username: str = Field(default="", validation_alias="SUDO_USERNAME")
     sudo_password: str = Field(default="", validation_alias="SUDO_PASSWORD")
+    passkey_rp_id: str = Field(default="", validation_alias="PASSKEY_RP_ID")
+    passkey_origin: str = Field(default="", validation_alias="PASSKEY_ORIGIN")
     sudoers: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -180,11 +187,10 @@ class AuthSettings(EnvSettings):
 
 
 class UsageSettings(EnvSettings):
-    disable_recording_node_usage: bool = Field(default=False, validation_alias="DISABLE_RECORDING_NODE_USAGE")
-    enable_recording_nodes_stats: bool = Field(default=False, validation_alias="ENABLE_RECORDING_NODES_STATS")
-    reset_user_usage_clean_chart_data: bool = Field(
-        default=False,
-        validation_alias="RESET_USER_USAGE_CLEAN_CHART_DATA",
+    user_usage_history_flush_interval: int = Field(
+        default=60,
+        ge=1,
+        validation_alias="USER_USAGE_HISTORY_FLUSH_INTERVAL",
     )
 
 
@@ -206,10 +212,6 @@ class JobSettings(EnvSettings):
     )
 
 
-class FeatureSettings(EnvSettings):
-    stop_nodes_on_shutdown: bool = Field(default=True, validation_alias="STOP_NODES_ON_SHUTDOWN")
-
-
 database_settings = DatabaseSettings()
 server_settings = ServerSettings()
 dashboard_settings = DashboardSettings()
@@ -218,16 +220,11 @@ cors_settings = CorsSettings()
 subscription_env_settings = SubscriptionEnvSettings()
 jwt_settings = JwtSettings()
 template_settings = TemplateSettings()
-user_cleanup_settings = UserCleanupSettings()
 telegram_env_settings = TelegramEnvSettings()
 logging_settings = LoggingSettings()
 auth_settings = AuthSettings()
 usage_settings = UsageSettings()
 job_settings = JobSettings()
-feature_settings = FeatureSettings()
-
-if not database_settings.is_postgresql:
-    usage_settings.enable_recording_nodes_stats = False
 
 if runtime_settings.debug and dashboard_settings.vite_base_api == "/":
     scheme = "https" if server_settings.has_ssl else "http"

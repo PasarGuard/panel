@@ -1,5 +1,5 @@
 import * as z from 'zod'
-import type { FinalMask } from '@/service/api'
+import type { CreateHost, FinalMask, XMuxSettings, XrayNoiseSettings } from '@/service/api'
 
 interface Brutal {
   enable?: boolean
@@ -42,6 +42,14 @@ interface MuxSettings {
   clash?: ClashMuxSettings
 }
 
+interface MasqueXMuxFormValues {
+  max_concurrency?: string
+  max_connections?: string
+  c_max_reuse_times?: string
+  h_max_reusable_secs?: string
+  h_keep_alive_period?: number | null
+}
+
 export interface HostFormValues {
   id?: number
   remark: string
@@ -64,6 +72,10 @@ export interface HostFormValues {
   priority: number
   ech_config_list?: string
   ech_query_strategy?: 'none' | 'half' | 'full'
+  mihomo_ech_config?: string
+  mihomo_ech_query_server_name?: string
+  sing_box_ech_config?: string
+  sing_box_ech_query_server_name?: string
   pinned_peer_cert_sha256?: string
   verify_peer_cert_by_name?: string[]
   fragment_settings?: {
@@ -81,15 +93,15 @@ export interface HostFormValues {
   noise_settings?: {
     xray?: {
       type: string
-      packet: string
-      delay: string
+      packet?: XrayNoiseSettings['packet']
+      delay?: XrayNoiseSettings['delay']
       apply_to: 'ip' | 'ipv4' | 'ipv6'
     }[]
   }
   mux_settings?: MuxSettings
   wireguard_overrides?: {
     allowed_ips?: string[]
-    mtu?: number
+    mtu?: number | null
     reserved?: string
     keepalive_seconds?: number
     dns?: string[]
@@ -98,6 +110,10 @@ export interface HostFormValues {
     xray?: number | null
   }
   transport_settings?: {
+    masque_settings?: {
+      remote_dns?: string[]
+      xmux?: MasqueXMuxFormValues
+    }
     xhttp_settings?: {
       mode?: 'auto' | 'packet-up' | 'stream-up' | 'stream-one'
       no_grpc_header?: boolean
@@ -116,7 +132,7 @@ export interface HostFormValues {
       seq_key?: string
       uplink_data_placement?: string
       uplink_data_key?: string
-      uplink_chunk_size?: number
+      uplink_chunk_size?: string
       sc_max_each_post_bytes?: string
       sc_min_posts_interval_ms?: string
       download_settings?: number
@@ -137,7 +153,7 @@ export interface HostFormValues {
       initial_windows_size?: number
     }
     kcp_settings?: {
-      mtu?: number
+      mtu?: number | null
       tti?: number
       uplink_capacity?: number
       downlink_capacity?: number
@@ -166,6 +182,71 @@ export interface HostFormValues {
   final_mask_settings?: FinalMask
   cipher_suites?: string
 }
+
+export function mapHostTransportSettingsForApi(settings: HostFormValues['transport_settings']): CreateHost['transport_settings'] {
+  if (!settings) return undefined
+  const xhttp = settings.xhttp_settings
+  const xmux = xhttp?.xmux
+  const masque = settings.masque_settings
+  const masqueXmux = masque?.xmux
+  const mappedMasqueXmux = masqueXmux
+    ? {
+        maxConcurrency: masqueXmux.max_concurrency || undefined,
+        maxConnections: masqueXmux.max_connections || undefined,
+        cMaxReuseTimes: masqueXmux.c_max_reuse_times || undefined,
+        hMaxReusableSecs: masqueXmux.h_max_reusable_secs || undefined,
+        hKeepAlivePeriod: masqueXmux.h_keep_alive_period ?? undefined,
+      }
+    : undefined
+  return {
+    ...settings,
+    masque_settings: masque
+      ? {
+          ...masque,
+          xmux: mappedMasqueXmux && Object.values(mappedMasqueXmux).some(value => value !== undefined) ? mappedMasqueXmux : undefined,
+        }
+      : undefined,
+    xhttp_settings: xhttp
+      ? {
+          ...xhttp,
+          xmux: xmux
+            ? {
+                maxConcurrency: xmux.max_concurrency,
+                maxConnections: xmux.max_connections,
+                cMaxReuseTimes: xmux.c_max_reuse_times,
+                hMaxReusableSecs: xmux.h_max_reusable_secs,
+                hMaxRequestTimes: xmux.h_max_request_times,
+                hKeepAlivePeriod: xmux.h_keep_alive_period,
+              }
+            : undefined,
+        }
+      : undefined,
+  }
+}
+
+export function mapMasqueXmuxForForm(xmux: XMuxSettings | null | undefined): MasqueXMuxFormValues | undefined {
+  if (!xmux) return undefined
+  return {
+    max_concurrency: xmux.maxConcurrency ?? undefined,
+    max_connections: xmux.maxConnections ?? undefined,
+    c_max_reuse_times: xmux.cMaxReuseTimes ?? undefined,
+    h_max_reusable_secs: xmux.hMaxReusableSecs ?? undefined,
+    h_keep_alive_period: xmux.hKeepAlivePeriod ?? undefined,
+  }
+}
+
+const masqueXmuxRangeField = z
+  .string()
+  .nullish()
+  .optional()
+  .refine(value => {
+    if (!value) return true
+    if (!/^\d{1,16}(?:-\d{1,16})?$/.test(value)) return false
+    const bounds = value.split('-').map(Number)
+    return bounds[0] <= bounds[bounds.length - 1] && bounds.every(bound => bound <= 2147483647)
+  }, {
+    message: "Enter an ordered number or range such as '1-3' (up to 2147483647)",
+  })
 
 const transportSettingsSchema = z
   .object({
@@ -200,7 +281,12 @@ const transportSettingsSchema = z
         seq_key: z.string().nullish().optional(),
         uplink_data_placement: z.string().nullish().optional(),
         uplink_data_key: z.string().nullish().optional(),
-        uplink_chunk_size: z.number().nullish().optional(),
+        uplink_chunk_size: z
+          .string()
+          .nullish()
+          .refine(val => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
+            message: "Uplink Chunk Size must be in format like '10-20' or '10'",
+          }),
         sc_max_each_post_bytes: z.string().nullish().optional(),
         sc_min_posts_interval_ms: z.string().nullish().optional(),
         download_settings: z.number().nullish().optional(),
@@ -329,6 +415,33 @@ const transportSettingsSchema = z
       })
       .nullish()
       .optional(),
+    masque_settings: z
+      .object({
+        remote_dns: z.array(z.string()).optional(),
+        xmux: z
+          .object({
+            max_concurrency: masqueXmuxRangeField,
+            max_connections: masqueXmuxRangeField,
+            c_max_reuse_times: masqueXmuxRangeField,
+            h_max_reusable_secs: masqueXmuxRangeField,
+            h_keep_alive_period: z.number().int().nullish().optional(),
+          })
+          .superRefine((value, context) => {
+            const connections = Number(value.max_connections?.split('-').pop() || 0)
+            const concurrency = Number(value.max_concurrency?.split('-').pop() || 0)
+            if (connections > 0 && concurrency > 0) {
+              context.addIssue({
+                code: 'custom',
+                path: ['max_concurrency'],
+                message: 'Max Connections and Max Concurrency cannot both be set',
+              })
+            }
+          })
+          .nullish()
+          .optional(),
+      })
+      .nullish()
+      .optional(),
   })
   .nullish()
   .optional()
@@ -354,6 +467,10 @@ export const HostFormSchema = z.object({
   is_disabled: z.boolean().default(false),
   ech_config_list: z.string().optional(),
   ech_query_strategy: z.enum(['none', 'half', 'full']).optional(),
+  mihomo_ech_config: z.string().optional(),
+  mihomo_ech_query_server_name: z.string().max(255).optional(),
+  sing_box_ech_config: z.string().optional(),
+  sing_box_ech_query_server_name: z.string().max(255).optional(),
   pinned_peer_cert_sha256: z.string().max(128, 'Pinned peer cert SHA256 must be at most 128 characters').optional(),
   verify_peer_cert_by_name: z.array(z.string()).default([]),
   fragment_settings: z
@@ -383,11 +500,11 @@ export const HostFormSchema = z.object({
               .string()
               .regex(/^(?:rand|str|base64|hex)$/)
               .optional(),
-            packet: z.string().optional(),
+            packet: z.union([z.string(), z.array(z.number().int())]).nullish(),
             delay: z
-              .string()
-              .optional()
-              .refine(val => !val || /^\d{1,16}(-\d{1,16})?$/.test(val), {
+              .union([z.string(), z.number().int()])
+              .nullish()
+              .refine(val => val == null || val === '' || /^\d{1,16}(-\d{1,16})?$/.test(String(val)), {
                 message: "Delay must be in format like '10-20' or '10'",
               }),
             apply_to: z.enum(['ip', 'ipv4', 'ipv6']).default('ip'),
@@ -450,7 +567,7 @@ export const HostFormSchema = z.object({
   wireguard_overrides: z
     .object({
       allowed_ips: z.array(z.string()).optional(),
-      mtu: z.number().min(576).max(9000).optional(),
+      mtu: z.number().min(576).max(9000).nullish(),
       reserved: z.string().max(64).optional(),
       keepalive_seconds: z.number().min(0).max(86400).optional(),
       dns: z.array(z.string()).optional(),
@@ -486,6 +603,10 @@ export const hostFormDefaultValues: HostFormValues = {
   priority: 0,
   ech_config_list: undefined,
   ech_query_strategy: undefined,
+  mihomo_ech_config: undefined,
+  mihomo_ech_query_server_name: undefined,
+  sing_box_ech_config: undefined,
+  sing_box_ech_query_server_name: undefined,
   pinned_peer_cert_sha256: undefined,
   verify_peer_cert_by_name: [],
   fragment_settings: undefined,
@@ -495,7 +616,9 @@ export const hostFormDefaultValues: HostFormValues = {
 }
 
 /** Normalize API fragment settings for the host form (accept legacy `delay` as `interval`). */
-export function mapHostFragmentSettingsForForm(fragmentSettings: { xray?: Record<string, unknown> | null; sing_box?: NonNullable<HostFormValues['fragment_settings']>['sing_box'] | null } | null | undefined): HostFormValues['fragment_settings'] | undefined {
+export function mapHostFragmentSettingsForForm(
+  fragmentSettings: { xray?: Record<string, unknown> | null; sing_box?: NonNullable<HostFormValues['fragment_settings']>['sing_box'] | null } | null | undefined,
+): HostFormValues['fragment_settings'] | undefined {
   if (!fragmentSettings) return undefined
   const xrayRaw = fragmentSettings.xray
   if (!xrayRaw && fragmentSettings.sing_box == null) return undefined
@@ -514,4 +637,3 @@ export function mapHostFragmentSettingsForForm(fragmentSettings: { xray?: Record
     sing_box: fragmentSettings.sing_box ?? undefined,
   }
 }
-

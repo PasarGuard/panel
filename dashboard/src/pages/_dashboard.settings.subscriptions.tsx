@@ -8,7 +8,14 @@ import { SubscriptionManualFormatsSection } from '@/features/subscriptions/compo
 import { SubscriptionResponseHeadersSection } from '@/features/subscriptions/components/subscription-response-headers-section'
 import { SubscriptionRulesSection } from '@/features/subscriptions/components/subscription-rules-section'
 import { SubscriptionSettingsSkeleton } from '@/features/subscriptions/components/subscription-settings-skeleton'
-import { subscriptionSchema, type SubscriptionApplicationFormData, type SubscriptionFormData, defaultSubscriptionRules, normalizeCustomVariablesForPayload } from '@/features/subscriptions/components/subscription-settings-schema'
+import {
+  subscriptionSchema,
+  type SubscriptionApplicationFormData,
+  type SubscriptionFormData,
+  type SubscriptionFormInput,
+  defaultSubscriptionRules,
+  normalizeCustomVariablesForPayload,
+} from '@/features/subscriptions/components/subscription-settings-schema'
 import { Form } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
 import { type SubRule as ApiSubRule } from '@/service/api'
@@ -26,11 +33,12 @@ export default function SubscriptionSettings() {
   const { settings, isLoading, error, updateSettings, isSaving } = useSettingsContext()
   const [isAddAppOpen, setIsAddAppOpen] = useState(false)
 
-  const form = useForm<SubscriptionFormData>({
+  const form = useForm<SubscriptionFormInput, unknown, SubscriptionFormData>({
     resolver: zodResolver(subscriptionSchema),
     defaultValues: {
       url_prefix: '',
       update_interval: 24,
+      clients_limit: 10,
       support_url: '',
       profile_title: '',
       announce: '',
@@ -40,6 +48,7 @@ export default function SubscriptionSettings() {
       randomize_order: false,
       custom_variables: [],
       response_headers: {},
+      header_placement: 'header',
       rules: [],
       applications: [],
       manual_sub_request: {
@@ -115,6 +124,7 @@ export default function SubscriptionSettings() {
       form.reset({
         url_prefix: subscriptionData.url_prefix || '',
         update_interval: subscriptionData.update_interval || 24,
+        clients_limit: subscriptionData.clients_limit ?? 10,
         support_url: subscriptionData.support_url || '',
         profile_title: subscriptionData.profile_title || '',
         announce: subscriptionData.announce || '',
@@ -124,6 +134,7 @@ export default function SubscriptionSettings() {
         randomize_order: subscriptionData.randomize_order ?? false,
         custom_variables: subscriptionData.custom_variables || [],
         response_headers: Object.fromEntries(Object.entries(subscriptionData.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+        header_placement: subscriptionData.header_placement ?? 'header',
         rules:
           subscriptionData.rules?.map((rule: ApiSubRule) => ({
             pattern: rule.pattern,
@@ -217,7 +228,7 @@ export default function SubscriptionSettings() {
     }
   }
 
-  const onInvalid = (errors: FieldErrors<SubscriptionFormData>) => {
+  const onInvalid = (errors: FieldErrors<SubscriptionFormInput>) => {
     const appsErrors = errors?.applications
     if (Array.isArray(appsErrors)) {
       for (let i = 0; i < appsErrors.length; i++) {
@@ -274,6 +285,7 @@ export default function SubscriptionSettings() {
       form.reset({
         url_prefix: subscriptionData.url_prefix || '',
         update_interval: subscriptionData.update_interval || 24,
+        clients_limit: subscriptionData.clients_limit ?? 10,
         support_url: subscriptionData.support_url || '',
         profile_title: subscriptionData.profile_title || '',
         announce: subscriptionData.announce || '',
@@ -283,6 +295,7 @@ export default function SubscriptionSettings() {
         randomize_order: subscriptionData.randomize_order ?? false,
         custom_variables: subscriptionData.custom_variables || [],
         response_headers: Object.fromEntries(Object.entries(subscriptionData.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+        header_placement: subscriptionData.header_placement ?? 'header',
         rules:
           subscriptionData.rules?.map((rule: ApiSubRule) => ({
             pattern: rule.pattern,

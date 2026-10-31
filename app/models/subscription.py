@@ -5,9 +5,10 @@ Broken down into small, focused models - each transport/protocol gets only what 
 
 from __future__ import annotations
 
+import unicodedata
 from typing import Any
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, computed_field, field_validator
 
 from app.models.host import FinalMask
 from app.models.stats import Period
@@ -25,6 +26,10 @@ class TLSConfig(BaseModel):
     alpn_list: list[str] = Field(default_factory=list)
     ech_config_list: str | None = Field(None)
     ech_query_strategy: str | None = Field(None)
+    mihomo_ech_config: str | None = Field(None)
+    mihomo_ech_query_server_name: str | None = Field(None)
+    sing_box_ech_config: str | None = Field(None)
+    sing_box_ech_query_server_name: str | None = Field(None)
     pinned_peer_cert_sha256: str | None = Field(default=None)
     verify_peer_cert_by_name: list[str] | None = Field(default_factory=list)
     cipher_suites: str | None = Field(None)
@@ -73,6 +78,17 @@ class BaseTransportConfig(BaseModel):
     host: list[str] | str = Field(default_factory=list)
 
     model_config = {"validate_assignment": True}
+
+
+class MasqueTransportConfig(BaseTransportConfig):
+    """MASQUE transport settings used by Xray subscriptions."""
+
+    xmux: dict[str, Any] | None = Field(None)
+    http_headers: dict[str, str] | None = Field(
+        None,
+        validation_alias=AliasChoices("headers", "http_headers"),
+        serialization_alias="headers",
+    )
 
 
 class GRPCTransportConfig(BaseTransportConfig):
@@ -148,6 +164,28 @@ class XHTTPTransportConfig(BaseTransportConfig):
         return value
 
 
+class XDriveTransportConfig(BaseTransportConfig):
+    """XDrive transport settings represented as explicit Xray fields.
+
+    The inherited path and host stay empty: XDrive has neither, but the shared
+    subscription code reads them for every transport.
+    """
+
+    remote_folder: str | None = Field(None, serialization_alias="remoteFolder")
+    service: str | None = Field(None)
+    secrets: list[str] | None = Field(None)
+    segment_bytes: int | None = Field(None, serialization_alias="segmentBytes")
+    flush_interval_ms: int | None = Field(None, serialization_alias="flushIntervalMs")
+    poll_interval_ms: int | None = Field(None, serialization_alias="pollIntervalMs")
+    max_poll_interval_ms: int | None = Field(None, serialization_alias="maxPollIntervalMs")
+    session_ttl_seconds: int | None = Field(None, serialization_alias="sessionTtlSeconds")
+    concurrency: int | None = Field(None)
+    eager_window_ms: int | None = Field(None, serialization_alias="eagerWindowMs")
+    hole_timeout_ms: int | None = Field(None, serialization_alias="holeTimeoutMs")
+    template: dict[str, Any] | None = Field(None)
+    s3: dict[str, Any] | None = Field(None)
+
+
 class KCPTransportConfig(BaseTransportConfig):
     """KCP transport - only kcp-specific fields"""
 
@@ -177,6 +215,14 @@ class TCPTransportConfig(BaseTransportConfig):
 
 
 # ========== Protocol-Specific Models (Only protocol fields) ==========
+
+
+class MasqueProtocolData(BaseModel):
+    """MASQUE client authentication and DNS resolver settings."""
+
+    user: str = Field("")
+    password: str = Field("")
+    remote_dns: list[str] = Field(default_factory=list, serialization_alias="remoteDNS")
 
 
 class VMESSProtocolData(BaseModel):
@@ -247,8 +293,10 @@ class SubscriptionInboundData(BaseModel):
     tls_config: TLSConfig
     transport_config: (
         GRPCTransportConfig
+        | MasqueTransportConfig
         | WebSocketTransportConfig
         | XHTTPTransportConfig
+        | XDriveTransportConfig
         | KCPTransportConfig
         | QUICTransportConfig
         | TCPTransportConfig
@@ -276,6 +324,9 @@ class SubscriptionInboundData(BaseModel):
     wireguard_reserved: str | None = Field(default=None)
     wireguard_dns: list[str] | None = Field(default=None)
 
+    # MASQUE DNS comes from the host or its inbound, not the user.
+    masque_remote_dns: list[str] = Field(default_factory=list)
+
     # Flow (from inbound, user can override)
     inbound_flow: str = Field("")
 
@@ -285,7 +336,7 @@ class SubscriptionInboundData(BaseModel):
     # Fragment and noise settings
     fragment_settings: dict[str, Any] | None = Field(None)
     noise_settings: dict[str, Any] | None = Field(None)
-    finalmask: FinalMask | dict[str, Any] | None = Field(None)
+    finalmask: dict[str, Any] | None = Field(None)
     finalmask_link: str | None = Field(None)
 
     # Priority and status
@@ -294,6 +345,15 @@ class SubscriptionInboundData(BaseModel):
     subscription_templates: dict[str, Any] | None = Field(default=None)
 
     model_config = {"validate_assignment": True}
+
+    @field_validator("finalmask", mode="before")
+    @classmethod
+    def dump_finalmask_with_xray_names(cls, value):
+        # Builders read Xray field names from a plain dict. A FinalMask | dict union
+        # turned some dicts (quicParams without a udp mask) back into a FinalMask.
+        if isinstance(value, FinalMask):
+            return value.model_dump(by_alias=True, exclude_none=True, mode="json")
+        return value
 
 
 class SubscriptionUsageQuery(BaseModel):
@@ -309,3 +369,14 @@ class SubscriptionHeaders(BaseModel):
     x_device_model: str | None = Field(default=None, alias="X-Device-Model")
 
     model_config = {"populate_by_name": True}
+
+    @field_validator("x_hwid")
+    @classmethod
+    def validate_hwid(cls, value: str | None) -> str | None:
+        # Some clients send the header blank when device ID is off: treat that as no header.
+        if value is None or not value.strip():
+            return None
+        # "Cc" covers C0, DEL and C1: header bytes arrive decoded as latin-1, so 0x80-0x9f are C1 controls.
+        if len(value) > 256 or any(unicodedata.category(char) == "Cc" for char in value):
+            raise ValueError("X-HWID must be an ID of at most 256 characters without control characters")
+        return value

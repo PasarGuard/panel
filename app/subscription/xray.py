@@ -3,18 +3,23 @@ from random import choice
 
 from pydantic import BaseModel
 
+from app.models.host import FinalMask, dump_final_mask_for_xray
 from app.models.subscription import (
     GRPCTransportConfig,
     KCPTransportConfig,
+    MasqueProtocolData,
+    MasqueTransportConfig,
     QUICTransportConfig,
     SubscriptionInboundData,
     TCPTransportConfig,
     TLSConfig,
     WebSocketTransportConfig,
+    XDriveTransportConfig,
     XHTTPTransportConfig,
 )
 
 from . import BaseSubscription
+from .base import dumps_compact
 
 
 class XrayConfiguration(BaseSubscription):
@@ -24,6 +29,13 @@ class XrayConfiguration(BaseSubscription):
         user_agent_template_content: str | None = None,
         grpc_user_agent_template_content: str | None = None,
     ):
+        """Initialize an empty subscription builder from optional JSON templates.
+
+        The Xray template is the base for each added configuration. The user
+        agent templates provide lists for transports that select user agents.
+        Missing or empty template content uses empty defaults. Malformed JSON
+        in any template propagates as ``json.JSONDecodeError``.
+        """
         super().__init__(
             user_agent_template_content=user_agent_template_content,
             grpc_user_agent_template_content=grpc_user_agent_template_content,
@@ -37,6 +49,7 @@ class XrayConfiguration(BaseSubscription):
             "httpupgrade": self._transport_httpupgrade,
             "splithttp": self._transport_xhttp,
             "xhttp": self._transport_xhttp,
+            "xdrive": self._transport_xdrive,
             "quic": self._transport_quic,
             "grpc": self._transport_grpc,
             "gun": self._transport_grpc,
@@ -44,6 +57,7 @@ class XrayConfiguration(BaseSubscription):
             "raw": self._transport_tcp,
             "kcp": self._transport_kcp,
             "h2": self._transport_http,
+            "masque": self._transport_masque,
         }
 
         # Registry for protocol builders
@@ -53,6 +67,7 @@ class XrayConfiguration(BaseSubscription):
             "trojan": self._build_trojan,
             "shadowsocks": self._build_shadowsocks,
             "hysteria": self._build_hysteria,
+            "masque": self._build_masque,
             "wireguard": self._build_wireguard,
         }
 
@@ -63,7 +78,7 @@ class XrayConfiguration(BaseSubscription):
         self.config.append(json_template)
 
     def render(self):
-        return json.dumps(self.config, indent=4)
+        return dumps_compact(self.config)
 
     def add(
         self,
@@ -174,6 +189,11 @@ class XrayConfiguration(BaseSubscription):
         xhttp_settings["extra"] = extra
         return self._normalize_and_remove_none_values(xhttp_settings)
 
+    @staticmethod
+    def _transport_xdrive(config: XDriveTransportConfig, path: str) -> dict:
+        """Build XDrive transport settings using Xray's camelCase JSON keys."""
+        return config.model_dump(by_alias=True, exclude_none=True, exclude={"path", "host"})
+
     def _xhttp_download_config(self, download_settings: SubscriptionInboundData | dict) -> dict:
         if isinstance(download_settings, dict):
             return download_settings
@@ -275,6 +295,22 @@ class XrayConfiguration(BaseSubscription):
             http_settings["headers"]["User-Agent"] = [choice(self.user_agent_list)]
 
         return self._normalize_and_remove_none_values(http_settings)
+
+    def _transport_masque(self, config: MasqueTransportConfig, path: str) -> dict:
+        """Build MASQUE transport settings using the supplied path.
+
+        Use the first host when multiple hosts are supplied, and omit an empty
+        host, path, or header mapping from the returned settings.
+        """
+        host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
+        return self._normalize_and_remove_none_values(
+            {
+                "host": host,
+                "path": path or None,
+                "headers": config.http_headers or None,
+                "xmux": config.xmux or None,
+            }
+        )
 
     def _transport_quic(self, config: QUICTransportConfig, path: str) -> dict:
         """Handle QUIC transport - only gets QUIC config"""
@@ -497,6 +533,38 @@ class XrayConfiguration(BaseSubscription):
             user_settings={"auth": str(settings["auth"])},
         )
 
+    def _build_masque(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
+        """Build MASQUE outbound with user credentials and host/inbound DNS.
+
+        Read credentials from a ``masque`` mapping in ``settings`` when present,
+        otherwise from ``settings`` itself; ``pass`` takes precedence over
+        ``password``. Return ``(main_outbound, extra_outbounds)``. Invalid
+        credentials or DNS values raise ``pydantic.ValidationError``; port
+        conversion errors from outbound construction also propagate.
+        """
+        masque_settings = settings.get("masque")
+        if not isinstance(masque_settings, dict):
+            masque_settings = settings
+
+        masque_data = MasqueProtocolData.model_validate(
+            {
+                "user": masque_settings.get("user", ""),
+                "password": masque_settings.get("pass", masque_settings.get("password", "")),
+                "remote_dns": inbound.masque_remote_dns,
+            }
+        )
+
+        return self._build_outbound(
+            protocol_type="masque",
+            address=address,
+            inbound=inbound,
+            user_settings={
+                "user": masque_data.user,
+                "pass": masque_data.password,
+                "remoteDNS": masque_data.remote_dns,
+            },
+        )
+
     def _build_wireguard(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> tuple:
         """Build WireGuard outbound for Xray subscriptions."""
         private_key = settings.get("private_key", "")
@@ -517,6 +585,7 @@ class XrayConfiguration(BaseSubscription):
             "protocol": "wireguard",
             "tag": "proxy",
             "settings": {
+                "remoteDNS": inbound.wireguard_dns,
                 "secretKey": private_key,
                 "address": peer_ips,
                 "peers": [self._normalize_and_remove_none_values(peer)],
@@ -551,8 +620,18 @@ class XrayConfiguration(BaseSubscription):
         inbound: SubscriptionInboundData,
         user_settings: dict,
     ) -> dict:
-        """Generic outbound builder"""
-        network = inbound.network
+        """Return a proxy outbound and a list of optional fragment/noise dialers.
+
+        Apply the inbound's transport, TLS, final mask, and enabled Xray mux
+        settings. MASQUE always uses the MASQUE transport, places credentials
+        in ``masqueSettings`` and DNS in outbound settings, and omits mux.
+
+        Raises:
+            ValueError: A selected port from a comma-separated string is not an integer.
+            IndexError: A gRPC multi-mode path beginning with ``/`` lacks the
+                ``|`` stream separator.
+        """
+        network = "masque" if protocol_type == "masque" else inbound.network
         path = inbound.transport_config.path
         vnext_protocols = ("vmess", "vless")
         servers_protocols = ("trojan", "shadowsocks")
@@ -604,6 +683,16 @@ class XrayConfiguration(BaseSubscription):
                     "port": self._select_port(inbound.port),
                 },
             }
+        elif protocol_type == "masque":
+            outbound = {
+                "protocol": protocol_type,
+                "tag": "proxy",
+                "settings": {
+                    "address": address,
+                    "port": self._select_port(inbound.port),
+                    "remoteDNS": user_settings.get("remoteDNS"),
+                },
+            }
 
         # Build stream settings
         if network == "hysteria":
@@ -622,6 +711,13 @@ class XrayConfiguration(BaseSubscription):
 
         else:
             network_setting = self._apply_transport(network, inbound, path)
+            if protocol_type == "masque" and isinstance(network_setting, dict):
+                network_setting.update(
+                    {
+                        "user": user_settings.get("user"),
+                        "pass": user_settings.get("pass"),
+                    }
+                )
 
         security = inbound.tls_config.tls if inbound.tls_config.tls != "none" else None
         tls_settings = self._apply_tls(inbound.tls_config, security) if security else None
@@ -636,19 +732,31 @@ class XrayConfiguration(BaseSubscription):
                 sockopt = {"dialerProxy": "dialer"}
 
         outbound["streamSettings"] = self._stream_setting_config(
-            network=network,
+            network=None if protocol_type == "masque" else network,
             security=security,
-            network_setting=network_setting,
+            network_setting=None if protocol_type == "masque" else network_setting,
             tls_settings=tls_settings,
             sockopt=sockopt,
             finalmask=inbound.finalmask,
         )
+        if protocol_type == "masque":
+            outbound["streamSettings"]["method"] = "masque"
+            outbound["streamSettings"]["masqueSettings"] = network_setting
 
         # Add mux
-        if inbound.mux_settings and (xray_mux := inbound.mux_settings.get("xray")) and xray_mux.get("enabled"):
+        if (
+            protocol_type != "masque"
+            and inbound.mux_settings
+            and (xray_mux := inbound.mux_settings.get("xray"))
+            and xray_mux.get("enabled")
+        ):
             outbound["mux"] = self._normalize_and_remove_none_values(xray_mux)
 
-        return self._normalize_and_remove_none_values(outbound), extra_outbounds
+        outbound = self._normalize_and_remove_none_values(outbound)
+        if network == "xdrive" and network_setting:
+            # The cleanup drops false like 0, but Xray reads XDrive settings as given (s3 "pathStyle" defaults to true).
+            outbound["streamSettings"]["xdriveSettings"] = network_setting
+        return outbound, extra_outbounds
 
     @staticmethod
     def _stream_setting_config(
@@ -669,7 +777,13 @@ class XrayConfiguration(BaseSubscription):
 
         if finalmask is not None:
             if isinstance(finalmask, BaseModel):
-                stream_settings["finalmask"] = finalmask.model_dump(exclude_none=True, by_alias=True, mode="json")
+                finalmask = finalmask.model_dump(exclude_none=True, by_alias=True, mode="json")
+            try:
+                finalmask = FinalMask.model_validate(finalmask)
+            except (TypeError, ValueError):
+                pass
+            if isinstance(finalmask, (FinalMask, dict)):
+                stream_settings["finalmask"] = dump_final_mask_for_xray(finalmask)
             else:
                 stream_settings["finalmask"] = finalmask
 

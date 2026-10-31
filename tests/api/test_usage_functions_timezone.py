@@ -12,11 +12,13 @@ import pytest
 from sqlalchemy import select
 
 from app.db.crud.admin import get_admin_usages
-from app.db.crud.node import get_nodes_usage
+from app.db.crud.node import get_nodes_outbound_usage, get_nodes_usage
 from app.db.crud.user import get_all_users_usages, get_user_count_metric_stats, get_user_usages
 from app.db.models import (
     Admin,
+    CoreConfig,
     Node,
+    NodeOutboundUsage,
     NodeUsage,
     NodeUserUsage,
     User,
@@ -24,6 +26,7 @@ from app.db.models import (
 )
 from app.models.proxy import ProxyTable
 from app.models.stats import (
+    NodeOutboundUsageStatsList,
     NodeUsageStatsList,
     Period,
     UserCountMetric,
@@ -645,6 +648,69 @@ class TestGetAllUsersUsagesTimezone:
                 f"Expected total_traffic={expected_total_traffic}, got {total_traffic}"
             )
 
+    @pytest.mark.asyncio
+    async def test_all_users_usages_group_by_admin_and_core_filter(self):
+        """
+        Grouping by admin keys stats by admin id, and core_id only counts nodes of that core.
+        """
+        async with TestSession() as session:
+            first_admin_id, first_user_id, core_node_id = await setup_test_data(session, "first")
+            second_admin_id, second_user_id, other_node_id = await setup_test_data(session, "second")
+
+            core = CoreConfig(name=f"core_{uuid4().hex[:8]}", config={})
+            session.add(core)
+            await session.flush()
+            core_id = core.id
+            core_node = await session.get(Node, core_node_id)
+            core_node.core_config_id = core_id
+            await session.commit()
+
+            ts = datetime(2026, 9, 9, 21, 30, 0, tzinfo=UTC)
+            records = [
+                (first_user_id, core_node_id, 1000),
+                (first_user_id, other_node_id, 200),
+                (second_user_id, core_node_id, 30),
+                (second_user_id, other_node_id, 4),
+            ]
+            for user_id, node_id, used_traffic in records:
+                session.add(NodeUserUsage(created_at=ts, user_id=user_id, node_id=node_id, used_traffic=used_traffic))
+            await session.commit()
+
+            admin_usernames = list(
+                (
+                    await session.execute(select(Admin.username).where(Admin.id.in_([first_admin_id, second_admin_id])))
+                ).scalars()
+            )
+            tehran_tz = timezone(timedelta(hours=3, minutes=30))
+            start = datetime(2026, 9, 10, 0, 0, 0, tzinfo=tehran_tz)
+            end = datetime(2026, 9, 10, 3, 0, 0, tzinfo=tehran_tz)
+
+            result = await get_all_users_usages(
+                session,
+                admins=admin_usernames,
+                start=start,
+                end=end,
+                period=Period.hour,
+                group_by_admin=True,
+            )
+
+            assert set(result.stats.keys()) == {first_admin_id, second_admin_id}
+            assert sum(stat.total_traffic for stat in result.stats[first_admin_id]) == 1200
+            assert sum(stat.total_traffic for stat in result.stats[second_admin_id]) == 34
+
+            core_result = await get_all_users_usages(
+                session,
+                admins=admin_usernames,
+                start=start,
+                end=end,
+                period=Period.hour,
+                core_id=core_id,
+                group_by_admin=True,
+            )
+
+            assert sum(stat.total_traffic for stat in core_result.stats[first_admin_id]) == 1000
+            assert sum(stat.total_traffic for stat in core_result.stats[second_admin_id]) == 30
+
 
 class TestGetAdminUsagesTimezone:
     """Test get_admin_usages with timezone-aware filtering."""
@@ -1106,3 +1172,65 @@ class TestGetUserCountMetricStats:
                     metric=UserCountMetric.limited,
                     group_by_node=True,
                 )
+
+
+class TestGetNodesOutboundUsage:
+    """Per-outbound usage grouped by tag, over all nodes or one."""
+
+    @pytest.mark.asyncio
+    async def test_groups_by_tag_and_filters_node_and_partial_bucket(self):
+        async with TestSession() as session:
+            _, _, node_a = await setup_test_data(session, "outbound_a")
+            _, _, node_b = await setup_test_data(session, "outbound_b")
+            # A window of its own, far from the rows other tests write
+            rows = [
+                (datetime(2032, 5, 1, 10, 0, tzinfo=UTC), node_a, "direct", 1, 10),
+                (datetime(2032, 5, 1, 10, 10, tzinfo=UTC), node_b, "direct", 2, 20),
+                (datetime(2032, 5, 1, 10, 20, tzinfo=UTC), node_a, "warp", 4, 40),
+                (datetime(2032, 5, 1, 11, 0, tzinfo=UTC), node_a, "direct", 8, 80),
+                (datetime(2032, 5, 1, 12, 0, tzinfo=UTC), node_a, "direct", 100, 100),  # at end, excluded
+            ]
+            for created_at, node_id, tag, up, down in rows:
+                session.add(
+                    NodeOutboundUsage(
+                        created_at=created_at, node_id=node_id, outbound_tag=tag, uplink=up, downlink=down
+                    )
+                )
+            await session.commit()
+
+            start = datetime(2032, 5, 1, 10, 0, tzinfo=UTC)
+            end = datetime(2032, 5, 1, 12, 0, tzinfo=UTC)
+            result = await get_nodes_outbound_usage(session, start=start, end=end, period=Period.hour)
+
+            assert isinstance(result, NodeOutboundUsageStatsList)
+            summary = {
+                tag: [(stat.period_start.astimezone(UTC).hour, stat.uplink, stat.downlink) for stat in stats]
+                for tag, stats in result.stats.items()
+            }
+            assert summary == {"direct": [(10, 3, 30), (11, 8, 80)], "warp": [(10, 4, 40)]}
+
+            only_b = await get_nodes_outbound_usage(session, start=start, end=end, period=Period.hour, node_id=node_b)
+            assert {tag: [(s.uplink, s.downlink) for s in stats] for tag, stats in only_b.stats.items()} == {
+                "direct": [(2, 20)]
+            }
+
+            # Tehran start at 13:32 local = 10:02 UTC: the partial 10:00 UTC hour is not a complete local hour
+            tehran = timezone(timedelta(hours=3, minutes=30))
+            shifted = await get_nodes_outbound_usage(
+                session,
+                start=datetime(2032, 5, 1, 13, 32, tzinfo=tehran),
+                end=end,
+                period=Period.hour,
+            )
+            # 10:10 and 10:20 UTC fall in the partial 13:00 local hour; only 11:00 UTC (14:30 local) is complete
+            assert {
+                tag: [(stat.period_start, stat.uplink, stat.downlink) for stat in stats]
+                for tag, stats in shifted.stats.items()
+            } == {"direct": [(datetime(2032, 5, 1, 14, 0, tzinfo=tehran), 8, 80)]}
+
+            for model in (NodeOutboundUsage,):
+                for row in (await session.execute(select(model).where(model.node_id.in_([node_a, node_b])))).scalars():
+                    await session.delete(row)
+            for node_id in (node_a, node_b):
+                await session.delete(await session.get(Node, node_id))
+            await session.commit()

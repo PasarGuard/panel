@@ -1,16 +1,18 @@
 import asyncio
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from typing import Literal
 
 import bcrypt
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field, field_validator
 
 from app.db.models import AdminStatus
 from app.models.admin_role import RoleAccess, RoleFeatures, RoleHWIDSettings, RoleLimits, RolePermissions
 from app.models.settings import CustomVariable, validate_custom_variables
 from app.models.stats import Period
+from app.utils.helpers import has_markup_unsafe_chars
 
 from .notification_enable import UserNotificationEnable
 from .validators import (
@@ -133,10 +135,17 @@ class AdminDetails(AdminContactInfo):
     note: str | None = None
     role: AdminRoleData | None = None
     permission_overrides: RoleLimits | None = None
+    # Id of the custom-permission API key the request authenticated with. `role.permissions` then holds that
+    # key's permissions, not the admin's. Never serialized.
+    _custom_api_key_id: int | None = PrivateAttr(default=None)
 
     @property
     def is_owner(self) -> bool:
         return self.role.is_owner if self.role is not None else False
+
+    @property
+    def custom_api_key_id(self) -> int | None:
+        return self._custom_api_key_id
 
     @computed_field
     @property
@@ -188,6 +197,14 @@ class AdminModify(BaseModel):
     def validate_password(cls, value: str | None):
         return PasswordValidator.validate_password(value)
 
+    @field_validator("sub_domain")
+    @classmethod
+    def validate_sub_domain(cls, value: str | None):
+        # The prefix becomes part of subscription URLs that pages and clients open.
+        if value and (has_markup_unsafe_chars(value) or re.match(r"(javascript|data|vbscript):", value, re.IGNORECASE)):
+            raise ValueError("Subscription domain must be a plain URL prefix, such as https://sub.example.com")
+        return value
+
 
 class AdminCreate(AdminModify):
     """Model for creating new admin accounts requiring username and password."""
@@ -211,6 +228,7 @@ class AdminValidationResult(BaseModel):
     id: int | None = None
     username: str
     status: AdminStatus = Field(default=AdminStatus.active)
+    hashed_password: str | None = Field(default=None, exclude=True, repr=False)
 
 
 class AdminsResponse(BaseModel):

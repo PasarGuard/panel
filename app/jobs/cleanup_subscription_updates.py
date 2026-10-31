@@ -3,8 +3,10 @@ from sqlalchemy import delete, func, select
 from app import scheduler
 from app.db import GetDB
 from app.db.models import UserSubscriptionUpdate
+from app.settings import subscription_settings
+from app.subscription.sub_update_buffer import flush_user_sub_updates
 from app.utils.logger import get_logger
-from config import job_settings, runtime_settings, subscription_env_settings
+from config import job_settings, runtime_settings
 
 logger = get_logger("jobs")
 
@@ -12,71 +14,42 @@ logger = get_logger("jobs")
 async def cleanup_user_subscription_updates():
     """Clean up excess user subscription updates."""
 
+    clients_limit = (await subscription_settings()).clients_limit
+    # 0 or less keeps every update
+    if clients_limit <= 0:
+        return
+
+    await flush_user_sub_updates()
+
     async with GetDB() as db:
-        # First query: Find users that have more than the limit
-        users_with_excess = await db.execute(
-            select(UserSubscriptionUpdate.user_id)
-            .group_by(UserSubscriptionUpdate.user_id)
-            .having(func.count(UserSubscriptionUpdate.id) > subscription_env_settings.clients_limit)
+        # Rank each user's updates newest first and delete everything past the limit in one statement: no list of
+        # user ids (asyncpg rejects more than 32767 bind parameters) and no per-user loop. Window functions need
+        # SQLite 3.25+, MySQL 8.0+ or MariaDB 10.2+. Reading from the derived table also lets MySQL delete from the
+        # table the subquery reads.
+        ranked = select(
+            UserSubscriptionUpdate.id,
+            func.row_number()
+            .over(
+                partition_by=UserSubscriptionUpdate.user_id,
+                order_by=(UserSubscriptionUpdate.created_at.desc(), UserSubscriptionUpdate.id.desc()),
+            )
+            .label("rn"),
+        ).subquery()
+        excess_ids = select(ranked.c.id).where(ranked.c.rn > clients_limit)
+        result = await db.execute(
+            delete(UserSubscriptionUpdate)
+            .where(UserSubscriptionUpdate.id.in_(excess_ids))
+            .execution_options(synchronize_session=False)
         )
-        user_ids = [row.user_id for row in users_with_excess]
-
-        if not user_ids:
-            logger.info("No users with excess subscription updates")
-            return
-
-        dialect = db.bind.dialect.name
-
-        # Second query: Use different approaches based on database type
-        if dialect == "mysql":
-            # MySQL/MariaDB: Use correlated subquery without LIMIT
-            total_deleted = 0
-            for user_id in user_ids:
-                # Get IDs to keep (most recent N records)
-                keep_ids_result = await db.execute(
-                    select(UserSubscriptionUpdate.id)
-                    .where(UserSubscriptionUpdate.user_id == user_id)
-                    .order_by(UserSubscriptionUpdate.created_at.desc())
-                    .limit(subscription_env_settings.clients_limit)
-                )
-                keep_ids = [row.id for row in keep_ids_result]
-
-                if keep_ids:
-                    # Delete records not in keep list
-                    result = await db.execute(
-                        delete(UserSubscriptionUpdate).where(
-                            UserSubscriptionUpdate.user_id == user_id, UserSubscriptionUpdate.id.not_in(keep_ids)
-                        )
-                    )
-                    total_deleted += result.rowcount
-
-            logger.info(f"Cleaned up {total_deleted} old subscription updates")
-        else:
-            # SQLite and PostgreSQL: Use original approach with LIMIT in subquery
-            sub = UserSubscriptionUpdate.__table__.alias("sub")
-
-            keep_subquery = (
-                select(sub.c.id)
-                .where(sub.c.user_id == UserSubscriptionUpdate.user_id)
-                .order_by(sub.c.created_at.desc())
-                .limit(subscription_env_settings.clients_limit)
-            )
-
-            result = await db.execute(
-                delete(UserSubscriptionUpdate).where(
-                    UserSubscriptionUpdate.user_id.in_(user_ids), UserSubscriptionUpdate.id.not_in(keep_subquery)
-                )
-            )
-            logger.info(f"Cleaned up {result.rowcount} old subscription updates")
-
         await db.commit()
 
+        if result.rowcount:
+            logger.info(f"Cleaned up {result.rowcount} old subscription updates")
+        else:
+            logger.info("No users with excess subscription updates")
 
-if (
-    subscription_env_settings.clients_limit
-    and subscription_env_settings.clients_limit >= 0
-    and runtime_settings.role.runs_scheduler
-):
+
+if runtime_settings.role.runs_scheduler:
     # Schedule the cleanup job to run every few minutes
     scheduler.add_job(
         cleanup_user_subscription_updates,

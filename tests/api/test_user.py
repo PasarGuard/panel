@@ -3,7 +3,7 @@ import io
 import json
 import time
 import zipfile
-from base64 import b64encode
+from base64 import b64decode, b64encode
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from hashlib import sha256
@@ -11,24 +11,28 @@ from math import ceil
 from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import parse_qs, unquote, urlsplit
 
+import httpx
+import pytest
 from fastapi import status
 from sqlalchemy import delete, event, func, select, update
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
+from app.db import base
 from app.db.crud.hwid import register_user_hwid
-from app.db.crud.user import get_user as get_db_user
-from app.db.crud.user import get_users as get_db_users
-from app.db.crud.user import update_users_status
+from app.db.crud.user import get_user as get_db_user, get_users as get_db_users, update_users_status
 from app.db.models import NodeUserUsage, User, UserStatus, UserUsageResetLogs
-from app.models.settings import ConfigFormat, SubRule, Subscription
+from app.models.settings import ConfigFormat, General, HeaderPlacement, SubRule, Subscription, UsageSettings
 from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
 from app.models.user import UserListQuery
 from app.models.validators import MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
+from app.operation import user as user_operation_module
 from app.operation.subscription import SubscriptionOperation
+from app.subscription.share import inject_body_placement
 from app.utils import jwt as jwt_utils
 from app.utils.crypto import generate_wireguard_keypair, get_wireguard_public_key
 from app.utils.jwt import create_admin_token, create_subscription_token, get_secret_key, get_subscription_payload
-from config import usage_settings
-from tests.api import TestSession, client, engine
+from tests.api import DATABASE_URL, IS_SQLITE, TestSession, app, client, engine
 from tests.api.helpers import (
     auth_headers,
     create_admin,
@@ -44,6 +48,8 @@ from tests.api.helpers import (
     delete_group,
     delete_user,
     delete_user_template,
+    get_inbounds,
+    set_user_hwids,
     unique_name,
 )
 from tests.api.sample_data import XRAY_CONFIG
@@ -76,6 +82,70 @@ def test_create_user_rejects_too_large_on_hold_expire_duration(access_token):
         )
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     finally:
+        cleanup_groups(access_token, core, groups)
+
+
+def test_user_endpoints_reject_out_of_range_durations_and_timestamps(access_token):
+    core, groups = setup_groups(access_token, 1)
+    user = create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("out_of_range")})
+    try:
+        too_far = MAX_ON_HOLD_EXPIRE_DURATION_SECONDS + 1
+        cases = [
+            ("put", f"/api/user/by-id/{user['id']}", {"expire": 10**20}),
+            ("put", f"/api/user/by-id/{user['id']}", {"on_hold_timeout": 10**12}),
+            ("put", f"/api/user/by-id/{user['id']}", {"on_hold_timeout": -1}),
+            ("put", f"/api/user/by-id/{user['id']}", {"on_hold_timeout": too_far}),
+            ("put", f"/api/user/by-id/{user['id']}", {"next_plan": {"data_limit": 1, "expire": 10**13}}),
+            ("put", f"/api/user/by-id/{user['id']}", {"next_plan": {"data_limit": 1, "expire": too_far}}),
+            ("put", f"/api/user/by-id/{user['id']}", {"next_plan": {"data_limit": 1, "expire": -1}}),
+            (
+                "post",
+                "/api/user",
+                {
+                    "username": unique_name("out_of_range_hold"),
+                    "group_ids": [groups[0]["id"]],
+                    "status": "on_hold",
+                    "on_hold_expire_duration": 3600,
+                    "on_hold_timeout": 10**12,
+                },
+            ),
+            *(
+                (
+                    "post",
+                    "/api/user",
+                    {
+                        "username": unique_name("out_of_range_hold"),
+                        "group_ids": [groups[0]["id"]],
+                        "status": "on_hold",
+                        "on_hold_expire_duration": 3600,
+                        "on_hold_timeout": timeout,
+                    },
+                )
+                for timeout in (-1, too_far)
+            ),
+            (
+                "post",
+                "/api/user",
+                {
+                    "username": unique_name("out_of_range_plan"),
+                    "group_ids": [groups[0]["id"]],
+                    "next_plan": {"data_limit": 1, "expire": 10**13},
+                },
+            ),
+        ]
+        for method, url, body in cases:
+            response = getattr(client, method)(url, headers=auth_headers(access_token), json=body)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, (body, response.status_code)
+
+        response = client.put(
+            f"/api/user/by-id/{user['id']}",
+            headers=auth_headers(access_token),
+            json={"next_plan": {"data_limit": 1, "expire": MAX_ON_HOLD_EXPIRE_DURATION_SECONDS}},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["next_plan"]["expire"] == MAX_ON_HOLD_EXPIRE_DURATION_SECONDS
+    finally:
+        delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
 
 
@@ -1282,6 +1352,64 @@ def test_user_subscription_applies_rule_response_headers(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_user_subscription_body_start_placement_moves_headers_into_body(access_token, mock_settings):
+    """When header_placement is body_start, subscription metadata moves into #comment lines."""
+    settings_response = client.get("/api/settings", headers=auth_headers(access_token))
+    assert settings_response.status_code == status.HTTP_200_OK
+    original_subscription = settings_response.json()["subscription"]
+
+    updated_subscription = {
+        **original_subscription,
+        "header_placement": "body_start",
+    }
+
+    update_response = client.put(
+        "/api/settings",
+        headers=auth_headers(access_token),
+        json={"subscription": updated_subscription},
+    )
+    assert update_response.status_code == status.HTTP_200_OK
+    assert update_response.json()["subscription"]["header_placement"] == "body_start"
+
+    # tests/api mocks app.settings.get_settings to a static snapshot (see conftest.mock_settings),
+    # so runtime subscription generation doesn't observe the PUT above; mirror it in the snapshot.
+    original_header_placement = mock_settings["subscription"].get("header_placement", "header")
+    mock_settings["subscription"]["header_placement"] = "body_start"
+
+    core, groups = setup_groups(access_token, 1)
+    hosts = create_hosts_for_inbounds(access_token)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_user_body_start_placement")},
+    )
+
+    try:
+        response = client.get(user["subscription_url"], headers={"User-Agent": "GenericClient"})
+        assert response.status_code == status.HTTP_200_OK
+        assert "profile-update-interval" not in response.headers
+
+        decoded = b64decode(response.text).decode()
+        lines = [line for line in decoded.splitlines() if line]
+        assert lines
+        assert any(line.startswith("#profile-update-interval:") for line in lines)
+        config_line_index = next(i for i, line in enumerate(lines) if not line.startswith("#"))
+        comment_indexes = [i for i, line in enumerate(lines) if line.startswith("#")]
+        assert all(i < config_line_index for i in comment_indexes)
+    finally:
+        mock_settings["subscription"]["header_placement"] = original_header_placement
+        restore_response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={"subscription": original_subscription},
+        )
+        assert restore_response.status_code == status.HTTP_200_OK
+        delete_user(access_token, user["username"])
+        for host in hosts:
+            client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
+        cleanup_groups(access_token, core, groups)
+
+
 def test_wireguard_subscription_outputs_are_consistent(access_token):
     interface_private_key, _ = generate_wireguard_keypair()
     interface_public_key = get_wireguard_public_key(interface_private_key)
@@ -1874,6 +2002,84 @@ def test_detect_client_rule_matches_user_agent():
     assert matched_rule.response_headers["x-subheader"] == "Hello {USERNAME}"
 
 
+def test_split_headers_for_placement_keeps_headers_unchanged_by_default():
+    headers = {"profile-update-interval": "1", "content-disposition": 'attachment; filename="x"'}
+
+    result_headers, body_lines = SubscriptionOperation._split_headers_for_placement(
+        headers, HeaderPlacement.header, ConfigFormat.links
+    )
+
+    assert result_headers == headers
+    assert body_lines == []
+
+
+def test_split_headers_for_placement_moves_headers_to_body_for_safe_format():
+    headers = {
+        "profile-update-interval": "1",
+        "content-disposition": 'attachment; filename="x"',
+        "cache-control": "no-store",
+    }
+
+    result_headers, body_lines = SubscriptionOperation._split_headers_for_placement(
+        headers, HeaderPlacement.body_start, ConfigFormat.links
+    )
+
+    assert result_headers == {
+        "content-disposition": 'attachment; filename="x"',
+        "cache-control": "no-store",
+    }
+    assert body_lines == ["#profile-update-interval: 1"]
+
+
+def test_split_headers_for_placement_falls_back_to_header_for_json_formats():
+    headers = {"profile-update-interval": "1"}
+
+    result_headers, body_lines = SubscriptionOperation._split_headers_for_placement(
+        headers, HeaderPlacement.body_start, ConfigFormat.xray
+    )
+
+    assert result_headers == headers
+    assert body_lines == []
+
+
+def test_inject_body_placement_prepends_lines_for_plain_text():
+    result = inject_body_placement("vless://example", ["#profile-update-interval: 1"], "body_start", False)
+
+    assert result == "#profile-update-interval: 1\nvless://example"
+
+
+def test_inject_body_placement_appends_lines_for_plain_text():
+    result = inject_body_placement("vless://example", ["#profile-update-interval: 1"], "body_end", False)
+
+    assert result == "vless://example\n#profile-update-interval: 1"
+
+
+def test_inject_body_placement_prepends_lines_for_base64():
+    encoded = b64encode(b"vless://example").decode()
+
+    result = inject_body_placement(encoded, ["#profile-update-interval: 1"], "body_start", True)
+
+    decoded = b64decode(result).decode()
+    assert decoded == "#profile-update-interval: 1\nvless://example"
+
+
+def test_inject_body_placement_appends_lines_for_base64():
+    encoded = b64encode(b"vless://example").decode()
+
+    result = inject_body_placement(encoded, ["#profile-update-interval: 1"], "body_end", True)
+
+    decoded = b64decode(result).decode()
+    assert decoded == "vless://example\n#profile-update-interval: 1"
+
+
+def test_inject_body_placement_leaves_bytes_untouched():
+    original = b"raw-binary-config"
+
+    result = inject_body_placement(original, ["#profile-update-interval: 1"], "body_start", False)
+
+    assert result is original
+
+
 def test_user_get(access_token):
     """Test that the user get by id route is accessible."""
     core, groups = setup_groups(access_token, 1)
@@ -1914,6 +2120,62 @@ def test_reset_user_usage(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def _put_user_back_on_hold(access_token: str, user: dict, how: str) -> dict:
+    if how == "toggle":
+        response = client.put(
+            f"/api/user/{user['username']}/disabled", headers=auth_headers(access_token), json={"disabled": False}
+        )
+    elif how == "bulk_enable":
+        response = client.post("/api/users/bulk/enable", headers=auth_headers(access_token), json={"ids": [user["id"]]})
+        assert response.status_code == status.HTTP_200_OK
+        response = client.get(f"/api/user/{user['username']}", headers=auth_headers(access_token))
+    else:
+        response = client.put(
+            f"/api/user/{user['username']}",
+            headers=auth_headers(access_token),
+            json={"status": "on_hold", "on_hold_expire_duration": 3600},
+        )
+    assert response.status_code == status.HTTP_200_OK
+    return response.json()
+
+
+def test_user_put_back_on_hold_ignores_earlier_traffic(access_token):
+    core, groups = setup_groups(access_token, 1)
+    try:
+        for how in ("toggle", "bulk_enable", "modify"):
+            user = create_user(
+                access_token,
+                group_ids=[groups[0]["id"]],
+                payload={
+                    "username": unique_name(f"test_re_hold_{how}"),
+                    "status": "on_hold",
+                    "on_hold_expire_duration": 3600,
+                },
+            )
+            try:
+                # It connected while on hold and was disabled before the review activated it. Whole seconds, a few
+                # seconds back: MySQL DATETIME drops fractions, and the later edit must still land after it.
+                seen_at = (datetime.now(UTC) - timedelta(seconds=3)).replace(microsecond=0)
+                set_user_online_at(user["username"], seen_at)
+                response = client.put(
+                    f"/api/user/{user['username']}/disabled",
+                    headers=auth_headers(access_token),
+                    json={"disabled": True},
+                )
+                assert response.status_code == status.HTTP_200_OK
+
+                data = _put_user_back_on_hold(access_token, user, how)
+                assert data["status"] == "on_hold", how
+                # The last-online time is kept, but going back on hold counts as an edit, so only traffic
+                # after it may start the user's period or stop the on-hold timeout.
+                assert datetime.fromisoformat(data["online_at"]) == seen_at, how
+                assert data["edit_at"] is not None and datetime.fromisoformat(data["edit_at"]) > seen_at, how
+            finally:
+                delete_user(access_token, user["username"])
+    finally:
+        cleanup_groups(access_token, core, groups)
+
+
 def test_reset_on_hold_user_usage_preserves_hold_state(access_token):
     core, groups = setup_groups(access_token, 1)
     user = create_user(
@@ -1950,8 +2212,8 @@ def test_reset_on_hold_user_usage_preserves_hold_state(access_token):
         cleanup_groups(access_token, core, groups)
 
 
-def test_reset_user_usage_only_cleans_chart_data_when_enabled(access_token):
-    """Test that user reset preserves chart data unless env cleanup is enabled."""
+def test_reset_user_usage_only_cleans_chart_data_when_enabled(access_token, monkeypatch):
+    """Test that user reset preserves chart data unless the chart cleanup setting is on."""
     core, groups = setup_groups(access_token, 1)
     user = create_user(
         access_token,
@@ -1971,9 +2233,17 @@ def test_reset_user_usage_only_cleans_chart_data_when_enabled(access_token):
             )
             await session.commit()
 
-    previous_clean_chart_data = usage_settings.reset_user_usage_clean_chart_data
+    # API tests serve the cached settings getters from a fixed row, so the setting is served from memory here
+    def set_clean_chart_data(value: bool) -> None:
+        general = General(usage=UsageSettings(reset_usage_clean_chart_data=value))
+
+        async def get_general_settings():
+            return general
+
+        monkeypatch.setattr(user_operation_module, "general_settings", get_general_settings)
+
     try:
-        usage_settings.reset_user_usage_clean_chart_data = False
+        set_clean_chart_data(False)
         asyncio.run(_add_chart_row())
         assert count_user_chart_rows(user["id"]) == 1
 
@@ -1984,7 +2254,7 @@ def test_reset_user_usage_only_cleans_chart_data_when_enabled(access_token):
         assert response.status_code == status.HTTP_200_OK
         assert count_user_chart_rows(user["id"]) == 1
 
-        usage_settings.reset_user_usage_clean_chart_data = True
+        set_clean_chart_data(True)
         response = client.post(
             f"/api/user/by-id/{user['id']}/reset",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -1992,7 +2262,6 @@ def test_reset_user_usage_only_cleans_chart_data_when_enabled(access_token):
         assert response.status_code == status.HTTP_200_OK
         assert count_user_chart_rows(user["id"]) == 0
     finally:
-        usage_settings.reset_user_usage_clean_chart_data = previous_clean_chart_data
         delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
 
@@ -2048,6 +2317,77 @@ def test_reset_by_next_user_usage(access_token):
         assert response.status_code == status.HTTP_200_OK
     finally:
         delete_user(access_token, user["username"])
+        cleanup_groups(access_token, core, groups)
+
+
+def _activate_next_plan_template(access_token: str, username: str, template_id: int) -> dict:
+    """Give the user a template next plan and activate it now."""
+    update = client.put(
+        f"/api/user/{username}",
+        headers=auth_headers(access_token),
+        json={"next_plan": {"user_template_id": template_id}},
+    )
+    assert update.status_code == status.HTTP_200_OK, update.text
+    response = client.post(f"/api/user/{username}/active_next", headers=auth_headers(access_token))
+    assert response.status_code == status.HTTP_200_OK, response.text
+    return response.json()
+
+
+def test_next_plan_with_on_hold_template_keeps_user_on_hold(access_token):
+    """An on-hold template renewal stays on hold, with the template's timeout turned into a deadline."""
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        expire_duration=86400 * 30,
+        status_value="on_hold",
+        on_hold_timeout=86400 * 7,
+    )
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={"username": unique_name("test_next_plan_on_hold")},
+    )
+    try:
+        before = datetime.now(UTC)
+        body = _activate_next_plan_template(access_token, user["username"], template["id"])
+
+        assert body["status"] == "on_hold"
+        assert not body["expire"]
+        assert body["on_hold_expire_duration"] == 86400 * 30
+        on_hold_timeout = datetime.fromisoformat(body["on_hold_timeout"])
+        if on_hold_timeout.tzinfo is None:
+            on_hold_timeout = on_hold_timeout.replace(tzinfo=UTC)
+        assert timedelta(days=7, minutes=-2) < on_hold_timeout - before < timedelta(days=7, minutes=2)
+    finally:
+        delete_user(access_token, user["username"])
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
+def test_next_plan_with_active_template_clears_on_hold_fields(access_token):
+    """Moving an on-hold user to an immediate plan drops the old hold, so it cannot start later."""
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]], expire_duration=86400 * 30)
+    user = create_user(
+        access_token,
+        group_ids=[groups[0]["id"]],
+        payload={
+            "username": unique_name("test_next_plan_active"),
+            "status": "on_hold",
+            "on_hold_expire_duration": 3600,
+        },
+    )
+    try:
+        body = _activate_next_plan_template(access_token, user["username"], template["id"])
+
+        assert body["status"] == "active"
+        assert body["expire"]
+        assert not body["on_hold_expire_duration"]
+        assert not body["on_hold_timeout"]
+    finally:
+        delete_user(access_token, user["username"])
+        delete_user_template(access_token, template["id"])
         cleanup_groups(access_token, core, groups)
 
 
@@ -2191,6 +2531,79 @@ def test_role_requiring_template_cannot_manually_create_user(access_token):
         delete_admin(access_token, admin["username"])
         _delete_role(access_token, role["id"])
         delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
+@pytest.mark.parametrize("mode", ["manual", "from_template", "bulk_from_template"])
+def test_parallel_creates_respect_role_max_users(access_token, mode):
+    if ":memory:" in DATABASE_URL:
+        pytest.skip("needs a database that separate connections share")
+
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]]) if mode != "manual" else None
+    response = client.post(
+        "/api/admin-role",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("max_users_race"),
+            "permissions": {"users": {"create": True, "read": True}},
+            "limits": {"max_users": 1},
+        },
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    role = response.json()
+    admin = create_admin(access_token, role_id=role["id"])
+    admin_token = _login(admin["username"], admin["password"])
+    if mode == "manual":
+        url, limit_error = "/api/user", "User limit reached (1)"
+        payloads = [
+            {"username": unique_name("race"), "proxy_settings": {}, "group_ids": [groups[0]["id"]], "status": "active"}
+            for _ in range(8)
+        ]
+    elif mode == "from_template":
+        url, limit_error = "/api/user/from_template", "User limit reached (1)"
+        payloads = [{"username": unique_name("race"), "user_template_id": template["id"]} for _ in range(8)]
+    else:
+        url, limit_error = "/api/users/bulk/from_template", "Bulk create would exceed user limit (1)"
+        payloads = [{"count": 1, "strategy": "random", "user_template_id": template["id"]} for _ in range(8)]
+
+    # Independent connections, so the requests really race on the quota check.
+    racing_engine = create_async_engine(
+        DATABASE_URL, poolclass=NullPool, connect_args={"timeout": 30} if IS_SQLITE else {}
+    )
+    racing_session = async_sessionmaker(racing_engine, autoflush=False, expire_on_commit=False)
+
+    async def racing_db():
+        async with racing_session() as db:
+            yield db
+
+    async def burst():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as racing_client:
+            return await asyncio.gather(
+                *(racing_client.post(url, headers=auth_headers(admin_token), json=payload) for payload in payloads)
+            )
+
+    previous_get_db = app.dependency_overrides[base.get_db]
+    app.dependency_overrides[base.get_db] = racing_db
+    try:
+        responses = asyncio.run(burst())
+    finally:
+        app.dependency_overrides[base.get_db] = previous_get_db
+        asyncio.run(racing_engine.dispose())
+
+    try:
+        codes = sorted(r.status_code for r in responses)
+        assert codes == [status.HTTP_201_CREATED] + [status.HTTP_400_BAD_REQUEST] * 7
+        assert all(r.json()["detail"] == limit_error for r in responses if r.status_code == 400)
+        listed = client.get("/api/users", params={"admin": [admin["username"]]}, headers=auth_headers(access_token))
+        assert listed.json()["total"] == 1
+    finally:
+        client.delete(f"/api/admin/by-id/{admin['id']}/users", headers=auth_headers(access_token))
+        delete_admin(access_token, admin["username"])
+        _delete_role(access_token, role["id"])
+        if template is not None:
+            delete_user_template(access_token, template["id"])
         cleanup_groups(access_token, core, groups)
 
 
@@ -2764,6 +3177,59 @@ def test_bulk_apply_template_to_users(access_token):
         cleanup_groups(access_token, core, groups)
 
 
+def test_bulk_apply_template_resets_usage_of_every_user(access_token):
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]], reset_usages=True)
+    users = [create_user(access_token, username=unique_name(f"bulk_apply_reset_u{index}")) for index in range(2)]
+    user_ids = [user["id"] for user in users]
+
+    async def _seed_usage():
+        async with TestSession() as session:
+            await session.execute(
+                update(User)
+                .where(User.id.in_(user_ids))
+                .values(used_traffic=2 * 1024 * 1024, status=UserStatus.limited)
+            )
+            await session.commit()
+
+    async def _last_log_id():
+        async with TestSession() as session:
+            return (await session.execute(select(func.coalesce(func.max(UserUsageResetLogs.id), 0)))).scalar_one()
+
+    async def _reset_logs(after_id: int):
+        # SQLite reuses user ids and keeps reset logs of deleted users, so only look at logs this request wrote
+        async with TestSession() as session:
+            rows = await session.execute(
+                select(UserUsageResetLogs.user_id, UserUsageResetLogs.used_traffic_at_reset).where(
+                    UserUsageResetLogs.user_id.in_(user_ids), UserUsageResetLogs.id > after_id
+                )
+            )
+            return sorted(rows.all())
+
+    try:
+        asyncio.run(_seed_usage())
+        last_log_id = asyncio.run(_last_log_id())
+        response = client.post(
+            "/api/users/bulk/apply_template",
+            headers=auth_headers(access_token),
+            json={"ids": user_ids, "user_template_id": template["id"]},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["count"] == 2
+
+        assert asyncio.run(_reset_logs(last_log_id)) == [(user_id, 2 * 1024 * 1024) for user_id in sorted(user_ids)]
+        for user in users:
+            user_response = client.get(f"/api/user/by-id/{user['id']}", headers=auth_headers(access_token))
+            assert user_response.status_code == status.HTTP_200_OK
+            body = user_response.json()
+            assert (body["used_traffic"], body["status"]) == (0, "active")
+    finally:
+        for user in users:
+            delete_user(access_token, user["username"])
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
 # Tests for /api/users/simple endpoint
 
 
@@ -3329,6 +3795,79 @@ def test_wireguard_subnet_exhaustion_returns_400(access_token):
         delete_core(access_token, core["id"])
 
 
+@pytest.mark.parametrize("users_count", [3, 1], ids=["exhausted", "fits"])
+@pytest.mark.parametrize("action", ["modify", "bulk_add", "bulk_enable"])
+def test_group_edit_that_exhausts_wireguard_subnet_changes_nothing(access_token, monkeypatch, action, users_count):
+    """A group edit that runs out of WireGuard addresses is rolled back; a fitting one is saved and synced."""
+    xray_core = create_core(access_token)
+    interface_name = unique_name("wg_tiny")
+    wg_core = _create_wg_core(access_token, interface_name, ["10.46.0.1/30"])  # one usable peer address
+    xray_tag = next(tag for tag in get_inbounds(access_token) if tag != interface_name)
+    plain = create_group(access_token, name=unique_name("plain"), inbound_tags=[xray_tag])
+    wg_group = create_group(access_token, name=unique_name("wg"), inbound_tags=[interface_name])
+    if action == "bulk_enable":
+        response = client.post(
+            "/api/groups/bulk/disable", headers=auth_headers(access_token), json={"ids": [wg_group["id"]]}
+        )
+        assert response.status_code == status.HTTP_200_OK
+    member_group_ids = [plain["id"], wg_group["id"]] if action == "bulk_enable" else [plain["id"]]
+    users = [
+        create_user(access_token, group_ids=member_group_ids, payload={"username": unique_name("gu")})
+        for _ in range(users_count)
+    ]
+    sync_mock = AsyncMock()
+    monkeypatch.setattr("app.operation.group.sync_users", sync_mock)
+    try:
+        if action == "modify":
+            response = client.put(
+                f"/api/group/{plain['id']}",
+                headers=auth_headers(access_token),
+                json={"name": plain["name"], "inbound_tags": [xray_tag, interface_name]},
+            )
+        elif action == "bulk_add":
+            response = client.post(
+                "/api/groups/bulk/add",
+                headers=auth_headers(access_token),
+                json={"group_ids": [wg_group["id"]], "users": [user["id"] for user in users]},
+            )
+        else:
+            response = client.post(
+                "/api/groups/bulk/enable", headers=auth_headers(access_token), json={"ids": [wg_group["id"]]}
+            )
+
+        stored_plain = client.get(f"/api/group/{plain['id']}", headers=auth_headers(access_token)).json()
+        stored_wg = client.get(f"/api/group/{wg_group['id']}", headers=auth_headers(access_token)).json()
+        stored_users = [
+            client.get(f"/api/user/{user['username']}", headers=auth_headers(access_token)).json() for user in users
+        ]
+        if users_count > 1:
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+            assert "no free addresses" in response.json()["detail"]
+            assert stored_plain["inbound_tags"] == [xray_tag]
+            assert stored_wg["is_disabled"] is (action == "bulk_enable")
+            assert all(sorted(user["group_ids"]) == sorted(member_group_ids) for user in stored_users)
+            assert all(user["proxy_settings"]["wireguard"]["peer_ips"] == [] for user in stored_users)
+            sync_mock.assert_not_awaited()
+        else:
+            assert response.status_code == status.HTTP_200_OK
+            if action == "modify":
+                assert sorted(stored_plain["inbound_tags"]) == sorted([xray_tag, interface_name])
+            elif action == "bulk_add":
+                assert wg_group["id"] in stored_users[0]["group_ids"]
+            else:
+                assert stored_wg["is_disabled"] is False
+            assert stored_users[0]["proxy_settings"]["wireguard"]["peer_ips"] == ["10.46.0.2/32"]
+            sync_mock.assert_awaited_once()
+            assert [user.id for user in sync_mock.await_args.args[0]] == [users[0]["id"]]
+    finally:
+        for user in users:
+            delete_user(access_token, user["username"])
+        delete_group(access_token, wg_group["id"])
+        delete_group(access_token, plain["id"])
+        delete_core(access_token, wg_core["id"])
+        delete_core(access_token, xray_core["id"])
+
+
 # ---------------------------------------------------------------------------
 # RBAC scope tests for user operation functions
 # ---------------------------------------------------------------------------
@@ -3451,3 +3990,26 @@ def test_get_users_sub_update_chart_operator_can_view_own(access_token):
         assert response.status_code == status.HTTP_200_OK
     finally:
         delete_admin(access_token, operator["username"])
+
+
+def test_get_users_returns_and_sorts_by_hwid_count(access_token):
+    tag = unique_name("hwid_count")
+    users = [create_user(access_token, username=f"{tag}_{name}") for name in ("a", "b", "c")]
+    try:
+        for user, devices in zip(users, (2, 0, 1)):
+            set_user_hwids(user["id"], devices)
+
+        for sort, expected in (("hwid_count", [0, 1, 2]), ("-hwid_count", [2, 1, 0])):
+            response = client.get(
+                "/api/users", headers=auth_headers(access_token), params={"search": tag, "sort": sort}
+            )
+            assert response.status_code == status.HTTP_200_OK, response.text
+            body = response.json()
+            # The count expression must not change the total
+            assert body["total"] == 3
+            assert [user["hwid_count"] for user in body["users"]] == expected
+    finally:
+        for user in users:
+            # SQLite keeps a deleted user's devices and can hand its id to a later test's user
+            set_user_hwids(user["id"], 0)
+            delete_user(access_token, user["username"])

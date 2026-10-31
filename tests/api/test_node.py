@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import status
-from sqlalchemy import event, func, inspect, select
+from sqlalchemy import event, func, inspect, select, update
 from sqlalchemy.orm import selectinload
 
 from app.db.crud.core import create_core_config, remove_core_config
@@ -36,6 +36,7 @@ from app.models.core import CoreCreate
 from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, NodesResponse
 from app.models.proxy import ProxyTable
 from app.models.stats import (
+    NodeOutboundUsageStatsList,
     NodeRealtimeStats,
     NodeStats,
     NodeStatsList,
@@ -455,6 +456,116 @@ async def test_core_users_only_excludes_admins_with_blocking_sync_roles(monkeypa
     assert all(user["inbounds"] == [inbound_tag] for user in users)
 
 
+async def test_core_users_can_be_restricted_to_ids_with_one_query(monkeypatch):
+    inbound_tag = unique_name("state_inbound")
+    user_prefix = unique_name("state_user")
+    monkeypatch.setattr(
+        node_user_module,
+        "_serialize_user_for_node",
+        lambda id, user_settings, inbounds, allowed_protocols=None: {"id": id, "inbounds": inbounds},
+    )
+    async with TestSession() as session:
+        inbound = ProxyInbound(tag=inbound_tag)
+        group = Group(name=unique_name("state_group"), inbounds=[inbound])
+        session.add(group)
+        await session.flush()
+        active = User(
+            username=f"{user_prefix}_active", proxy_settings=ProxyTable().dict(no_obj=True), status=UserStatus.active
+        )
+        disabled = User(
+            username=f"{user_prefix}_disabled",
+            proxy_settings=ProxyTable().dict(no_obj=True),
+            status=UserStatus.disabled,
+        )
+        other = User(
+            username=f"{user_prefix}_other", proxy_settings=ProxyTable().dict(no_obj=True), status=UserStatus.active
+        )
+        session.add_all([active, disabled, other])
+        await session.flush()
+        await session.execute(
+            users_groups_association.insert(),
+            [{"user_id": u.id, "groups_id": group.id} for u in (active, disabled, other)],
+        )
+        await session.commit()
+        ids = {"active": active.id, "disabled": disabled.id, "other": other.id}
+
+    async with TestSession() as session:
+        users = await node_user_module.core_users(session, user_ids=[ids["active"], ids["disabled"], 10**9])
+        assert {user["id"] for user in users} == {ids["active"]}  # disabled and unknown ids are not carried
+        assert users[0]["inbounds"] == [inbound_tag]
+        assert await node_user_module.core_users(session, user_ids=[]) == []
+        everyone = {user["id"] for user in await node_user_module.core_users(session, inbound_tags=[inbound_tag])}
+        assert {ids["active"], ids["other"]} <= everyone
+
+
+async def test_current_state_reads_at_burst_scale_use_few_indexed_statements(monkeypatch):
+    """12 node deliveries of 100-user batches: real session, real statements counted, coalesced reads."""
+    import time
+
+    from app.node import sync as node_sync
+    from tests.api import GetTestDB
+
+    inbound_tag = unique_name("burst_inbound")
+    user_prefix = unique_name("burst_user")
+    async with TestSession() as session:
+        inbound = ProxyInbound(tag=inbound_tag)
+        group = Group(name=unique_name("burst_group"), inbounds=[inbound])
+        session.add(group)
+        await session.flush()
+        users = [
+            User(username=f"{user_prefix}_{n}", proxy_settings=ProxyTable().dict(no_obj=True), status=UserStatus.active)
+            for n in range(1200)
+        ]
+        session.add_all(users)
+        await session.flush()
+        await session.execute(
+            users_groups_association.insert(), [{"user_id": u.id, "groups_id": group.id} for u in users]
+        )
+        await session.commit()
+        ids = [u.id for u in users]
+
+    statements: list[str] = []
+
+    def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", before_cursor_execute)
+    monkeypatch.setattr(node_sync, "GetDB", GetTestDB)
+    reader = node_sync.CurrentStateReader(gather_seconds=0.005, max_ids_per_query=400)
+    monkeypatch.setattr(node_sync, "_current_state", reader)
+    try:
+        # Same 100 users delivered to 12 nodes at once (one API burst fanning out).
+        started = time.perf_counter()
+        results = await asyncio.gather(
+            *(node_sync.refresh_node_users(str(node), [str(i) for i in ids[:100]]) for node in range(12))
+        )
+        same_users_seconds = time.perf_counter() - started
+        same_users_statements = len(statements)
+        assert all(len(r) == 100 and all(list(p.inbounds) == [inbound_tag] for p in r) for r in results)
+        # 12 nodes each delivering a different 100-user batch (1200 distinct users).
+        statements.clear()
+        started = time.perf_counter()
+        results = await asyncio.gather(
+            *(
+                node_sync.refresh_node_users(str(node), [str(i) for i in ids[node * 100 : (node + 1) * 100]])
+                for node in range(12)
+            )
+        )
+        distinct_users_seconds = time.perf_counter() - started
+        distinct_users_statements = len(statements)
+        assert all(len(r) == 100 for r in results)
+        # One coalesced query (chunked at 400 ids) per gather window, never a statement per user or per node.
+        assert same_users_statements <= 2, statements
+        assert distinct_users_statements <= 4, statements
+        assert all("IN (" in stmt or " in (" in stmt.lower() for stmt in statements if "users" in stmt.lower())
+        print(
+            f"\ncurrent-state reads: same-100x12 statements={same_users_statements} {same_users_seconds * 1000:.0f} ms; "
+            f"distinct-1200 statements={distinct_users_statements} {distinct_users_seconds * 1000:.0f} ms"
+        )
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", before_cursor_execute)
+
+
 def node_create_payload(**overrides) -> dict:
     payload = {
         "name": "new-node",
@@ -597,6 +708,7 @@ def node_operator_mock(monkeypatch: pytest.MonkeyPatch):
         "get_node_stats_periodic",
         "get_node_system_stats",
         "get_user_count_metric",
+        "get_outbound_usage",
     ]
     for name in async_methods:
         setattr(operator, name, AsyncMock(name=name))
@@ -941,12 +1053,14 @@ def test_realtime_node_stats(access_token, node_operator_mock):
 
 
 @pytest.mark.asyncio
-async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch: pytest.MonkeyPatch):
+async def test_node_metadata_modify_schedules_background_reconnect_without_force(monkeypatch: pytest.MonkeyPatch):
     operator = NodeOperation(operator_type=OperatorType.API)
     scheduled_node_ids: list[int] = []
+    forced_starts: list[bool] = []
 
-    async def record_background_connect(node_id: int) -> None:
+    async def record_background_connect(node_id: int, *, force_start: bool = False) -> None:
         scheduled_node_ids.append(node_id)
+        forced_starts.append(force_start)
 
     monkeypatch.setattr(operator, "_update_node_impl", AsyncMock())
     monkeypatch.setattr(operator, "_connect_single_node_background", record_background_connect)
@@ -976,6 +1090,66 @@ async def test_node_create_and_modify_schedule_background_reconnect(monkeypatch:
             await asyncio.sleep(0)
 
             assert scheduled_node_ids == [created.id, modified.id]
+            # Name-only edits replace the local bridge object, but the replacement
+            # attaches to the healthy remote backend instead of restarting it.
+            assert forced_starts == [False, False]
+        finally:
+            if node_id is not None:
+                db_node = await session.get(Node, node_id)
+                if db_node:
+                    await db_remove_node(session, db_node)
+            db_core = await session.get(CoreConfig, core_id)
+            if db_core:
+                await remove_core_config(session, db_core)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("sent_core", "restart"), [("default", False), ("other", True)])
+async def test_node_without_core_restarts_only_when_moved_off_the_default_core(
+    monkeypatch: pytest.MonkeyPatch, sent_core: str, restart: bool
+):
+    # A NULL core (nodes from before per-node cores, or whose core was deleted) runs core 1.
+    operator = NodeOperation(operator_type=OperatorType.API)
+    forced_starts: list[bool] = []
+
+    async def record_background_connect(node_id: int, *, force_start: bool = False) -> None:
+        forced_starts.append(force_start)
+
+    monkeypatch.setattr(operator, "_update_node_impl", AsyncMock())
+    monkeypatch.setattr(operator, "_connect_single_node_background", record_background_connect)
+    monkeypatch.setattr("app.operation.node.notification.create_node", AsyncMock())
+    monkeypatch.setattr("app.operation.node.notification.modify_node", AsyncMock())
+
+    admin = AdminDetails(username="admin", role=AdminRoleData(is_owner=True))
+    async with TestSession() as session:
+        core = await create_core_config(session, core_create_model(unique_name("core_node_null")))
+        core_id = inspect(core).identity[0]
+        node_id: int | None = None
+        try:
+            created = await operator.create_node(
+                session,
+                NodeCreate(**node_create_payload(name=unique_name("node_null_core"), core_config_id=core_id)),
+                admin,
+            )
+            node_id = created.id
+            await session.execute(update(Node).where(Node.id == node_id).values(core_config_id=None))
+            await session.commit()
+            session.expire_all()
+            await asyncio.sleep(0)
+            forced_starts.clear()
+
+            # The edit dialog sends the core it shows for the node along with the rename.
+            await operator.modify_node(
+                session,
+                node_id,
+                NodeModify(
+                    name=unique_name("node_null_core_renamed"), core_config_id=1 if sent_core == "default" else core_id
+                ),
+                admin,
+            )
+            await asyncio.sleep(0)
+
+            assert forced_starts == [restart]
         finally:
             if node_id is not None:
                 db_node = await session.get(Node, node_id)
@@ -1006,11 +1180,14 @@ async def test_get_nodes_simple_basic(access_token):
         assert "total" in data
 
         for node in data["nodes"]:
-            assert set(node.keys()) == {"id", "name", "status"}
+            assert set(node.keys()) == {"id", "name", "status", "core_config_id"}
 
         response_names = [n["name"] for n in data["nodes"]]
         for name in names:
             assert name in response_names
+
+        created_nodes = [n for n in data["nodes"] if n["id"] in node_ids]
+        assert all(n["core_config_id"] == core_id for n in created_nodes)
     finally:
         await cleanup_nodes_simple(core_id, node_ids)
 
@@ -1268,3 +1445,28 @@ async def test_remove_node_deletes_associated_usage_tables():
         assert await count_rows(NodeStat) == 0
         remaining_nodes = await session.scalar(select(func.count()).select_from(Node).where(Node.id == node_id))
         assert remaining_nodes == 0
+
+
+def test_get_outbound_usage_passes_filters(access_token, node_operator_mock):
+    start = datetime(2024, 2, 1, tzinfo=UTC)
+    end = start + timedelta(days=7)
+    usage = NodeOutboundUsageStatsList(
+        start=start,
+        end=end,
+        period=Period.day,
+        stats={"direct": [NodeUsageStat(uplink=10, downlink=20, period_start=start)]},
+    )
+    node_operator_mock.get_outbound_usage.return_value = usage
+    response = client.get(
+        "/api/node/usage/outbounds",
+        headers=auth_headers(access_token),
+        params={"start": start.isoformat(), "end": end.isoformat(), "period": "day", "node_id": 5},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == usage.model_dump(mode="json")
+
+    query = node_operator_mock.get_outbound_usage.await_args.kwargs["query"]
+    assert query.node_id == 5
+    assert query.period == Period.day
+    assert query.start == start
+    assert query.end == end

@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
+import { translateHtml } from '@/utils/html-translation'
 
 interface HostActionsMenuProps {
   host: BaseHost
@@ -29,7 +30,7 @@ const DeleteAlertDialog = ({ host, isOpen, onClose, onConfirm }: { host: BaseHos
         <AlertDialogHeader>
           <AlertDialogTitle>{t('deleteHost.title')}</AlertDialogTitle>
           <AlertDialogDescription>
-            <span dir={dir} dangerouslySetInnerHTML={{ __html: t('deleteHost.prompt', { name: host.remark ?? '' }) }} />
+            <span dir={dir} dangerouslySetInnerHTML={{ __html: translateHtml(t, 'deleteHost.prompt', { name: host.remark ?? '' }) }} />
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -136,12 +137,14 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
       if (onDataChanged) {
         onDataChanged()
       }
-    } catch (error) {
+    } catch (error: any) {
+      // The API explains a refused delete, e.g. a download host that other hosts still use
       toast.error(
         t('deleteHost.deleteFailed', {
           name: host.remark ?? '',
           defaultValue: 'Failed to remove host "{name}"',
         }),
+        { description: error?.data?.detail },
       )
     }
   }
