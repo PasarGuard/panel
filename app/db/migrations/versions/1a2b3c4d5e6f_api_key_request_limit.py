@@ -1,7 +1,7 @@
 """api key request limit
 
 Revision ID: 1a2b3c4d5e6f
-Revises: 7c4bd5128e62
+Revises: f0420da90ff1
 Create Date: 2026-08-30 00:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '1a2b3c4d5e6f'
-down_revision = '7c4bd5128e62'
+down_revision = 'f0420da90ff1'
 branch_labels = None
 depends_on = None
 
