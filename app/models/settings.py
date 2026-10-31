@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.models.client_template import ClientTemplateType
 from app.models.proxy import ShadowsocksMethods
 
 from .notification_enable import NotificationEnable
@@ -208,10 +209,27 @@ class HeaderPlacement(StrEnum):
     body_end = "body_end"
 
 
+# Client template type a rule's template_id must point to, per rule target
+RULE_TEMPLATE_TYPES: dict[ConfigFormat, ClientTemplateType] = {
+    ConfigFormat.xray: ClientTemplateType.xray_subscription,
+    ConfigFormat.sing_box: ClientTemplateType.singbox_subscription,
+    ConfigFormat.clash: ClientTemplateType.clash_subscription,
+    ConfigFormat.clash_meta: ClientTemplateType.clash_subscription,
+}
+
+
 class SubRule(BaseModel):
     pattern: str
     target: ConfigFormat
     response_headers: dict[str, Any] = Field(default_factory=dict)
+    # Client template used instead of the default one for this rule's target format
+    template_id: int | None = Field(default=None)
+
+    @model_validator(mode="after")
+    def validate_template_target(self):
+        if self.template_id is not None and self.target not in RULE_TEMPLATE_TYPES:
+            raise ValueError(f"template_id is not supported for target {self.target.value}")
+        return self
 
 
 class SubFormatEnable(BaseModel):
