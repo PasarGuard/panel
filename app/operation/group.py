@@ -35,7 +35,7 @@ from app.models.group import (
 from app.models.user import BulkOperationDryRunResponse, UserListQuery
 from app.node.sync import sync_users
 from app.operation import BaseOperation, OperatorType
-from app.operation.permissions import apply_group_access
+from app.operation.permissions import PermissionDenied, apply_group_access, enforce_permission, get_scope_admin_id
 from app.utils.logger import get_logger
 
 logger = get_logger("group-operation")
@@ -139,13 +139,22 @@ class GroupOperation(BaseOperation):
 
         asyncio.create_task(notification.remove_group(db_group.id, admin.username))
 
+    async def _user_scope_for_group_write(self, db: AsyncSession, admin: Admin) -> int | None:
+        """Group membership changes write to users, so require users.update and apply its scope."""
+        try:
+            enforce_permission(admin, "users", "update")
+        except PermissionDenied as exc:
+            await self.raise_error(message=str(exc), code=403, db=db)
+        return get_scope_admin_id(admin, "users", "update")
+
     async def bulk_add_groups(self, db: AsyncSession, bulk_model: BulkGroup, admin: Admin):
         await self.validate_all_groups(db, bulk_model, admin)
+        scope_admin_id = await self._user_scope_for_group_write(db, admin)
         if bulk_model.dry_run:
-            n = await count_bulk_group_scope(db, bulk_model)
+            n = await count_bulk_group_scope(db, bulk_model, scope_admin_id=scope_admin_id)
             return BulkOperationDryRunResponse(affected_users=n)
 
-        users, users_count = await add_groups_to_users(db, bulk_model)
+        users, users_count = await add_groups_to_users(db, bulk_model, scope_admin_id=scope_admin_id)
         await self._sync_users_allocations(db, users)
         await db.commit()
         await sync_users(users)
@@ -156,11 +165,12 @@ class GroupOperation(BaseOperation):
 
     async def bulk_remove_groups(self, db: AsyncSession, bulk_model: BulkGroup, admin: Admin):
         await self.validate_all_groups(db, bulk_model, admin)
+        scope_admin_id = await self._user_scope_for_group_write(db, admin)
         if bulk_model.dry_run:
-            n = await count_bulk_group_scope(db, bulk_model)
+            n = await count_bulk_group_scope(db, bulk_model, scope_admin_id=scope_admin_id)
             return BulkOperationDryRunResponse(affected_users=n)
 
-        users, users_count = await remove_groups_from_users(db, bulk_model)
+        users, users_count = await remove_groups_from_users(db, bulk_model, scope_admin_id=scope_admin_id)
         await self._sync_users_allocations(db, users)
         await db.commit()
         await sync_users(users)
