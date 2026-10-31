@@ -36,6 +36,7 @@ from app.models.admin import (
     BulkAdminSelection,
     RemoveAdminsResponse,
 )
+from app.models.admin_role import RoleLimits
 from app.models.stats import USAGE_RECORD_GRANULARITY, Period, UserUsageStatsList
 from app.models.user import UserListQuery
 from app.node.sync import remove_user as sync_remove_user, sync_users
@@ -46,6 +47,11 @@ from app.operation.user import UserOperation
 from app.utils.logger import get_logger
 
 logger = get_logger("admin-operation")
+
+
+def _set_limits(limits: RoleLimits | None) -> dict:
+    """The limits that are actually set; no overrides and all-null overrides are the same."""
+    return limits.model_dump(exclude_none=True) if limits is not None else {}
 
 
 class AdminOperation(BaseOperation):
@@ -127,6 +133,20 @@ class AdminOperation(BaseOperation):
             and modified_admin.status == AdminStatus.disabled
         ):
             await self.raise_error(message="You're not allowed to disable your own account.", code=403)
+
+        # A limited admin must not be able to lift its own quota or role limits.
+        if not current_admin.is_owner and is_self:
+            new_overrides = modified_admin.permission_overrides
+            # The dashboard always sends the overrides object, with nulls when none are set, while
+            # an admin without overrides has None: compare the values that are actually set.
+            if new_overrides is not None and _set_limits(new_overrides) != _set_limits(
+                current_admin.permission_overrides
+            ):
+                await self.raise_error(message="You're not allowed to change your own limits.", code=403)
+            if modified_admin.data_limit is not None and (modified_admin.data_limit or 0) != (
+                current_admin.data_limit or 0
+            ):
+                await self.raise_error(message="You're not allowed to change your own data limit.", code=403)
 
         if modified_admin.telegram_id:
             existing_admins = await find_admins_by_telegram_id(
