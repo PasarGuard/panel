@@ -13,6 +13,7 @@ from app.db import GetDB
 from app.db.crud.node import get_node_by_id, get_nodes
 from app.db.models import NodeStatus
 from app.models.node import NodeCoreUpdate, NodeGeoFilesUpdate, NodeListQuery
+from app.nats.node_rpc import CONTROL_NODE_COMMANDS, node_control_subject
 from app.nats.proto_utils import deserialize_proto_message, deserialize_proto_messages
 from app.nats.rpc_service import BaseRpcService
 from app.node import node_manager
@@ -22,6 +23,7 @@ from app.utils.logger import get_logger
 from config import nats_settings, runtime_settings
 
 logger = get_logger("node-worker")
+MAX_PENDING_CONTROL_COMMANDS = 100
 
 
 class NodeWorkerService(BaseRpcService):
@@ -32,6 +34,8 @@ class NodeWorkerService(BaseRpcService):
             role_check=lambda: runtime_settings.role.runs_node,
         )
         self._command_sub: Subscription | None = None
+        self._control_sub: Subscription | None = None
+        self._control_tasks: set[asyncio.Task] = set()
         self._log_tasks: dict[str, asyncio.Task] = {}
         self._stop_events: dict[str, asyncio.Event] = {}
         self._node_operator = NodeOperation(operator_type=OperatorType.SYSTEM)
@@ -69,11 +73,29 @@ class NodeWorkerService(BaseRpcService):
             return
 
         self._command_sub = await self._nc.subscribe(nats_settings.node_command_subject, cb=self._handle_command)
+        # Exactly one worker handles each request, even when several node workers
+        # subscribe. Old workers never receive requests on this new subject.
+        self._control_sub = await self._nc.subscribe(
+            node_control_subject(), queue=f"{node_control_subject()}.workers", cb=self._handle_command
+        )
+        await self._nc.flush()
         logger.info("Node worker service started")
 
     async def stop(self):
         if not runtime_settings.role.runs_node:
             return
+
+        for subscription in (self._control_sub, self._command_sub):
+            if subscription is not None:
+                await subscription.unsubscribe()
+        self._control_sub = self._command_sub = None
+
+        command_tasks = list(self._control_tasks)
+        for task in command_tasks:
+            task.cancel()
+        if command_tasks:
+            await asyncio.gather(*command_tasks, return_exceptions=True)
+        self._control_tasks.clear()
 
         for stop_event in list(self._stop_events.values()):
             stop_event.set()
@@ -88,29 +110,81 @@ class NodeWorkerService(BaseRpcService):
         self._log_tasks.clear()
         self._stop_events.clear()
 
-        if self._command_sub:
-            await self._command_sub.unsubscribe()
-            self._command_sub = None
         await super().stop()
         logger.info("Node worker service stopped")
 
     async def _handle_command(self, msg):
+        """Decode commands and bound pending control work before dispatching."""
         try:
             payload = json.loads(msg.data.decode())
             action = payload.get("action")
             data = payload.get("payload", {})
+            if not isinstance(action, str) or not isinstance(data, dict):
+                raise TypeError("action must be a string and payload must be an object")
+            if msg.reply:
+                self._validate_control_payload(action, data)
         except Exception:
             logger.warning("Invalid node command message")
+            await self._reply_to_command(msg, error="Invalid node command", code=400)
             return
 
-        asyncio.create_task(self._run_command(action, data))
+        if msg.reply and len(self._control_tasks) >= MAX_PENDING_CONTROL_COMMANDS:
+            await self._reply_to_command(msg, error="Node control queue is full; retry later", code=503)
+            return
+        task = asyncio.create_task(self._run_command(action, data, msg))
+        if msg.reply:
+            self._control_tasks.add(task)
+            task.add_done_callback(self._control_tasks.discard)
 
-    async def _run_command(self, action: str | None, data: dict):
-        async with self._command_semaphore:
-            try:
-                await self._dispatch_command(action, data)
-            except Exception:
-                logger.exception(f"Node command failed: {action}")
+    @staticmethod
+    def _validate_control_payload(action: str, data: dict):
+        """Reject malformed selectors before a request can change any node."""
+        if action not in CONTROL_NODE_COMMANDS:
+            raise ValueError("Unsupported node control command")
+
+        def valid_id(value):
+            return type(value) is int and value > 0
+
+        if action == "connect_nodes_bulk":
+            if "node_ids" in data:
+                if not isinstance(data["node_ids"], list) or any(not valid_id(value) for value in data["node_ids"]):
+                    raise ValueError("node_ids must be a list of positive integers")
+            elif "core_id" not in data:
+                raise ValueError("node_ids or core_id is required")
+            elif data.get("core_id") is not None and not valid_id(data["core_id"]):
+                raise ValueError("core_id must be a positive integer")
+        elif not valid_id(data.get("node_id")):
+            raise ValueError("node_id must be a positive integer")
+        for key in ("force_start", "stop_first", "flush_users"):
+            if key in data and type(data[key]) is not bool:
+                raise ValueError(f"{key} must be a boolean")
+
+    @staticmethod
+    async def _reply_to_command(msg, *, data=None, error: str | None = None, code: int = 500):
+        """Reply only to acknowledged requests, without failing worker cleanup."""
+        if not msg.reply:
+            return
+        response = {"ok": True, "data": data} if error is None else {"ok": False, "error": error, "code": code}
+        try:
+            await msg.respond(json.dumps(response).encode())
+        except Exception as exc:
+            logger.warning("Could not confirm node control result: %s", exc)
+
+    async def _run_command(self, action: str | None, data: dict, msg):
+        """Acknowledge completion, propagate failures and leave ambiguous work unretried."""
+        try:
+            async with self._command_semaphore:
+                result = await self._dispatch_command(action, data)
+            await self._reply_to_command(msg, data=result)
+        except asyncio.CancelledError:
+            await self._reply_to_command(msg, error="Node worker stopped before command completion", code=503)
+            raise
+        except Exception as exc:
+            logger.exception(f"Node command failed: {action}")
+            code = getattr(exc, "status_code", getattr(exc, "code", 500))
+            if not isinstance(code, int) or not 400 <= code <= 599:
+                code = 500
+            await self._reply_to_command(msg, error=str(getattr(exc, "detail", exc)), code=code)
 
     async def _run_rpc(self, msg, action: str | None, data: dict):
         async with self._rpc_semaphore:
@@ -133,7 +207,7 @@ class NodeWorkerService(BaseRpcService):
             return
         handler = self._command_handlers.get(action)
         if handler:
-            await handler(data)
+            return await handler(data)
 
     async def _update_user(self, data: dict):
         user_dict = data.get("user")
@@ -156,13 +230,13 @@ class NodeWorkerService(BaseRpcService):
         async with GetDB() as db:
             db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
         if db_node:
-            await node_manager.update_node(db_node)
+            await self._node_operator._update_node_impl(db_node)
 
     async def _remove_node(self, data: dict):
         node_id = data.get("node_id")
         if not node_id:
             return
-        await node_manager.remove_node(node_id)
+        await self._node_operator._remove_node_impl(node_id)
 
     async def _connect_node(self, data: dict):
         node_id = data.get("node_id")
@@ -171,12 +245,13 @@ class NodeWorkerService(BaseRpcService):
         # Refresh from KV before connecting to avoid stale core cache races.
         await core_manager._reload_from_cache()
         async with GetDB() as db:
-            await self._node_operator.connect_single_node(
-                db, node_id, force_start=bool(data.get("force_start"))
-            )
+            await self._node_operator.connect_single_node(db, node_id, force_start=bool(data.get("force_start")))
 
     async def _connect_nodes_bulk(self, data: dict):
         node_ids = data.get("node_ids")
+        # An explicitly empty selection must never turn into "all nodes".
+        if "node_ids" in data and node_ids == []:
+            return
         core_id = data.get("core_id")
         # Refresh from KV before bulk reconnect to avoid stale core cache races.
         await core_manager._reload_from_cache()
@@ -214,7 +289,8 @@ class NodeWorkerService(BaseRpcService):
         # Refresh from KV before syncing to avoid stale core/inbound cache races.
         await core_manager._reload_from_cache()
         async with GetDB() as db:
-            await self._node_operator.sync_node_users(db, node_id=node_id, flush_users=flush_users)
+            result = await self._node_operator.sync_node_users(db, node_id=node_id, flush_users=flush_users)
+            return result.model_dump(mode="json")
 
     async def _get_node_system_stats(self, data: dict) -> dict:
         node_id = data.get("node_id")
