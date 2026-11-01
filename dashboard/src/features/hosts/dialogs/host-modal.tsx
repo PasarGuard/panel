@@ -1062,7 +1062,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     field.onChange(field.value.filter(s => s !== status))
                                   }}
                                 >
-                                  أ—
+                                  <X className="h-4 w-4"/>
                                 </button>
                               </span>
                             )
