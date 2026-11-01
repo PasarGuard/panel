@@ -1956,6 +1956,9 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                               <TabsTrigger className="flex-1 px-1 text-xs sm:flex-none sm:px-2 sm:text-sm" value="masque">
                                 MASQUE
                               </TabsTrigger>
+                              <TabsTrigger className="flex-1 px-1 text-xs sm:flex-none sm:px-2 sm:text-sm" value="xdrive">
+                                XDrive
+                              </TabsTrigger>
                             </TabsList>
                           </div>
 
@@ -2031,6 +2034,99 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                 <FormField
                                   control={form.control}
                                   name="transport_settings.masque_settings.xmux.h_keep_alive_period"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.hKeepAlivePeriod')}</FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          type="number"
+                                          {...field}
+                                          value={field.value ?? ''}
+                                          onChange={event => field.onChange(event.target.value === '' ? null : Number(event.target.value))}
+                                        />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                            </div>
+                          </TabsContent>
+
+                          {/* XDrive Settings */}
+                          <TabsContent dir={dir} value="xdrive" className="space-y-4 p-2">
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-medium">{t('hostsDialog.xhttp.xmux')}</h4>
+                              <p className="text-muted-foreground text-xs">{t('hostsDialog.xdrive.xmuxHint', { defaultValue: 'Connection reuse limits for XDrive. Set maxConnections or maxConcurrency, not both.' })}</p>
+                              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.xdrive_settings.xmux.max_connections"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.maxConnections')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="1 or 1-3" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.xdrive_settings.xmux.max_concurrency"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.maxConcurrency')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="8 or 8-16" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.xdrive_settings.xmux.c_max_reuse_times"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.cMaxReuseTimes')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="1 or 1-3" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.xdrive_settings.xmux.h_max_reusable_secs"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.hMaxReusableSecs')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="1800-3000" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.xdrive_settings.xmux.h_max_request_times"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('hostsDialog.xhttp.hMaxRequestTimes')}</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} value={field.value ?? ''} placeholder="300-600" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="transport_settings.xdrive_settings.xmux.h_keep_alive_period"
                                   render={({ field }) => (
                                     <FormItem>
                                       <FormLabel>{t('hostsDialog.xhttp.hKeepAlivePeriod')}</FormLabel>

@@ -34,6 +34,11 @@ export function isXdriveGoogleDriveService(service: unknown): boolean {
   return GOOGLE_DRIVE_SERVICES.has(service)
 }
 
+/** True when the service is S3. */
+export function isXdriveS3Service(service: unknown): boolean {
+  return service === 's3'
+}
+
 /**
  * Service choices for the select: one Google Drive item in the stored spelling (else the spelling new configs get),
  * and a stored service the kit does not know first, so the select stays controlled.
@@ -63,17 +68,69 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(item => typeof item === 'string')
 }
 
+export interface XdriveS3ConfigRecord {
+  endpoint: string
+  region: string
+  bucket: string
+  pathStyle: boolean
+}
+
+export function xdriveS3Config(settings: Record<string, unknown>): XdriveS3ConfigRecord {
+  const s3 = typeof settings.s3 === 'object' && settings.s3 !== null && !Array.isArray(settings.s3)
+    ? (settings.s3 as Record<string, unknown>)
+    : {}
+  return {
+    endpoint: typeof s3.endpoint === 'string' ? s3.endpoint : '',
+    region: typeof s3.region === 'string' ? s3.region : '',
+    bucket: typeof s3.bucket === 'string' ? s3.bucket : '',
+    pathStyle: typeof s3.pathStyle === 'boolean' ? s3.pathStyle : true,
+  }
+}
+
+export function setXdriveS3Config<K extends keyof XdriveS3ConfigRecord>(
+  settings: Record<string, unknown>,
+  key: K,
+  value: XdriveS3ConfigRecord[K],
+): Record<string, unknown> {
+  const cur = xdriveS3Config(settings)
+  return {
+    ...settings,
+    s3: {
+      ...cur,
+      [key]: value,
+    },
+  }
+}
+
+/** The three S3 secrets (AccessKeyID, SecretAccessKey, SessionToken). */
+export function xdriveS3Secrets(settings: Record<string, unknown>): [string, string, string] {
+  const list = Array.isArray(settings.secrets) ? settings.secrets : []
+  const entry = (index: number): string => {
+    const value: unknown = list[index]
+    return typeof value === 'string' ? value : ''
+  }
+  return [entry(0), entry(1), entry(2)]
+}
+
+export function setXdriveS3Secret(settings: Record<string, unknown>, index: 0 | 1 | 2, value: string | undefined): Record<string, unknown> {
+  const secrets = xdriveS3Secrets(settings)
+  secrets[index] = (value ?? '').trim()
+  const result = secrets[2] ? [secrets[0], secrets[1], secrets[2]] : [secrets[0], secrets[1]]
+  return { ...settings, secrets: result }
+}
+
 /**
  * A copy of the XDrive settings for `service`, keeping `remoteFolder` and every other key, and dropping what the
- * service does not read: `local` drops `secrets` and `template`; Google Drive drops `template` and keeps exactly three
- * secrets; `template` keeps a `secrets` list only when it holds strings. Both Google Drive spellings are one service,
- * so a stored spelling stays.
+ * service does not read: `local` drops `secrets`, `template`, and `s3`; Google Drive drops `template` and `s3` and
+ * keeps exactly three secrets; `s3` drops `template`, keeps `s3` config, and manages S3 credentials; `template`
+ * drops `s3` and keeps a `secrets` list only when it holds strings.
  */
 export function applyXdriveService(settings: Record<string, unknown>, service: XDriveService): Record<string, unknown> {
   const next = { ...settings }
   if (isXdriveGoogleDriveService(service)) {
     next.service = isXdriveGoogleDriveService(settings.service) ? settings.service : service
     delete next.template
+    delete next.s3
     next.secrets = xdriveGoogleDriveSecrets(settings)
     return next
   }
@@ -81,8 +138,19 @@ export function applyXdriveService(settings: Record<string, unknown>, service: X
   if (service === 'local') {
     delete next.secrets
     delete next.template
-  } else if (!isStringArray(next.secrets)) {
-    delete next.secrets
+    delete next.s3
+  } else if (service === 's3') {
+    delete next.template
+    next.s3 = xdriveS3Config(settings)
+    const secrets = xdriveS3Secrets(settings)
+    next.secrets = secrets[2] ? [secrets[0], secrets[1], secrets[2]] : [secrets[0], secrets[1]]
+  } else {
+    delete next.s3
+    if (service !== 'template' && !isStringArray(next.secrets)) {
+      delete next.secrets
+    } else if (service === 'template' && !isStringArray(next.secrets)) {
+      delete next.secrets
+    }
   }
   return next
 }

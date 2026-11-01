@@ -456,6 +456,7 @@ async def _prepare_subscription_inbound_data(
             header_type=qs.header if qs else inbound_header_type,
         )
     elif network == "xdrive":
+        xs = ts.xdrive_settings if ts else None
         transport_config = XDriveTransportConfig(
             remote_folder=inbound_config.get("xdrive_remote_folder"),
             service=inbound_config.get("xdrive_service"),
@@ -470,6 +471,7 @@ async def _prepare_subscription_inbound_data(
             hole_timeout_ms=inbound_config.get("xdrive_hole_timeout_ms"),
             template=inbound_config.get("xdrive_template"),
             s3=inbound_config.get("xdrive_s3"),
+            xmux=xs.xmux.model_dump(by_alias=True, exclude_none=True) if xs and xs.xmux else inbound_config.get("xdrive_xmux"),
         )
     elif network in ("ws", "websocket", "httpupgrade"):
         ws = ts.websocket_settings if ts else None

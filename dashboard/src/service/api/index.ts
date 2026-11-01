@@ -772,6 +772,10 @@ export interface MasqueHostSettings {
   xmux?: XMuxSettings | null;
 }
 
+export interface XDriveHostSettings {
+  xmux?: XMuxSettings | null;
+}
+
 export interface TransportSettings {
   xhttp_settings?: XHttpSettings | null;
   grpc_settings?: GRPCSettings | null;
@@ -779,6 +783,7 @@ export interface TransportSettings {
   tcp_settings?: TcpSettings | null;
   websocket_settings?: WebSocketSettings | null;
   masque_settings?: MasqueHostSettings | null;
+  xdrive_settings?: XDriveHostSettings | null;
 }
 
 export type MultiplexProtocol = typeof MultiplexProtocol[keyof typeof MultiplexProtocol];

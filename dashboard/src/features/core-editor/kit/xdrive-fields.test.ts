@@ -8,14 +8,19 @@ import {
   applyXdriveService,
   defaultXdriveSettings,
   isXdriveGoogleDriveService,
+  isXdriveS3Service,
   parseXdriveNumberInput,
   setXdriveGoogleDriveSecret,
+  setXdriveS3Config,
+  setXdriveS3Secret,
   vlessFlowSelectValues,
   vlessVisionFlowHintShown,
   withXdriveInboundFlowIssue,
   XDRIVE_TUNING_FIELDS,
   XDRIVE_UINT32_MAX,
   xdriveGoogleDriveSecrets,
+  xdriveS3Config,
+  xdriveS3Secrets,
   xdriveServiceSelectOptions,
 } from '@/features/core-editor/kit/xdrive-fields'
 
@@ -55,14 +60,56 @@ test('both Google Drive spellings are one service and the stored spelling stays'
   assert.deepEqual(applyXdriveService({ service: 'local' }, 'google-drive'), { service: 'google-drive', secrets: ['', '', ''] })
 })
 
-test('the service select offers one Google Drive item in the stored spelling', () => {
-  assert.deepEqual(xdriveServiceSelectOptions('Google Drive'), ['local', 'Google Drive', 'template'])
-  assert.deepEqual(xdriveServiceSelectOptions('google-drive'), ['local', 'google-drive', 'template'])
-  assert.deepEqual(xdriveServiceSelectOptions('local'), ['local', 'Google Drive', 'template'])
-  assert.deepEqual(xdriveServiceSelectOptions(undefined), ['local', 'Google Drive', 'template'])
-  assert.deepEqual(xdriveServiceSelectOptions(''), ['local', 'Google Drive', 'template'])
+test('the service select offers one Google Drive item in the stored spelling and includes s3', () => {
+  assert.deepEqual(xdriveServiceSelectOptions('Google Drive'), ['local', 'Google Drive', 'template', 's3'])
+  assert.deepEqual(xdriveServiceSelectOptions('google-drive'), ['local', 'google-drive', 'template', 's3'])
+  assert.deepEqual(xdriveServiceSelectOptions('local'), ['local', 'Google Drive', 'template', 's3'])
+  assert.deepEqual(xdriveServiceSelectOptions(undefined), ['local', 'Google Drive', 'template', 's3'])
+  assert.deepEqual(xdriveServiceSelectOptions(''), ['local', 'Google Drive', 'template', 's3'])
   // An unknown stored service stays first so the select stays controlled; the kit reports it.
-  assert.deepEqual(xdriveServiceSelectOptions('dropbox'), ['dropbox', 'local', 'Google Drive', 'template'])
+  assert.deepEqual(xdriveServiceSelectOptions('dropbox'), ['dropbox', 'local', 'Google Drive', 'template', 's3'])
+})
+
+test('isXdriveS3Service identifies s3 service', () => {
+  assert.equal(isXdriveS3Service('s3'), true)
+  assert.equal(isXdriveS3Service('S3'), false)
+  assert.equal(isXdriveS3Service('local'), false)
+  assert.equal(isXdriveS3Service(undefined), false)
+})
+
+test('applyXdriveService and helpers for s3 service', () => {
+  const s3Stored = applyXdriveService({ service: 'local', remoteFolder: 'backups' }, 's3')
+  assert.deepEqual(s3Stored, {
+    service: 's3',
+    remoteFolder: 'backups',
+    secrets: ['', ''],
+    s3: { endpoint: '', region: '', bucket: '', pathStyle: true },
+  })
+
+  // setXdriveS3Config modifies nested s3 config
+  const updated = setXdriveS3Config(s3Stored, 'bucket', 'my-bucket')
+  assert.equal(xdriveS3Config(updated).bucket, 'my-bucket')
+  const pathStyleUpdated = setXdriveS3Config(updated, 'pathStyle', false)
+  assert.equal(xdriveS3Config(pathStyleUpdated).pathStyle, false)
+
+  // s3 secrets: access key and secret key, optional session token
+  assert.deepEqual(xdriveS3Secrets(pathStyleUpdated), ['', '', ''])
+  const withKey = setXdriveS3Secret(pathStyleUpdated, 0, 'AKIAIOSFODNN7EXAMPLE')
+  const withSecret = setXdriveS3Secret(withKey, 1, 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY')
+  assert.deepEqual(xdriveS3Secrets(withSecret), [
+    'AKIAIOSFODNN7EXAMPLE',
+    'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+    '',
+  ])
+  const withSessionToken = setXdriveS3Secret(withSecret, 2, 'session-token-123')
+  assert.deepEqual(xdriveS3Secrets(withSessionToken), [
+    'AKIAIOSFODNN7EXAMPLE',
+    'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+    'session-token-123',
+  ])
+  // Removing session token drops it from secrets array (length 2)
+  const clearedSessionToken = setXdriveS3Secret(withSessionToken, 2, undefined)
+  assert.deepEqual(clearedSessionToken.secrets, ['AKIAIOSFODNN7EXAMPLE', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'])
 })
 
 test('Google Drive secrets stay three trimmed entries', () => {

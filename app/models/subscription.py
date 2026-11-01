@@ -184,6 +184,7 @@ class XDriveTransportConfig(BaseTransportConfig):
     hole_timeout_ms: int | None = Field(None, serialization_alias="holeTimeoutMs")
     template: dict[str, Any] | None = Field(None)
     s3: dict[str, Any] | None = Field(None)
+    xmux: dict[str, Any] | None = Field(None)
 
 
 class KCPTransportConfig(BaseTransportConfig):

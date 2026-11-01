@@ -259,6 +259,20 @@ export function createInboundDialogSchema(caps: Caps, t: TFunction) {
           path: ['tunMtu'],
         })
       }
+
+      const userLevelRaw = typeof raw.tunUserLevel === 'string' ? raw.tunUserLevel.trim() : ''
+      if (userLevelRaw !== '') {
+        const userLevel = Number(userLevelRaw)
+        if (!Number.isFinite(userLevel) || !Number.isInteger(userLevel) || userLevel < 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: t('coreEditor.inbound.validation.tunUserLevelInvalid', {
+              defaultValue: 'User level must be a non-negative whole number.',
+            }),
+            path: ['tunUserLevel'],
+          })
+        }
+      }
     })
     .superRefine((data, ctx) => {
       const p = typeof data.protocol === 'string' ? data.protocol.trim() : ''

@@ -23,7 +23,7 @@ import { pruneSockoptObject, XrayStreamSockoptInboundAccordion } from '@/feature
 import { InboundFallbacksEditor } from '@/features/core-editor/components/xray/inbound-fallbacks-editor'
 import { MasqueSettingsFields } from '@/features/core-editor/components/xray/masque-settings-fields'
 import { RealityScanDialog } from '@/features/core-editor/components/xray/reality-scan-dialog'
-import { FieldMessages } from '@/features/core-editor/components/xray/stream-form-inputs'
+import { FieldMessages, ParsedTextField } from '@/features/core-editor/components/xray/stream-form-inputs'
 import { guardStreamFormsCommit } from '@/features/core-editor/components/xray/stream-form-validity'
 import { WireguardInboundFields } from '@/features/core-editor/components/xray/wireguard-inbound-fields'
 import { XdriveSettingsFields } from '@/features/core-editor/components/xray/xdrive-settings-fields'
@@ -47,7 +47,7 @@ import { masqueInboundTlsSecurity } from '@/features/core-editor/kit/masque-fiel
 import { profileDuplicateTagMessage, profileTagHasDuplicateUsage } from '@/features/core-editor/kit/profile-tag-uniqueness'
 import { remapIndexAfterArrayMove } from '@/features/core-editor/kit/remap-index-after-move'
 import { normalizeTunnelNetworkForKit } from '@/features/core-editor/kit/sanitize-inbound'
-import { streamFieldIssuesForInbound, type StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
+import { formatJsonObjectInput, isPlainObject, parseJsonObjectInput, streamFieldIssuesForInbound, type StreamFieldIssue } from '@/features/core-editor/kit/stream-form-fields'
 import {
   classifyWireguardAddresses,
   normalizeWireguardInboundForCommit,
@@ -226,6 +226,7 @@ const XHTTP_EXTRA_META_KEYS = new Set<string>([
   'nosseheader',
   'xmux',
   'downloadsettings',
+  'h2params',
 ])
 
 function isXhttpExtraMetaKey(normalizedKey: string): boolean {
@@ -261,6 +262,7 @@ const XHTTP_META_FALLBACK_BY_KEY: Readonly<Record<string, string>> = {
   nosseheader: 'noSSEHeader',
   xmux: 'xmux',
   downloadsettings: 'downloadSettings',
+  h2params: 'h2Params',
 }
 
 function resolveTransportMetaKey(transport: Record<string, unknown> | null, normalizedKey: string, fallback: string): string {
@@ -544,6 +546,10 @@ function applyTunEditorCreationDefaults(ib: Inbound): Inbound {
     dns: undefined,
     autoSystemRoutingTable: undefined,
     autoOutboundsInterface: undefined,
+    autoSystemDnsToGateway: undefined,
+    autoSystemWfpBlockLeak: undefined,
+    userLevel: undefined,
+    desc: undefined,
   } as Inbound
 }
 
@@ -1061,6 +1067,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       tunnelFollowRedirect: 'true',
       tunName: '',
       tunMtu: '',
+      tunUserLevel: '',
+      tunDesc: '',
       wgSecretKey: '',
       wgMtu: '',
       wgReserved: '',
@@ -1105,10 +1113,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       if (nextIb.protocol !== 'tun') {
         form.setValue('tunName', '', syncOpts)
         form.setValue('tunMtu', '', syncOpts)
+        form.setValue('tunUserLevel', '', syncOpts)
+        form.setValue('tunDesc', '', syncOpts)
         return
       }
       form.setValue('tunName', typeof (nextIb as { name?: unknown }).name === 'string' ? String((nextIb as { name?: unknown }).name) : '', syncOpts)
       form.setValue('tunMtu', typeof (nextIb as { mtu?: unknown }).mtu === 'number' ? String((nextIb as { mtu?: number }).mtu) : '', syncOpts)
+      form.setValue('tunUserLevel', typeof (nextIb as { userLevel?: unknown }).userLevel === 'number' ? String((nextIb as { userLevel?: number }).userLevel) : '', syncOpts)
+      form.setValue('tunDesc', typeof (nextIb as { desc?: unknown }).desc === 'string' ? String((nextIb as { desc?: unknown }).desc) : '', syncOpts)
     },
     [form],
   )
@@ -1193,6 +1205,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       security: row.protocol === 'hysteria' ? 'tls' : 'security' in row && row.security ? row.security.type : 'none',
       tunName: row.protocol === 'tun' && typeof (row as { name?: unknown }).name === 'string' ? String((row as { name?: unknown }).name) : '',
       tunMtu: row.protocol === 'tun' && typeof (row as { mtu?: unknown }).mtu === 'number' ? String((row as { mtu?: number }).mtu) : '',
+      tunUserLevel: row.protocol === 'tun' && typeof (row as { userLevel?: unknown }).userLevel === 'number' ? String((row as { userLevel?: number }).userLevel) : '',
+      tunDesc: row.protocol === 'tun' && typeof (row as { desc?: unknown }).desc === 'string' ? String((row as { desc?: unknown }).desc) : '',
       wgSecretKey: row.protocol === 'wireguard' && typeof (row as { secretKey?: unknown }).secretKey === 'string' ? String((row as { secretKey?: unknown }).secretKey) : '',
       wgMtu: wgTexts.mtu,
       wgReserved: wgTexts.reserved,
@@ -1705,7 +1719,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
     }
     const triggerFields =
       draftInbound.protocol === 'tun'
-        ? (['protocol', 'tag', 'tunName', 'tunMtu'] as const)
+        ? (['protocol', 'tag', 'tunName', 'tunMtu', 'tunUserLevel'] as const)
         : draftInbound.protocol === 'wireguard'
           ? (['protocol', 'tag', 'port', ...WIREGUARD_INBOUND_FORM_FIELDS] as const)
           : (['protocol', 'tag', 'port'] as const)
@@ -1743,7 +1757,7 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
       const ok = await form.trigger(['protocol', 'tag', 'port', 'tunnelRewriteAddress', 'tunnelRewritePort'], { shouldFocus: true })
       if (!ok) return
     } else if (inbound.protocol === 'tun') {
-      const ok = await form.trigger(['protocol', 'tag', 'tunName', 'tunMtu'], { shouldFocus: true })
+      const ok = await form.trigger(['protocol', 'tag', 'tunName', 'tunMtu', 'tunUserLevel'], { shouldFocus: true })
       if (!ok) return
     } else if (inbound.protocol === 'wireguard') {
       const ok = await form.trigger(['protocol', 'tag', 'port', ...WIREGUARD_INBOUND_FORM_FIELDS], { shouldFocus: true })
@@ -3750,6 +3764,34 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             )
                           })()}
 
+                        {inboundTransportType === 'xhttp' && (
+                          <div className="sm:col-span-2">
+                            <ParsedTextField
+                              label={t('coreEditor.inbound.xhttp.h2Params', { defaultValue: 'HTTP/2 Parameters (h2Params)' })}
+                              hint={t('coreEditor.inbound.xhttp.h2ParamsHint', {
+                                defaultValue: 'Optional HTTP/2 server configuration JSON (e.g. maxConcurrentStreams, pingTimeout).',
+                              })}
+                              multiline
+                              stored={
+                                isPlainObject(getTransportMetaValue(xhttpExtra, 'h2params'))
+                                  ? (getTransportMetaValue(xhttpExtra, 'h2params') as Record<string, unknown>)
+                                  : undefined
+                              }
+                              parse={parseJsonObjectInput}
+                              format={formatJsonObjectInput}
+                              invalidMessage={t('coreEditor.inbound.xhttp.h2ParamsInvalid', {
+                                defaultValue: 'HTTP/2 parameters must be a valid JSON object.',
+                              })}
+                              onValue={next => updateXhttpMeta('h2params', next)}
+                              onValidityChange={invalid =>
+                                setInvalidStreamInputs(prev =>
+                                  invalid ? [...prev.filter(x => x !== 'h2params'), 'h2params'] : prev.filter(x => x !== 'h2params'),
+                                )
+                              }
+                            />
+                          </div>
+                        )}
+
                         {transportSettingsFieldOrder.map((jsonKey: string) => {
                           const def = caps.transportSettingsFieldDefinitions[inboundTransportType]?.[jsonKey]
                           if (!def) return null
@@ -3773,7 +3815,8 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                             normalizedTransportKey === 'sessionidkey' ||
                             normalizedTransportKey === 'sessionidtable' ||
                             normalizedTransportKey === 'sessionidlength' ||
-                            normalizedTransportKey === 'extra'
+                            normalizedTransportKey === 'extra' ||
+                            normalizedTransportKey === 'h2params'
                           if (inboundTransportType === 'xhttp' && isXhttpCustomManagedField) return null
                           const isXPaddingAdvancedField =
                             normalizedTransportKey === 'xpaddingkey' ||
@@ -5233,6 +5276,63 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                       )}
                     />
 
+                    <FormField
+                      control={form.control}
+                      name="tunDesc"
+                      render={({ field, fieldState }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm">{t('coreEditor.inbound.tun.desc', { defaultValue: 'Adapter Description' })}</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              dir="ltr"
+                              className="h-10"
+                              placeholder="Wintun"
+                              isError={!!fieldState.error}
+                              onChange={e => {
+                                const v = e.target.value
+                                field.onChange(v)
+                                patchInbound({ desc: v.trim() === '' ? undefined : v } as Partial<Inbound>)
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="tunUserLevel"
+                      render={({ field, fieldState }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm">{t('coreEditor.inbound.tun.userLevel', { defaultValue: 'User Level' })}</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              dir="ltr"
+                              inputMode="numeric"
+                              className="h-10"
+                              placeholder="0"
+                              isError={!!fieldState.error}
+                              onChange={e => {
+                                const raw = e.target.value
+                                field.onChange(raw)
+                                const v = raw.trim()
+                                if (v === '') {
+                                  patchInbound({ userLevel: undefined } as Partial<Inbound>)
+                                  return
+                                }
+                                const n = Number(v)
+                                patchInbound({ userLevel: Number.isFinite(n) ? Math.trunc(n) : undefined } as Partial<Inbound>)
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
                     <div className="grid gap-2">
                       <FormLabel className="text-sm">{t('coreEditor.inbound.tun.gateway', { defaultValue: 'Gateway' })}</FormLabel>
                       <StringArrayPopoverInput
@@ -5308,6 +5408,49 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           const v = e.target.value
                           patchInbound({ autoOutboundsInterface: v.trim() === '' ? undefined : v } as Partial<Inbound>)
                         }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-sm font-medium">
+                          {t('coreEditor.inbound.tun.autoSystemDnsToGateway', { defaultValue: 'Auto System DNS to Gateway' })}
+                        </FormLabel>
+                        <p className="text-muted-foreground text-xs">
+                          {t('coreEditor.inbound.tun.autoSystemDnsToGatewayHint', {
+                            defaultValue: 'Point system DNS queries to the gateway address (Linux / FreeBSD).',
+                          })}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={(inbound as { autoSystemDnsToGateway?: boolean }).autoSystemDnsToGateway === true}
+                        onCheckedChange={checked => {
+                          patchInbound({ autoSystemDnsToGateway: checked ? true : undefined } as Partial<Inbound>)
+                        }}
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <FormLabel className="text-sm">
+                        {t('coreEditor.inbound.tun.autoSystemWfpBlockLeak', {
+                          defaultValue: 'WFP Leak Blocking Rules',
+                        })}
+                      </FormLabel>
+                      <StringArrayPopoverInput
+                        value={stringListFromUnknown((inbound as { autoSystemWfpBlockLeak?: unknown }).autoSystemWfpBlockLeak)}
+                        onChange={next => {
+                          patchInbound({ autoSystemWfpBlockLeak: next.length > 0 ? next : undefined } as Partial<Inbound>)
+                        }}
+                        placeholder={t('coreEditor.inbound.tun.autoSystemWfpBlockLeakHint', {
+                          defaultValue: 'Rules: dns, misconfigtun, windnsclient, tcp/853, udp/853, tcp/<port>, udp/<port>',
+                        })}
+                        addPlaceholder={t('coreEditor.inbound.tun.autoSystemWfpBlockLeakAddPlaceholder', {
+                          defaultValue: 'Add rule (e.g. dns, tcp/853)',
+                        })}
+                        addButtonLabel={t('coreEditor.inbound.tun.addItem', { defaultValue: 'Add' })}
+                        itemsLabel={t('coreEditor.inbound.tun.autoSystemWfpBlockLeakItems', { defaultValue: 'WFP Rules' })}
+                        emptyMessage={t('coreEditor.inbound.tun.noAutoSystemWfpBlockLeakItems', { defaultValue: 'No WFP rules added.' })}
+                        className="h-10"
                       />
                     </div>
                   </div>

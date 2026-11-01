@@ -753,9 +753,12 @@ class XrayConfiguration(BaseSubscription):
             outbound["mux"] = self._normalize_and_remove_none_values(xray_mux)
 
         outbound = self._normalize_and_remove_none_values(outbound)
-        if network == "xdrive" and network_setting:
-            # The cleanup drops false like 0, but Xray reads XDrive settings as given (s3 "pathStyle" defaults to true).
-            outbound["streamSettings"]["xdriveSettings"] = network_setting
+        if network == "xdrive":
+            if "mux" not in outbound:
+                outbound["mux"] = {"enabled": True}
+            if network_setting:
+                # The cleanup drops false like 0, but Xray reads XDrive settings as given (s3 "pathStyle" defaults to true).
+                outbound["streamSettings"]["xdriveSettings"] = network_setting
         return outbound, extra_outbounds
 
     @staticmethod
