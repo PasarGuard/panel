@@ -540,58 +540,6 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
                     )}
                   </div>
                 </section>
-
-                <Separator />
-
-                <section className="w-full space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <h3 className="text-sm font-semibold">{t('advanceSearch.displaySection', { defaultValue: 'Table display' })}</h3>
-                      <p className="text-muted-foreground text-xs">{t('advanceSearch.displaySectionDescription', { defaultValue: 'These options only change how the user list is shown.' })}</p>
-                    </div>
-                    <Badge variant="outline" className="shrink-0">
-                      {t('advanceSearch.uiOnly', { defaultValue: 'UI only' })}
-                    </Badge>
-                  </div>
-
-                  <div className="overflow-hidden rounded-md">
-                    {isSudo && (
-                      <FormField
-                        control={form.control}
-                        name="show_created_by"
-                        render={({ field }) => (
-                          <FormItem className="flex w-full items-start justify-between gap-4 py-3">
-                            <div className="space-y-1">
-                              <FormLabel>{t('advanceSearch.showCreatedBy', { defaultValue: 'Show created by' })}</FormLabel>
-                              <FormDescription>{t('advanceSearch.showCreatedByDescription', { defaultValue: 'Adds the creator column to the users table.' })}</FormDescription>
-                            </div>
-                            <FormControl>
-                              <Switch checked={field.value} disabled={isApplying} onCheckedChange={field.onChange} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    )}
-
-                    <FormField
-                      control={form.control}
-                      name="show_selection_checkbox"
-                      render={({ field }) => (
-                        <FormItem className={cn('flex w-full items-start justify-between gap-4 py-3', isSudo && 'border-t')}>
-                          <div className="space-y-1">
-                            <FormLabel>{t('advanceSearch.showSelectionCheckbox', { defaultValue: 'Show selection checkbox' })}</FormLabel>
-                            <FormDescription>{t('advanceSearch.showSelectionCheckboxDescription', { defaultValue: 'Shows row checkboxes for bulk selection.' })}</FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch checked={field.value} disabled={isApplying} onCheckedChange={field.onChange} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </section>
               </div>
             </div>
 
