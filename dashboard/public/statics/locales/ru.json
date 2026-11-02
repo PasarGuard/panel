@@ -16,6 +16,8 @@
     "unlimited": "Без ограничений",
     "pendingActivation": "Ожидает активации",
     "durationHours": "{{count}} ч",
+    "durationMinutes": "{{count}} мин",
+    "durationSeconds": "{{count}} с",
     "durationDays": "{{count}} дн.",
     "template": "Шаблон",
     "actions": "Действия пользователя",

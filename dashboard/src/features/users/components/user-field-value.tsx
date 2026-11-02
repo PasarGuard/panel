@@ -4,12 +4,23 @@ import { dateUtils } from '@/utils/dateFormatter'
 import { useTranslation } from 'react-i18next'
 import type { UserFieldId } from './user-view-preferences'
 
+export function formatUserDuration(seconds: number | null | undefined, t: (key: string, options?: { count?: number }) => string) {
+  if (seconds == null) return '—'
+  if (seconds <= 0 || seconds >= 3600) {
+    return t('usersView.durationHours', { count: Math.round((seconds / 3600) * 10) / 10 })
+  }
+  if (seconds >= 60) {
+    return t('usersView.durationMinutes', { count: Math.round((seconds / 60) * 10) / 10 })
+  }
+  return t('usersView.durationSeconds', { count: Math.round(seconds * 10) / 10 || 1 })
+}
+
 export function UserFieldValue({ user, field, groupNames }: { user: UserListItem; field: UserFieldId; groupNames?: ReadonlyMap<number, string> }) {
   const { t } = useTranslation()
   const unlimited = t('usersView.unlimited')
   const date = (value: string | number | null | undefined) => (value ? dateUtils.toDayjs(value).format('YYYY/MM/DD HH:mm') : '—')
   const bytes = (value: number | null | undefined) => (value == null ? '—' : formatBytes(value))
-  const duration = (seconds: number | null | undefined) => (seconds == null ? '—' : t('usersView.durationHours', { count: Math.round((seconds / 3600) * 10) / 10 }))
+  const duration = (seconds: number | null | undefined) => formatUserDuration(seconds, t)
   switch (field) {
     case 'created_at':
       return <span dir="ltr">{date(user.created_at)}</span>

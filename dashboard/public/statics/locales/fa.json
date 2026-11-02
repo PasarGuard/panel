@@ -16,6 +16,8 @@
     "unlimited": "نامحدود",
     "pendingActivation": "در انتظار فعال‌سازی",
     "durationHours": "{{count}} ساعت",
+    "durationMinutes": "{{count}} دقیقه",
+    "durationSeconds": "{{count}} ثانیه",
     "durationDays": "{{count}} روز",
     "template": "قالب",
     "actions": "عملیات کاربر",

@@ -16,6 +16,8 @@
     "unlimited": "无限制",
     "pendingActivation": "等待激活",
     "durationHours": "{{count}}小时",
+    "durationMinutes": "{{count}}分钟",
+    "durationSeconds": "{{count}}秒",
     "durationDays": "{{count}}天",
     "template": "模板",
     "actions": "用户操作",
