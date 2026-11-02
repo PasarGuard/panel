@@ -71,7 +71,13 @@ export function UserFieldValue({ user, field, groupNames }: { user: UserListItem
                 : unlimited
               : '—'}
           </span>
-          <span>{duration(user.next_plan.expire)}</span>
+          <span>
+            {user.next_plan.user_template_id != null
+              ? '—'
+              : user.next_plan.expire
+                ? duration(user.next_plan.expire)
+                : unlimited}
+          </span>
         </span>
       ) : (
         <span>—</span>
