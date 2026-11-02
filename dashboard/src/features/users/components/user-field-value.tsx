@@ -4,6 +4,12 @@ import { dateUtils } from '@/utils/dateFormatter'
 import { useTranslation } from 'react-i18next'
 import type { UserFieldId } from './user-view-preferences'
 
+/**
+ * Format seconds using translated hours for values at least 3600 or at most zero,
+ * minutes for values from 60 to under 3600, and seconds for smaller positive values.
+ * Counts are rounded to one decimal; a positive seconds count rounded to zero becomes 1.
+ * Null or undefined returns an em dash. Errors from the translation callback propagate.
+ */
 export function formatUserDuration(seconds: number | null | undefined, t: (key: string, options?: { count?: number }) => string) {
   if (seconds == null) return '—'
   if (seconds <= 0 || seconds >= 3600) {

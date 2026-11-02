@@ -14,6 +14,7 @@ export const USER_FIELDS = [
 ] as const
 
 export type UserFieldId = (typeof USER_FIELDS)[number]['id']
+/** Return optional fields in catalog order, excluding the device count without HWID read permission. */
 export function availableUserFields(canReadHwids: boolean): UserFieldId[] {
   return USER_FIELDS.filter(field => field.id !== 'hwid_count' || canReadHwids).map(field => field.id)
 }
@@ -39,10 +40,16 @@ const cleanFields = (value: unknown): UserFieldId[] => {
 }
 
 // Keep the original cells in place and the usage/actions cell at the end.
+/** Order known, allowed optional fields between the fixed leading and trailing column IDs. */
 export function userColumnOrder(fields: UserFieldId[], allowed: UserFieldId[]): string[] {
   return ['select', 'username', 'status', ...cleanFields(fields).filter(id => allowed.includes(id)), 'details', 'chevron']
 }
 
+/**
+ * Normalize a saved version 1 or 2 view to version 2, dropping unknown and duplicate fields.
+ * Version 1 derives creator visibility from its desktop fields; a missing desktop array
+ * defaults to visible. Unsupported documents use the default view.
+ */
 export function normalizeUserView(value: unknown): UserViewPreferences {
   if (!value || typeof value !== 'object') return defaultUserView()
   const saved = value as Record<string, unknown>
@@ -56,8 +63,14 @@ export function normalizeUserView(value: unknown): UserViewPreferences {
 }
 
 // Browser origin isolates panels; the account suffix isolates administrators on a shared browser.
+/** Build the storage key for an administrator. Throws URIError for a malformed username. */
 export const userViewStorageKey = (username: string) => `pasarguard-users-view:${encodeURIComponent(username)}`
 
+/**
+ * Read an administrator's view from localStorage. When no account view exists, use the
+ * legacy creator visibility setting if it is `false`. Invalid JSON or storage errors
+ * return the default view.
+ */
 export function readUserView(username: string): UserViewPreferences {
   try {
     const raw = localStorage.getItem(userViewStorageKey(username))
@@ -72,6 +85,7 @@ export function readUserView(username: string): UserViewPreferences {
   }
 }
 
+/** Save the normalized view to localStorage; return false if preparing or storing it fails. */
 export function writeUserView(username: string, value: UserViewPreferences): boolean {
   try {
     localStorage.setItem(userViewStorageKey(username), JSON.stringify(normalizeUserView(value)))
