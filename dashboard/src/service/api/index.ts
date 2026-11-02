@@ -230,6 +230,8 @@ export interface APIKeyCreate {
   permissions?: RolePermissions;
   inherit_permissions?: boolean;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   admin_id?: number | null;
 }
 
@@ -251,6 +253,8 @@ export interface APIKeyCreateResponse {
   permissions?: RolePermissions;
   inherit_permissions?: boolean;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   id: number;
   admin_id: number;
   created_at: string;
@@ -258,6 +262,7 @@ export interface APIKeyCreateResponse {
   revoked_at?: string | null;
   status?: APIKeyStatus;
   is_expired?: boolean;
+  request_count?: number;
   api_key: string;
 }
 
@@ -271,6 +276,8 @@ export interface APIKeyResponse {
   permissions?: RolePermissions;
   inherit_permissions?: boolean;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   id: number;
   admin_id: number;
   created_at: string;
@@ -278,6 +285,7 @@ export interface APIKeyResponse {
   revoked_at?: string | null;
   status?: APIKeyStatus;
   is_expired?: boolean;
+  request_count?: number;
 }
 
 export interface APIKeyUpdate {
@@ -287,6 +295,8 @@ export interface APIKeyUpdate {
   permissions?: RolePermissions | null;
   inherit_permissions?: boolean | null;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   status?: APIKeyStatus | null;
 }
 
@@ -777,6 +787,10 @@ export interface MtprotoHostSettings {
   link_type?: MtprotoHostSettingsLinkType;
 }
 
+export interface XDriveHostSettings {
+  xmux?: XMuxSettings | null;
+}
+
 export interface TransportSettings {
   xhttp_settings?: XHttpSettings | null;
   grpc_settings?: GRPCSettings | null;
@@ -785,6 +799,7 @@ export interface TransportSettings {
   websocket_settings?: WebSocketSettings | null;
   masque_settings?: MasqueHostSettings | null;
   mtproto_settings?: MtprotoHostSettings | null;
+  xdrive_settings?: XDriveHostSettings | null;
 }
 
 export type MultiplexProtocol = typeof MultiplexProtocol[keyof typeof MultiplexProtocol];
@@ -1177,6 +1192,19 @@ export interface BulkUsersSelection {
 export interface BulkUsersSetOwner {
   ids?: number[];
   admin_username: string;
+}
+
+/**
+ * Automatic retention periods. ``None`` keeps the corresponding data indefinitely.
+ */
+export interface CleanupSettings {
+  expired_users_retention_days?: number | null;
+  include_limited_users?: boolean;
+  usage_history_retention_days?: number | null;
+  node_stats_retention_days?: number | null;
+  usage_rollup_hourly_after_days?: number | null;
+  usage_rollup_half_day_after_days?: number | null;
+  usage_rollup_daily_after_days?: number | null;
 }
 
 export type ClientTemplateType = typeof ClientTemplateType[keyof typeof ClientTemplateType];
@@ -1632,10 +1660,31 @@ export const OnHoldTimeoutAction = {
   delete: 'delete',
 } as const;
 
+export interface UsageSettings {
+  record_node_usage?: boolean;
+  record_node_stats?: boolean;
+  reset_usage_clean_chart_data?: boolean;
+  record_outbound_usage?: boolean;
+}
+
+export interface NodeHealthSettings {
+  /** @minimum 1 */
+  fail_threshold?: number;
+  /** @minimum 1 */
+  recover_threshold?: number;
+  /** @minimum 1 */
+  probe_timeout?: number;
+  /** @minimum 0 */
+  max_backoff?: number;
+}
+
 export interface General {
   default_method?: ShadowsocksMethods;
   on_hold_timeout_action?: OnHoldTimeoutAction;
   custom_variables?: CustomVariable[] | null;
+  usage?: UsageSettings;
+  node_health?: NodeHealthSettings;
+  stop_nodes_on_shutdown?: boolean;
 }
 
 export type GeoFilseRegion = typeof GeoFilseRegion[keyof typeof GeoFilseRegion];
@@ -1882,6 +1931,34 @@ export interface NodeOutboundLatency {
   source: string;
 }
 
+export interface NodeUsageStat {
+  period_start: string;
+  uplink: number;
+  downlink: number;
+}
+
+export type NodeOutboundUsageStatsListStats = {[key: string]: NodeUsageStat[]};
+
+export type Period = typeof Period[keyof typeof Period];
+
+
+export const Period = {
+  minute: 'minute',
+  hour: 'hour',
+  day: 'day',
+  month: 'month',
+} as const;
+
+/**
+ * Usage per outbound tag; the key is the tag.
+ */
+export interface NodeOutboundUsageStatsList {
+  period?: Period | null;
+  start: string;
+  end: string;
+  stats: NodeOutboundUsageStatsListStats;
+}
+
 export interface NodeOutboundsLatencyResponse {
   latencies: NodeOutboundLatency[];
 }
@@ -1954,27 +2031,11 @@ export interface NodeStats {
   outgoing_bandwidth_speed: number;
 }
 
-export type Period = typeof Period[keyof typeof Period];
-
-
-export const Period = {
-  minute: 'minute',
-  hour: 'hour',
-  day: 'day',
-  month: 'month',
-} as const;
-
 export interface NodeStatsList {
   period?: Period | null;
   start: string;
   end: string;
   stats: NodeStats[];
-}
-
-export interface NodeUsageStat {
-  period_start: string;
-  uplink: number;
-  downlink: number;
 }
 
 export type NodeUsageStatsListStats = {[key: string]: NodeUsageStat[]};
@@ -2317,6 +2378,7 @@ export interface Subscription {
   disable_sub_template?: boolean;
   randomize_order?: boolean;
   custom_variables?: CustomVariable[];
+  clients_limit?: number;
 }
 
 export interface SettingsSchema {
@@ -2327,6 +2389,7 @@ export interface SettingsSchema {
   subscription?: Subscription | null;
   hwid?: HWIDSettings | null;
   general?: General | null;
+  cleanup?: CleanupSettings | null;
 }
 
 export interface SubscriptionUserResponse {
@@ -2409,6 +2472,7 @@ export type UsageTable = typeof UsageTable[keyof typeof UsageTable];
 export const UsageTable = {
   node_user_usages: 'node_user_usages',
   node_usages: 'node_usages',
+  node_outbound_usages: 'node_outbound_usages',
 } as const;
 
 export type UserCountMetric = typeof UserCountMetric[keyof typeof UserCountMetric];
@@ -2868,6 +2932,13 @@ export type GetUsageParams = {
 period?: Period;
 node_id?: number | null;
 group_by_node?: boolean;
+start?: string | null;
+end?: string | null;
+};
+
+export type GetOutboundUsageParams = {
+period?: Period;
+node_id?: number | null;
 start?: string | null;
 end?: string | null;
 };
@@ -11756,6 +11827,115 @@ export function useGetUsage<TData = Awaited<ReturnType<typeof getUsage>>, TError
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetUsageQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOutboundUsageUrl = (params?: GetOutboundUsageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/node/usage/outbounds?${stringifiedParams}` : `/api/node/usage/outbounds`
+}
+
+/**
+ * Retrieve usage per outbound tag, over all nodes or one, within a date range.
+ * @summary Get Outbound Usage
+ */
+export const getOutboundUsage = async (params?: GetOutboundUsageParams, options?: RequestInit): Promise<NodeOutboundUsageStatsList> => {
+
+  return orvalFetcher<NodeOutboundUsageStatsList>(getGetOutboundUsageUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOutboundUsageQueryKey = (params?: GetOutboundUsageParams,) => {
+    return [
+    `/api/node/usage/outbounds`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOutboundUsageQueryOptions = <TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOutboundUsageQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOutboundUsage>>> = ({ signal }) => getOutboundUsage(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetOutboundUsageQueryResult = NonNullable<Awaited<ReturnType<typeof getOutboundUsage>>>
+export type GetOutboundUsageQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params: undefined |  GetOutboundUsageParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOutboundUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getOutboundUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOutboundUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getOutboundUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Outbound Usage
+ */
+
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetOutboundUsageQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

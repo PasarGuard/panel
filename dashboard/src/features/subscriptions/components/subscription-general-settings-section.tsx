@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { CustomVariablesPopover, VariablesPopover } from '@/components/ui/variables-popover'
-import { Clock, ExternalLink, FileCode2, Globe, HelpCircle, Link, Megaphone, Shuffle, User } from 'lucide-react'
+import { Clock, ExternalLink, FileCode2, Globe, HelpCircle, History, Link, Megaphone, Shuffle, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 export interface SubscriptionGeneralSettingsSectionProps {
@@ -59,6 +59,31 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
                 </div>
               </FormControl>
               <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.general.updateIntervalDescription')}</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="clients_limit"
+          render={({ field }) => (
+            <FormItem className="space-y-2">
+              <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
+                <History className="h-4 w-4" />
+                {t('settings.subscriptions.general.clientsLimit')}
+              </FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="1"
+                  {...field}
+                  value={field.value ?? ''}
+                  onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+                  className="text-xs sm:text-sm"
+                />
+              </FormControl>
+              <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.general.clientsLimitDescription')}</FormDescription>
               <FormMessage />
             </FormItem>
           )}

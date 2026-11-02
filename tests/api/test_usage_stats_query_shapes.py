@@ -220,3 +220,27 @@ async def test_usage_chart_and_count_query_shapes_per_dialect(usage_history):
     # Orphan history rows only exist on SQLite, which does not enforce ON DELETE CASCADE
     assert ("join users" in usage_sql) == IS_SQLITE
     assert ("select distinct" in bucket_sql) == (dialect == "postgresql")
+
+
+@pytest.mark.asyncio
+async def test_user_count_pairs_shape_reads_history_once(usage_history, monkeypatch):
+    statements: list[str] = []
+
+    def _capture(conn, cursor, statement, parameters, context, executemany):
+        statements.append(" ".join(statement.split()).lower())
+
+    monkeypatch.setattr(user_crud, "_user_count_buckets_from_distinct_pairs", lambda dialect: True)
+    start, end = _ranges(UTC)[0]
+    event.listen(engine.sync_engine, "before_cursor_execute", _capture)
+    try:
+        async with TestSession() as session:
+            result = await user_crud.get_user_count_metric_stats(
+                session, None, start, end, Period.day, UserCountMetric.online
+            )
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", _capture)
+
+    # The period total comes from the same pairs, not from a second count(DISTINCT ...) over the history rows
+    history_reads = [sql for sql in statements if "node_user_usages" in sql]
+    assert len(history_reads) == 1
+    assert result.count_during_period == len(usage_history["user_ids"])

@@ -822,6 +822,10 @@ class MtprotoHostSettings(BaseModel):
     link_type: MtprotoLinkType = "auto"
 
 
+class XDriveHostSettings(BaseModel):
+    xmux: XMuxSettings | None = Field(default=None)
+
+
 class TransportSettings(BaseModel):
     xhttp_settings: XHttpSettings | None = Field(default=None)
     grpc_settings: GRPCSettings | None = Field(default=None)
@@ -830,6 +834,7 @@ class TransportSettings(BaseModel):
     websocket_settings: WebSocketSettings | None = Field(default=None)
     masque_settings: MasqueHostSettings | None = Field(default=None)
     mtproto_settings: MtprotoHostSettings | None = Field(default=None)
+    xdrive_settings: XDriveHostSettings | None = Field(default=None)
 
 
 class FormatVariables(dict):

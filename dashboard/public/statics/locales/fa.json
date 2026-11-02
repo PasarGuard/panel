@@ -1,4 +1,50 @@
 {
+  "usersView": {
+    "customize": "شخصی‌سازی نمایش",
+    "description": "ستون‌ها یا جزئیات اختیاری را بدون تغییر چیدمان اصلی اضافه کنید. تنظیمات در این مرورگر ذخیره می‌شوند.",
+    "columnsHint": "ستون‌های اضافی را انتخاب کنید و با کشیدن دستگیره مرتب کنید. مصرف و عملیات در انتها می‌مانند.",
+    "dragField": "برای جابه‌جایی {{field}} بکشید",
+    "desktop": "ستون‌های دسکتاپ",
+    "mobile": "اطلاعات موبایل",
+    "expandedHint": "اطلاعات اضافی را برای نمایش زیر جزئیات اصلی انتخاب کنید و با کشیدن دستگیره مرتب کنید.",
+    "search": "جستجوی اطلاعات…",
+    "preview": "پیش‌نمایش",
+    "fixedDesktop": "نام کاربری، شناسه، نشانگر اتصال، وضعیت، انقضا، مصرف و عملیات با ظاهر و جایگاه اصلی نمایش داده می‌شوند.",
+    "fixedMobile": "ردیف فشرده و نمایش بازشده مصرف، انقضا، آخرین اتصال، شناسه و عملیات با ظاهر اصلی حفظ می‌شوند.",
+    "resetDefaults": "بازنشانی به پیش‌فرض",
+    "storageError": "نمایش اعمال شد، اما مرورگر نتوانست آن را ذخیره کند. ممکن است پس از بارگذاری مجدد بازنشانی شود.",
+    "unlimited": "نامحدود",
+    "pendingActivation": "در انتظار فعال‌سازی",
+    "carryOver": "انتقال باقی‌مانده",
+    "durationHours": "{{count}} ساعت",
+    "durationMinutes": "{{count}} دقیقه",
+    "durationSeconds": "{{count}} ثانیه",
+    "durationDays": "{{count}} روز",
+    "template": "قالب",
+    "actions": "عملیات کاربر",
+    "fields": {
+      "creator": "ایجادکننده",
+      "created_at": "زمان ایجاد",
+      "edit_at": "زمان ویرایش",
+      "remaining_traffic": "حجم باقی‌مانده",
+      "groups": "گروه‌ها",
+      "note": "یادداشت",
+      "hwid_count": "تعداد دستگاه‌ها",
+      "hwid_limit": "محدودیت دستگاه",
+      "data_limit_reset_strategy": "بازنشانی حجم",
+      "on_hold_timeout": "مهلت فعال‌سازی",
+      "on_hold_expire_duration": "مدت اعتبار پس از فعال‌سازی",
+      "auto_delete_in_days": "تأخیر حذف خودکار",
+      "next_plan": "پلن بعدی"
+    },
+    "reset": {
+      "no_reset": "هرگز",
+      "day": "روزانه",
+      "week": "هفتگی",
+      "month": "ماهانه",
+      "year": "سالانه"
+    }
+  },
   "pasarguard": "پاسارگارد",
   "dashboard": "داشبورد",
   "master": "کلی",
@@ -136,7 +182,9 @@
         "disableSubTemplate": "غیرفعال کردن قالب اشتراک",
         "disableSubTemplateDescription": "هنگام غیرفعال بودن، درخواست‌های مرورگر به جای صفحات HTML اشتراک، پاسخ‌های API برمی‌گردانند",
         "randomizeOrder": "تصادفی‌سازی ترتیب اشتراک",
-        "randomizeOrderDescription": "در هر درخواست اشتراک، ترتیب کانفیگ‌ها به‌صورت تصادفی جابه‌جا می‌شود"
+        "randomizeOrderDescription": "در هر درخواست اشتراک، ترتیب کانفیگ‌ها به‌صورت تصادفی جابه‌جا می‌شود",
+        "clientsLimit": "تعداد به‌روزرسانی‌های نگه‌داری‌شده برای هر کاربر",
+        "clientsLimitDescription": "چند به‌روزرسانی اخیر اشتراک (برنامه‌های کلاینت) برای هر کاربر نگه داشته شود. 0 یا کمتر یعنی همه نگه داشته شوند"
       },
       "responseHeaders": {
         "title": "هدرهای پاسخ",
@@ -397,6 +445,60 @@
       "saveSuccess": "عملیات پاکسازی با موفقیت تکمیل شد",
       "saveFailed": "تکمیل عملیات پاکسازی ناموفق بود",
       "cancelSuccess": "عملیات پاکسازی لغو شد",
+      "retention": {
+        "title": "نگهداری و پاکسازی خودکار",
+        "description": "داده‌های اخیر را نگه دارید و رکوردهای قدیمی را به‌صورت دسته‌ای و ایمن برای سخت‌افزار پاک کنید.",
+        "hourly": "اجرای ساعتی",
+        "days": "روز",
+        "purge": "داده قدیمی",
+        "forever": "نگهداری همیشگی",
+        "today": "امروز",
+        "cutoff": "رکوردهای قدیمی‌تر از {{days}} روز خودکار پاک می‌شوند.",
+        "disabledHint": "پاکسازی خودکار برای این داده غیرفعال است.",
+        "cascadeWarning": "حذف یک حساب منقضی‌شده، تاریخچه مصرف اختصاصی آن کاربر را هم پاک می‌کند. مجموع آمار سیستم و نود فقط تا مدت تعیین‌شده باقی می‌ماند.",
+        "validation": "برای حساب‌های منقضی‌شده صفر مجاز است؛ سایر قوانین فعال باید عددی صحیح بین ۱ تا ۳۶٬۵۰۰ باشند.",
+        "save": "ذخیره نگهداری",
+        "saving": "در حال ذخیره...",
+        "reset": "نادیده گرفتن تغییرات",
+        "expiredUsers": {
+          "title": "حساب‌های منقضی‌شده",
+          "description": "حساب‌ها را بعد از این تعداد روز ماندن در وضعیت منقضی حذف می‌کند. تنظیم اختصاصی هر کاربر همچنان اولویت دارد.",
+          "includeLimited": "کاربران محدودشده هم حذف شوند",
+          "disabledHint": "قانون پیش‌فرضی فعال نیست. کاربرانی که روزهای حذف خودکار خودشان را دارند همچنان حذف می‌شوند."
+        },
+        "usageHistory": {
+          "title": "تاریخچه مصرف",
+          "description": "مدت نگهداری نمودارهای ترافیک کاربران، نودها و خروجی‌ها."
+        },
+        "nodeStats": {
+          "title": "آمار سیستمی نود",
+          "description": "زمان نگهداری نمونه‌های CPU، حافظه و سرعت پهنای باند."
+        }
+      },
+      "rollup": {
+        "title": "جزئیات تاریخچه مصرف",
+        "description": "ردیف‌های قدیمی ترافیک در بازه‌های زمانی بزرگ‌تر ادغام می‌شوند تا جدول‌های مصرف با جزئیات ۱۰ دقیقه‌ای بزرگ نشوند.",
+        "off": "خاموش",
+        "hourlyStep": {
+          "title": "ساعتی",
+          "description": "ردیف‌های قدیمی‌تر از این مقدار در یک ردیف برای هر ساعت ادغام می‌شوند."
+        },
+        "halfDayStep": {
+          "title": "۱۲ ساعته",
+          "description": "ردیف‌های قدیمی‌تر از این مقدار در یک ردیف برای هر ۱۲ ساعت ادغام می‌شوند."
+        },
+        "dailyStep": {
+          "title": "روزانه",
+          "description": "ردیف‌های قدیمی‌تر از این مقدار در یک ردیف برای هر روز ادغام می‌شوند."
+        },
+        "cutoff": "روزهای کامل قدیمی‌تر از {{days}} روز ادغام می‌شوند.",
+        "disabledHint": "این مرحله خاموش است.",
+        "note": "مجموع‌ها دقیق می‌مانند: فقط جزئیات زمانی کم می‌شود و نمودارهای داده‌های قدیمی بازه‌های درشت‌تری نشان می‌دهند. بازه‌ها بر اساس UTC بریده می‌شوند. ادغام هر ساعت بعد از پاکسازی نگهداری و هر بار حداکثر چند دقیقه اجرا می‌شود.",
+        "validation": "مراحل فعال به یک عدد صحیح بین ۱ تا ۳۶٬۵۰۰ نیاز دارند.",
+        "orderValidation": "تعداد روزها باید از ساعتی به ۱۲ ساعته و سپس روزانه بیشتر شود.",
+        "save": "ذخیره تنظیمات جزئیات",
+        "firstRun": "روشن کردن برای اولین بار: اگر پنل از قبل سابقه مصرف زیادی دارد، ادغام داده‌های قدیمی ممکن است از چند ساعت تا چند روز طول بکشد. این کار هر ساعت فقط چند دقیقه انجام می‌شود تا پنل سریع بماند، و نمودارهای قدیمی تا زمان رسیدن به آن‌ها جزئیات فعلی خود را حفظ می‌کنند."
+      },
       "expiredUsers": {
         "title": "حذف حساب‌ها بر اساس وضعیت",
         "description": "حذف حساب‌هایی که با وضعیت انتخابی مطابقت دارند، با فیلتر تاریخ اختیاری",
@@ -482,7 +584,8 @@
         "warning": "هشدار: این عمل تمام داده‌های مصرف را از جدول انتخاب شده به طور دائمی حذف می‌کند. این عمل قابل بازگشت نیست.",
         "tables": {
           "nodeUserUsages": "مصرف کاربران گره",
-          "nodeUsages": "مصرف گره"
+          "nodeUsages": "مصرف گره",
+          "nodeOutboundUsages": "مصرف خروجی‌های گره"
         }
       }
     },
@@ -507,7 +610,51 @@
         "disable": "غیرفعال‌سازی کاربر",
         "delete": "حذف کاربر"
       },
-      "errorLoadingSettings": "خطا در بارگذاری تنظیمات"
+      "errorLoadingSettings": "خطا در بارگذاری تنظیمات",
+      "usage": {
+        "title": "ثبت مصرف",
+        "description": "انتخاب کنید پنل کدام داده‌های مصرف را ذخیره کند",
+        "recordNodeUsage": {
+          "title": "ثبت مصرف نودها",
+          "description": "ترافیک هر نود برای کاربران و نودها ذخیره شود. مصرف کاربران و ادمین‌ها در هر حالت شمرده می‌شود"
+        },
+        "recordNodeStats": {
+          "title": "ثبت آمار سیستم نودها",
+          "description": "تاریخچه پردازنده، حافظه و پهنای باند نودها ذخیره شود. فقط PostgreSQL و TimescaleDB"
+        },
+        "resetUsageCleanChartData": {
+          "title": "پاک کردن نمودار هنگام ریست مصرف",
+          "description": "با ریست مصرف کاربر، تاریخچه نمودار مصرف او هم حذف شود"
+        },
+        "recordOutboundUsage": {
+          "title": "ثبت مصرف هر خروجی",
+          "description": "ترافیک هر تگ خروجی برای هر گره ذخیره می‌شود تا نمودار مصرف خروجی‌ها نمایش داده شود. ردیف‌های بیشتری به پایگاه داده اضافه می‌کند، به‌ویژه با خروجی‌های زیاد."
+        }
+      },
+      "nodeHealth": {
+        "title": "بررسی سلامت نودها",
+        "description": "چه زمانی یک نود قطع یا دوباره وصل اعلام شود",
+        "failThreshold": {
+          "title": "آستانه خطا",
+          "description": "تعداد بررسی ناموفق پشت سر هم پیش از آن‌که نود در وضعیت خطا قرار گیرد"
+        },
+        "recoverThreshold": {
+          "title": "آستانه بازیابی",
+          "description": "تعداد بررسی موفق پشت سر هم پیش از آن‌که نود دوباره متصل اعلام شود"
+        },
+        "probeTimeout": {
+          "title": "مهلت بررسی (ثانیه)",
+          "description": "مدت انتظار بررسی سلامت برای پاسخ نود، هرگز بیشتر از مهلت خود نود"
+        },
+        "maxBackoff": {
+          "title": "حداکثر فاصله بررسی (ثانیه)",
+          "description": "بیشترین فاصله بین بررسی‌های نودی که در خطاست. عدد 0 یعنی در هر بار بررسی شود"
+        }
+      },
+      "stopNodesOnShutdown": {
+        "title": "توقف هسته نودها هنگام خاموشی",
+        "description": "هنگام خاموش شدن پنل، هسته همه نودها متوقف شود. فقط با یک worker"
+      }
     }
   },
   "saving": "در حال ذخیره...",
@@ -703,6 +850,11 @@
     "inheritPermissions": "ارث‌بری مجوزهای مدیر",
     "inheritPermissionsDescription": "از مجوزهای فعلی نقش مدیر مالک استفاده شود. برای ذخیره مجوزهای سفارشی روی این کلید غیرفعال کنید.",
     "inherited": "ارث‌بری‌شده",
+    "maxRequests": "حداکثر درخواست‌ها",
+    "maxRequestsDescription": "حداکثر تعداد درخواست‌هایی که این کلید می‌تواند انجام دهد. برای نامحدود بودن خالی بگذارید.",
+    "requestCount": "درخواست‌های استفاده‌شده",
+    "deleteOnLimit": "حذف در رسیدن به سقف",
+    "deleteOnLimitDescription": "پس از رسیدن این کلید به سقف درخواست، به‌جای غیرفعال کردن، آن را به‌طور خودکار حذف کن.",
     "noKeys": "هیچ کلید API تنظیم نشده است",
     "noKeysDescription": "برای دسترسی برنامه‌نویسی یک کلید API ایجاد کنید.",
     "noSearchResults": "هیچ کلید API با معیارهای جست‌وجوی شما مطابقت ندارد. عبارت جست‌وجو یا فیلترها را تغییر دهید.",
@@ -1147,6 +1299,9 @@
       "remoteDns": "سرورهای DNS راه دور MASQUE",
       "remoteDnsHint": "برای استفاده از سرورهای DNS ورودی، خالی بگذارید",
       "xmuxHint": "به Xray نسخهٔ 26.10.21 یا جدیدتر روی کلاینت نیاز دارد. برای پیش‌فرض‌های Xray همه فیلدها را خالی بگذارید: یک تونل با زمان استفادهٔ مجدد ۱۸۰۰ تا ۳۰۰۰ ثانیه. با تنظیم هر فیلد، این پیش‌فرض‌ها جایگزین می‌شوند. حداکثر اتصال و حداکثر همزمانی را نمی‌توان هم‌زمان تنظیم کرد."
+    },
+    "xdrive": {
+      "xmuxHint": "محدودیت‌های استفادهٔ مجدد از اتصال برای XDrive. حداکثر اتصالات یا حداکثر همزمانی را تنظیم کنید، نه هر دو."
     },
     "transportSettings": "تنظیمات انتقال",
     "transportType": "نوع انتقال",
@@ -1887,6 +2042,7 @@
     "refreshNow": "به‌روزرسانی دستی"
   },
   "statistics.system": "سیستم",
+  "statistics.periodTooFineForRange": "برای این بازه نقاط زیادی وجود دارد. بازه کوتاه‌تری انتخاب کنید.",
   "statistics.totalTraffic": "کل ترافیک",
   "statistics.ramUsage": "مصرف رم",
   "statistics.cpuUsage": "مصرف پردازنده",
@@ -1908,7 +2064,7 @@
   "statistics.subscriptionDistribution": "توزیع کلاینت‌های اشتراک",
   "statistics.subscriptionDistributionDetails": "جزئیات کلاینت‌های اشتراک",
   "statistics.subscriptionDistributionDescription": "سهم به‌روزرسانی‌های لینک اشتراک بین عامل‌ها و برنامه‌ها.",
-  "statistics.subscriptionDistributionRetentionNote": "به‌طور پیش‌فرض فقط {{limit}} به‌روزرسانی اخیر اشتراک برای هر کاربر نگه داشته می‌شود. برای تغییر، {{env}} را در محیط تنظیم کنید.",
+  "statistics.subscriptionDistributionRetentionNote": "به‌طور پیش‌فرض فقط {{limit}} به‌روزرسانی اخیر اشتراک برای هر کاربر نگه داشته می‌شود. این مقدار را در تنظیمات اشتراک تغییر دهید.",
   "statistics.totalSubscriptions": "مجموع به‌روزرسانی‌ها",
   "statistics.percentage": "درصد",
   "statistics.adminFilterLabel": "فیلتر بر اساس ادمین",
@@ -2830,12 +2986,24 @@
       "service": "سرویس ذخیره‌سازی",
       "serviceLocal": "پوشه محلی (local)",
       "serviceTemplate": "قالب سفارشی (template)",
+      "serviceS3": "سرویس Amazon S3 یا سازگار با S3 (s3)",
       "folderLocal": "مسیر پوشه",
       "folderLocalHint": "پوشه‌ای که هر دو طرف به آن دسترسی دارند، بیشتر برای آزمایش.",
       "folderGoogleDrive": "شناسه پوشه",
       "folderGoogleDriveHint": "شناسه پوشه‌ای در Drive که هر دو طرف آن را به اشتراک گذاشته‌اند.",
       "folderTemplate": "پوشه",
       "folderTemplateHint": "اختیاری. قالب آن را با {folder} می‌خواند.",
+      "folderS3": "مسیر باکت / پیشوند",
+      "folderS3Hint": "مسیر نسبی یا پیشوند داخل باکت.",
+      "s3Endpoint": "آدرس Endpoint",
+      "s3Region": "منطقه (Region)",
+      "s3Bucket": "نام باکت (Bucket)",
+      "s3PathStyle": "آدرس‌دهی Path-style",
+      "s3PathStyleHint": "استفاده از آدرس‌های Path-style (endpoint/bucket) به جای virtual-hosted.",
+      "s3AccessKeyId": "شناسه دسترسی (Access Key ID)",
+      "s3SecretAccessKey": "کلید محرمانه (Secret Access Key)",
+      "s3SessionToken": "توکن نشست (اختیاری)",
+      "s3Hint": "اطلاعات دسترسی و پیکربندی باکت ذخیره‌سازی S3 را وارد کنید.",
       "clientId": "شناسه کلاینت",
       "clientSecret": "کلید محرمانه کلاینت",
       "refreshToken": "توکن تازه‌سازی",
@@ -2845,6 +3013,9 @@
       "template": "قالب (شیء JSON)",
       "templateHint": "درخواست‌های API فضای ذخیره‌سازی را توصیف می‌کند.",
       "templateInvalid": "قالب باید یک شیء JSON باشد.",
+      "xmux": "XMUX (شیء JSON)",
+      "xmuxHint": "محدودیت‌های اختیاری استفادهٔ مجدد از اتصال، مانند XHTTP. حداکثر اتصالات یا حداکثر همزمانی را تنظیم کنید، نه هر دو.",
+      "xmuxInvalid": "XMUX باید یک شیء JSON باشد.",
       "tuning": "تنظیمات دقیق",
       "tuningHint": "خالی یا 0 یعنی مقدار پیش‌فرض Xray که در هر فیلد نمایش داده شده است.",
       "segmentBytes": "اندازه قطعه (بایت)",
@@ -3039,6 +3210,41 @@
       "shadowsocks": {
         "network": "شبکه"
       },
+      "tun": {
+        "name": "نام رابط",
+        "mtu": "MTU",
+        "desc": "توضیحات آداپتور",
+        "userLevel": "سطح کاربر (User Level)",
+        "gateway": "دروازه (Gateway)",
+        "gatewayHint": "یک CIDR در هر خط، مثلاً 10.0.0.1/16",
+        "gatewayAddPlaceholder": "افزودن CIDR دروازه",
+        "addItem": "افزودن",
+        "gatewayItems": "CIDRهای دروازه",
+        "noGatewayItems": "هیچ CIDR دروازه‌ای اضافه نشده است.",
+        "dns": "DNS",
+        "dnsHint": "یک سرور DNS در هر خط، مثلاً 1.1.1.1",
+        "dnsAddPlaceholder": "افزودن سرور DNS",
+        "dnsItems": "سرورهای DNS",
+        "noDnsItems": "هیچ سرور DNSای اضافه نشده است.",
+        "autoSystemRoutingTable": "جدول مسیریابی خودکار سیستم",
+        "autoSystemRoutingTableHint": "یک CIDR در هر خط، مثلاً 0.0.0.0/0",
+        "autoRouteAddPlaceholder": "افزودن CIDR مسیر",
+        "autoRouteItems": "CIDRهای مسیر",
+        "noAutoRouteItems": "هیچ CIDR مسیری اضافه نشده است.",
+        "autoOutboundsInterface": "رابط خروجی خودکار",
+        "autoSystemDnsToGateway": "هدایت خودکار DNS سیستم به دروازه",
+        "autoSystemDnsToGatewayHint": "هدایت پرس‌وجوهای DNS سیستم به آدرس گیت‌وی (لینوکس / FreeBSD).",
+        "autoSystemWfpBlockLeak": "قوانین جلوگیری از نشت WFP",
+        "autoSystemWfpBlockLeakHint": "قوانین: dns, misconfigtun, windnsclient, tcp/853, udp/853, tcp/<port>, udp/<port>",
+        "autoSystemWfpBlockLeakAddPlaceholder": "افزودن قانون (مثلاً dns, tcp/853)",
+        "autoSystemWfpBlockLeakItems": "قوانین WFP",
+        "noAutoSystemWfpBlockLeakItems": "هیچ قانون WFP اضافه نشده است."
+      },
+      "xhttp": {
+        "h2Params": "پارامترهای HTTP/2 (h2Params)",
+        "h2ParamsHint": "JSON اختیاری برای پیکربندی سرور HTTP/2 (مانند maxConcurrentStreams, pingTimeout).",
+        "h2ParamsInvalid": "پارامترهای HTTP/2 باید یک شیء JSON معتبر باشد."
+      },
       "sniffing": {
         "section": "شنود ترافیک",
         "enabled": "فعال",
@@ -3050,6 +3256,8 @@
         "protocolInvalid": "یک پروتکل معتبر انتخاب کنید.",
         "portRange": "پورت باید عدد یا فهرست پورت مانند 443, 1000-2000,444 باشد.",
         "destinationPortRange": "پورت مقصد باید عدد صحیح از ۰ تا ۶۵۵۳۵ باشد.",
+        "tunMtuRange": "MTU باید یک عدد صحیح مثبت باشد.",
+        "tunUserLevelInvalid": "سطح کاربر باید یک عدد صحیح نامنفی باشد.",
         "realityServerNamesRequired": "REALITY حداقل به یک نام سرور نیاز دارد.",
         "realityServerNamesFormat": "نام‌های سرور REALITY باید فهرستی از رشته‌های غیرخالی باشد.",
         "realityServerNamesNoEmpty": "هر نام سرور REALITY باید غیرخالی باشد؛ خطوط خالی یا ویرگول‌های اضافی را حذف کنید.",
@@ -3574,6 +3782,10 @@
   "usersTable.delete": "حذف",
   "usersTable.cancel": "لغو",
   "statistics.trafficUsage": "میزان مصرف ترافیک",
+  "statistics.outboundUsage": "مصرف خروجی‌ها",
+  "statistics.outboundUsageDescription": "ترافیک هر تگ خروجی (direct، warp، block و ...)",
+  "statistics.outboundUsageEmpty": "در این بازه مصرف خروجی ثبت نشده است. این مصرف فقط زمانی ثبت می‌شود که «ثبت مصرف هر خروجی» در تنظیمات > عمومی روشن باشد.",
+  "statistics.outboundUsageOther": "سایر",
   "statistics.trafficUsageDescription": "کل مصرف ترافیک در تمام سرورها",
   "statistics.usageDuringPeriod": "مصرف در دوره زمانی",
   "statistics.users": "کاربران",

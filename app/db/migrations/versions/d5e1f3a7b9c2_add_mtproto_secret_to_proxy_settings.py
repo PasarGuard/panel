@@ -1,7 +1,7 @@
 """add MTProto user secrets to proxy settings
 
 Revision ID: d5e1f3a7b9c2
-Revises: c8d2e4f6a1b3
+Revises: 1a2b3c4d5e6f
 Create Date: 2026-10-20 00:00:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "d5e1f3a7b9c2"
-down_revision = "c8d2e4f6a1b3"
+down_revision = "1a2b3c4d5e6f"
 branch_labels = None
 depends_on = None
 
