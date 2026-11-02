@@ -15,6 +15,7 @@
     "storageError": "Your view was applied, but this browser could not save it. It may reset after a reload.",
     "unlimited": "Unlimited",
     "pendingActivation": "Pending activation",
+    "carryOver": "Carry over",
     "durationHours_one": "{{count}} hour",
     "durationHours_other": "{{count}} hours",
     "durationMinutes_one": "{{count}} minute",

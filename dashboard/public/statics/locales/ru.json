@@ -15,6 +15,7 @@
     "storageError": "Вид применён, но браузер не смог его сохранить. После перезагрузки настройки могут сброситься.",
     "unlimited": "Без ограничений",
     "pendingActivation": "Ожидает активации",
+    "carryOver": "Перенос остатка",
     "durationHours": "{{count}} ч",
     "durationMinutes": "{{count}} мин",
     "durationSeconds": "{{count}} с",

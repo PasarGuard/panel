@@ -15,6 +15,7 @@
     "storageError": "نمایش اعمال شد، اما مرورگر نتوانست آن را ذخیره کند. ممکن است پس از بارگذاری مجدد بازنشانی شود.",
     "unlimited": "نامحدود",
     "pendingActivation": "در انتظار فعال‌سازی",
+    "carryOver": "انتقال باقی‌مانده",
     "durationHours": "{{count}} ساعت",
     "durationMinutes": "{{count}} دقیقه",
     "durationSeconds": "{{count}} ثانیه",

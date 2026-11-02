@@ -15,6 +15,7 @@
     "storageError": "视图已应用，但浏览器无法保存。重新加载后可能恢复默认。",
     "unlimited": "无限制",
     "pendingActivation": "等待激活",
+    "carryOver": "结转流量",
     "durationHours": "{{count}}小时",
     "durationMinutes": "{{count}}分钟",
     "durationSeconds": "{{count}}秒",

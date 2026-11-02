@@ -21,6 +21,27 @@ export function formatUserDuration(seconds: number | null | undefined, t: (key: 
   return t('usersView.durationSeconds', { count: Math.round(seconds * 10) / 10 || 1 })
 }
 
+/**
+ * Format the data limit of a user's next plan.
+ * Returns '—' when the next plan is missing, template-backed, or data limit is nullish.
+ * Returns formatted bytes for positive limits.
+ * For zero limits, returns localized carry-over when add_remaining_traffic is true,
+ * or unlimited when false.
+ */
+export function formatNextPlanDataLimit(
+  nextPlan: { user_template_id?: number | null; data_limit?: number | null; add_remaining_traffic?: boolean } | null | undefined,
+  formatBytesFn: (bytes: number) => string,
+  t: (key: string) => string,
+) {
+  if (!nextPlan || nextPlan.user_template_id != null || nextPlan.data_limit == null) {
+    return '—'
+  }
+  if (nextPlan.data_limit) {
+    return formatBytesFn(nextPlan.data_limit)
+  }
+  return nextPlan.add_remaining_traffic ? t('usersView.carryOver') : t('usersView.unlimited')
+}
+
 export function UserFieldValue({ user, field, groupNames }: { user: UserListItem; field: UserFieldId; groupNames?: ReadonlyMap<number, string> }) {
   const { t } = useTranslation()
   const unlimited = t('usersView.unlimited')
@@ -64,13 +85,7 @@ export function UserFieldValue({ user, field, groupNames }: { user: UserListItem
               {t('usersView.template')} #{user.next_plan.user_template_id}
             </span>
           )}
-          <span>
-            {user.next_plan.user_template_id == null && user.next_plan.data_limit != null
-              ? user.next_plan.data_limit
-                ? bytes(user.next_plan.data_limit)
-                : unlimited
-              : '—'}
-          </span>
+          <span>{formatNextPlanDataLimit(user.next_plan, bytes, t)}</span>
           <span>
             {user.next_plan.user_template_id != null
               ? '—'
