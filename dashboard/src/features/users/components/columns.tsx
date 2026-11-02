@@ -11,6 +11,8 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { dateUtils } from '@/utils/dateFormatter'
 import dayjs from '@/lib/dayjs'
 import { Checkbox } from '@/components/ui/checkbox'
+import { UserFieldValue } from './user-field-value'
+import { USER_FIELDS, type UserFieldId } from './user-view-preferences'
 
 export const setupColumns = ({
   t,
@@ -20,6 +22,8 @@ export const setupColumns = ({
   dir,
   showCreatedBy,
   showSelectionCheckbox,
+  allowedFields,
+  groupNames,
 }: {
   t: (key: string) => string
   handleSort: (column: string, fromDropdown?: boolean) => void
@@ -28,6 +32,8 @@ export const setupColumns = ({
   dir: string
   showCreatedBy: boolean
   showSelectionCheckbox: boolean
+  allowedFields: UserFieldId[]
+  groupNames: ReadonlyMap<number, string>
 }): ColumnDef<UserListItem>[] => [
   ...(showSelectionCheckbox
     ? (() => {
@@ -210,6 +216,14 @@ export const setupColumns = ({
       return rowA.original.used_traffic - rowB.original.used_traffic
     },
   },
+  ...USER_FIELDS.filter(field => allowedFields.includes(field.id)).map((field): ColumnDef<UserListItem> => ({
+    id: field.id,
+    header: () => field.sort ? <button className="flex items-center gap-1 py-3 normal-case" onClick={() => handleSort(field.sort)}>
+      {t(`usersView.fields.${field.id}`)}
+      {filters.sort.replace(/^-/, '') === field.sort && <ChevronDown className={`h-3.5 w-3.5 ${filters.sort === field.sort ? 'rotate-180' : ''}`} />}
+    </button> : <span className="normal-case">{t(`usersView.fields.${field.id}`)}</span>,
+    cell: ({ row }) => <UserFieldValue user={row.original} field={field.id} groupNames={groupNames} />,
+  })),
   {
     id: 'details',
     header: () => {

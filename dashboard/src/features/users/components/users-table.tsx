@@ -1,3 +1,5 @@
+import { CustomizeUserView } from './customize-user-view'
+import { availableUserFields, readUserView, writeUserView, type UserViewPreferences } from './user-view-preferences'
 import { setupColumns } from '@/features/users/components/columns'
 import { ActionButtonsModalHost } from '@/features/users/components/action-buttons'
 import SetOwnerModal from '@/features/users/dialogs/set-owner-modal'
@@ -14,19 +16,13 @@ import {
   bulkResetUsersDataUsage,
   bulkRevokeUsersSubscription,
   useGetUsers,
+  useGetGroupsSimple,
   UserResponse,
   UserStatus,
 } from '@/service/api'
 
 import { useAdmin } from '@/hooks/use-admin'
-import {
-  getUsersPerPageLimitSize,
-  getUsersShowCreatedBy,
-  getUsersShowSelectionCheckbox,
-  setUsersPerPageLimitSize,
-  setUsersShowCreatedBy,
-  setUsersShowSelectionCheckbox,
-} from '@/utils/userPreferenceStorage'
+import { getUsersPerPageLimitSize, setUsersPerPageLimitSize } from '@/utils/userPreferenceStorage'
 import { bytesToFormGigabytes, gbToBytes } from '@/utils/formatByte'
 import { normalizeDatePickerValueForEditForm } from '@/utils/userEditDateUtils'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
@@ -220,8 +216,21 @@ const UsersTable = memo(() => {
   const [isAdvanceSearchApplying, setIsAdvanceSearchApplying] = useState(false)
   const resetAdvanceSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isSorting, setIsSorting] = useState(false)
-  const [showCreatedBy, setShowCreatedBy] = useState(getUsersShowCreatedBy())
-  const [showSelectionCheckbox, setShowSelectionCheckbox] = useState(getUsersShowSelectionCheckbox())
+  const viewAccount = admin?.username || ''
+  const [savedView, setSavedView] = useState(() => ({ account: viewAccount, value: readUserView(viewAccount) }))
+  const view = useMemo(() => (savedView.account === viewAccount ? savedView.value : readUserView(viewAccount)), [savedView, viewAccount])
+  const allowedFields = useMemo(() => availableUserFields(canReadHwids), [canReadHwids])
+  const [isCustomizeViewOpen, setIsCustomizeViewOpen] = useState(false)
+  const needsGroups = isCustomizeViewOpen || [...view.desktop, ...view.mobileExpanded].includes('groups')
+  const { data: viewGroups } = useGetGroupsSimple({ all: true }, { query: { enabled: needsGroups && hasPermission(admin, 'groups', 'read') } })
+  const groupNames = useMemo(() => new Map((viewGroups?.groups || []).map(group => [group.id, group.name])), [viewGroups])
+  const handleViewApply = useCallback(
+    (next: UserViewPreferences) => {
+      setSavedView({ account: viewAccount, value: next })
+      if (!writeUserView(viewAccount, next)) toast.error(t('usersView.storageError'))
+    },
+    [t, viewAccount],
+  )
 
   const [filters, setFilters] = useState<{
     limit: number
@@ -356,8 +365,6 @@ const UsersTable = memo(() => {
       is_username: !urlParams.isProtocol && !urlParams.isId,
       is_id: urlParams.isId,
       is_protocol: urlParams.isProtocol,
-      show_created_by: getUsersShowCreatedBy(),
-      show_selection_checkbox: getUsersShowSelectionCheckbox(),
       admin: urlParams.admin || [],
       group: urlParams.group || [],
       status: urlParams.status || '0',
@@ -450,8 +457,6 @@ const UsersTable = memo(() => {
       advanceSearchForm.setValue('is_id', Boolean(filters.ids?.length || filters.is_id))
       advanceSearchForm.setValue('is_protocol', Boolean(filters.proxy_id || filters.is_protocol))
       advanceSearchForm.setValue('is_username', !Boolean(filters.proxy_id || filters.is_protocol || filters.ids?.length || filters.is_id))
-      advanceSearchForm.setValue('show_created_by', showCreatedBy)
-      advanceSearchForm.setValue('show_selection_checkbox', showSelectionCheckbox)
       advanceSearchForm.setValue('no_data_limit', Boolean(filters.no_data_limit))
       advanceSearchForm.setValue('no_expire', Boolean(filters.no_expire))
       advanceSearchForm.setValue('data_limit_min', filters.data_limit_min ? bytesToFormGigabytes(filters.data_limit_min) : undefined)
@@ -481,8 +486,6 @@ const UsersTable = memo(() => {
     filters.online,
     filters.no_data_limit,
     filters.no_expire,
-    showCreatedBy,
-    showSelectionCheckbox,
     advanceSearchForm,
   ])
 
@@ -753,12 +756,6 @@ const UsersTable = memo(() => {
   const disableEligibleCount = selectedDisableEligibleIds.length
   const enableEligibleCount = selectedEnableEligibleIds.length
 
-  useEffect(() => {
-    if (!showSelectionCheckbox && selectedUserIds.length > 0) {
-      clearSelection()
-    }
-  }, [clearSelection, selectedUserIds.length, showSelectionCheckbox])
-
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => bulkDeleteUsers({ ids }),
     onSuccess: (response, ids) => {
@@ -994,22 +991,22 @@ const UsersTable = memo(() => {
     }
   }, [])
 
-  const columns = useMemo(
-    () =>
+  const columnsForView = useCallback(
+    (config: UserViewPreferences) =>
       setupColumns({
         t,
         dir,
-        showCreatedBy: canReadAllUsers && showCreatedBy,
-        showSelectionCheckbox: showSelectionCheckbox && canBulkMutateUsers,
+        allowedFields,
+        groupNames,
+        showCreatedBy: canReadAllUsers && config.showCreatedBy,
+        showSelectionCheckbox: canBulkMutateUsers,
         handleSort,
-        filters: {
-          sort: filters.sort,
-          status: filters.status,
-        },
+        filters: { sort: filters.sort, status: filters.status },
         handleStatusFilter,
       }),
-    [t, dir, canReadAllUsers, showCreatedBy, showSelectionCheckbox, canBulkMutateUsers, canReadHwids, handleSort, filters.sort, filters.status, handleStatusFilter],
+    [t, dir, allowedFields, groupNames, canReadAllUsers, canBulkMutateUsers, handleSort, filters.sort, filters.status, handleStatusFilter],
   )
+  const columns = useMemo(() => columnsForView(view), [columnsForView, view])
 
   const handleAdvanceSearchSubmit = async (values: AdvanceSearchFormValue) => {
     if (isAdvanceSearchApplying) return
@@ -1055,15 +1052,6 @@ const UsersTable = memo(() => {
         // Preserve previous behavior: apply filters even if the eager fetch fails.
       }
 
-      if (canReadAllUsers) {
-        setShowCreatedBy(values.show_created_by)
-        setUsersShowCreatedBy(values.show_created_by)
-      }
-      setShowSelectionCheckbox(values.show_selection_checkbox)
-      setUsersShowSelectionCheckbox(values.show_selection_checkbox)
-      if (!values.show_selection_checkbox) {
-        clearSelection()
-      }
       setFilters(() => ({
         ...nextFilters,
       }))
@@ -1099,8 +1087,6 @@ const UsersTable = memo(() => {
       is_username: true,
       is_protocol: false,
       is_id: false,
-      show_created_by: showCreatedBy,
-      show_selection_checkbox: showSelectionCheckbox,
       no_data_limit: false,
       no_expire: false,
       no_group: false,
@@ -1168,6 +1154,29 @@ const UsersTable = memo(() => {
   return (
     <div>
       <Filters
+        viewControl={
+          <CustomizeUserView
+            value={view}
+            allowedFields={allowedFields}
+            canShowCreator={canReadAllUsers}
+            onApply={handleViewApply}
+            onOpenChange={setIsCustomizeViewOpen}
+            renderPreview={(draft, mobile) => (
+              <DataTable
+                columns={columnsForView(draft)}
+                data={
+                  usersList.length
+                    ? usersList.slice(0, 1)
+                    : [{ id: 123, username: 'alex', status: 'active', used_traffic: 12 * 1024 ** 3, data_limit: 50 * 1024 ** 3, created_at: '2026-01-01T00:00:00Z' }]
+                }
+                view={draft}
+                allowedFields={allowedFields}
+                groupNames={groupNames}
+                previewExpanded={mobile}
+              />
+            )}
+          />
+        }
         filters={filters}
         onFilterChange={handleFilterChange}
         advanceSearchOnOpen={setIsAdvanceSearchOpen}
@@ -1217,6 +1226,9 @@ const UsersTable = memo(() => {
       {isCurrentlyLoading && !isSearchEmpty && (
         <DataTable
           columns={columns}
+          view={view}
+          allowedFields={allowedFields}
+          groupNames={groupNames}
           data={[]}
           isLoading={true}
           isFetching={false}
@@ -1228,6 +1240,9 @@ const UsersTable = memo(() => {
       {!isEmpty && !isSearchEmpty && !isCurrentlyLoading && (
         <DataTable
           columns={columns}
+          view={view}
+          allowedFields={allowedFields}
+          groupNames={groupNames}
           data={usersList}
           isLoading={false}
           isFetching={isPageLoading}

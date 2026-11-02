@@ -11,10 +11,6 @@ const NUM_ITEMS_PER_PAGE_DEFAULT = 10
 
 const USERS_AUTO_REFRESH_INTERVAL_KEY = 'pasarguard-users-auto-refresh-interval'
 const DEFAULT_USERS_AUTO_REFRESH_INTERVAL_SECONDS = 15
-const USERS_SHOW_CREATED_BY_KEY = 'pasarguard-users-show-created-by'
-const DEFAULT_USERS_SHOW_CREATED_BY = true
-const USERS_SHOW_SELECTION_CHECKBOX_KEY = 'pasarguard-users-show-selection-checkbox'
-const DEFAULT_USERS_SHOW_SELECTION_CHECKBOX = true
 const CHART_VIEW_TYPE_KEY = 'pasarguard-chart-view-type'
 
 const CORES_LIST_USE_CONFIG_MODAL_KEY = 'pasarguard-cores-list-use-config-modal'
@@ -56,30 +52,6 @@ export const getUsersAutoRefreshIntervalSeconds = () => {
 export const setUsersAutoRefreshIntervalSeconds = (seconds: number) => {
   if (typeof localStorage === 'undefined') return
   localStorage.setItem(USERS_AUTO_REFRESH_INTERVAL_KEY, seconds.toString())
-}
-
-export const getUsersShowCreatedBy = () => {
-  if (typeof localStorage === 'undefined') return DEFAULT_USERS_SHOW_CREATED_BY
-  const storedValue = localStorage.getItem(USERS_SHOW_CREATED_BY_KEY)
-  if (storedValue === null) return DEFAULT_USERS_SHOW_CREATED_BY
-  return storedValue === 'true'
-}
-
-export const setUsersShowCreatedBy = (value: boolean) => {
-  if (typeof localStorage === 'undefined') return
-  localStorage.setItem(USERS_SHOW_CREATED_BY_KEY, value ? 'true' : 'false')
-}
-
-export const getUsersShowSelectionCheckbox = () => {
-  if (typeof localStorage === 'undefined') return DEFAULT_USERS_SHOW_SELECTION_CHECKBOX
-  const storedValue = localStorage.getItem(USERS_SHOW_SELECTION_CHECKBOX_KEY)
-  if (storedValue === null) return DEFAULT_USERS_SHOW_SELECTION_CHECKBOX
-  return storedValue === 'true'
-}
-
-export const setUsersShowSelectionCheckbox = (value: boolean) => {
-  if (typeof localStorage === 'undefined') return
-  localStorage.setItem(USERS_SHOW_SELECTION_CHECKBOX_KEY, value ? 'true' : 'false')
 }
 
 export const getDatePickerPreference = (): DatePickerPreference => {

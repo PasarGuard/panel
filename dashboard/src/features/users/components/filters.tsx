@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { useDebouncedSearch } from '@/hooks/use-debounced-search'
 import { RefreshCw, SearchIcon, Filter, X, ArrowUpDown, User, Calendar, ChartPie, ChevronDown, Check, Clock } from 'lucide-react'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useGetUsers, UserStatus } from '@/service/api'
 import { RefetchOptions } from '@tanstack/react-query'
@@ -88,6 +89,7 @@ const autoRefreshOptions = [
 ] as const
 
 interface FiltersProps {
+  viewControl?: ReactNode
   filters: {
     search?: string
     proxy_id?: string
@@ -143,7 +145,7 @@ const buildSubscriptionInfoUrl = (value: string) => {
   }
 }
 
-export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advanceSearchOnOpen, onClearAdvanceSearch, handleSort }: FiltersProps) => {
+export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advanceSearchOnOpen, onClearAdvanceSearch, handleSort, viewControl }: FiltersProps) => {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const visibleSortSections = sortSections
@@ -526,6 +528,7 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
           </DropdownMenu>
         </div>
       )}
+      <div className="shrink-0">{viewControl}</div>
       {/* Refresh Button */}
       <div className="flex h-full flex-shrink-0 items-center gap-0">
         <Button
