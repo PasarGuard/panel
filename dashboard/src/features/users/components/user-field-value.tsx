@@ -47,7 +47,13 @@ export function UserFieldValue({ user, field, groupNames }: { user: UserListItem
               {t('usersView.template')} #{user.next_plan.user_template_id}
             </span>
           )}
-          <span>{user.next_plan.data_limit ? bytes(user.next_plan.data_limit) : unlimited}</span>
+          <span>
+            {user.next_plan.user_template_id == null && user.next_plan.data_limit != null
+              ? user.next_plan.data_limit
+                ? bytes(user.next_plan.data_limit)
+                : unlimited
+              : '—'}
+          </span>
           <span>{duration(user.next_plan.expire)}</span>
         </span>
       ) : (
