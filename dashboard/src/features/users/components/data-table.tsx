@@ -3,7 +3,7 @@ import React, { useState, useCallback, useMemo, memo, useEffect, useRef } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
-import { UserResponse } from '@/service/api'
+import { UserListItem, UserResponse } from '@/service/api'
 import { getSelectedRowIds, nextRowSelection } from '@/utils/rowSelection'
 import { ChevronDown, Rss } from 'lucide-react'
 import ActionButtons from './action-buttons'
@@ -12,8 +12,10 @@ import { StatusBadge } from './status-badge'
 import UsageSliderCompact from '@/components/common/usage-slider-compact'
 import { useTranslation } from 'react-i18next'
 import { Skeleton } from '@/components/ui/skeleton'
+import { UserFieldValue } from './user-field-value'
+import { userColumnOrder, type UserFieldId, type UserViewPreferences } from './user-view-preferences'
 
-interface DataTableProps<TData extends UserResponse, TValue> {
+interface DataTableProps<TData extends UserListItem, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   isLoading?: boolean
@@ -21,6 +23,10 @@ interface DataTableProps<TData extends UserResponse, TValue> {
   onEdit?: (user: UserResponse) => void
   onSelectionChange?: (selectedIds: number[]) => void
   resetSelectionKey?: number
+  view: UserViewPreferences
+  allowedFields: UserFieldId[]
+  groupNames: ReadonlyMap<number, string>
+  previewExpanded?: boolean
 }
 
 const SCROLLBAR_HIDE_DELAY = 900
@@ -148,7 +154,9 @@ function useTableOverlayScrollbar() {
   }
 }
 
-const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) => (
+const ExpandedRowContent = memo(({ row, fields, groupNames }: { row: { original: UserListItem }; fields: UserFieldId[]; groupNames: ReadonlyMap<number, string> }) => {
+  const { t } = useTranslation()
+  return (
   <div className="flex flex-col gap-y-4 border-b p-4">
     <UsageSliderCompact isMobile status={row.original.status} total={row.original.data_limit} totalUsedTraffic={row.original.lifetime_used_traffic} used={row.original.used_traffic} />
     <div className="flex flex-col gap-y-2">
@@ -169,13 +177,19 @@ const ExpandedRowContent = memo(({ row }: { row: { original: UserResponse } }) =
         <span className="text-muted-foreground/70 font-mono text-[10px]">#{row.original.id}</span>
       </div>
     </div>
+    {fields.length > 0 && <dl className="space-y-2 border-t pt-3">
+      {fields.map(field => <div key={field} className="flex items-start justify-between gap-3 text-xs">
+        <dt className="text-muted-foreground">{t(`usersView.fields.${field}`)}</dt>
+        <dd className="min-w-0 text-end"><UserFieldValue user={row.original} field={field} groupNames={groupNames} /></dd>
+      </div>)}
+    </dl>}
   </div>
-))
+)})
 
 export const DataTable = memo(
-  <TData extends UserResponse, TValue>({ columns, data, isLoading = false, isFetching = false, onEdit, onSelectionChange, resetSelectionKey = 0 }: DataTableProps<TData, TValue>) => {
+  <TData extends UserListItem, TValue>({ columns, data, isLoading = false, isFetching = false, onEdit, onSelectionChange, resetSelectionKey = 0, view, allowedFields, groupNames, previewExpanded = false }: DataTableProps<TData, TValue>) => {
     const { t } = useTranslation()
-    const [expandedRow, setExpandedRow] = useState<number | null>(null)
+    const [expandedRow, setExpandedRow] = useState<number | null>(previewExpanded ? data[0]?.id ?? null : null)
     /** CSS :hover can stick after closing portaled menus; drive md+ row bg with pointer events instead. */
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
     const dir = useDirDetection()
@@ -205,9 +219,11 @@ export const DataTable = memo(
         onRowSelectionChange: handleRowSelectionChange,
         state: {
           rowSelection,
+          columnVisibility: Object.fromEntries(allowedFields.map(id => [id, view.desktop.includes(id)])),
+          columnOrder: userColumnOrder(view.desktop, allowedFields),
         },
       }),
-      [columns, data, handleRowSelectionChange, hasSelectionColumn, rowSelection],
+      [columns, data, handleRowSelectionChange, hasSelectionColumn, rowSelection, allowedFields, view.desktop],
     )
 
     const table = useReactTable(tableConfig)
@@ -262,9 +278,9 @@ export const DataTable = memo(
           columnId === 'status' && '!px-0',
           columnId === 'select' && 'w-8 !px-1 !py-5',
           columnId === 'chevron' && 'w-4 !p-0',
-          !['select', 'username', 'status', 'details', 'chevron'].includes(columnId) && 'hidden !p-0 md:table-cell',
+          !['select', 'username', 'status', 'details', 'chevron'].includes(columnId) && 'hidden md:table-cell',
           columnId === 'chevron' && 'table-cell md:hidden',
-          !['details', 'select', 'chevron'].includes(columnId) && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
+          ['username', 'status'].includes(columnId) && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
         ),
       [hasSelectionColumn, isRTL],
     )
@@ -332,20 +348,21 @@ export const DataTable = memo(
       [getLoadingCellClassName, renderLoadingCell, table],
     )
 
+    const visibleColumnCount = table.getVisibleLeafColumns().length
     const EmptyState = useMemo(
       () => (
         <TableRow>
-          <TableCell colSpan={columns.length} className="h-24 text-center">
+          <TableCell colSpan={visibleColumnCount} className="h-24 text-center">
             <span className="text-muted-foreground">{t('noResults')}</span>
           </TableCell>
         </TableRow>
       ),
-      [columns.length, t],
+      [visibleColumnCount, t],
     )
 
     useEffect(() => {
       layout()
-    }, [data, expandedRow, isLoadingData, layout])
+    }, [data, expandedRow, isLoadingData, view, layout])
 
     return (
       <div className="relative overflow-hidden rounded-xl border">
@@ -406,9 +423,9 @@ export const DataTable = memo(
                                 cell.column.id === 'status' && '!px-0',
                                 cell.column.id === 'select' && 'w-8 !px-1 !py-5',
                                 cell.column.id === 'chevron' && 'w-4 !p-0',
-                                !['select', 'username', 'status', 'details', 'chevron'].includes(cell.column.id) && 'hidden !p-0 md:table-cell',
+                                !['select', 'username', 'status', 'details', 'chevron'].includes(cell.column.id) && 'hidden md:table-cell',
                                 cell.column.id === 'chevron' && 'table-cell md:hidden',
-                                !['details', 'select', 'chevron'].includes(cell.column.id) && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
+                                ['username', 'status'].includes(cell.column.id) && (isRTL ? 'pl-1.5 sm:pl-3' : 'pr-1.5 sm:pr-3'),
                               )}
                             >
                               {cell.column.id === 'chevron' ? (
@@ -429,8 +446,8 @@ export const DataTable = memo(
                         </TableRow>
                         {expandedRow === row.original.id && (
                           <TableRow className={cn('border-b md:hidden', 'border-transparent')} data-state={isRowSelected ? 'selected' : undefined}>
-                            <TableCell colSpan={columns.length} className={cn('p-0 text-sm')}>
-                              <ExpandedRowContent row={row} />
+                            <TableCell colSpan={table.getVisibleLeafColumns().length} className={cn('p-0 text-sm')}>
+                              <ExpandedRowContent row={row} fields={view.mobileExpanded.filter(id => allowedFields.includes(id))} groupNames={groupNames} />
                             </TableCell>
                           </TableRow>
                         )}

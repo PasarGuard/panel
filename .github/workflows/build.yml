@@ -5,18 +5,19 @@ on:
         types: [created]
     workflow_dispatch:
 
-permissions:
-    contents: write
-    packages: write
-
 env:
     IMAGE_NAME: pasarguard/${{ github.event.repository.name }}
     FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    # Exact changelog tool version: bump this single value to upgrade.
+    CHANGELOGEN_VERSION: 0.6.2
 
 jobs:
     generate-changelog:
         if: ${{ github.event_name == 'release' }}
         runs-on: ubuntu-latest
+        # Only this job rewrites release notes (`gh release edit`).
+        permissions:
+            contents: write
         steps:
             - name: Checkout
               uses: actions/checkout@v7
@@ -57,7 +58,7 @@ jobs:
 
             - name: Generate changelog
               run: |
-                  bunx changelogen@latest --no-authors --from "${{ steps.tags.outputs.previous }}" --to "${{ steps.tags.outputs.current }}" \
+                  bunx "changelogen@${CHANGELOGEN_VERSION}" --no-authors --from "${{ steps.tags.outputs.previous }}" --to "${{ steps.tags.outputs.current }}" \
                     | grep -v "Generating changelog for " \
                     | sed -e '/^\[log\]/d' -e '/./,$!d' > CHANGELOG.md
 
@@ -102,6 +103,9 @@ jobs:
 
     build-dashboard:
         runs-on: ubuntu-latest
+        # Builds the frontend from source only; no repo or registry writes.
+        permissions:
+            contents: read
         steps:
             - name: Checkout
               uses: actions/checkout@v7
@@ -138,6 +142,10 @@ jobs:
                       platform: linux/arm64
                       runner: ubuntu-24.04-arm
         runs-on: ${{ matrix.runner }}
+        # Pushes arch images to GHCR with the workflow token.
+        permissions:
+            contents: read
+            packages: write
         steps:
             - name: Checkout
               uses: actions/checkout@v7
@@ -180,6 +188,10 @@ jobs:
     push-manifest:
         needs: [build-images]
         runs-on: ubuntu-latest
+        # Creates the multi-arch manifests on Docker Hub and GHCR.
+        permissions:
+            contents: read
+            packages: write
         steps:
             - name: Login to Docker Hub
               uses: docker/login-action@v4.7.0

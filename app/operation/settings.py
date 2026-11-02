@@ -1,5 +1,6 @@
 import asyncio
 
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud.settings import get_settings, modify_settings
@@ -34,9 +35,15 @@ class SettingsOperation(BaseOperation):
         if modify.general and modify.general.custom_variables is not None:
             subscription = modify.subscription or Subscription.model_validate(db_settings.subscription)
             modify.subscription = subscription.model_copy(update={"custom_variables": modify.general.custom_variables})
-            modify.general = modify.general.model_copy(update={"custom_variables": None})
+            # Rebuilt from the sent fields only, so the stored general section keeps the rest
+            modify.general = General.model_validate(
+                modify.general.model_dump(exclude_unset=True, exclude={"custom_variables"})
+            )
 
-        db_settings = await modify_settings(db, db_settings, modify)
+        try:
+            db_settings = await modify_settings(db, db_settings, modify)
+        except ValidationError as exc:
+            await self.raise_error(message=str(exc), code=400, db=db)
         new_settings = SettingsSchema.model_validate(db_settings)
         if new_settings.general and new_settings.subscription:
             new_settings.general.custom_variables = new_settings.subscription.custom_variables

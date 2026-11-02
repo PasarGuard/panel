@@ -31,11 +31,21 @@ from app.db.models import (
     users_groups_association,
 )
 from app.jobs import review_users
-from app.models.settings import HWIDSettings, OnHoldTimeoutAction
+from app.models.settings import General, HWIDSettings, OnHoldTimeoutAction
 from app.models.user import UserNotificationResponse
-from app.operation import OperatorType
+from app.operation import OperatorType, user as user_module
 from app.operation.subscription import SubscriptionOperation
 from app.operation.user import UserOperation
+
+
+@pytest.fixture(autouse=True)
+def _default_general_settings(monkeypatch):
+    # The jobs read panel settings; without this they would hit the app database (empty in unit tests)
+    async def general_settings():
+        return General()
+
+    for module in (review_users, user_module):
+        monkeypatch.setattr(module, "general_settings", general_settings)
 
 
 def _user(user_id: int, *, next_plan=None) -> SimpleNamespace:

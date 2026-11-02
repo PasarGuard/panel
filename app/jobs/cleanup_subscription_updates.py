@@ -3,15 +3,21 @@ from sqlalchemy import delete, func, select
 from app import scheduler
 from app.db import GetDB
 from app.db.models import UserSubscriptionUpdate
+from app.settings import subscription_settings
 from app.subscription.sub_update_buffer import flush_user_sub_updates
 from app.utils.logger import get_logger
-from config import job_settings, runtime_settings, subscription_env_settings
+from config import job_settings, runtime_settings
 
 logger = get_logger("jobs")
 
 
 async def cleanup_user_subscription_updates():
     """Clean up excess user subscription updates."""
+
+    clients_limit = (await subscription_settings()).clients_limit
+    # 0 or less keeps every update
+    if clients_limit <= 0:
+        return
 
     await flush_user_sub_updates()
 
@@ -29,7 +35,7 @@ async def cleanup_user_subscription_updates():
             )
             .label("rn"),
         ).subquery()
-        excess_ids = select(ranked.c.id).where(ranked.c.rn > subscription_env_settings.clients_limit)
+        excess_ids = select(ranked.c.id).where(ranked.c.rn > clients_limit)
         result = await db.execute(
             delete(UserSubscriptionUpdate)
             .where(UserSubscriptionUpdate.id.in_(excess_ids))
@@ -43,11 +49,7 @@ async def cleanup_user_subscription_updates():
             logger.info("No users with excess subscription updates")
 
 
-if (
-    subscription_env_settings.clients_limit
-    and subscription_env_settings.clients_limit >= 0
-    and runtime_settings.role.runs_scheduler
-):
+if runtime_settings.role.runs_scheduler:
     # Schedule the cleanup job to run every few minutes
     scheduler.add_job(
         cleanup_user_subscription_updates,

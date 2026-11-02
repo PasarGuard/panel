@@ -36,9 +36,9 @@ from app.db.models import (
     UserTemplate,
     UserUsageResetLogs,
 )
-from app.jobs import record_usages
+from app.jobs import record_usages, reset_user_data_usage as reset_job
 from app.models.proxy import ProxyTable
-from app.models.settings import HWIDSettings
+from app.models.settings import General, HWIDSettings
 from app.models.user import BulkUsersApplyTemplate, UserModify
 from app.operation import OperatorType, user as user_operation
 from app.operation.user import UserOperation
@@ -50,6 +50,16 @@ def clear_dialect_cache():
     record_usages._dialect_cache.clear()
     yield
     record_usages._dialect_cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def _default_general_settings(monkeypatch):
+    # The reset paths read panel settings; without this they would hit the app database instead of the test one
+    async def general_settings():
+        return General()
+
+    for module in (reset_job, user_operation):
+        monkeypatch.setattr(module, "general_settings", general_settings)
 
 
 def _user(username: str, **kwargs) -> User:
