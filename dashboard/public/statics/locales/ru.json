@@ -3740,6 +3740,8 @@
   "statistics.selectTimeRangeToView": "Пожалуйста, выберите временной диапазон для просмотра исторических данных",
   "statistics.noDataInRange": "Нет данных в выбранном диапазоне",
   "statistics.noDataInRangeDescription": "Данные о трафике для выбранного периода времени не найдены. Попробуйте выбрать другой диапазон дат.",
+  "statistics.perNodeBreakdownUnavailable": "Разбивка по узлам недоступна",
+  "statistics.perNodeBreakdownUnavailableDescription": "API использования вернул для этого диапазона только суммарное значение, поэтому трафик нельзя отнести к отдельным узлам. Показанное выше суммарное значение измерено.",
   "statistics.showTimeRange": "Временной диапазон",
   "statistics.hideTimeRange": "Скрыть диапазон",
   "statistics.selectNodeToView": "Выберите узел для просмотра подробной статистики",

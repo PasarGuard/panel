@@ -3786,6 +3786,8 @@
   "statistics.waitingForDataDescription": "实时统计数据将在数据流开始后显示在这里。",
   "statistics.noDataInRange": "所选范围内无数据",
   "statistics.noDataInRangeDescription": "在所选时间段内未找到流量数据。请尝试选择不同的日期范围。",
+  "statistics.perNodeBreakdownUnavailable": "无法按节点细分",
+  "statistics.perNodeBreakdownUnavailableDescription": "使用量 API 在此范围内仅返回合计值，因此该流量无法归属到各个节点。上方显示的合计值是实测值。",
   "statistics.selectNodeToView": "选择一个节点以查看详细统计信息",
   "statistics.userStatisticsDescription": "用户账户状态和活动概览",
   "errors.connectionFailed": "连接失败。请检查您的网络并重试。",

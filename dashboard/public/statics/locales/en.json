@@ -3836,6 +3836,8 @@
   "statistics.selectTimeRangeToView": "Please select a time range to view historical data",
   "statistics.noDataInRange": "No Data in Selected Range",
   "statistics.noDataInRangeDescription": "No traffic data found for the selected time period. Try selecting a different date range.",
+  "statistics.perNodeBreakdownUnavailable": "Per-node breakdown unavailable",
+  "statistics.perNodeBreakdownUnavailableDescription": "The usage API returned only a combined total for this range, so this traffic cannot be attributed to individual nodes. The combined total shown above is measured.",
   "statistics.selectNodeToView": "Select a node to view detailed statistics",
   "statistics.userStatisticsDescription": "Overview of user account status and activity",
   "statistics.date": "Date",
