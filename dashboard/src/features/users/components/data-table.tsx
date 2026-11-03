@@ -178,9 +178,9 @@ const ExpandedRowContent = memo(({ row, fields, groupNames }: { row: { original:
       </div>
     </div>
     {fields.length > 0 && <dl className="space-y-2 border-t pt-3">
-      {fields.map(field => <div key={field} className="flex items-start justify-between gap-3 text-xs">
-        <dt className="text-muted-foreground">{t(`usersView.fields.${field}`)}</dt>
-        <dd className="min-w-0 text-end"><UserFieldValue user={row.original} field={field} groupNames={groupNames} /></dd>
+      {fields.map(field => <div key={field} className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-start gap-3 text-xs">
+        <dt className="text-muted-foreground truncate" title={t(`usersView.fields.${field}`)}>{t(`usersView.fields.${field}`)}</dt>
+        <dd dir="auto" className="min-w-0 truncate text-right rtl:text-left"><UserFieldValue user={row.original} field={field} groupNames={groupNames} /></dd>
       </div>)}
     </dl>}
   </div>

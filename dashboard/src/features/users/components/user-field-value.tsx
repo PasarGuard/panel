@@ -1,6 +1,7 @@
 import type { UserListItem } from '@/service/api'
 import { formatBytes } from '@/utils/formatByte'
 import { dateUtils } from '@/utils/dateFormatter'
+import { formatDateByLocale, isPersianLocaleLanguage } from '@/utils/datePickerUtils'
 import { useTranslation } from 'react-i18next'
 import type { UserFieldId } from './user-view-preferences'
 
@@ -43,9 +44,13 @@ export function formatNextPlanDataLimit(
 }
 
 export function UserFieldValue({ user, field, groupNames }: { user: UserListItem; field: UserFieldId; groupNames?: ReadonlyMap<number, string> }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const unlimited = t('usersView.unlimited')
-  const date = (value: string | number | null | undefined) => (value ? dateUtils.toDayjs(value).format('YYYY/MM/DD HH:mm') : '—')
+  const date = (value: string | number | null | undefined) => {
+    if (!value) return '—'
+    const parsedDate = dateUtils.toDayjs(value)
+    return isPersianLocaleLanguage(i18n.resolvedLanguage || i18n.language) ? formatDateByLocale(parsedDate.toDate(), true, true) : parsedDate.format('YYYY/MM/DD HH:mm')
+  }
   const bytes = (value: number | null | undefined) => (value == null ? '—' : formatBytes(value))
   const duration = (seconds: number | null | undefined) => formatUserDuration(seconds, t)
   switch (field) {
@@ -56,10 +61,10 @@ export function UserFieldValue({ user, field, groupNames }: { user: UserListItem
     case 'remaining_traffic':
       return <span dir="ltr">{user.data_limit ? bytes(Math.max(0, user.data_limit - user.used_traffic)) : unlimited}</span>
     case 'groups':
-      return <span className="break-words whitespace-normal">{user.group_ids?.map(id => groupNames?.get(id) || `#${id}`).join(', ') || '—'}</span>
+      return <span>{user.group_ids?.map(id => groupNames?.get(id) || `#${id}`).join(', ') || '—'}</span>
     case 'note':
       return (
-        <span className="line-clamp-2 max-w-64 break-words whitespace-pre-wrap" title={user.note || undefined}>
+        <span title={user.note || undefined}>
           {user.note || '—'}
         </span>
       )
@@ -79,7 +84,7 @@ export function UserFieldValue({ user, field, groupNames }: { user: UserListItem
       )
     case 'next_plan':
       return user.next_plan ? (
-        <span className="flex flex-wrap gap-x-2 text-xs">
+        <span className="space-x-2 text-xs">
           {user.next_plan.user_template_id != null && (
             <span>
               {t('usersView.template')} #{user.next_plan.user_template_id}
