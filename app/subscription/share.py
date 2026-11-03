@@ -459,6 +459,21 @@ async def process_inbounds_and_tags(
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
     hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
+    admin_my_hosts = getattr(getattr(user, "admin", None), "my_hosts", None)
+    if admin_my_hosts:
+        ordered_hosts = []
+        for host_data in hosts:
+            override = admin_my_hosts.get(str(host_data.id), {})
+            if override.get("disabled"):
+                continue
+            remark = override.get("remark")
+            if isinstance(remark, str) and remark.strip():
+                host_data = host_data.model_copy(update={"remark": remark.strip()})
+            order = override.get("order")
+            sort_order = order if isinstance(order, int) else 10**9 + host_data.priority
+            ordered_hosts.append((sort_order, host_data.priority, host_data.id, host_data))
+        ordered_hosts.sort(key=lambda item: item[:3])
+        hosts = [item[3] for item in ordered_hosts]
     if randomize_order and len(hosts) > 1:
         random.shuffle(hosts)
 
