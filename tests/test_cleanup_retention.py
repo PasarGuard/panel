@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
@@ -507,3 +508,56 @@ async def test_expired_user_cleanup_retries_when_peer_ip_moves(retention_db, mon
 
     assert locked == [[old_settings], [new_settings]]
     assert [deleted.username for deleted in deleted_users] == ["expired-cleanup-moved-peer"]
+
+
+@pytest.mark.asyncio
+async def test_remove_expired_users_job_removes_the_deleted_users_from_nodes(retention_db, monkeypatch):
+    node_sync = importlib.import_module("app.node.sync")
+    expired_at = datetime.now(UTC) - timedelta(days=2)
+    retention_db.add_all(
+        [
+            User(
+                username=f"expired-node-removal-{index}",
+                status=UserStatus.expired,
+                last_status_change=expired_at,
+                proxy_settings={},
+            )
+            for index in range(2)
+        ]
+        + [
+            User(
+                username="expired-node-removal-recent",
+                status=UserStatus.expired,
+                last_status_change=datetime.now(UTC),
+                proxy_settings={},
+            )
+        ]
+    )
+    await retention_db.commit()
+    user_ids = {user.username: user.id for user in (await retention_db.scalars(select(User).order_by(User.id))).all()}
+
+    removed_emails: list[str] = []
+
+    async def record_node_removal(proto_user):
+        removed_emails.append(proto_user.email)
+
+    db_context = MagicMock()
+    db_context.__aenter__.return_value = retention_db
+    monkeypatch.setattr(
+        remove_expired_users_job,
+        "cleanup_settings",
+        AsyncMock(return_value=CleanupSettings(expired_users_retention_days=1)),
+    )
+    monkeypatch.setattr(remove_expired_users_job, "GetDB", MagicMock(return_value=db_context))
+    monkeypatch.setattr(remove_expired_users_job.notification, "remove_user", AsyncMock())
+    monkeypatch.setattr(node_sync, "_dispatch_user_update", record_node_removal)
+
+    await remove_expired_users_job.remove_expired_users()
+    for _ in range(5):
+        await asyncio.sleep(0)
+
+    remaining = (await retention_db.scalars(select(User.username))).all()
+    assert remaining == ["expired-node-removal-recent"]
+    assert sorted(removed_emails) == sorted(str(user_ids[f"expired-node-removal-{index}"]) for index in range(2)), (
+        "users deleted by the auto-delete job were never removed from the nodes"
+    )
