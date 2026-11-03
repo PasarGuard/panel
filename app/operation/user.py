@@ -190,6 +190,10 @@ def _resolve_enabled_user_status(user: User) -> UserStatus:
     return UserStatus.active
 
 
+BULK_EXPIRE_AMOUNT_BOUND = 10**10
+BULK_DATA_LIMIT_AMOUNT_BOUND = 2**62
+
+
 class UserOperation(BaseOperation):
     @staticmethod
     def _is_non_blocking_sync_operator(operator_type: OperatorType) -> bool:
@@ -2005,6 +2009,9 @@ class UserOperation(BaseOperation):
         if not _has_permission(admin, "users", "update") or not is_scope_all(admin, "users", "update"):
             await self.raise_error(message="All-user update permission is required", code=403, db=db)
         await self._enforce_manual_user_write_access(admin, db)
+        bound = BULK_EXPIRE_AMOUNT_BOUND if field == "expire" else BULK_DATA_LIMIT_AMOUNT_BOUND
+        if not -bound <= bulk_model.amount <= bound:
+            await self.raise_error(message=f"Bulk {field} amount must be between {-bound} and {bound}", code=422, db=db)
         if admin.is_owner:
             return {}
 
