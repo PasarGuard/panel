@@ -1,4 +1,5 @@
 import pytest
+from PasarGuardNodeBridge import Health
 
 from app.db.models import Node
 from app.node import NodeManager
@@ -184,3 +185,47 @@ async def test_update_node_replaces_on_name_or_coefficient_change(monkeypatch: p
     node3 = _make_node(1, name="new-name", usage_coefficient=2.0)
     third = await manager.update_node(node3)
     assert third is not second
+
+
+class _HealthNode:
+    def __init__(self, health):
+        self.health = health
+        self.user_calls = 0
+
+    async def get_health(self):
+        return self.health
+
+    async def update_user(self, user):
+        self.user_calls += 1
+
+
+@pytest.mark.asyncio
+async def test_update_user_skips_unhealthy_nodes():
+    manager = NodeManager()
+    healthy = _HealthNode(Health.HEALTHY)
+    broken = _HealthNode(Health.BROKEN)
+    manager._nodes[1] = healthy
+    manager._nodes[2] = broken
+
+    await manager.update_user(object())
+
+    assert healthy.user_calls == 1
+    assert broken.user_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_bulk_user_sync_skips_unhealthy_nodes(monkeypatch: pytest.MonkeyPatch):
+    manager = NodeManager()
+    manager._nodes[1] = _HealthNode(Health.HEALTHY)
+    manager._nodes[2] = _HealthNode(Health.NOT_CONNECTED)
+    synced: list[int] = []
+
+    async def fake_sync(node_id, _node, _users):
+        synced.append(node_id)
+        return []
+
+    monkeypatch.setattr(manager, "_sync_users_to_node", fake_sync)
+
+    await manager._update_users([object()])
+
+    assert synced == [1]
