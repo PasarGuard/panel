@@ -10,6 +10,13 @@ from app.utils.helpers import fix_datetime_timezone
 from .validators import ListValidator
 
 
+def _not_nullable(schema: dict) -> None:
+    schema.pop("default", None)
+    branches = [branch for branch in schema.pop("anyOf", []) if branch.get("type") != "null"]
+    if branches:
+        schema.update(branches[0])
+
+
 class APIKeyBase(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     note: str | None = Field(default=None, max_length=512)
@@ -43,14 +50,21 @@ class APIKeyCreate(APIKeyBase):
 
 class APIKeyUpdate(BaseModel):
     admin_id: int | None = Field(default=None, ge=1)
-    name: str | None = Field(default=None, min_length=1, max_length=128)
+    name: str | None = Field(default=None, min_length=1, max_length=128, json_schema_extra=_not_nullable)
     note: str | None = Field(default=None, max_length=512)
     permissions: RolePermissions | None = None
-    inherit_permissions: bool | None = None
+    inherit_permissions: bool | None = Field(default=None, json_schema_extra=_not_nullable)
     expire_date: dt | None = None
     max_requests: int | None = Field(default=None, ge=1)
     delete_on_limit: bool = Field(default=False)
-    status: APIKeyStatus | None = None
+    status: APIKeyStatus | None = Field(default=None, json_schema_extra=_not_nullable)
+
+    @field_validator("name", "inherit_permissions", "status")
+    @classmethod
+    def reject_explicit_null(cls, value):
+        if value is None:
+            raise ValueError("must not be null")
+        return value
 
     @field_validator("expire_date", mode="before")
     @classmethod
