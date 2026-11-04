@@ -17,9 +17,10 @@ async def stored_settings() -> Settings:
 
     if db_settings is None:
         raise SettingsRowMissing(
-            "The settings row is missing from this database. It is created by migration 9af04c077ede, "
-            "so a database whose schema was created without running the migrations does not have it. "
-            "Run `alembic upgrade head` against this database, then start the panel again."
+            "The settings row is missing from this database. Migration 9af04c077ede inserts it once, when it "
+            "creates the settings table, so running `alembic upgrade head` again does not bring it back. "
+            "Copy the settings row back from a backup of this database, or copy it from a new database created "
+            "with `alembic upgrade head`, which holds the settings of a fresh install."
         )
 
     return db_settings
