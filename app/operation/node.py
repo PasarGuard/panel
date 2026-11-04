@@ -100,7 +100,7 @@ _MAINTENANCE_RPC_TIMEOUT = 340.0
 MTPROTO_START_TIMEOUT = 100
 MTPROTO_UNSUPPORTED_NODE_MESSAGE = (
     'This node does not support MTProto cores (it answered "invalid backend type"). '
-    "Update the node to the next node release or newer."
+    "Update your node."
 )
 MTPROTO_SYNC_PENDING_MESSAGE = "The node is still applying the users and finishes on its own. Check again in a minute."
 _MTPROTO_RETRY_LATER_MARKERS = ("the users are still being applied", "context deadline exceeded")

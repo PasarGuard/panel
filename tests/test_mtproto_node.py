@@ -236,7 +236,7 @@ async def test_old_node_invalid_backend_type_message(monkeypatch: pytest.MonkeyP
 
     assert result["status"] == NodeStatus.error
     assert result["message"] == node_operation_module.MTPROTO_UNSUPPORTED_NODE_MESSAGE
-    assert "next node release" in result["message"]
+    assert "Update your node." in result["message"]
 
 
 @pytest.mark.asyncio
