@@ -1323,7 +1323,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                                     type="number"
                                     placeholder={t('hostsDialog.wireguard.keepalivePlaceholder')}
                                     min={0}
-                                    max={86400}
+                                    max={65535}
                                     {...field}
                                     value={field.value ?? ''}
                                     onChange={e => {
