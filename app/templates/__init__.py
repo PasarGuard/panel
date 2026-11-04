@@ -27,11 +27,13 @@ def render_template(template: str, context: dict | None = None) -> str:
     return env.get_template(template).render(context or {})
 
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=16)
 def _compile_sandboxed(template_content: str):
     # from_string() never caches, and a large client template takes far longer to compile than to render.
+    # A compiled template can hold large folded constants, so the cache stays small.
     return sandbox_env.from_string(template_content)
 
 
-def render_template_string(template_content: str, context: dict | None = None) -> str:
-    return _compile_sandboxed(template_content).render(context or {})
+def render_template_string(template_content: str, context: dict | None = None, *, cache: bool = True) -> str:
+    template = _compile_sandboxed(template_content) if cache else sandbox_env.from_string(template_content)
+    return template.render(context or {})

@@ -56,11 +56,12 @@ class ClientTemplateOperation(BaseOperation):
                         "conf": {"proxies": [], "proxy-groups": [], "rules": []},
                         "proxy_remarks": [],
                     },
+                    cache=False,
                 )
                 yaml.safe_load(rendered)
                 return
 
-            rendered = render_template_string(content)
+            rendered = render_template_string(content, cache=False)
             parsed = json.loads(rendered)
             if template_type in (ClientTemplateType.user_agent, ClientTemplateType.grpc_user_agent):
                 if not isinstance(parsed, dict):

@@ -26,3 +26,9 @@ def test_sandbox_still_applies_to_cached_template():
     for _ in range(2):
         with pytest.raises(SecurityError):
             render_template_string(template, {"name": "a"})
+
+
+def test_uncached_render_does_not_retain_the_template():
+    _compile_sandboxed.cache_clear()
+    assert render_template_string("{{ name }}", {"name": "a"}, cache=False) == "a"
+    assert _compile_sandboxed.cache_info().currsize == 0
