@@ -4,14 +4,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.db.base import build_engine_options
-from config import database_settings
+from config import DatabaseSettings
 
 SECRET = "never-log-this-password-7f3a"
 
 
 @pytest.mark.asyncio
 async def test_a_failed_statement_does_not_carry_its_bind_values_into_the_error():
-    options = build_engine_options(database_settings)
+    options = build_engine_options(DatabaseSettings(SQLALCHEMY_DATABASE_URL="sqlite+aiosqlite:///:memory:"))
     options.pop("connect_args", None)
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", **options)
     try:

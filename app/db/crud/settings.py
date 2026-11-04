@@ -14,7 +14,7 @@ async def get_settings(db: AsyncSession) -> Settings | None:
         db (AsyncSession): Database session.
 
     Returns:
-        Settings | None: Settings information, or None when the row has never been created.
+        Settings | None: Settings information.
     """
     return (await db.execute(select(Settings))).scalar_one_or_none()
 
