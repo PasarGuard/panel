@@ -1,4 +1,5 @@
 from datetime import UTC, datetime as dt
+from functools import lru_cache
 
 from jinja2 import Environment, FileSystemLoader
 from jinja2.sandbox import SandboxedEnvironment
@@ -26,5 +27,11 @@ def render_template(template: str, context: dict | None = None) -> str:
     return env.get_template(template).render(context or {})
 
 
+@lru_cache(maxsize=64)
+def _compile_sandboxed(template_content: str):
+    # from_string() never caches, and a large client template takes far longer to compile than to render.
+    return sandbox_env.from_string(template_content)
+
+
 def render_template_string(template_content: str, context: dict | None = None) -> str:
-    return sandbox_env.from_string(template_content).render(context or {})
+    return _compile_sandboxed(template_content).render(context or {})
