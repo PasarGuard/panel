@@ -2,13 +2,15 @@ from copy import deepcopy
 from enum import Enum
 from ipaddress import ip_address, ip_network
 from string import Formatter
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import (
     AliasChoices,
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
+    TypeAdapter,
     ValidationError,
     field_serializer,
     field_validator,
@@ -860,13 +862,16 @@ def validate_format_variables(value: str, allow_quoting: bool = True) -> str:
     return value
 
 
+WIREGUARD_MAX_KEEPALIVE_SECONDS = 65535
+
+
 class WireGuardHostOverrides(BaseModel):
     """Optional per-host values merged into WireGuard subscription output."""
 
     allowed_ips: list[str] | None = None
     mtu: int | None = Field(default=None, ge=576, le=9000)
     reserved: str | None = Field(default=None, max_length=64)
-    keepalive_seconds: int | None = Field(default=None, ge=0, le=86400)
+    keepalive_seconds: int | None = Field(default=None, ge=0, le=WIREGUARD_MAX_KEEPALIVE_SECONDS)
     dns: list[str] | None = Field(default=None)
 
     @field_validator("reserved", mode="before")
@@ -889,6 +894,26 @@ class WireGuardHostOverrides(BaseModel):
                 continue
             normalized.append(str(ip_network(cidr.strip(), strict=False)))
         return normalized or None
+
+
+_STORED_KEEPALIVE = TypeAdapter(int)
+
+
+def _clamp_stored_wireguard_keepalive(value):
+    if not isinstance(value, dict):
+        return value
+    try:
+        keepalive = _STORED_KEEPALIVE.validate_python(value.get("keepalive_seconds"))
+    except ValidationError:
+        return value
+    if keepalive > WIREGUARD_MAX_KEEPALIVE_SECONDS:
+        return {**value, "keepalive_seconds": WIREGUARD_MAX_KEEPALIVE_SECONDS}
+    return value
+
+
+StoredWireGuardHostOverrides = Annotated[
+    WireGuardHostOverrides | None, BeforeValidator(_clamp_stored_wireguard_keepalive)
+]
 
 
 class SubscriptionTemplates(BaseModel):
@@ -929,7 +954,7 @@ class BaseHost(BaseModel):
     ech: ECHSettings | None = Field(default=None)
     pinned_peer_cert_sha256: str | None = Field(default=None)
     verify_peer_cert_by_name: set[str] | None = Field(default_factory=set)
-    wireguard_overrides: WireGuardHostOverrides | None = Field(None)
+    wireguard_overrides: StoredWireGuardHostOverrides = Field(None)
     subscription_templates: SubscriptionTemplates | None = Field(None)
     final_mask_settings: FinalMask | None = Field(None)
     cipher_suites: str | None = Field(None)
@@ -957,6 +982,8 @@ class BaseHost(BaseModel):
 
 
 class CreateHost(BaseHost):
+    wireguard_overrides: WireGuardHostOverrides | None = Field(None)
+
     @field_validator("remark", mode="after")
     def validate_remark(cls, v):
         if not v:

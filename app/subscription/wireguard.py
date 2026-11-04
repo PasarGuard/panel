@@ -3,6 +3,7 @@ import re
 import unicodedata
 import zipfile
 
+from app.models.host import WIREGUARD_MAX_KEEPALIVE_SECONDS
 from app.models.subscription import SubscriptionInboundData
 
 from .base import BaseSubscription
@@ -66,8 +67,9 @@ class WireGuardConfiguration(BaseSubscription):
         # Optional Peer settings
         if preshared_key := payload.get("presharedkey"):
             config_data["Peer"]["PresharedKey"] = preshared_key
-        if keepalive := payload.get("keepalive"):
-            config_data["Peer"]["PersistentKeepalive"] = str(keepalive)
+        keepalive = payload.get("keepalive")
+        if isinstance(keepalive, int) and not isinstance(keepalive, bool) and keepalive > 0:
+            config_data["Peer"]["PersistentKeepalive"] = str(min(keepalive, WIREGUARD_MAX_KEEPALIVE_SECONDS))
 
         config_content = self._render_config(config_data)
         self.configs.append((components["remark"], config_content))
