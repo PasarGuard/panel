@@ -83,11 +83,10 @@ export const useNodeListColumns = ({
         cell: node => {
           const coreVersion = node.core_version ?? node.xray_version
           const resolvedCoreType = coresData?.cores?.find(c => c.id === node.core_config_id)?.type ?? null
-          const isWireGuardCore = resolvedCoreType === 'wg'
           const isXrayBackend = isXrayCoreType(resolvedCoreType)
           const coreUpdateVersion = node.xray_version ?? coreVersion
           const hasCoreUpdate = !!(isXrayBackend && coreUpdateVersion && latestXrayVersion && hasXrayUpdate(coreUpdateVersion))
-          const hasNodeVersionUpdate = !isWireGuardCore && !!latestNodeVersion && !!node.node_version && hasNodeUpdate(node.node_version)
+          const hasNodeVersionUpdate = !!latestNodeVersion && !!node.node_version && hasNodeUpdate(node.node_version)
 
           if (!coreVersion && !node.node_version) return null
 
@@ -145,7 +144,7 @@ export const useNodeListColumns = ({
                             <span>{t('version.currentVersion', { defaultValue: 'Current' })}</span>
                             <span className="font-mono font-medium">{node.node_version}</span>
                           </div>
-                          {!isWireGuardCore && latestNodeVersion && (
+                          {latestNodeVersion && (
                             <div className="flex items-center justify-between gap-4">
                               <span>{t('version.latestVersion', { defaultValue: 'Latest' })}</span>
                               <span className="font-mono font-medium">{latestNodeVersion}</span>

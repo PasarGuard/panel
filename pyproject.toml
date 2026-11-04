@@ -1,6 +1,6 @@
 [project]
 name = "PasarGuard"
-version = "5.5.1"
+version = "5.6.0"
 description = "Unified GUI Censorship Resistant Solution"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -22,7 +22,7 @@ dependencies = [
     "pydantic>=2.13.5",
     "pydantic-settings>=2.16.2",
     "python-dateutil>=3.0.0",
-    "python-multipart>=0.0.32",
+    "python-multipart>=0.0.33",
     "qrcode>=8.1",
     "rich>=15.0.0",
     "uvicorn==0.54.0",

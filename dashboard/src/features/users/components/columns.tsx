@@ -222,7 +222,11 @@ export const setupColumns = ({
       {t(`usersView.fields.${field.id}`)}
       {filters.sort.replace(/^-/, '') === field.sort && <ChevronDown className={`h-3.5 w-3.5 ${filters.sort === field.sort ? 'rotate-180' : ''}`} />}
     </button> : <span className="normal-case">{t(`usersView.fields.${field.id}`)}</span>,
-    cell: ({ row }) => <UserFieldValue user={row.original} field={field.id} groupNames={groupNames} />,
+    cell: ({ row }) => (
+      <div className="max-w-64 truncate">
+        <UserFieldValue user={row.original} field={field.id} groupNames={groupNames} />
+      </div>
+    ),
   })),
   {
     id: 'details',
