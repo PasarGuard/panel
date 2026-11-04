@@ -772,6 +772,21 @@ export interface MasqueHostSettings {
   xmux?: XMuxSettings | null;
 }
 
+export type MtprotoHostSettingsLinkType = typeof MtprotoHostSettingsLinkType[keyof typeof MtprotoHostSettingsLinkType];
+
+
+export const MtprotoHostSettingsLinkType = {
+  auto: 'auto',
+  tls: 'tls',
+  secure: 'secure',
+  classic: 'classic',
+  web: 'web',
+} as const;
+
+export interface MtprotoHostSettings {
+  link_type?: MtprotoHostSettingsLinkType;
+}
+
 export interface XDriveHostSettings {
   xmux?: XMuxSettings | null;
 }
@@ -783,6 +798,7 @@ export interface TransportSettings {
   tcp_settings?: TcpSettings | null;
   websocket_settings?: WebSocketSettings | null;
   masque_settings?: MasqueHostSettings | null;
+  mtproto_settings?: MtprotoHostSettings | null;
   xdrive_settings?: XDriveHostSettings | null;
 }
 
@@ -1799,6 +1815,21 @@ export interface ModifyUserByTemplate {
   note?: string | null;
 }
 
+export interface MtprotoSettings {
+  secret?: string | null;
+  user_ad_tag?: string;
+  /**
+     * @minimum 0
+     * @maximum 4294967295
+     */
+  max_tcp_conns?: number;
+  /**
+     * @minimum 0
+     * @maximum 4294967295
+     */
+  max_unique_ips?: number;
+}
+
 export interface NextPlanModel {
   user_template_id?: number | null;
   data_limit?: number | null;
@@ -2156,6 +2187,7 @@ export interface ProxyTable {
   wireguard?: WireGuardSettings;
   hysteria?: HysteriaSettings;
   masque?: MasqueSettings;
+  mtproto?: MtprotoSettings;
 }
 
 export interface RealityScanRequest {

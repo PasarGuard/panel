@@ -232,7 +232,7 @@
                 text-overflow: ellipsis;
             }
 
-            .copy-button, .qr-button {
+            .copy-button, .qr-button, .open-button {
                 background: hsl(var(--primary));
                 color: hsl(var(--primary-foreground));
                 border: none;
@@ -244,8 +244,15 @@
                 transition: background-color 0.2s;
             }
 
-            .copy-button:hover, .qr-button:hover {
+            .copy-button:hover, .qr-button:hover, .open-button:hover {
                 background: hsl(var(--primary) / 0.9);
+            }
+
+            .open-button {
+                line-height: normal;
+                text-align: center;
+                text-decoration: none;
+                white-space: nowrap;
             }
 
             .copy-all-button {
@@ -479,7 +486,7 @@
                     padding: 6px;
                 }
 
-                .copy-button, .qr-button {
+                .copy-button, .qr-button, .open-button {
                     width: 100%;
                     padding: 8px 12px;
                     font-size: 0.8rem;
@@ -610,6 +617,9 @@
                     <button class="qr-button" data-link="{{ link }}">
                         QR Code
                     </button>
+                    {% if link.startswith(("tg://proxy?", "tg://webproxy?")) %}
+                    <a class="open-button" href="{{ link }}">Open in Telegram</a>
+                    {% endif %}
                 </div>
                 {% endfor %}
                 <button

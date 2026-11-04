@@ -1,3 +1,5 @@
+import re
+
 from PasarGuardNodeBridge import create_proxy, create_user
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 from sqlalchemy import and_, func, or_, select
@@ -17,6 +19,40 @@ from app.db.models import (
 from app.models.protocol import ProxyProtocol
 
 _ALL_PROXY_PROTOCOLS = frozenset(ProxyProtocol)
+_MTPROTO_HEX32_RE = re.compile(r"[0-9a-fA-F]{32}")
+_UINT32_MAX = 4294967295
+
+
+def _mtproto_hex32(value: object) -> str | None:
+    if isinstance(value, str) and _MTPROTO_HEX32_RE.fullmatch(value):
+        return value.lower()
+    return None
+
+
+def _mtproto_limit(value: object) -> int:
+    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= _UINT32_MAX:
+        return value
+    return 0
+
+
+def _mtproto_proxy_kwargs(settings: object) -> dict[str, object]:
+    """Bridge kwargs for a user's stored MTProto settings, or ``{}`` without a valid secret.
+
+    The node skips (and logs) an MTProto user without a valid secret, so such a
+    user is sent without ``proxies.mtproto``. Invalid policy fields fall back to
+    their "unset" values instead of failing the whole user.
+    """
+    if not isinstance(settings, dict):
+        return {}
+    secret = _mtproto_hex32(settings.get("secret"))
+    if secret is None:
+        return {}
+    return {
+        "mtproto_secret": secret,
+        "mtproto_user_ad_tag": _mtproto_hex32(settings.get("user_ad_tag")),
+        "mtproto_max_tcp_conns": _mtproto_limit(settings.get("max_tcp_conns")),
+        "mtproto_max_unique_ips": _mtproto_limit(settings.get("max_unique_ips")),
+    }
 
 
 def _inbounds_from_loaded_groups(user: User) -> list[str] | None:
@@ -97,6 +133,8 @@ def _serialize_user_for_node(
         proxy_kwargs["hysteria_auth"] = user_settings.get("hysteria", {}).get("auth")
     if ProxyProtocol.masque in allowed_protocols:
         proxy_kwargs["masque_pass"] = user_settings.get("masque", {}).get("password")
+    if ProxyProtocol.mtproto in allowed_protocols:
+        proxy_kwargs.update(_mtproto_proxy_kwargs(user_settings.get("mtproto")))
 
     return create_user(
         str(id),
