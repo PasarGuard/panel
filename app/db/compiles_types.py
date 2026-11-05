@@ -24,7 +24,7 @@ class WebAuthnBinary(TypeDecorator):
         super().__init__(length=length)
 
     def load_dialect_impl(self, dialect):
-        if dialect.name == "mysql":
+        if dialect.name in ("mysql", "mariadb"):
             blob_type = mysql.TINYBLOB() if self.length <= 255 else mysql.BLOB()
             return dialect.type_descriptor(blob_type)
         return dialect.type_descriptor(LargeBinary(self.length))
@@ -41,7 +41,7 @@ class WebAuthnCredentialId(TypeDecorator):
         super().__init__(length=length)
 
     def load_dialect_impl(self, dialect):
-        if dialect.name == "mysql":
+        if dialect.name in ("mysql", "mariadb"):
             return dialect.type_descriptor(mysql.VARBINARY(self.length))
         return dialect.type_descriptor(LargeBinary(self.length))
 
@@ -57,7 +57,7 @@ class WebAuthnChallenge(TypeDecorator):
         super().__init__(length=length)
 
     def load_dialect_impl(self, dialect):
-        if dialect.name == "mysql":
+        if dialect.name in ("mysql", "mariadb"):
             return dialect.type_descriptor(mysql.VARBINARY(self.length))
         return dialect.type_descriptor(LargeBinary(self.length))
 
@@ -78,7 +78,7 @@ def compile_cs_postgresql(element, compiler, **kw):
     return f'VARCHAR({element.length}) COLLATE "C"'  # "C" collation is case-sensitive
 
 
-@compiles(CaseSensitiveString, "mysql")
+@compiles(CaseSensitiveString, "mysql", "mariadb")
 def compile_cs_mysql(element, compiler, **kw):
     return f"VARCHAR({element.length}) COLLATE utf8mb4_bin"  # utf8mb4_bin is case-sensitive
 
@@ -146,7 +146,7 @@ def compile_days_diff_postgresql(element, compiler, **kw):
     return f"EXTRACT(EPOCH FROM ({col} - CURRENT_TIMESTAMP)) / 86400"
 
 
-@compiles(DaysDiff, "mysql")
+@compiles(DaysDiff, "mysql", "mariadb")
 def compile_days_diff_mysql(element, compiler, **kw):
     col = compiler.process(element.column)
     return f"DATEDIFF({col}, UTC_TIMESTAMP())"
@@ -174,7 +174,7 @@ def compile_date_diff_postgresql(element, compiler, **kw):
     return f"EXTRACT(EPOCH FROM ({compiler.process(element.date1)} - {compiler.process(element.date2)})) / 86400"
 
 
-@compiles(DateDiff, "mysql")
+@compiles(DateDiff, "mysql", "mariadb")
 def compile_date_diff_mysql(element, compiler, **kw):
     # Elapsed days like the other dialects: DATEDIFF() counts calendar dates, so 10 seconds across midnight would be
     # a whole day and a reset cycle could end minutes after it started
@@ -205,7 +205,7 @@ def compile_elapsed_seconds_postgresql(element, compiler, **kw):
     return f"EXTRACT(EPOCH FROM ({compiler.process(date1, **kw)} - {compiler.process(date2, **kw)}))"
 
 
-@compiles(ElapsedSeconds, "mysql")
+@compiles(ElapsedSeconds, "mysql", "mariadb")
 def compile_elapsed_seconds_mysql(element, compiler, **kw):
     """Compile an exact timestamp difference for MySQL."""
     date1, date2 = element.clauses.clauses
