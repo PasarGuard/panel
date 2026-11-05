@@ -1,6 +1,5 @@
 import json
 
-import yaml
 from sqlalchemy.exc import IntegrityError
 
 from app.db import AsyncSession
@@ -16,6 +15,7 @@ from app.db.crud.client_template import (
     remove_client_templates,
     set_default_template,
 )
+from app.db.crud.settings import get_settings
 from app.models.admin import AdminDetails
 from app.models.client_template import (
     BulkClientTemplateSelection,
@@ -33,6 +33,12 @@ from app.models.client_template import (
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.subscription.client_templates import refresh_client_templates_cache
+from app.subscription.template_directives import (
+    validate_clash_template_directives,
+    validate_singbox_template_directives,
+    validate_xray_template_directive,
+    yaml_safe_load,
+)
 from app.templates import render_template_string
 from app.utils.logger import get_logger
 
@@ -57,7 +63,7 @@ class ClientTemplateOperation(BaseOperation):
                         "proxy_remarks": [],
                     },
                 )
-                yaml.safe_load(rendered)
+                validate_clash_template_directives(yaml_safe_load(rendered))
                 return
 
             rendered = render_template_string(content)
@@ -84,8 +90,32 @@ class ClientTemplateOperation(BaseOperation):
                     )
                 if not out:
                     raise ValueError("Subscription template content must contain at least one outbound proxy")
+                if template_type == ClientTemplateType.xray_subscription:
+                    validate_xray_template_directive(parsed)
+                else:
+                    validate_singbox_template_directives(parsed)
         except Exception as exc:
             await self.raise_error(message=f"Invalid template content: {exc!s}", code=400)
+
+    async def _ensure_not_used_by_rules(self, db: AsyncSession, db_templates: list) -> None:
+        """Refuse to delete templates that subscription rules point to."""
+        db_settings = await get_settings(db)
+        rules = ((db_settings.subscription if db_settings else None) or {}).get("rules") or []
+        for db_template in db_templates:
+            # Rule numbers only: the patterns are subscription settings, which this admin may not be allowed to read.
+            numbers = [
+                f"#{number}"
+                for number, rule in enumerate(rules, start=1)
+                if isinstance(rule, dict) and rule.get("template_id") == db_template.id
+            ]
+            if numbers:
+                await self.raise_error(
+                    message=(
+                        f'Client template "{db_template.name}" is used by subscription rules {", ".join(numbers)}.'
+                        " Remove it from those rules first."
+                    ),
+                    code=409,
+                )
 
     async def create_client_template(
         self,
@@ -161,6 +191,7 @@ class ClientTemplateOperation(BaseOperation):
 
         if db_template.is_system:
             await self.raise_error(message="Cannot delete system template", code=403)
+        await self._ensure_not_used_by_rules(db, [db_template])
 
         template_count = await count_client_templates_by_type(db, template_type)
         if template_count <= 1:
@@ -210,6 +241,8 @@ class ClientTemplateOperation(BaseOperation):
             if template_type not in templates_by_type:
                 templates_by_type[template_type] = []
             templates_by_type[template_type].append(db_template)
+
+        await self._ensure_not_used_by_rules(db, db_templates)
 
         # Validate we won't leave any type without templates
         for template_type, templates_of_type in templates_by_type.items():

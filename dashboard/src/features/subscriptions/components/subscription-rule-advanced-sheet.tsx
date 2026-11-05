@@ -1,13 +1,17 @@
-import { withCustomVariableDefaults, type SubscriptionSettingsForm } from './subscription-settings-schema'
+import { getRuleTemplateType, withCustomVariableDefaults, type SubscriptionSettingsForm } from './subscription-settings-schema'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { CustomVariablesPopover, VariablesList } from '@/components/ui/variables-popover'
+import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { useGetClientTemplatesSimple } from '@/service/api'
+import { hasPermission } from '@/utils/rbac'
 import { Info, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,6 +21,16 @@ export interface SubscriptionRuleAdvancedSheetProps {
   rowId: string
   open: boolean
   onOpenChange: (open: boolean) => void
+}
+
+const DEFAULT_TEMPLATE_VALUE = 'default'
+
+// All client templates, shared by every rule row (one cached request). Needs client_templates.read_simple.
+export function useRuleTemplates() {
+  const { admin } = useAdmin()
+  const canRead = hasPermission(admin, 'client_templates', 'read_simple')
+  const { data, isLoading, isError } = useGetClientTemplatesSimple({ all: true }, { query: { enabled: canRead } })
+  return { templates: data?.templates ?? [], isLoading: canRead && isLoading, isUnavailable: !canRead || isError }
 }
 
 export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, onOpenChange }: SubscriptionRuleAdvancedSheetProps) {
@@ -30,6 +44,12 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
   const responseHeaders = (form.watch(`rules.${ruleIndex}.response_headers`) || {}) as Record<string, string>
   const responseHeaderEntries = Object.entries(responseHeaders)
   const responseHeaderCount = responseHeaderEntries.length
+
+  const target = form.watch(`rules.${ruleIndex}.target`)
+  const templateType = getRuleTemplateType(target)
+  const templateId = form.watch(`rules.${ruleIndex}.template_id`) ?? null
+  const { templates, isLoading: isLoadingTemplates, isUnavailable: templatesUnavailable } = useRuleTemplates()
+  const matchingTemplates = templates.filter(template => template.template_type === templateType)
 
   const addResponseHeader = () => {
     const nextKey = `x-header-${Object.keys(responseHeaders).length + 1}`
@@ -70,10 +90,40 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
       <SheetContent side={dir === 'rtl' ? 'left' : 'right'} className={cn('flex h-full max-h-screen w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg')} onOpenAutoFocus={e => e.preventDefault()}>
         <SheetHeader className="flex flex-shrink-0 flex-col space-y-1 border-b px-6 pe-14 pt-6 pb-4 text-start">
           <SheetTitle>{t('settings.subscriptions.rules.advancedTitle')}</SheetTitle>
-          <SheetDescription>{t('settings.subscriptions.rules.advancedDescription')}</SheetDescription>
+          <SheetDescription>{t(templateType !== null ? 'settings.subscriptions.rules.advancedDescriptionWithTemplate' : 'settings.subscriptions.rules.advancedDescription')}</SheetDescription>
         </SheetHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
+          {templateType !== null && (
+            <div className="space-y-2">
+              <div>
+                <p className="text-foreground text-sm font-medium">{t('settings.subscriptions.rules.template')}</p>
+                <p className="text-muted-foreground mt-0.5 text-sm">{t('settings.subscriptions.rules.templateDescription')}</p>
+              </div>
+              <Select
+                value={templateId !== null ? String(templateId) : DEFAULT_TEMPLATE_VALUE}
+                onValueChange={value => form.setValue(`rules.${ruleIndex}.template_id`, value === DEFAULT_TEMPLATE_VALUE ? null : Number(value), { shouldDirty: true })}
+                disabled={isLoadingTemplates}
+              >
+                <SelectTrigger aria-label={t('settings.subscriptions.rules.template')}>
+                  <SelectValue placeholder={isLoadingTemplates ? t('loading', { defaultValue: 'Loading...' }) : undefined} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={DEFAULT_TEMPLATE_VALUE}>{t('settings.subscriptions.rules.defaultTemplate')}</SelectItem>
+                  {matchingTemplates.map(template => (
+                    <SelectItem key={template.id} value={String(template.id)}>
+                      {template.is_default ? `${template.name} (${t('clientTemplates.default', { defaultValue: 'Default' })})` : template.name}
+                    </SelectItem>
+                  ))}
+                  {templateId !== null && !isLoadingTemplates && !matchingTemplates.some(template => template.id === templateId) && (
+                    <SelectItem value={String(templateId)}>{`#${templateId}`}</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              {templatesUnavailable && <p className="text-muted-foreground text-xs">{t('settings.subscriptions.rules.templatesUnavailable')}</p>}
+            </div>
+          )}
+
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">

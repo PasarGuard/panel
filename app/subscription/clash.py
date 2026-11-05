@@ -1,5 +1,6 @@
 from random import choice
 
+import yaml
 from pydantic import BaseModel
 
 from app.models.subscription import (
@@ -11,8 +12,19 @@ from app.models.subscription import (
     XHTTPTransportConfig,
 )
 from app.templates import render_template_string
+from app.templates.filters import to_yaml
 
 from . import BaseSubscription
+from .template_directives import (
+    DIRECTIVE_KEY,
+    HostCandidate,
+    merge_group_members,
+    parse_group_directive,
+    yaml_safe_load,
+)
+
+# Group keys that give a proxy group members besides its "proxies" list.
+CLASH_GROUP_MEMBER_SOURCES = ("use", "include-all", "include-all-proxies", "include-all-providers")
 
 
 class ClashConfiguration(BaseSubscription):
@@ -33,6 +45,8 @@ class ClashConfiguration(BaseSubscription):
             # Some clients rely on "rules" option and will fail without it.
             "rules": [],
         }
+        # (proxy name, host) for every proxy added, in order
+        self._proxy_hosts: list[tuple[str, HostCandidate]] = []
 
         # Registry for transport config builders
         self.transport_handlers = {
@@ -57,10 +71,39 @@ class ClashConfiguration(BaseSubscription):
         }
 
     def render(self):
-        return render_template_string(
+        rendered = render_template_string(
             self.clash_template_content,
             {"conf": self.data, "proxy_remarks": self.proxy_remarks},
         )
+        return self._apply_group_directives(rendered)
+
+    def _apply_group_directives(self, rendered: str) -> str:
+        """Fill proxy groups that carry a pasarguard directive; output without one is returned untouched."""
+        # The directive is written in the template; a remark or SNI containing the word must not trigger a parse.
+        if DIRECTIVE_KEY not in (self.clash_template_content or "") or DIRECTIVE_KEY not in rendered:
+            return rendered
+        try:
+            data = yaml_safe_load(rendered)
+        except yaml.YAMLError:
+            return rendered
+        groups = data.get("proxy-groups") if isinstance(data, dict) else None
+        if not isinstance(groups, list) or not any(
+            isinstance(group, dict) and DIRECTIVE_KEY in group for group in groups
+        ):
+            return rendered
+
+        for group in groups:
+            if not isinstance(group, dict) or DIRECTIVE_KEY not in group:
+                continue
+            directive = parse_group_directive(group.pop(DIRECTIVE_KEY), f"clash proxy group {group.get('name')!r}")
+            if directive.include_proxies:
+                selected = [name for name, host in self._proxy_hosts if directive.select.matches(host)]
+                group["proxies"] = merge_group_members(group.get("proxies"), selected)
+            if not group.get("proxies") and not any(group.get(key) for key in CLASH_GROUP_MEMBER_SOURCES):
+                # mihomo rejects the whole config over a group without members: fall back to all of the user's
+                # servers so the group's traffic never leaves the VPN, and to REJECT when there are none.
+                group["proxies"] = [name for name, _ in self._proxy_hosts] or ["REJECT"]
+        return to_yaml(data)
 
     def __str__(self) -> str:
         return self.render()
@@ -571,7 +614,14 @@ class ClashConfiguration(BaseSubscription):
                 return 0
         return port
 
-    def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
+    def add(
+        self,
+        remark: str,
+        address: str,
+        inbound: SubscriptionInboundData,
+        settings: dict,
+        host_id: int | None = None,
+    ):
         # not supported by clash
         if inbound.network in ("kcp", "splithttp", "xhttp"):
             return
@@ -587,6 +637,7 @@ class ClashConfiguration(BaseSubscription):
         if node:
             self.data["proxies"].append(node)
             self.proxy_remarks.append(proxy_remark)
+            self._proxy_hosts.append((proxy_remark, HostCandidate(host_id, inbound.inbound_tag, remark)))
 
 
 class ClashMetaConfiguration(ClashConfiguration):
@@ -758,7 +809,14 @@ class ClashMetaConfiguration(ClashConfiguration):
 
         return reserved
 
-    def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
+    def add(
+        self,
+        remark: str,
+        address: str,
+        inbound: SubscriptionInboundData,
+        settings: dict,
+        host_id: int | None = None,
+    ):
         # not supported by clash-meta
         if inbound.network == "kcp":
             return
@@ -784,3 +842,4 @@ class ClashMetaConfiguration(ClashConfiguration):
         if node:
             self.data["proxies"].append(node)
             self.proxy_remarks.append(proxy_remark)
+            self._proxy_hosts.append((proxy_remark, HostCandidate(host_id, inbound.inbound_tag, remark)))

@@ -27,6 +27,7 @@ def make_sub_config_key(
     config_format: str,
     as_base64: bool,
     randomize_order: bool,
+    template_id: int | None = None,
 ) -> tuple:
     expire = getattr(user, "expire", None)
     expire_key = expire.timestamp() if hasattr(expire, "timestamp") else expire
@@ -50,6 +51,8 @@ def make_sub_config_key(
         expire_key,
         tuple(inbounds),
         proxy_key,
+        # Two clients of one user matched by rules with different templates get different output
+        template_id,
     )
 
 
