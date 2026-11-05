@@ -138,10 +138,11 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
 
   // Per-node split for the details modal; only loaded while it is open, and pointless when one node is selected
   const showNodeSplit = modalOpen && nodeId === undefined
-  const { data: byNodeData, isLoading: isByNodeLoading } = useGetOutboundUsage(
-    { period, start: queryRange.startDate, end: queryRange.endDate, group_by_node: true },
-    { query: { enabled: showNodeSplit } },
-  )
+  const {
+    data: byNodeData,
+    isLoading: isByNodeLoading,
+    isError: isByNodeError,
+  } = useGetOutboundUsage({ period, start: queryRange.startDate, end: queryRange.endDate, group_by_node: true }, { query: { enabled: showNodeSplit, refetchInterval: OUTBOUND_REFRESH_MS } })
   const { data: nodesResponse } = useGetNodesSimple({ all: true }, { query: { enabled: showNodeSplit } })
 
   // Series keys are not the tags themselves: recharts reads a dotted dataKey as a nested path
@@ -226,6 +227,9 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
   const renderNodeSplit = useCallback(
     (key: string) => {
       if (isByNodeLoading) return <Skeleton className="mt-2 h-4 w-full" />
+      if (isByNodeError && !byNodeData) {
+        return <div className="text-destructive mt-2 border-t pt-2 text-xs">{t('statistics.outboundNodeSplitError', { defaultValue: 'Could not load the per-node split' })}</div>
+      }
       const byNode = modalBucket ? nodeSplitByBucket.get(modalBucket)?.get(key) : undefined
       if (!byNode?.size) return null
       const seriesTotal = [...byNode.values()].reduce((sum, bytes) => sum + bytes, 0)
@@ -247,7 +251,7 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
         </div>
       )
     },
-    [isByNodeLoading, modalBucket, nodeSplitByBucket, nodeNames],
+    [isByNodeLoading, isByNodeError, byNodeData, modalBucket, nodeSplitByBucket, nodeNames, t],
   )
 
   const openPeriodTotal = useCallback(() => {

@@ -3812,6 +3812,7 @@
   "statistics.outboundStats": "آمار خروجی‌ها",
   "statistics.outboundTrafficDistribution": "توزیع ترافیک خروجی‌ها",
   "statistics.outboundStatsDescription": "آمار دقیق ترافیک هر تگ خروجی در این بازه زمانی. روی میله‌های نمودار کلیک کنید تا جزئیات بیشتری ببینید.",
+  "statistics.outboundNodeSplitError": "تفکیک بر اساس نود بارگذاری نشد",
   "statistics.adminStats": "آمار مدیران",
   "statistics.adminTrafficDistribution": "توزیع ترافیک مدیران",
   "statistics.adminStatsDescription": "آمار دقیق ترافیک هر مدیر در این بازه زمانی. روی میله‌های نمودار کلیک کنید تا جزئیات بیشتری ببینید.",

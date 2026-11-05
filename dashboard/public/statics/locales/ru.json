@@ -3772,6 +3772,7 @@
   "statistics.outboundStats": "Статистика исходящих",
   "statistics.outboundTrafficDistribution": "Распределение трафика по исходящим",
   "statistics.outboundStatsDescription": "Подробная статистика трафика по каждому тегу исходящего подключения за этот период. Нажмите на столбцы диаграммы, чтобы увидеть подробности.",
+  "statistics.outboundNodeSplitError": "Не удалось загрузить разбивку по нодам",
   "statistics.adminStats": "Статистика администраторов",
   "statistics.adminTrafficDistribution": "Распределение трафика администраторов",
   "statistics.adminStatsDescription": "Подробная статистика трафика для каждого администратора в этот период времени. Нажмите на столбцы диаграммы, чтобы просмотреть дополнительные детали.",

@@ -3868,6 +3868,7 @@
   "statistics.outboundStats": "Outbound Statistics",
   "statistics.outboundTrafficDistribution": "Outbound Traffic Distribution",
   "statistics.outboundStatsDescription": "Detailed traffic statistics for each outbound tag at this time period. Click on bars in the chart to view more details.",
+  "statistics.outboundNodeSplitError": "Could not load the per-node split",
   "statistics.adminStats": "Admin Statistics",
   "statistics.adminTrafficDistribution": "Admin Traffic Distribution",
   "statistics.adminStatsDescription": "Detailed traffic statistics for each admin at this time period. Click on bars in the chart to view more details.",
