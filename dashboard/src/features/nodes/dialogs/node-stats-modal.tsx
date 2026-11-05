@@ -119,7 +119,8 @@ const NodeStatsModal = ({
   const activeNodes = Object.keys(data)
     .filter(key => !key.startsWith('_') && key !== 'time' && key !== '_period_start' && (data[key] || 0) > 0)
     .map(nodeName => ({
-      name: nodeName,
+      // Series keys can differ from what the chart shows (the outbound chart keys by index)
+      name: String(chartConfig?.[nodeName]?.label ?? nodeName),
       usage: data[nodeName] || 0,
       uplink: data[`_uplink_${nodeName}`] || 0,
       downlink: data[`_downlink_${nodeName}`] || 0,
