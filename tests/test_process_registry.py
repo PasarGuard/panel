@@ -15,9 +15,24 @@ from app.nats.process_registry import (
 NOW = 1_000.0
 
 
-def _info(instance_id: str, role: str = "all-in-one", version: str = "5.6.0", expires_at: float = NOW + 10):
+def _info(
+    instance_id: str,
+    role: str = "all-in-one",
+    version: str = "5.6.0",
+    expires_at: float = NOW + 10,
+    group: str = "box",
+    workers: int = 1,
+    started_at: float = NOW - 100,
+):
     return ProcessInfo(
-        instance_id=instance_id, role=role, version=version, host=f"host-{instance_id}", expires_at=expires_at
+        instance_id=instance_id,
+        role=role,
+        version=version,
+        host=f"host-{instance_id}",
+        expires_at=expires_at,
+        group=group,
+        workers=workers,
+        started_at=started_at,
     )
 
 
@@ -94,7 +109,16 @@ async def _put(kv: MemoryCasKv, info: ProcessInfo) -> None:
     await kv.create(f"{KEY_PREFIX}{info.instance_id}", json.dumps(info.to_dict()).encode())
 
 
-def _registry(kv, fake: FakeTime, role: str = "all-in-one", version: str = "5.6.0", on_lose=None):
+def _registry(
+    kv,
+    fake: FakeTime,
+    role: str = "all-in-one",
+    version: str = "5.6.0",
+    on_lose=None,
+    group: str = "box",
+    workers: int = 1,
+    started_at: float = NOW - 100,
+):
     async def _default_on_lose(message: str) -> None:
         raise AssertionError(f"unexpected runtime loss: {message}")
 
@@ -104,6 +128,9 @@ def _registry(kv, fake: FakeTime, role: str = "all-in-one", version: str = "5.6.
         version=version,
         host="me-host",
         instance_id="me",
+        group=group,
+        workers=workers,
+        started_at=started_at,
         clock=fake.clock,
         sleep=fake.sleep,
         on_lose=on_lose or _default_on_lose,
@@ -211,3 +238,58 @@ async def test_deregister_removes_entry():
     await registry.deregister()
 
     assert await registry.list_live() == []
+
+
+@pytest.mark.parametrize(
+    ("me_started", "other_started", "self_loses"),
+    [(NOW - 10, NOW - 50, True), (NOW - 50, NOW - 10, False)],
+)
+def test_second_single_worker_all_in_one_container_loses_to_the_older_one(me_started, other_started, self_loses):
+    me = _info("me", group="box-a", started_at=me_started)
+    other = _info("other", group="box-b", started_at=other_started, workers=4)
+    conflicts = find_conflicts(me, [other], NOW)
+    assert [(c.reason, c.self_loses) for c in conflicts] == [("duplicate", self_loses)]
+
+
+def test_all_in_one_containers_that_both_elect_a_leader_are_fine():
+    me = _info("me", group="box-a", workers=2)
+    other = _info("other", group="box-b", workers=4)
+    assert find_conflicts(me, [other], NOW) == []
+
+
+def test_workers_of_one_container_are_siblings_not_duplicates():
+    me = _info("me", group="box-a", workers=1)
+    other = _info("other", group="box-a", workers=1)
+    assert find_conflicts(me, [other], NOW) == []
+
+
+@pytest.mark.asyncio
+async def test_startup_after_crash_waits_out_own_stale_entry():
+    kv = MemoryCasKv()
+    fake = FakeTime(kv)
+    # Entry from this container's previous life: older start, no longer renewed.
+    await _put(kv, _info("previous", group="old-life", started_at=NOW - 500, expires_at=NOW + 4))
+    registry = _registry(kv, fake, group="new-life", started_at=NOW)
+
+    await registry.check_startup()
+
+    assert NOW + 4 <= fake.now <= NOW + LEASE_SECONDS + 5
+    assert f"{KEY_PREFIX}me" in await kv.keys()
+
+
+@pytest.mark.asyncio
+async def test_startup_second_all_in_one_container_raises_while_first_is_alive():
+    kv = MemoryCasKv()
+
+    async def _first_keeps_renewing(fake: FakeTime):
+        info = _info("first", group="box-a", started_at=NOW - 500, expires_at=fake.now + LEASE_SECONDS)
+        await kv.update(f"{KEY_PREFIX}first", json.dumps(info.to_dict()).encode())
+
+    fake = FakeTime(kv, on_sleep=_first_keeps_renewing)
+    await _put(kv, _info("first", group="box-a", started_at=NOW - 500))
+    registry = _registry(kv, fake, group="box-b", started_at=NOW)
+
+    with pytest.raises(RoleConflictError, match="UVICORN_WORKERS"):
+        await registry.check_startup()
+
+    assert await kv.keys() == [f"{KEY_PREFIX}first"]
