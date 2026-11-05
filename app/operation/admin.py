@@ -316,6 +316,8 @@ class AdminOperation(BaseOperation):
 
     async def _reset_admin_usage(self, db: AsyncSession, db_admin: Admin, admin: AdminDetails) -> AdminDetails:
         """Reset an admin's traffic usage and log the action."""
+        if not admin.is_owner and admin.id is not None and db_admin.id == admin.id:
+            await self.raise_error(message="You're not allowed to reset your own usage.", code=403)
         old_status = db_admin.status
         db_admin = await reset_admin_usage(db, db_admin=db_admin)
 
@@ -482,6 +484,8 @@ class AdminOperation(BaseOperation):
     ) -> BulkAdminsActionResponse:
         """Reset usage for selected admins by ID."""
         db_admins = await self._get_validated_bulk_admins(db, bulk_admins.ids, admin)
+        if not admin.is_owner and admin.id is not None and any(db_admin.id == admin.id for db_admin in db_admins):
+            await self.raise_error(message="You're not allowed to reset your own usage.", code=403)
         for db_admin in db_admins:
             old_users_sync_blocked = await admin_users_sync_blocked(db_admin)
             db_admin = await reset_admin_usage(db, db_admin=db_admin)
