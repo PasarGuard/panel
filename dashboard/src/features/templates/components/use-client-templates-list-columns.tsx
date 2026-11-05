@@ -12,6 +12,7 @@ const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   singbox_subscription: 'SingBox',
   user_agent: 'User Agent',
   grpc_user_agent: 'gRPC UA',
+  happ_routing: 'Happ routing',
 }
 
 interface UseClientTemplatesListColumnsProps {

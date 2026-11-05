@@ -55,7 +55,7 @@ async def modify_client_template(
     return await client_template_operator.modify_client_template(db, template_id, modified_template, admin)
 
 
-@router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT, responses={409: responses._409})
 async def remove_client_template(
     template_id: int,
     db: AsyncSession = Depends(get_db),
@@ -86,7 +86,7 @@ async def get_client_templates_simple(
 @router.post(
     "s/bulk/delete",
     response_model=RemoveClientTemplatesResponse,
-    responses={400: responses._400, 403: responses._403, 404: responses._404},
+    responses={400: responses._400, 403: responses._403, 404: responses._404, 409: responses._409},
 )
 async def bulk_delete_client_templates(
     bulk_templates: BulkClientTemplateSelection,

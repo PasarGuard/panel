@@ -16,6 +16,7 @@ from app.db.crud.client_template import (
     remove_client_templates,
     set_default_template,
 )
+from app.db.crud.settings import get_settings
 from app.models.admin import AdminDetails
 from app.models.client_template import (
     BulkClientTemplateSelection,
@@ -30,9 +31,11 @@ from app.models.client_template import (
     ClientTemplateType,
     RemoveClientTemplatesResponse,
 )
+from app.models.settings import Subscription as SubSettings
 from app.nats.message import MessageTopic
 from app.nats.router import router
 from app.subscription.client_templates import refresh_client_templates_cache
+from app.subscription.happ_routing import parse_happ_routing_profile
 from app.templates import render_template_string
 from app.utils.logger import get_logger
 
@@ -49,6 +52,10 @@ class ClientTemplateOperation(BaseOperation):
 
     async def _validate_template_content(self, template_type: ClientTemplateType, content: str) -> None:
         try:
+            if template_type == ClientTemplateType.happ_routing:
+                parse_happ_routing_profile(content)
+                return
+
             if template_type == ClientTemplateType.clash_subscription:
                 rendered = render_template_string(
                     content,
@@ -87,6 +94,33 @@ class ClientTemplateOperation(BaseOperation):
         except Exception as exc:
             await self.raise_error(message=f"Invalid template content: {exc!s}", code=400)
 
+    async def _reject_happ_routing_default(self, template_type: ClientTemplateType, is_default: bool | None) -> None:
+        # Happ routing profiles are only delivered through subscription rules, never as a per-type default
+        if template_type == ClientTemplateType.happ_routing and is_default:
+            await self.raise_error(message="Happ routing templates can't be set as default", code=400)
+
+    async def _check_happ_routing_templates_unused(self, db: AsyncSession, db_templates: list) -> None:
+        """Refuse to delete Happ routing templates that subscription rules still reference."""
+        happ_templates = {t.id: t for t in db_templates if t.template_type == ClientTemplateType.happ_routing.value}
+        if not happ_templates:
+            return
+
+        db_settings = await get_settings(db)
+        if not db_settings or not db_settings.subscription:
+            return
+        rules = SubSettings.model_validate(db_settings.subscription).rules
+
+        for template_id, db_template in happ_templates.items():
+            patterns = [rule.pattern for rule in rules if rule.happ_routing_template_id == template_id]
+            if patterns:
+                await self.raise_error(
+                    message=(
+                        f'Client template "{db_template.name}" is used by subscription rules: '
+                        f"{', '.join(patterns)}. Remove it from those rules first."
+                    ),
+                    code=409,
+                )
+
     async def create_client_template(
         self,
         db: AsyncSession,
@@ -94,6 +128,7 @@ class ClientTemplateOperation(BaseOperation):
         admin: AdminDetails,
     ) -> ClientTemplateResponse:
         await self._validate_template_content(new_template.template_type, new_template.content)
+        await self._reject_happ_routing_default(new_template.template_type, new_template.is_default)
 
         try:
             db_template = await create_client_template(db, new_template)
@@ -137,6 +172,9 @@ class ClientTemplateOperation(BaseOperation):
             await self._validate_template_content(
                 ClientTemplateType(db_template.template_type), modified_template.content
             )
+        await self._reject_happ_routing_default(
+            ClientTemplateType(db_template.template_type), modified_template.is_default
+        )
 
         if modified_template.is_default is False and db_template.is_default:
             await self.raise_error(
@@ -162,9 +200,13 @@ class ClientTemplateOperation(BaseOperation):
         if db_template.is_system:
             await self.raise_error(message="Cannot delete system template", code=403)
 
-        template_count = await count_client_templates_by_type(db, template_type)
-        if template_count <= 1:
-            await self.raise_error(message="Cannot delete the last template for this type", code=403)
+        # Happ routing templates are optional: the last one may be deleted
+        if template_type != ClientTemplateType.happ_routing:
+            template_count = await count_client_templates_by_type(db, template_type)
+            if template_count <= 1:
+                await self.raise_error(message="Cannot delete the last template for this type", code=403)
+
+        await self._check_happ_routing_templates_unused(db, [db_template])
 
         replacement = None
         if db_template.is_default:
@@ -213,11 +255,15 @@ class ClientTemplateOperation(BaseOperation):
 
         # Validate we won't leave any type without templates
         for template_type, templates_of_type in templates_by_type.items():
+            if template_type == ClientTemplateType.happ_routing:
+                continue
             total_count = await count_client_templates_by_type(db, template_type)
             if total_count <= len(templates_of_type):
                 await self.raise_error(
                     message=f"Cannot delete the last template for type {template_type.value}", code=403
                 )
+
+        await self._check_happ_routing_templates_unused(db, db_templates)
 
         # Handle default template replacements
         for template_type, templates_of_type in templates_by_type.items():
