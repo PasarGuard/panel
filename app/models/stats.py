@@ -114,10 +114,14 @@ class NodeUsageStatsList(StatList):
     stats: dict[int, list[NodeUsageStat]]
 
 
-class NodeOutboundUsageStatsList(StatList):
-    """Usage per outbound tag; the key is the tag."""
+class NodeOutboundUsageStat(NodeUsageStat):
+    node_id: int | None = None
 
-    stats: dict[str, list[NodeUsageStat]]
+
+class NodeOutboundUsageStatsList(StatList):
+    """Usage per outbound tag; the key is the tag. With group_by_node each stat also carries its node_id."""
+
+    stats: dict[str, list[NodeOutboundUsageStat]]
 
 
 class NodeRealtimeStats(BaseModel):

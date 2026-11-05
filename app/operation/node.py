@@ -99,8 +99,7 @@ _MAINTENANCE_RPC_TIMEOUT = 340.0
 # The node gives telemt up to 90 s to start and keeps starting after the panel's call times out.
 MTPROTO_START_TIMEOUT = 100
 MTPROTO_UNSUPPORTED_NODE_MESSAGE = (
-    'This node does not support MTProto cores (it answered "invalid backend type"). '
-    "Update your node."
+    'This node does not support MTProto cores (it answered "invalid backend type"). Update your node.'
 )
 MTPROTO_SYNC_PENDING_MESSAGE = "The node is still applying the users and finishes on its own. Check again in a minute."
 _MTPROTO_RETRY_LATER_MARKERS = ("the users are still being applied", "context deadline exceeded")
@@ -852,7 +851,9 @@ class NodeOperation(BaseOperation):
         start, end = await self.validate_dates(
             query.start, query.end, True, period=query.period, granularity=USAGE_RECORD_GRANULARITY
         )
-        return await get_nodes_outbound_usage(db, start, end, period=query.period, node_id=query.node_id)
+        return await get_nodes_outbound_usage(
+            db, start, end, period=query.period, node_id=query.node_id, group_by_node=query.group_by_node
+        )
 
     async def get_user_count_metric(
         self,

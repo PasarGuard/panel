@@ -36,6 +36,7 @@ from app.models.core import CoreCreate
 from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, NodesResponse
 from app.models.proxy import ProxyTable
 from app.models.stats import (
+    NodeOutboundUsageStat,
     NodeOutboundUsageStatsList,
     NodeRealtimeStats,
     NodeStats,
@@ -1454,19 +1455,26 @@ def test_get_outbound_usage_passes_filters(access_token, node_operator_mock):
         start=start,
         end=end,
         period=Period.day,
-        stats={"direct": [NodeUsageStat(uplink=10, downlink=20, period_start=start)]},
+        stats={"direct": [NodeOutboundUsageStat(uplink=10, downlink=20, period_start=start, node_id=5)]},
     )
     node_operator_mock.get_outbound_usage.return_value = usage
     response = client.get(
         "/api/node/usage/outbounds",
         headers=auth_headers(access_token),
-        params={"start": start.isoformat(), "end": end.isoformat(), "period": "day", "node_id": 5},
+        params={
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "period": "day",
+            "node_id": 5,
+            "group_by_node": True,
+        },
     )
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == usage.model_dump(mode="json")
 
     query = node_operator_mock.get_outbound_usage.await_args.kwargs["query"]
     assert query.node_id == 5
+    assert query.group_by_node is True
     assert query.period == Period.day
     assert query.start == start
     assert query.end == end

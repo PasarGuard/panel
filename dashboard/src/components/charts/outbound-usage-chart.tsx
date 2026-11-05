@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, TooltipProps } from 'recharts'
 import { useTranslation } from 'react-i18next'
-import { BarChart3, Download, Info, Network, Upload } from 'lucide-react'
+import { BarChart3, Download, Info, Network, Server, Upload } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -9,7 +9,7 @@ import { useTheme } from '@/app/providers/theme-provider'
 import NodeStatsModal from '@/features/nodes/dialogs/node-stats-modal'
 import { useChartPeriodLimit } from '@/hooks/use-chart-period-limit'
 import useDirDetection from '@/hooks/use-dir-detection'
-import { Period, type NodeUsageStat, useGetOutboundUsage } from '@/service/api'
+import { Period, type NodeOutboundUsageStat, useGetNodesSimple, useGetOutboundUsage } from '@/service/api'
 import { getChartSeriesColor } from '@/utils/chart-colors'
 import { formatBytes } from '@/utils/formatByte'
 import {
@@ -33,8 +33,12 @@ const OUTBOUND_REFRESH_MS = 1000 * 60 * 5
 type Series = { key: string; label: string; isOther: boolean }
 type OutboundDataPoint = { time: string; _period_start: string } & Record<string, number | string>
 
-const statBytes = (stat: NodeUsageStat) => Number(stat.uplink || 0) + Number(stat.downlink || 0)
+const statBytes = (stat: NodeOutboundUsageStat) => Number(stat.uplink || 0) + Number(stat.downlink || 0)
 const isSeriesKey = (key: string) => !key.startsWith('_') && key !== 'time'
+// Key of the whole-range entry in the per-node breakdown
+const PERIOD_TOTAL_KEY = '*'
+
+type NodeSplit = Map<string, Map<number, number>>
 
 function OutboundTooltip({ active, payload, chartConfig, period, dir }: TooltipProps<number, string> & { chartConfig: ChartConfig; period: Period; dir: string }) {
   const { t, i18n } = useTranslation()
@@ -96,6 +100,7 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
   const [selectedPeriodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [modalOpen, setModalOpen] = useState(false)
   const [currentDataIndex, setCurrentDataIndex] = useState(0)
+  const [showPeriodTotal, setShowPeriodTotal] = useState(false)
   const { allowedPeriods, periodOverride } = useChartPeriodLimit({ shortcut: selectedTime }, selectedPeriodOverride, setPeriodOverride, { recordBucketMinutes: USAGE_RECORD_BUCKET_MINUTES })
 
   // Move the range forward while mounted; a fixed end would hide buckets recorded after the first load
@@ -131,8 +136,16 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
     },
   )
 
+  // Per-node split for the details modal; only loaded while it is open, and pointless when one node is selected
+  const showNodeSplit = modalOpen && nodeId === undefined
+  const { data: byNodeData, isLoading: isByNodeLoading } = useGetOutboundUsage(
+    { period, start: queryRange.startDate, end: queryRange.endDate, group_by_node: true },
+    { query: { enabled: showNodeSplit } },
+  )
+  const { data: nodesResponse } = useGetNodesSimple({ all: true }, { query: { enabled: showNodeSplit } })
+
   // Series keys are not the tags themselves: recharts reads a dotted dataKey as a nested path
-  const { series, chartData, totalBytes } = useMemo(() => {
+  const { series, chartData, totalBytes, keyByTag } = useMemo(() => {
     const stats = data?.stats ?? {}
     const ranked = Object.entries(stats)
       .map(([tag, points]) => ({ tag, total: points.reduce((sum, point) => sum + statBytes(point), 0) }))
@@ -163,7 +176,7 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
 
     const sortedRows = [...rows.values()].sort((a, b) => new Date(a._period_start).getTime() - new Date(b._period_start).getTime())
     const totalBytes = ranked.reduce((sum, item) => sum + item.total, 0)
-    return { series: seriesList, chartData: sortedRows, totalBytes }
+    return { series: seriesList, chartData: sortedRows, totalBytes, keyByTag }
   }, [data?.stats, period, i18n.language, selectedTime, t])
 
   const chartConfig = useMemo(() => {
@@ -174,6 +187,74 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
     }, {})
   }, [series, resolvedTheme])
 
+  // Bytes per node for each series, per bucket and for the whole range
+  const nodeSplitByBucket = useMemo(() => {
+    const split = new Map<string, NodeSplit>()
+    const add = (bucket: string, key: string, nodeKey: number, bytes: number) => {
+      const bySeries = split.get(bucket) ?? new Map<string, Map<number, number>>()
+      const byNode = bySeries.get(key) ?? new Map<number, number>()
+      byNode.set(nodeKey, (byNode.get(nodeKey) ?? 0) + bytes)
+      bySeries.set(key, byNode)
+      split.set(bucket, bySeries)
+    }
+    Object.entries(byNodeData?.stats ?? {}).forEach(([tag, points]) => {
+      const key = keyByTag.get(tag) ?? 'other'
+      points.forEach(point => {
+        if (point.node_id == null) return
+        add(point.period_start, key, point.node_id, statBytes(point))
+        add(PERIOD_TOTAL_KEY, key, point.node_id, statBytes(point))
+      })
+    })
+    return split
+  }, [byNodeData?.stats, keyByTag])
+
+  const nodeNames = useMemo(() => new Map((nodesResponse?.nodes ?? []).map(node => [node.id, node.name])), [nodesResponse])
+
+  const periodTotalRow = useMemo(() => {
+    const row: OutboundDataPoint = { time: '', _period_start: '' }
+    chartData.forEach(point => {
+      Object.entries(point).forEach(([key, value]) => {
+        if (typeof value === 'number') row[key] = Number(row[key] || 0) + value
+      })
+    })
+    return row
+  }, [chartData])
+
+  const modalData = showPeriodTotal ? periodTotalRow : (chartData[currentDataIndex] ?? null)
+  const modalBucket = showPeriodTotal ? PERIOD_TOTAL_KEY : chartData[currentDataIndex]?._period_start
+
+  const renderNodeSplit = useCallback(
+    (key: string) => {
+      if (isByNodeLoading) return <Skeleton className="mt-2 h-4 w-full" />
+      const byNode = modalBucket ? nodeSplitByBucket.get(modalBucket)?.get(key) : undefined
+      if (!byNode?.size) return null
+      const seriesTotal = [...byNode.values()].reduce((sum, bytes) => sum + bytes, 0)
+      return (
+        <div className="mt-2 flex flex-col gap-1 border-t pt-2">
+          {[...byNode.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .map(([id, bytes]) => (
+              <div key={id} className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <Server className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{nodeNames.get(id) ?? `#${id}`}</span>
+                </span>
+                <span dir="ltr" className="shrink-0 font-mono">
+                  {formatBytes(bytes)} ({seriesTotal > 0 ? ((bytes * 100) / seriesTotal).toFixed(1) : '0.0'}%)
+                </span>
+              </div>
+            ))}
+        </div>
+      )
+    },
+    [isByNodeLoading, modalBucket, nodeSplitByBucket, nodeNames],
+  )
+
+  const openPeriodTotal = useCallback(() => {
+    setShowPeriodTotal(true)
+    setModalOpen(true)
+  }, [])
+
   const handleChartClick = useCallback(
     (state: unknown) => {
       const index = (state as { activeTooltipIndex?: unknown } | null)?.activeTooltipIndex
@@ -181,6 +262,7 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
       const hasUsage = Object.keys(chartData[index]).some(key => isSeriesKey(key) && Number(chartData[index][key] || 0) > 0)
       if (!hasUsage) return
       setCurrentDataIndex(index)
+      setShowPeriodTotal(false)
       setModalOpen(true)
     },
     [chartData],
@@ -216,13 +298,19 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
               <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} allowedPeriods={allowedPeriods} className="w-full sm:w-[7rem]" />
             </div>
           </div>
-          <div className="m-0 flex flex-col justify-center p-4 xl:border-l xl:p-5 xl:px-6">
+          <button
+            type="button"
+            onClick={openPeriodTotal}
+            disabled={isLoading || totalBytes <= 0}
+            title={t('statistics.clickForMore', { defaultValue: 'Click for more details' })}
+            className="hover:bg-muted/50 focus-visible:ring-ring m-0 flex flex-col justify-center p-4 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none xl:border-l xl:p-5 xl:px-6"
+          >
             <span className="text-muted-foreground text-xs sm:text-sm">{t('statistics.usageDuringPeriod')}</span>
             <span dir="ltr" className="text-foreground flex items-center justify-center gap-2 text-lg">
               <BarChart3 className="text-muted-foreground h-4 w-4" />
               {isLoading ? <Skeleton className="h-5 w-20" /> : totalBytes > 0 ? formatBytes(totalBytes, 2) : <span className="text-muted-foreground">-</span>}
             </span>
-          </div>
+          </button>
         </CardHeader>
         <CardContent dir={dir} className="px-4 pt-4 sm:px-6 sm:pt-8">
           {isLoading ? (
@@ -270,10 +358,12 @@ export function OutboundUsageChart({ nodeId }: { nodeId?: number }) {
       <NodeStatsModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        data={chartData[currentDataIndex] ?? null}
+        data={modalData}
         chartConfig={chartConfig}
         period={period}
-        allChartData={chartData}
+        dateLabel={showPeriodTotal ? `${formatTooltipDate(queryRange.startDate, period, i18n.language)} - ${formatTooltipDate(queryRange.endDate, period, i18n.language)}` : undefined}
+        renderItemDetails={nodeId === undefined ? renderNodeSplit : undefined}
+        allChartData={showPeriodTotal ? [] : chartData}
         currentIndex={currentDataIndex}
         onNavigate={handleModalNavigate}
         title={t('statistics.outboundStats', { defaultValue: 'Outbound Statistics' })}
