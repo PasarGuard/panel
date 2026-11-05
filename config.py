@@ -153,6 +153,7 @@ class TemplateSettings(EnvSettings):
 
 class TelegramEnvSettings(EnvSettings):
     do_not_log_bot: bool = Field(default=True, validation_alias="DO_NOT_LOG_TELEGRAM_BOT")
+    miniapp_init_ttl_minutes: int = Field(default=1440, ge=0, validation_alias="TELEGRAM_MINIAPP_INIT_TTL_MINUTES")
 
 
 class LoggingSettings(EnvSettings):

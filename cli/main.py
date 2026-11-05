@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """PasarGuard CLI"""
 
+from typing import Annotated
+
 import typer
 
 from cli import console
-from cli.admin import generate_temp_key
+from cli.admin import TempKeyAction, generate_temp_key
 
 app = typer.Typer(
     name="PasarGuard",
@@ -15,9 +17,18 @@ app = typer.Typer(
 
 
 @app.command("generate-temp-key")
-def cmd_generate_temp_key():
-    """Generate a one-time temp key for owner setup (create/reset/delete)."""
-    generate_temp_key()
+def cmd_generate_temp_key(
+    action: Annotated[
+        TempKeyAction | None,
+        typer.Option(
+            "--action",
+            "-a",
+            help="Bind the key to one owner setup action; omit it for a key usable for any action.",
+        ),
+    ] = None,
+):
+    """Generate a one-time temp key for owner setup (create/reset/delete/upgrade)."""
+    generate_temp_key(action)
 
 
 @app.command()

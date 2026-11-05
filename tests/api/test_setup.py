@@ -28,7 +28,7 @@ def _make_temp_key(*, used: bool = False, expired: bool = False) -> str:
 
             key = TempKey(
                 key=__import__("uuid").uuid4().__str__(),
-                action="setup",
+                action="pending",
                 expires_at=expires_at,
                 used_at=datetime.now(UTC) if used else None,
                 used_by_ip="127.0.0.1" if used else None,

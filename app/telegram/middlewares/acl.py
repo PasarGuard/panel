@@ -16,6 +16,10 @@ class ACLMiddleware(BaseMiddleware):
         self, handler: Callable[[Update, dict[str, Any]], Awaitable[Any]], event: Update, data: dict[str, Any]
     ) -> Any:
         message_obj = event.message or event.callback_query or event.inline_query
+        # Updates such as edited_message/channel_post carry none of the above, and channel messages
+        # have no sender: skip them instead of failing on a missing from_user.
+        if message_obj is None or message_obj.from_user is None:
+            return
         user_id = message_obj.from_user.id
         async with GetDB() as db:
             settings: Telegram = await telegram_settings()

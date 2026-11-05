@@ -202,7 +202,7 @@ class PasskeyChallenge(Base):
     id: Mapped[int] = mapped_column(SqliteCompatibleBigInteger, primary_key=True, autoincrement=True, init=False)
     challenge: Mapped[bytes] = mapped_column(WebAuthnChallenge(128), unique=True)
     kind: Mapped[str] = mapped_column(String(16))
-    expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[dt] = mapped_column(DateTime(timezone=True), index=True)
     admin_id: Mapped[int | None] = fk_id_column("admins.id", ondelete="CASCADE", default=None)
 
 
