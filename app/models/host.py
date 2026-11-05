@@ -173,6 +173,26 @@ class FinalMaskQuicCongestion(str, Enum):
     force_brutal = "force-brutal"
 
 
+def _drop_legacy_rand_type(value: Any) -> Any:
+    """Rewrite an item saved with the removed "rand" type into the form Xray reads.
+
+    Xray has no "rand" packet type: random bytes are an item without a packet and with a "rand" length.
+    Older panels saved "rand" as the type, with the length in "rand" or, Freedom style, in "packet".
+    """
+    if not isinstance(value, dict) or value.get("type") != "rand":
+        return value
+    value = {key: item for key, item in value.items() if key != "type"}
+    packet = value.pop("packet", None)
+    if isinstance(packet, str):
+        packet = packet.strip()
+    if packet not in (None, "", []):
+        if value.get("rand") in (None, ""):
+            value["rand"] = packet
+        else:
+            value["packet"] = packet
+    return value
+
+
 class FinalMaskNoiseItem(FinalMaskBaseModel):
     """Packet camouflage item used by FinalMask. Unlike Freedom noise, this has no apply_to."""
 
@@ -181,6 +201,11 @@ class FinalMaskNoiseItem(FinalMaskBaseModel):
     delay: str | int | None = Field(default=None)
     rand: int | str | None = Field(default=None)
     rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_rand_type(cls, value):
+        return _drop_legacy_rand_type(value)
 
 
 class FinalMaskNoiseMaskItem(FinalMaskNoiseItem):
@@ -223,6 +248,11 @@ class FinalMaskHeaderCustomItemBase(FinalMaskBaseModel):
     packet: str | list[int] | None = Field(default=None)
     rand: int | None = Field(default=None, ge=0, le=2_147_483_647)
     rand_range: str | None = Field(default=None, alias="randRange", pattern=r"^\d{1,16}(-\d{1,16})?$")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_rand_type(cls, value):
+        return _drop_legacy_rand_type(value)
 
     @field_validator("rand", mode="before")
     @classmethod
