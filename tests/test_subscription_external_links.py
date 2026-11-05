@@ -23,7 +23,7 @@ from app.subscription.outline import OutlineConfiguration
 from app.subscription.share import generate_subscription, process_inbounds_and_tags
 from app.subscription.singbox import SingBoxConfiguration
 from app.subscription.xray import XrayConfiguration
-from config import subscription_env_settings
+from config import SubscriptionEnvSettings
 
 XRAY_TEMPLATE = json.dumps({"outbounds": [{"protocol": "freedom", "tag": "direct"}]})
 UUID = "c90cff8e-d651-414e-8e83-1a187622d957"
@@ -231,11 +231,12 @@ def test_links_format_carries_external_links_as_is():
     assert links.render().splitlines() == ["vless://anything", "hysteria2://auth@203.0.113.10:443#hy"]
 
 
-def test_external_config_env_still_goes_to_links_format_only(monkeypatch):
+def test_external_config_env_is_no_longer_read(monkeypatch):
     vless = _share_link(*HOSTS["vless-reality-tcp"])
-    monkeypatch.setattr(subscription_env_settings, "external_config", vless)
+    monkeypatch.setenv("EXTERNAL_CONFIG", vless)
 
-    assert StandardLinks().render() == vless
+    assert "external_config" not in SubscriptionEnvSettings(_env_file=None).model_dump()
+    assert StandardLinks().render() == ""
     assert json.loads(XrayConfiguration(xray_template_content=XRAY_TEMPLATE).render()) == []
 
 
