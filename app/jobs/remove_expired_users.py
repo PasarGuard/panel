@@ -4,6 +4,7 @@ from app import notification, scheduler
 from app.db import GetDB
 from app.db.crud.user import AUTODELETE_MAX_USERS_PER_RUN, autodelete_expired_users
 from app.jobs.dependencies import SYSTEM_ADMIN
+from app.node.sync import remove_user as sync_remove_user
 from app.settings import cleanup_settings
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings
@@ -22,6 +23,7 @@ async def remove_expired_users():
         )
 
         for user in deleted_users:
+            await sync_remove_user(user)
             asyncio.create_task(notification.remove_user(user=user, by=SYSTEM_ADMIN))
             logger.info(f"User `{user.username}` has been deleted due to expiration.")
 
