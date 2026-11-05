@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, CircleCheck, CircleHelp, CircleX, Loader2, ScanSearch, X } from 'lucide-react'
+import { ChevronDown, CircleCheck, CircleHelp, CircleX, Download, Loader2, ScanSearch, X } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,12 +17,25 @@ interface RealityScanDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   initialTarget?: string
+  onSelect?: (result: RealityScanResult) => void
 }
 
+const DEFAULT_TARGETS = [
+  'www.cloudflare.com:443',
+  'www.microsoft.com:443',
+  'www.amazon.com:443',
+  'aws.amazon.com:443',
+  'www.samsung.com:443',
+  'www.nvidia.com:443',
+  'www.amd.com:443',
+  'www.intel.com:443',
+  'www.sony.com:443',
+  'dl.google.com:443',
+]
 const MAX_TARGETS = 25
-const SCAN_CONCURRENCY = 5
+const SCAN_CONCURRENCY = 4
 
-type RowStatus = 'pending' | 'scanning' | 'done' | 'error'
+type RowStatus = 'pending' | 'scanning' | 'done' | 'error' | 'cancelled'
 
 interface ScanRow {
   target: string
@@ -100,18 +113,18 @@ function MiniBadge({ ok, label }: { ok: boolean; label: string }) {
 
 function RowStatusIcon({ row }: { row: ScanRow }) {
   if (row.status === 'scanning') return <Loader2 className="text-muted-foreground h-4 w-4 shrink-0 animate-spin" />
-  if (row.status === 'pending') return <CircleHelp className="text-muted-foreground/40 h-4 w-4 shrink-0" />
+  if (row.status === 'pending' || row.status === 'cancelled') return <CircleHelp className="text-muted-foreground/40 h-4 w-4 shrink-0" />
   if (row.status === 'error') return <CircleX className="text-destructive h-4 w-4 shrink-0" />
   return row.result?.feasible ? <CircleCheck className="h-4 w-4 shrink-0 text-green-500" /> : <CircleX className="text-destructive h-4 w-4 shrink-0" />
 }
 
-function ScanResultDetail({ result }: { result: RealityScanResult }) {
+function ScanResultDetail({ result, onSelect }: { result: RealityScanResult; onSelect?: (result: RealityScanResult) => void }) {
   const { t } = useTranslation()
   const keyExchangeDetail =
     result.curve ??
     (result.x25519 === null ? t('coreEditor.realityScan.unknown', { defaultValue: 'Unknown' }) : result.x25519 ? 'X25519' : t('coreEditor.realityScan.other', { defaultValue: 'Other' }))
 
-  const formatExpiry = (iso: string | null) => {
+  const formatExpiry = (iso: string | null | undefined) => {
     if (!iso) return null
     const d = dayjs(iso)
     if (!d.isValid()) return iso
@@ -139,7 +152,7 @@ function ScanResultDetail({ result }: { result: RealityScanResult }) {
             {result.host}
             {result.ip ? ` (${result.ip})` : ''}:{result.port}
           </span>
-          {result.latency_ms !== null ? (
+          {result.latency_ms != null ? (
             <Badge dir="ltr" variant="outline" className="shrink-0 font-mono text-xs">
               {result.latency_ms} ms
             </Badge>
@@ -228,37 +241,58 @@ function ScanResultDetail({ result }: { result: RealityScanResult }) {
           </div>
         </div>
       ) : null}
+      {result.feasible && onSelect ? (
+        <Button type="button" onClick={() => onSelect(result)} className="w-full sm:w-auto">
+          <CircleCheck className="h-4 w-4" />
+          {t('coreEditor.realityScan.useTarget')}
+        </Button>
+      ) : null}
     </div>
   )
 }
 
-function ScanRowItem({ row, expanded, onToggle }: { row: ScanRow; expanded: boolean; onToggle: () => void }) {
+function ScanRowItem({ row, expanded, onToggle, onSelect }: { row: ScanRow; expanded: boolean; onToggle: () => void; onSelect?: (result: RealityScanResult) => void }) {
   const { t } = useTranslation()
   const canExpand = row.status === 'done' || row.status === 'error'
   return (
     <div className="overflow-hidden rounded-md border">
-      <button type="button" onClick={canExpand ? onToggle : undefined} className={cn('flex w-full items-center gap-2 px-3 py-2 text-left', canExpand ? 'hover:bg-muted/50' : 'cursor-default')}>
-        <RowStatusIcon row={row} />
-        <span className="min-w-0 flex-1 truncate font-mono text-sm" dir="ltr">
-          {row.target}
-        </span>
-        {row.status === 'done' && row.result ? (
-          <span className="hidden shrink-0 items-center gap-1.5 sm:flex">
-            <MiniBadge ok={row.result.tls13} label="TLS 1.3" />
-            <MiniBadge ok={row.result.h2} label="H2" />
-            {row.result.latency_ms !== null ? (
-              <Badge dir="ltr" variant="outline" className="font-mono text-[10px]">
-                {row.result.latency_ms} ms
-              </Badge>
-            ) : null}
+      <div className="flex items-center gap-2 pe-2">
+        <button
+          type="button"
+          onClick={canExpand ? onToggle : undefined}
+          aria-expanded={canExpand ? expanded : undefined}
+          disabled={!canExpand}
+          className={cn('flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-start', canExpand ? 'hover:bg-muted/50' : 'cursor-default')}
+        >
+          <RowStatusIcon row={row} />
+          <span className="min-w-0 flex-1 truncate font-mono text-sm" dir="ltr">
+            {row.target}
           </span>
-        ) : row.status === 'scanning' ? (
-          <span className="text-muted-foreground shrink-0 text-xs">{t('coreEditor.realityScan.scanningShort', { defaultValue: 'Scanning' })}</span>
-        ) : row.status === 'error' ? (
-          <span className="text-destructive shrink-0 text-xs">{t('coreEditor.realityScan.scanFailed', { defaultValue: 'Failed' })}</span>
+          {row.status === 'done' && row.result ? (
+            <span className="hidden shrink-0 items-center gap-1.5 sm:flex">
+              <MiniBadge ok={row.result.tls13} label="TLS 1.3" />
+              <MiniBadge ok={row.result.h2} label="H2" />
+              {row.result.latency_ms != null ? (
+                <Badge dir="ltr" variant="outline" className="font-mono text-[10px]">
+                  {row.result.latency_ms} ms
+                </Badge>
+              ) : null}
+            </span>
+          ) : row.status === 'scanning' ? (
+            <span className="text-muted-foreground shrink-0 text-xs">{t('coreEditor.realityScan.scanningShort', { defaultValue: 'Scanning' })}</span>
+          ) : row.status === 'error' ? (
+            <span className="text-destructive shrink-0 text-xs">{t('coreEditor.realityScan.scanFailed', { defaultValue: 'Failed' })}</span>
+          ) : row.status === 'cancelled' ? (
+            <span className="text-muted-foreground shrink-0 text-xs">{t('coreEditor.realityScan.cancelled')}</span>
+          ) : null}
+          {canExpand ? <ChevronDown className={cn('text-muted-foreground h-4 w-4 shrink-0 transition-transform', expanded && 'rotate-180')} /> : <span className="w-4 shrink-0" />}
+        </button>
+        {row.status === 'done' && row.result?.feasible && onSelect ? (
+          <Button type="button" variant="outline" size="sm" onClick={() => onSelect(row.result!)}>
+            {t('coreEditor.realityScan.useTarget')}
+          </Button>
         ) : null}
-        {canExpand ? <ChevronDown className={cn('text-muted-foreground h-4 w-4 shrink-0 transition-transform', expanded && 'rotate-180')} /> : <span className="w-4 shrink-0" />}
-      </button>
+      </div>
       {expanded && row.status === 'done' && row.result ? (
         <div className="border-t p-3">
           <ScanResultDetail result={row.result} />
@@ -285,7 +319,7 @@ function TargetsInput({ value, onChange, disabled, max }: { value: string[]; onC
     const next = [...value]
     for (const part of splitTokens(raw)) {
       if (next.length >= max) break
-      if (!next.includes(part)) next.push(part)
+      if (!next.some(target => target.toLowerCase() === part.toLowerCase())) next.push(part)
     }
     if (next.length !== value.length) onChange(next)
   }
@@ -322,6 +356,7 @@ function TargetsInput({ value, onChange, disabled, max }: { value: string[]; onC
         </Badge>
       ))}
       <input
+        id="reality-scan-targets"
         ref={inputRef}
         className="placeholder:text-muted-foreground min-w-[8rem] flex-1 bg-transparent outline-none"
         value={draft}
@@ -329,7 +364,7 @@ function TargetsInput({ value, onChange, disabled, max }: { value: string[]; onC
         dir="ltr"
         autoComplete="off"
         spellCheck={false}
-        placeholder={value.length ? '' : 'www.microsoft.com:443, apple.com, cloudflare.com'}
+        placeholder={value.length ? '' : t('coreEditor.realityScan.targetsPlaceholder')}
         onChange={event => {
           const raw = event.target.value
           if (/[\s,]/.test(raw)) {
@@ -360,7 +395,7 @@ function TargetsInput({ value, onChange, disabled, max }: { value: string[]; onC
   )
 }
 
-export function RealityScanDialog({ open, onOpenChange, initialTarget }: RealityScanDialogProps) {
+export function RealityScanDialog({ open, onOpenChange, initialTarget, onSelect }: RealityScanDialogProps) {
   const { t } = useTranslation()
   const [targets, setTargets] = useState<string[]>([])
   const [timeoutInput, setTimeoutInput] = useState('10')
@@ -388,16 +423,42 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget }: Reality
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  const canScan = targets.length > 0 && !isScanning
+  const scanTargets = targets.length ? targets : DEFAULT_TARGETS
+  const canScan = !isScanning
+
+  const stopScan = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsScanning(false)
+    setRows(prev => prev.map(row => (row.status === 'pending' || row.status === 'scanning' ? { ...row, status: 'cancelled' } : row)))
+  }
+
+  const selectTarget = onSelect
+    ? (result: RealityScanResult) => {
+        if (!result.feasible || !result.sni) return
+        stopScan()
+        onSelect(result)
+        onOpenChange(false)
+      }
+    : undefined
+
+  const exportResults = () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'reality-scan-results.json'
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
 
   const runScan = async () => {
-    const list = targets
-    if (!list.length) return
+    if (isScanning) return
+    const list = scanTargets
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
     const parsedTimeout = Number(timeoutInput)
-    const timeout = Number.isFinite(parsedTimeout) && parsedTimeout > 0 ? parsedTimeout : undefined
+    const timeout = Number.isFinite(parsedTimeout) ? Math.min(20, Math.max(1, parsedTimeout || 10)) : 10
     setExpanded(list.length === 1 ? list[0] : null)
     setFeasibleOnly(false)
     setRows(list.map(target => ({ target, status: 'pending' as RowStatus })))
@@ -436,7 +497,11 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget }: Reality
 
   const single = rows.length === 1 ? rows[0] : null
   const feasibleCount = rows.filter(row => row.status === 'done' && row.result?.feasible).length
-  const displayedRows = feasibleOnly ? rows.filter(row => row.status === 'done' && row.result?.feasible) : rows
+  const completedCount = rows.filter(row => row.status === 'done' || row.status === 'error').length
+  const displayedRows = feasibleOnly ? rows.filter(row => row.status === 'done' && row.result?.feasible) : [...rows]
+  if (!isScanning) {
+    displayedRows.sort((a, b) => Number(!!b.result?.feasible) - Number(!!a.result?.feasible) || (a.result?.latency_ms ?? Infinity) - (b.result?.latency_ms ?? Infinity))
+  }
 
   return (
     <CoreEditorFormDialog
@@ -444,17 +509,18 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget }: Reality
       onOpenChange={onOpenChange}
       title={t('coreEditor.realityScan.title', { defaultValue: 'Scan Reality target' })}
       leadingIcon={<ScanSearch className="h-5 w-5 shrink-0" />}
-      size="lg"
+      size="xl"
+      description={t('coreEditor.realityScan.description')}
       inlinePersistValidation={false}
       footerExtra={
         isScanning ? (
           <Button
             type="button"
             variant="outline"
-            onClick={() => {
-              abortRef.current?.abort()
-              abortRef.current = null
-              setIsScanning(false)
+            onClick={event => {
+              // This button becomes a submit button after stopping the scan.
+              event.preventDefault()
+              stopScan()
             }}
           >
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -464,44 +530,80 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget }: Reality
           <Button type="submit" form="reality-scan-form" disabled={!canScan}>
             <ScanSearch className="h-4 w-4" />
             <span>
-              {t('coreEditor.realityScan.scan', { defaultValue: 'Scan' })}
-              {targets.length > 1 ? ` (${targets.length})` : ''}
+              {t(targets.length ? 'coreEditor.realityScan.scan' : 'coreEditor.realityScan.scanDefaults')}
+              {scanTargets.length > 1 ? ` (${scanTargets.length})` : ''}
             </span>
           </Button>
         )
       }
     >
       <div className="space-y-4">
-        <p className="text-muted-foreground text-sm">{t('coreEditor.realityScan.description', { defaultValue: 'Probe one or more targets to check they work as REALITY decoys. REALITY needs HTTP/2 and TLS 1.3.' })}</p>
+        <p className="text-muted-foreground text-sm">{t('coreEditor.realityScan.description')}</p>
 
         <form id="reality-scan-form" onSubmit={handleSubmit} className="grid items-start gap-4 sm:grid-cols-[minmax(0,1fr)_140px]">
           <div className="flex min-w-0 flex-col gap-2">
-            <Label>{t('coreEditor.realityScan.targets', { defaultValue: 'Targets' })}</Label>
+            <Label htmlFor="reality-scan-targets">{t('coreEditor.realityScan.targets', { defaultValue: 'Targets' })}</Label>
             <TargetsInput value={targets} onChange={setTargets} disabled={isScanning} max={MAX_TARGETS} />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              <button type="button" className="text-primary hover:underline disabled:opacity-50" disabled={isScanning} onClick={() => setTargets([...DEFAULT_TARGETS])}>
+                {t('coreEditor.realityScan.loadDefaults')}
+              </button>
+              {targets.length ? (
+                <button type="button" className="text-muted-foreground hover:underline disabled:opacity-50" disabled={isScanning} onClick={() => setTargets([])}>
+                  {t('coreEditor.realityScan.clearTargets')}
+                </button>
+              ) : null}
+              <span className="text-muted-foreground">{t('coreEditor.realityScan.targetCount', { count: scanTargets.length, max: MAX_TARGETS })}</span>
+            </div>
             {targets.length >= MAX_TARGETS ? (
               <p className="text-muted-foreground text-xs">{t('coreEditor.realityScan.maxTargets', { defaultValue: 'Up to {{max}} targets can be scanned.', max: MAX_TARGETS })}</p>
             ) : null}
           </div>
           <div className="flex min-w-0 flex-col gap-2">
-            <Label>{t('coreEditor.realityScan.timeout', { defaultValue: 'Timeout (s)' })}</Label>
-            <Input className="h-10" value={timeoutInput} onChange={event => setTimeoutInput(event.target.value)} inputMode="numeric" type="number" min={1} max={20} disabled={isScanning} dir="ltr" />
+            <Label htmlFor="reality-scan-timeout">{t('coreEditor.realityScan.timeout', { defaultValue: 'Timeout (s)' })}</Label>
+            <Input
+              id="reality-scan-timeout"
+              className="h-10"
+              value={timeoutInput}
+              onChange={event => setTimeoutInput(event.target.value)}
+              inputMode="numeric"
+              type="number"
+              min={1}
+              max={20}
+              disabled={isScanning}
+              dir="ltr"
+            />
           </div>
         </form>
 
         <div>
           {!rows.length ? (
-            <div className="text-muted-foreground flex min-h-48 items-center justify-center rounded-md border border-dashed px-4 text-center text-sm">
-              {t('coreEditor.realityScan.empty', { defaultValue: 'Enter one or more targets and run the scan.' })}
+            <div className="space-y-3 rounded-md border border-dashed p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <ScanSearch className="text-primary h-4 w-4" />
+                {t('coreEditor.realityScan.commonTargets')}
+              </div>
+              <p className="text-muted-foreground text-sm">{t('coreEditor.realityScan.defaultsHint')}</p>
+              <div className="flex flex-wrap gap-1.5" dir="ltr">
+                {DEFAULT_TARGETS.map(target => (
+                  <Badge key={target} variant="secondary" className="font-mono text-xs font-normal">
+                    {target}
+                  </Badge>
+                ))}
+              </div>
+              <p className="text-muted-foreground text-xs">{t('coreEditor.realityScan.serverLocation')}</p>
             </div>
           ) : single ? (
             single.status === 'done' && single.result ? (
-              <ScanResultDetail result={single.result} />
+              <ScanResultDetail result={single.result} onSelect={selectTarget} />
             ) : single.status === 'error' ? (
               <Alert variant="destructive">
                 <AlertDescription dir="ltr" className="font-mono text-xs">
                   {single.error}
                 </AlertDescription>
               </Alert>
+            ) : single.status === 'cancelled' ? (
+              <p className="text-muted-foreground py-8 text-center text-sm">{t('coreEditor.realityScan.cancelled')}</p>
             ) : (
               <div className="flex min-h-48 items-center justify-center rounded-md border border-dashed">
                 <div className="text-muted-foreground flex items-center gap-2 text-sm">
@@ -521,14 +623,34 @@ export function RealityScanDialog({ open, onOpenChange, initialTarget }: Reality
                   {t('coreEditor.realityScan.suitableOnly', { defaultValue: 'Suitable only' })}
                 </Button>
               </div>
+              <div
+                role="progressbar"
+                aria-label={t('coreEditor.realityScan.progress')}
+                aria-valuemin={0}
+                aria-valuemax={rows.length}
+                aria-valuenow={completedCount}
+                className="bg-muted h-1.5 overflow-hidden rounded-full"
+              >
+                <div className="bg-primary h-full transition-all" style={{ width: `${(completedCount / rows.length) * 100}%` }} />
+              </div>
+              <p className="text-muted-foreground text-xs" role="status">
+                {t('coreEditor.realityScan.completed', { completed: completedCount, total: rows.length })}
+                {!isScanning ? ` · ${t('coreEditor.realityScan.sortedHint')}` : ''}
+              </p>
               <div className="space-y-1.5">
                 {displayedRows.map(row => (
-                  <ScanRowItem key={row.target} row={row} expanded={expanded === row.target} onToggle={() => setExpanded(prev => (prev === row.target ? null : row.target))} />
+                  <ScanRowItem key={row.target} row={row} expanded={expanded === row.target} onToggle={() => setExpanded(prev => (prev === row.target ? null : row.target))} onSelect={selectTarget} />
                 ))}
               </div>
             </div>
           )}
         </div>
+        {rows.length && !isScanning ? (
+          <Button type="button" variant="outline" size="sm" onClick={exportResults}>
+            <Download className="h-4 w-4" />
+            {t('coreEditor.realityScan.exportResults')}
+          </Button>
+        ) : null}
       </div>
     </CoreEditorFormDialog>
   )
