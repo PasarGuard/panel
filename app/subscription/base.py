@@ -2,11 +2,14 @@ import base64
 import hashlib
 import json
 import re
+from collections.abc import Iterable
 from enum import Enum
 from typing import Any, Literal
 from urllib.parse import quote, urlencode
 
 from app.models.subscription import SubscriptionInboundData
+
+from .share_links import SHARE_LINK_ERRORS, parse_share_link
 
 
 def normalize_and_remove_none_values(data: dict) -> dict:
@@ -82,6 +85,24 @@ class BaseSubscription:
             self.grpc_user_agent_data = []
 
         del user_agent_data, grpc_user_agent_data
+
+    def add_share_links(self, links: Iterable[str]):
+        """Add each vmess, vless, trojan or shadowsocks share link in ``links`` through ``add``, like a host.
+
+        A link of another scheme or transport, one that does not parse, and one with xHTTP extra
+        (only the Xray JSON format carries it) are skipped.
+        """
+        for link in links:
+            try:
+                parsed = parse_share_link(link)
+                if parsed is None:
+                    continue
+                remark, inbound, settings, xhttp_extra = parsed
+                if xhttp_extra:
+                    continue
+                self.add(remark=remark, address=inbound.address, inbound=inbound, settings=settings)
+            except SHARE_LINK_ERRORS:
+                continue
 
     def _remark_validation(self, remark):
         if remark not in self.proxy_remarks:

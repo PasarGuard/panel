@@ -329,6 +329,8 @@ class Subscription(BaseModel):
     allow_browser_config: bool = Field(default=True)
     disable_sub_template: bool = Field(default=False)
     randomize_order: bool = Field(default=False)
+    # Share links added after the hosts: as is to links, as configurations to Xray JSON, sing-box and Clash
+    external_links: list[str] = Field(default_factory=list)
     custom_variables: list[CustomVariable] = Field(default_factory=list)
     # Subscription updates (client user agents) kept per user, 0 or less keeps all
     clients_limit: int = Field(default=10)
@@ -337,6 +339,14 @@ class Subscription(BaseModel):
     @classmethod
     def validate_url_prefix(cls, v: str) -> str:
         return v.strip("/")
+
+    @field_validator("external_links")
+    @classmethod
+    def validate_external_links(cls, value: list[str]) -> list[str]:
+        links = [link.strip() for link in value if link.strip()]
+        if any(len(link.split()) > 1 for link in links):
+            raise ValueError("A share link cannot contain whitespace")
+        return links
 
     @field_validator("custom_variables")
     @classmethod

@@ -300,6 +300,8 @@
         "disableSubTemplateDescription": "禁用后，浏览器请求将返回 API 响应而不是 HTML 订阅页面",
         "randomizeOrder": "随机化订阅顺序",
         "randomizeOrderDescription": "每次请求订阅时，随机打乱配置顺序",
+        "externalLinks": "外部链接",
+        "externalLinksDescription": "分享链接（vmess、vless、trojan、ss），每行一个，添加到每个订阅的主机之后。链接格式按原样包含；Xray JSON、sing-box 和 Clash 包含由链接生成的配置。某格式不支持的链接不会加入该格式。",
         "clientsLimit": "每位用户保留的更新数",
         "clientsLimitDescription": "每位用户保留多少条最近的订阅更新（客户端应用）。0 或更小表示全部保留"
       },
