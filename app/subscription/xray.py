@@ -651,8 +651,6 @@ class XrayConfiguration(BaseSubscription):
 
         Raises:
             ValueError: A selected port from a comma-separated string is not an integer.
-            IndexError: A gRPC multi-mode path beginning with ``/`` lacks the
-                ``|`` stream separator.
         """
         network = "masque" if protocol_type == "masque" else inbound.network
         path = inbound.transport_config.path

@@ -138,7 +138,8 @@ class BaseSubscription:
     @staticmethod
     def get_grpc_multi(path: str) -> str:
         """Extract gRPC multi service name from path"""
-        if not path.startswith("/"):
+        if not path.startswith("/") or "|" not in path.rsplit("/", 1)[1]:
+            # Already a client-side service name, such as one read from a share link
             return path
 
         servicename = path.rsplit("/", 1)[0]

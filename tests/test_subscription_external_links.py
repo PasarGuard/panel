@@ -2,6 +2,7 @@ import base64
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from urllib.parse import quote
 
 import pytest
 from pydantic import ValidationError
@@ -222,6 +223,31 @@ def test_xray_external_links_skip_shadowsocks_link_with_transport(query):
     configs = _render_xray([f"ss://{userinfo}@203.0.113.10:8388?{query}#Transport", vless])
 
     assert [config["outbounds"][0]["protocol"] for config in configs] == ["vless"]
+
+
+def test_xray_external_link_matches_multi_mode_grpc_host_with_custom_path():
+    # The link carries the client-side service name, which is not normalized a second time.
+    inbound = _host("vmess", "grpc", GRPCTransportConfig(path="/svc/Tun|TunMulti", multi_mode=True))
+    settings = {"id": UUID}
+    expected = XrayConfiguration(xray_template_content=XRAY_TEMPLATE)
+    expected.add(remark=inbound.remark, address=inbound.address, inbound=inbound, settings=settings)
+
+    configs = _render_xray([_share_link(inbound, settings)])
+
+    assert configs == expected.config
+    grpc_settings = configs[0]["outbounds"][0]["streamSettings"]["grpcSettings"]
+    assert (grpc_settings["serviceName"], grpc_settings["multiMode"]) == ("/svc/TunMulti", True)
+
+
+@pytest.mark.parametrize("extra", ["[1]", '"x"', "1", "0", "true"])
+def test_external_link_with_non_object_xhttp_extra_is_skipped(extra):
+    link = f"vless://{UUID}@203.0.113.10:443?type=xhttp&path=%2Fx&mode=auto&extra={quote(extra)}#X"
+
+    assert _render_xray([link]) == []
+    for builder in (ClashMetaConfiguration, SingBoxConfiguration):
+        conf = builder()
+        conf.add_share_links([link])
+        assert _proxies(conf) == []
 
 
 def test_links_format_carries_external_links_as_is():

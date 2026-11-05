@@ -143,7 +143,9 @@ def parse_share_link(link: str) -> tuple[str, SubscriptionInboundData, dict, dic
         encryption=params.get("encryption") or "none",
         inbound_flow=params.get("flow", ""),
     )
-    xhttp_extra = (
-        json.loads(params["extra"]) if transport_class is XHTTPTransportConfig and params.get("extra") else None
-    )
+    xhttp_extra = None
+    if transport_class is XHTTPTransportConfig and params.get("extra"):
+        xhttp_extra = json.loads(params["extra"])
+        if not isinstance(xhttp_extra, dict):
+            raise ValueError("xHTTP extra is not a JSON object")
     return remark or address, inbound, settings, xhttp_extra
