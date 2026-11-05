@@ -24,6 +24,7 @@ function getErrorText(error: unknown): string {
   return ''
 }
 
+/** Whether `error` means a script or stylesheet chunk could not be fetched, usually because a redeploy removed it. */
 export function isChunkLoadError(error: unknown): boolean {
   const errorText = getErrorText(error)
 
@@ -80,6 +81,10 @@ function markChunkReloadAttempt(): void {
   }
 }
 
+/**
+ * Schedules a page reload for a chunk load error, at most once per reload window. Cache Storage is
+ * cleared and service workers are unregistered first. Returns whether a reload was scheduled.
+ */
 export function recoverFromChunkLoadError(error: unknown): boolean {
   if (!isChunkLoadError(error) || !canReloadForChunkError()) {
     return false
@@ -94,6 +99,10 @@ export function recoverFromChunkLoadError(error: unknown): boolean {
   return true
 }
 
+/**
+ * Reloads the page when a dynamic import or one of its preloads fails because a chunk is stale. Only
+ * errors that start a reload are swallowed; every other failure still reaches the importer.
+ */
 export function installChunkLoadRecovery(): void {
   window.addEventListener('vite:preloadError', event => {
     const preloadError = 'payload' in event ? (event as Event & { payload: unknown }).payload : (event as CustomEvent<unknown>).detail
@@ -113,10 +122,16 @@ export function installChunkLoadRecovery(): void {
   })
 }
 
+/** A promise that never settles. The page reload replaces it. */
 function waitForReload<T>(): Promise<T> {
   return new Promise<T>(() => undefined)
 }
 
+/**
+ * Runs a dynamic import with chunk recovery. Resolves with the module. Never settles while a reload is
+ * on its way, so a lazy route stays suspended instead of rendering half-loaded. Rejects with any other
+ * error.
+ */
 export async function importWithChunkRecovery<T>(importer: () => Promise<T>): Promise<T> {
   const reloadsBeforeImport = scheduledReloads
 
@@ -136,6 +151,7 @@ export async function importWithChunkRecovery<T>(importer: () => Promise<T>): Pr
   }
 }
 
+/** `React.lazy` for a route or dialog chunk, loaded through {@link importWithChunkRecovery}. */
 export function lazyWithChunkRecovery<T extends ComponentType<any>>(importer: () => Promise<{ default: T }>) {
   return lazy(() => importWithChunkRecovery(importer))
 }

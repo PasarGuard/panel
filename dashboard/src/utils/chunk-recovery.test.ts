@@ -18,7 +18,7 @@ const parseError = new SyntaxError("Unexpected token '{'. Expected an opening '(
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0))
 
-// Dispatches vite:preloadError the way Vite does and reports whether a listener called preventDefault().
+/** Dispatches vite:preloadError the way Vite does and reports whether a listener called preventDefault(). */
 function reportPreloadError(error: unknown): boolean {
   const event = new Event('vite:preloadError', { cancelable: true }) as Event & { payload?: unknown }
   event.payload = error
@@ -26,9 +26,11 @@ function reportPreloadError(error: unknown): boolean {
   return event.defaultPrevented
 }
 
-// Loads a module the way Vite's preload helper does. A stylesheet that failed to preload is reported
-// first, and if that is prevented the module import still runs. A failed import then resolves with
-// undefined if prevented and rejects otherwise.
+/**
+ * Loads a module the way Vite's preload helper does. A stylesheet that failed to preload is reported
+ * first, and if that is prevented the module import still runs. A failed import then resolves with
+ * undefined if prevented and rejects otherwise.
+ */
 async function vitePreload<T>(load: () => Promise<T>, failedStylesheet?: Error): Promise<T | undefined> {
   if (failedStylesheet && !reportPreloadError(failedStylesheet)) throw failedStylesheet
   return load().catch((error: unknown) => {
@@ -37,6 +39,7 @@ async function vitePreload<T>(load: () => Promise<T>, failedStylesheet?: Error):
   })
 }
 
+/** Whether `promise` resolves or rejects within `ms` milliseconds. A suspended route never does. */
 async function settlesWithin(promise: Promise<unknown>, ms = 20): Promise<boolean> {
   const settled = promise.then(
     () => true,
@@ -45,6 +48,7 @@ async function settlesWithin(promise: Promise<unknown>, ms = 20): Promise<boolea
   return Promise.race([settled, new Promise<boolean>(resolve => setTimeout(() => resolve(false), ms))])
 }
 
+/** Runs `run` against a fresh fake window with chunk recovery installed, counting page reloads. */
 async function withBrowser(run: (reloads: () => number) => Promise<void>) {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'window')
   const storage = new Map<string, string>()
