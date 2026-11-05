@@ -27,12 +27,15 @@ function reportPreloadError(error: unknown): boolean {
 }
 
 /**
- * Loads a module the way Vite's preload helper does. A stylesheet that failed to preload is reported
- * first, and if that is prevented the module import still runs. A failed import then resolves with
- * undefined if prevented and rejects otherwise.
+ * Loads a module the way Vite's preload helper does. Stylesheets that failed to preload are reported
+ * first, one by one, and the first report that is not prevented rejects the import. Otherwise the
+ * module import still runs, and a failed import resolves with undefined if prevented and rejects
+ * otherwise.
  */
-async function vitePreload<T>(load: () => Promise<T>, failedStylesheet?: Error): Promise<T | undefined> {
-  if (failedStylesheet && !reportPreloadError(failedStylesheet)) throw failedStylesheet
+async function vitePreload<T>(load: () => Promise<T>, failedStylesheets: Error[] = []): Promise<T | undefined> {
+  for (const stylesheet of failedStylesheets) {
+    if (!reportPreloadError(stylesheet)) throw stylesheet
+  }
   return load().catch((error: unknown) => {
     if (!reportPreloadError(error)) throw error
     return undefined
@@ -109,10 +112,30 @@ test('a stale stylesheet reloads the page once and keeps the route suspended eve
   await withBrowser(async reloads => {
     // Vite keeps importing the module after a prevented stylesheet error, so the route would
     // otherwise render without its CSS until the reload.
-    const route = importWithChunkRecovery(() => vitePreload(() => Promise.resolve({ default: () => null }), stylesheetError))
+    const route = importWithChunkRecovery(() => vitePreload(() => Promise.resolve({ default: () => null }), [stylesheetError]))
     assert.equal(await settlesWithin(route), false)
     assert.equal(reloads(), 1)
   })
+})
+
+test('a route stays suspended when a later preload of the same import fails after the reload is scheduled', async () => {
+  // The first stale chunk schedules the reload. The next one falls inside the reload window and rejects
+  // the import, for example after a deploy that replaced both the stylesheet and the script of a route.
+  const cases: { name: string; load: () => Promise<unknown>; stylesheets: Error[] }[] = [
+    {
+      name: 'two stale stylesheets',
+      load: () => Promise.resolve({ default: () => null }),
+      stylesheets: [stylesheetError, new Error('Unable to preload CSS for /statics/editor-Def456.css')],
+    },
+    { name: 'a stale stylesheet and a stale script', load: () => Promise.reject(scriptChunkErrors[0]), stylesheets: [stylesheetError] },
+  ]
+  for (const { name, load, stylesheets } of cases) {
+    await withBrowser(async reloads => {
+      const route = importWithChunkRecovery(() => vitePreload(load, stylesheets))
+      assert.equal(await settlesWithin(route), false, name)
+      assert.equal(reloads(), 1, name)
+    })
+  }
 })
 
 test('a stale chunk error repeated within the reload window surfaces instead of reloading again', async () => {

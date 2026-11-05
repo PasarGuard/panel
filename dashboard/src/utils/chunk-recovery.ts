@@ -143,7 +143,10 @@ export async function importWithChunkRecovery<T>(importer: () => Promise<T>): Pr
     // (CSS failed). In both cases keep suspending until the page reloads.
     return scheduledReloads === reloadsBeforeImport ? module : waitForReload<T>()
   } catch (error) {
-    if (recoverFromChunkLoadError(error)) {
+    // Vite reports each failed preload of an import and then the import itself. The first stale chunk
+    // schedules the reload. A later one falls inside the reload window and rejects the import, but the
+    // page is still about to reload, so keep suspending for it too.
+    if (scheduledReloads !== reloadsBeforeImport || recoverFromChunkLoadError(error)) {
       return waitForReload<T>()
     }
 
