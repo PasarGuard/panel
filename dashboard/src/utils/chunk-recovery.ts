@@ -3,6 +3,9 @@ import { lazy, type ComponentType } from 'react'
 const CHUNK_RELOAD_KEY = 'pasarguard:chunk-reload-at'
 const CHUNK_RELOAD_WINDOW_MS = 30_000
 
+// Counts scheduled reloads, so an import can tell whether one was scheduled while it ran.
+let scheduledReloads = 0
+
 function getErrorText(error: unknown): string {
   if (typeof error === 'string') {
     return error
@@ -83,6 +86,7 @@ export function recoverFromChunkLoadError(error: unknown): boolean {
   }
 
   markChunkReloadAttempt()
+  scheduledReloads += 1
   void clearBrowserBuildCaches().finally(() => {
     window.location.reload()
   })
@@ -114,12 +118,15 @@ function waitForReload<T>(): Promise<T> {
 }
 
 export async function importWithChunkRecovery<T>(importer: () => Promise<T>): Promise<T> {
+  const reloadsBeforeImport = scheduledReloads
+
   try {
     const module = await importer()
 
-    // Only a prevented vite:preloadError resolves an import with undefined, and the listener above
-    // prevents it only after scheduling a reload. Keep suspending until the reload happens.
-    return module === undefined ? waitForReload<T>() : module
+    // The listener above prevents Vite's preload errors only once a reload is scheduled. Then Vite
+    // either resolves the import with undefined (script failed) or loads it without its stylesheet
+    // (CSS failed). In both cases keep suspending until the page reloads.
+    return scheduledReloads === reloadsBeforeImport ? module : waitForReload<T>()
   } catch (error) {
     if (recoverFromChunkLoadError(error)) {
       return waitForReload<T>()
