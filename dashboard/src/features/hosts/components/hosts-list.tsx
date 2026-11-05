@@ -7,7 +7,18 @@ import { ListGenerator } from '@/components/common/list-generator'
 import { ListGeneratorGrid } from '@/components/common/list-generator-grid'
 import { useHostsListColumns } from '@/features/hosts/components/use-hosts-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
-import { BaseHost, CreateHost, createHost, getGetHostsQueryKey, modifyHosts, useBulkDeleteHosts, useBulkDisableHosts, useBulkEnableHosts, useGetInboundDetails } from '@/service/api'
+import {
+  BaseHost,
+  CreateHost,
+  createHost,
+  getGetHostCustomizationsQueryKey,
+  getGetHostsQueryKey,
+  modifyHosts,
+  useBulkDeleteHosts,
+  useBulkDisableHosts,
+  useBulkEnableHosts,
+  useGetInboundDetails,
+} from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, UniqueIdentifier, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
@@ -97,11 +108,15 @@ export default function HostsList({
 
   const refreshHostsData = () => {
     // Just invalidate the main query key used in the dashboard
-    return queryClient.invalidateQueries({
-      queryKey: getGetHostsQueryKey(),
-      exact: true, // Only invalidate this exact query
-      refetchType: 'active', // Only refetch if the query is currently being rendered
-    })
+    return Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: getGetHostsQueryKey(),
+        exact: true, // Only invalidate this exact query
+        refetchType: 'active', // Only refetch if the query is currently being rendered
+      }),
+      // Renamed or removed hosts also change the admin's own customization list
+      queryClient.invalidateQueries({ queryKey: getGetHostCustomizationsQueryKey() }),
+    ])
   }
 
   const handleRefreshClick = async () => {

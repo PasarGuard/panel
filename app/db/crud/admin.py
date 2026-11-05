@@ -14,6 +14,7 @@ from app.db.crud.general import (
 )
 from app.db.models import (
     Admin,
+    AdminHostOverride,
     AdminNotificationReminder,
     AdminPasskey,
     AdminRole,
@@ -250,6 +251,7 @@ async def remove_admin(db: AsyncSession, dbadmin: Admin) -> None:
     """
     await db.execute(delete(APIKey).where(APIKey.admin_id == dbadmin.id))
     await db.execute(delete(PasskeyChallenge).where(PasskeyChallenge.admin_id == dbadmin.id))
+    await db.execute(delete(AdminHostOverride).where(AdminHostOverride.admin_id == dbadmin.id))
     await db.delete(dbadmin)
     await db.commit()
 
@@ -860,5 +862,6 @@ async def remove_admins(db: AsyncSession, admin_ids: list[int]) -> None:
     await db.execute(delete(PasskeyChallenge).where(PasskeyChallenge.admin_id.in_(admin_ids)))
     await db.execute(delete(AdminNotificationReminder).where(AdminNotificationReminder.admin_id.in_(admin_ids)))
     await db.execute(delete(AdminUsageLogs).where(AdminUsageLogs.admin_id.in_(admin_ids)))
+    await db.execute(delete(AdminHostOverride).where(AdminHostOverride.admin_id.in_(admin_ids)))
     await db.execute(delete(Admin).where(Admin.id.in_(admin_ids)))
     await db.commit()

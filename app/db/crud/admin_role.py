@@ -21,6 +21,11 @@ async def get_role(db: AsyncSession, role_id: int) -> AdminRole | None:
     return (await db.execute(select(AdminRole).where(AdminRole.id == role_id))).scalar_one_or_none()
 
 
+async def get_role_by_admin_id(db: AsyncSession, admin_id: int) -> AdminRole | None:
+    stmt = select(AdminRole).join(Admin, Admin.role_id == AdminRole.id).where(Admin.id == admin_id)
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
 async def get_role_by_name(db: AsyncSession, name: str) -> AdminRole | None:
     return (await db.execute(select(AdminRole).where(AdminRole.name == name))).scalar_one_or_none()
 

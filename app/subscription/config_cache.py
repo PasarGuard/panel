@@ -38,6 +38,10 @@ def make_sub_config_key(
         proxy_key = proxy_settings.model_dump_json()
     else:
         proxy_key = ""
+    host_overrides = getattr(user, "host_overrides", None) or {}
+    overrides_key = tuple(
+        sorted((host_id, override.remark, override.is_disabled) for host_id, override in host_overrides.items())
+    )
     return (
         _generation if config_format == "wireguard" else 0,
         getattr(user, "id", None),
@@ -50,6 +54,7 @@ def make_sub_config_key(
         expire_key,
         tuple(inbounds),
         proxy_key,
+        overrides_key,
     )
 
 

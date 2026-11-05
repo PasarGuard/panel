@@ -659,6 +659,17 @@ class ProxyHost(Base, IdMixin):
     cipher_suites: Mapped[str | None] = mapped_column(String(1024), default=None)
 
 
+class AdminHostOverride(Base, IdMixin):
+    """An admin's own remark or disabled flag for a host, applied only to that admin's users."""
+
+    __tablename__ = "admin_host_overrides"
+    __table_args__ = (UniqueConstraint("admin_id", "host_id", name="uq_admin_host_overrides_admin_id_host_id"),)
+    admin_id: Mapped[int] = fk_id_column("admins.id", ondelete="CASCADE")
+    host_id: Mapped[int] = fk_id_column("hosts.id", ondelete="CASCADE", index=True)
+    remark: Mapped[str | None] = mapped_column(String(256), default=None)
+    is_disabled: Mapped[bool] = mapped_column(default=False, server_default="0")
+
+
 class System(Base, IdMixin):
     __tablename__ = "system"
     uplink: Mapped[int] = mapped_column(BigInteger, default=0)
