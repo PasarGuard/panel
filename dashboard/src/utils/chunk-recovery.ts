@@ -28,6 +28,8 @@ export function isChunkLoadError(error: unknown): boolean {
     /failed to fetch dynamically imported module/i.test(errorText) ||
     /error loading dynamically imported module/i.test(errorText) ||
     /importing a module script failed/i.test(errorText) ||
+    // Vite's preload helper; a stale stylesheet is as recoverable as a stale script.
+    /unable to preload css/i.test(errorText) ||
     /loading chunk \d+ failed/i.test(errorText) ||
     /chunkloaderror/i.test(errorText)
   )
@@ -90,9 +92,14 @@ export function recoverFromChunkLoadError(error: unknown): boolean {
 
 export function installChunkLoadRecovery(): void {
   window.addEventListener('vite:preloadError', event => {
-    event.preventDefault()
     const preloadError = 'payload' in event ? (event as Event & { payload: unknown }).payload : (event as CustomEvent<unknown>).detail
-    recoverFromChunkLoadError(preloadError ?? event)
+    // preventDefault() makes Vite resolve the import with undefined instead of rejecting, so only
+    // call it when a reload is on its way. Any other failure has to reject. That covers a module
+    // that fails to parse or run, and a chunk error repeated within the reload window. Rejecting
+    // lets the route show the real error, not "Cannot read properties of undefined (reading 'default')".
+    if (recoverFromChunkLoadError(preloadError ?? event)) {
+      event.preventDefault()
+    }
   })
 
   window.addEventListener('unhandledrejection', event => {
@@ -102,16 +109,26 @@ export function installChunkLoadRecovery(): void {
   })
 }
 
-export function lazyWithChunkRecovery<T extends ComponentType<any>>(importer: () => Promise<{ default: T }>) {
-  return lazy(async () => {
-    try {
-      return await importer()
-    } catch (error) {
-      if (recoverFromChunkLoadError(error)) {
-        return new Promise<{ default: T }>(() => undefined)
-      }
+function waitForReload<T>(): Promise<T> {
+  return new Promise<T>(() => undefined)
+}
 
-      throw error
+export async function importWithChunkRecovery<T>(importer: () => Promise<T>): Promise<T> {
+  try {
+    const module = await importer()
+
+    // Only a prevented vite:preloadError resolves an import with undefined, and the listener above
+    // prevents it only after scheduling a reload. Keep suspending until the reload happens.
+    return module === undefined ? waitForReload<T>() : module
+  } catch (error) {
+    if (recoverFromChunkLoadError(error)) {
+      return waitForReload<T>()
     }
-  })
+
+    throw error
+  }
+}
+
+export function lazyWithChunkRecovery<T extends ComponentType<any>>(importer: () => Promise<{ default: T }>) {
+  return lazy(() => importWithChunkRecovery(importer))
 }
