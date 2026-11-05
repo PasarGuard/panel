@@ -65,6 +65,12 @@ class ServerSettings(EnvSettings):
     ssl_certfile: str | None = Field(default=None, validation_alias="UVICORN_SSL_CERTFILE")
     ssl_keyfile: str | None = Field(default=None, validation_alias="UVICORN_SSL_KEYFILE")
     ssl_ca_type: str = Field(default="public", validation_alias="UVICORN_SSL_CA_TYPE")
+    # Directories that core configs may read certificateFile/keyFile from (comma separated).
+    # Empty lifts the directory restriction; keyFile must still be a PEM private key.
+    # Enforced on core create/edit; cores already saved with files elsewhere load with a warning.
+    tls_files_allowed_dirs: str = Field(
+        default="/var/lib/pasarguard,/etc/letsencrypt", validation_alias="TLS_FILES_ALLOWED_DIRS"
+    )
     workers: int = Field(default=1, validation_alias="UVICORN_WORKERS")
     loop: str = Field(default="auto", validation_alias="UVICORN_LOOP")
     proxy_headers: bool = Field(default=False, validation_alias="UVICORN_PROXY_HEADERS")
