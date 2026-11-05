@@ -29,14 +29,18 @@ class NatsRpcClient:
     async def get_client(self) -> nats.NATS | None:
         return await self._get_client()
 
-    async def request(self, action: str, payload: dict, timeout: float | None = None) -> dict:
+    async def request(
+        self, action: str, payload: dict, timeout: float | None = None, *, subject: str | None = None
+    ) -> dict:
         client = await self._get_client()
         if not client:
-            raise RuntimeError("NATS is not available")
+            error = RuntimeError("NATS is not available")
+            error.code = 503
+            raise error
 
         message = {"action": action, "payload": payload}
         timeout = timeout if timeout is not None else self._timeout
-        reply = await client.request(self._subject, json.dumps(message).encode(), timeout=timeout)
+        reply = await client.request(subject or self._subject, json.dumps(message).encode(), timeout=timeout)
         response = json.loads(reply.data.decode())
 
         if not response.get("ok", False):
