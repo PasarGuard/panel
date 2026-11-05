@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 5.5.1
+ * OpenAPI spec version: 5.6.0
  */
 import {
   useMutation,
@@ -1931,13 +1931,14 @@ export interface NodeOutboundLatency {
   source: string;
 }
 
-export interface NodeUsageStat {
+export interface NodeOutboundUsageStat {
   period_start: string;
   uplink: number;
   downlink: number;
+  node_id?: number | null;
 }
 
-export type NodeOutboundUsageStatsListStats = {[key: string]: NodeUsageStat[]};
+export type NodeOutboundUsageStatsListStats = {[key: string]: NodeOutboundUsageStat[]};
 
 export type Period = typeof Period[keyof typeof Period];
 
@@ -1950,7 +1951,7 @@ export const Period = {
 } as const;
 
 /**
- * Usage per outbound tag; the key is the tag.
+ * Usage per outbound tag; the key is the tag. With group_by_node each stat also carries its node_id.
  */
 export interface NodeOutboundUsageStatsList {
   period?: Period | null;
@@ -2036,6 +2037,12 @@ export interface NodeStatsList {
   start: string;
   end: string;
   stats: NodeStats[];
+}
+
+export interface NodeUsageStat {
+  period_start: string;
+  uplink: number;
+  downlink: number;
 }
 
 export type NodeUsageStatsListStats = {[key: string]: NodeUsageStat[]};
@@ -2939,6 +2946,7 @@ end?: string | null;
 export type GetOutboundUsageParams = {
 period?: Period;
 node_id?: number | null;
+group_by_node?: boolean;
 start?: string | null;
 end?: string | null;
 };

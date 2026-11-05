@@ -1213,6 +1213,20 @@ class TestGetNodesOutboundUsage:
             assert {tag: [(s.uplink, s.downlink) for s in stats] for tag, stats in only_b.stats.items()} == {
                 "direct": [(2, 20)]
             }
+            assert all(stat.node_id is None for stats in result.stats.values() for stat in stats)
+
+            by_node = await get_nodes_outbound_usage(
+                session, start=start, end=end, period=Period.hour, group_by_node=True
+            )
+            assert {
+                tag: [
+                    (stat.period_start.astimezone(UTC).hour, stat.node_id, stat.uplink, stat.downlink) for stat in stats
+                ]
+                for tag, stats in by_node.stats.items()
+            } == {
+                "direct": sorted([(10, node_a, 1, 10), (10, node_b, 2, 20), (11, node_a, 8, 80)]),
+                "warp": [(10, node_a, 4, 40)],
+            }
 
             # Tehran start at 13:32 local = 10:02 UTC: the partial 10:00 UTC hour is not a complete local hour
             tehran = timezone(timedelta(hours=3, minutes=30))

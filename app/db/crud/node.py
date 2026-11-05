@@ -28,6 +28,7 @@ from app.models.node import (
     UsageTable,
 )
 from app.models.stats import (
+    NodeOutboundUsageStat,
     NodeOutboundUsageStatsList,
     NodeStats,
     NodeStatsList,
@@ -372,8 +373,9 @@ async def get_nodes_outbound_usage(
     end: datetime,
     period: Period,
     node_id: int | None = None,
+    group_by_node: bool = False,
 ) -> NodeOutboundUsageStatsList:
-    """Usage per outbound tag, summed over all nodes or one, in complete period buckets."""
+    """Usage per outbound tag, summed over all nodes or one (or kept per node), in complete period buckets."""
     dialect = db.bind.dialect.name
     trunc_expr = _build_trunc_expression(db, period, NodeOutboundUsage.created_at, start)
 
@@ -384,25 +386,30 @@ async def get_nodes_outbound_usage(
     if node_id is not None:
         conditions.append(NodeOutboundUsage.node_id == node_id)
 
+    group_columns = [trunc_expr, NodeOutboundUsage.outbound_tag]
+    if group_by_node:
+        group_columns.append(NodeOutboundUsage.node_id)
+
     stmt = (
         select(
             trunc_expr.label("period_start"),
             NodeOutboundUsage.outbound_tag,
+            *([NodeOutboundUsage.node_id] if group_by_node else []),
             func.sum(NodeOutboundUsage.downlink).label("downlink"),
             func.sum(NodeOutboundUsage.uplink).label("uplink"),
         )
         .where(and_(*conditions))
-        .group_by(trunc_expr, NodeOutboundUsage.outbound_tag)
-        .order_by(trunc_expr, NodeOutboundUsage.outbound_tag)
+        .group_by(*group_columns)
+        .order_by(*group_columns)
     )
     stmt = _exclude_partial_first_bucket(stmt, trunc_expr, start, period, dialect)
 
-    stats: dict[str, list[NodeUsageStat]] = {}
+    stats: dict[str, list[NodeOutboundUsageStat]] = {}
     for row in (await db.execute(stmt)).mappings():
         row_dict = dict(row)
         tag = row_dict.pop("outbound_tag")
         attach_timezone_to_period_start(row_dict, start.tzinfo, dialect)
-        stats.setdefault(tag, []).append(NodeUsageStat(**row_dict))
+        stats.setdefault(tag, []).append(NodeOutboundUsageStat(**row_dict))
 
     return NodeOutboundUsageStatsList(period=period, start=start, end=end, stats=stats)
 

@@ -3821,6 +3821,7 @@
   "statistics.outboundStats": "出站统计",
   "statistics.outboundTrafficDistribution": "出站流量分布",
   "statistics.outboundStatsDescription": "此时间段内每个出站标签的详细流量统计。点击图表中的柱状图查看更多详情。",
+  "statistics.outboundNodeSplitError": "无法加载按节点的拆分",
   "statistics.adminStats": "管理员统计",
   "statistics.adminTrafficDistribution": "管理员流量分布",
   "statistics.adminStatsDescription": "此时间段内每个管理员的详细流量统计。点击图表中的柱状图查看更多详情。",
