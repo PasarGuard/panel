@@ -91,6 +91,11 @@ HOSTS = {
         _host("vmess", "grpc", GRPCTransportConfig(path="svc", multi_mode=True)),
         {"id": UUID},
     ),
+    # A custom stream name keeps the "/", which the link builder percent-encodes.
+    "vmess-grpc-path": (
+        _host("vmess", "grpc", GRPCTransportConfig(path="/svc/Stream", multi_mode=False)),
+        {"id": UUID},
+    ),
     "shadowsocks": (
         _host("shadowsocks", "tcp", TCPTransportConfig()),
         {"method": "chacha20-ietf-poly1305", "password": "secret"},
@@ -155,6 +160,16 @@ def test_xray_external_config_reads_shadowsocks_link_forms(monkeypatch, link, pa
     assert config["outbounds"][0]["settings"]["servers"] == [
         {"address": "203.0.113.10", "port": 8388, "password": password, "method": "aes-128-gcm"}
     ]
+
+
+@pytest.mark.parametrize("query", ["type=ws&path=%2Fws", "type=xhttp&path=%2Fx&extra=%7B%22noGRPCHeader%22%3Atrue%7D"])
+def test_xray_external_config_skips_shadowsocks_link_with_transport(monkeypatch, query):
+    userinfo = base64.b64encode(b"aes-128-gcm:secret").decode()
+    vless = _share_link(*HOSTS["vless-reality-tcp"])
+
+    configs = _render_xray(monkeypatch, f"ss://{userinfo}@203.0.113.10:8388?{query}#Transport {vless}")
+
+    assert [config["outbounds"][0]["protocol"] for config in configs] == ["vless"]
 
 
 def test_xray_external_config_unset_adds_nothing(monkeypatch):

@@ -62,7 +62,10 @@ def _parse_share_link(link: str) -> tuple[str, SubscriptionInboundData, dict, di
         # VMess links keep the TLS mode in "tls" and the header type, gRPC or xHTTP mode in "type".
         params.update(type=network, security=params.get("tls") or "none")
         if network in ("grpc", "gun"):
-            params.update(mode=header_type, serviceName=params.get("path", ""), authority=params.get("host", ""))
+            # The link builder percent-encodes a gRPC path, like the query of the other schemes.
+            params.update(
+                mode=header_type, serviceName=unquote(params.get("path", "")), authority=params.get("host", "")
+            )
         elif network in ("xhttp", "splithttp"):
             params["mode"] = header_type
         else:
@@ -98,6 +101,9 @@ def _parse_share_link(link: str) -> tuple[str, SubscriptionInboundData, dict, di
     security = params.get("security") or "none"
     transport_class = _SHARE_LINK_TRANSPORTS.get(network)
     if transport_class is None or security not in ("none", "tls", "reality"):
+        return None
+    if protocol == "shadowsocks" and transport_class is not TCPTransportConfig:
+        # The Shadowsocks builder has no transport; another one would be dropped silently.
         return None
 
     if transport_class is GRPCTransportConfig:
@@ -224,11 +230,11 @@ class XrayConfiguration(BaseSubscription):
                 outbound, extra_outbounds = self.protocol_handlers[inbound.protocol](
                     address=inbound.address, inbound=inbound, settings=settings
                 )
+                if xhttp_extra:
+                    # The link already carries xHTTP extra in Xray's own field names.
+                    outbound["streamSettings"].setdefault(f"{inbound.network}Settings", {})["extra"] = xhttp_extra
             except ValueError, KeyError, TypeError, AttributeError, IndexError:
                 continue
-            if xhttp_extra:
-                # The link already carries xHTTP extra in Xray's own field names.
-                outbound["streamSettings"].setdefault(f"{inbound.network}Settings", {})["extra"] = xhttp_extra
             self.add_config(remarks=remark, outbounds=[outbound, *extra_outbounds])
 
     def add(
