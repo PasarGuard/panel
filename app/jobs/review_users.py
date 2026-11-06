@@ -171,9 +171,10 @@ async def _reminder_targets(threshold_list: list[int], chat_enabled: bool) -> tu
     if not threshold_list:
         return False, False
     webhook_on = (await webhook_settings()).enable
+    if not chat_enabled:
+        return webhook_on, False
     channels = await notification_settings()
-    chat_on = chat_enabled and (channels.notify_telegram or channels.notify_discord)
-    return webhook_on, chat_on
+    return webhook_on, channels.notify_telegram or channels.notify_discord
 
 
 async def usage_percent_notification_job():

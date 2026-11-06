@@ -9,7 +9,7 @@ import pytest
 from nats.js.errors import NotFoundError, ServiceUnavailableError
 
 from app.jobs import review_users
-from app.models.settings import Webhook, WebhookInfo
+from app.models.settings import NotificationEnable, Webhook, WebhookInfo
 from app.notification import queue_manager, webhook as webhook_notification
 from app.notification.nats_queue import InMemoryNotificationQueue, NatsNotificationQueue
 
@@ -105,6 +105,10 @@ async def test_days_left_job_records_every_threshold_when_the_queue_is_full(full
     )
     monkeypatch.setattr(review_users, "webhook_settings", AsyncMock(return_value=settings))
     monkeypatch.setattr(webhook_notification, "webhook_settings", AsyncMock(return_value=settings))
+    # Webhooks only: the Telegram/Discord reminders are off.
+    monkeypatch.setattr(
+        review_users, "notification_enable", AsyncMock(return_value=NotificationEnable(days_left=False))
+    )
 
     @asynccontextmanager
     async def fake_db():
