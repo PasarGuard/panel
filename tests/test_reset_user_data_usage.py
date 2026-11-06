@@ -415,7 +415,7 @@ async def test_apply_template_reset_locks_wireguard_pools_before_user_rows(sessi
     monkeypatch.setattr(
         user_operation,
         "notification",
-        SimpleNamespace(modify_user=no_op, reset_user_data_usage=no_op, user_status_change=no_op),
+        SimpleNamespace(bulk_modify_users=no_op, bulk_reset_user_data_usage=no_op, bulk_user_status_change=no_op),
     )
     monkeypatch.setattr(UserOperation, "generate_subscription_url", staticmethod(fake_url))
 

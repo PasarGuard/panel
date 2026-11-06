@@ -127,9 +127,13 @@ def test_admin_sub_domain_allows_url_prefixes(sub_domain):
 
 def _notification_user(group_names: list[str]):
     return SimpleNamespace(
+        id=1,
         username="notify_user",
+        status=UserStatus.active,
+        used_traffic=0,
         admin=None,
         data_limit=0,
+        note=None,
         expire=None,
         data_limit_reset_strategy=DataLimitResetStrategy.no_reset,
         group_names=group_names,

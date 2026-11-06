@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Any
+
 from app.models.admin import AdminContactInfo
 from app.models.settings import NotificationSettings
 
@@ -91,3 +94,24 @@ def should_send_admin_notification(admin: AdminContactInfo, action: str) -> bool
 
     # Check if the specific action is enabled in admin preferences
     return getattr(admin.notification_enable, action, True)
+
+
+def group_by_owner(users: list, contact: Callable[[AdminContactInfo], Any], action: str) -> list[tuple[Any, list]]:
+    """Groups users by their owner admin's contact (Telegram id or Discord webhook), keeping only owners
+    that have the contact set and want this notification type."""
+    groups: dict[Any, list] = {}
+    for user in users:
+        admin = user.admin
+        if admin and contact(admin) and should_send_admin_notification(admin, action):
+            groups.setdefault(contact(admin), []).append(user)
+    return list(groups.items())
+
+
+def mask_password(password: str) -> str:
+    """Hides a failed login's password: a mistyped real password must not end up in a chat.
+
+    Long passwords keep their first and last character so admins can still tell guesses apart.
+    """
+    if len(password) >= 8:
+        return f"{password[0]}{'*' * (len(password) - 2)}{password[-1]} ({len(password)} chars)"
+    return f"{'*' * len(password)} ({len(password)} chars)"

@@ -291,8 +291,7 @@ class AdminOperation(BaseOperation):
         await remove_users(db, users)
         for user in serialized_users:
             await sync_remove_user(user)
-        for user in serialized_users:
-            asyncio.create_task(notification.remove_user(user, admin))
+        asyncio.create_task(notification.bulk_remove_users(serialized_users, admin))
 
         logger.info(
             f'Admin "{admin.username}" deleted {len(serialized_users)} users belonging to admin "{db_admin.username}"'

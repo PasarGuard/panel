@@ -66,9 +66,8 @@ class SystemOperation(BaseOperation):
                 admin_param = build_admin_details(db_admin)
             else:
                 admin_param = admin
-        elif not admin.is_owner:
-            if not is_scope_all(admin, "users", "read"):
-                admin_param = admin
+        elif not admin.is_owner and not is_scope_all(admin, "users", "read"):
+            admin_param = admin
 
         system_task = None
         if not admin_param:
