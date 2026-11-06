@@ -77,7 +77,7 @@ docstring-code-line-length = "dynamic"
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
-    "psycopg[binary]>=3.3.6",
+    "psycopg[binary]>=3.3.7",
     "pymysql>=1.2.3",
     "pytest>=9.2.0",
     "pytest-asyncio>=1.4.1",
