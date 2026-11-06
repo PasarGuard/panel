@@ -6,7 +6,7 @@ from app.db.models import Settings
 from app.models.settings import SettingsSchema
 
 
-async def get_settings(db: AsyncSession) -> Settings:
+async def get_settings(db: AsyncSession) -> Settings | None:
     """
     Retrieves the Settings.
 
@@ -14,7 +14,7 @@ async def get_settings(db: AsyncSession) -> Settings:
         db (AsyncSession): Database session.
 
     Returns:
-        Settings: Settings information.
+        Settings | None: Settings information, or None when the row has never been created.
     """
     return (await db.execute(select(Settings))).scalar_one_or_none()
 
