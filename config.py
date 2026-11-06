@@ -132,7 +132,6 @@ class CorsSettings(EnvSettings):
 class SubscriptionEnvSettings(EnvSettings):
     xray_path: str = Field(default="", validation_alias="XRAY_SUBSCRIPTION_PATH")
     fallback_path: str = Field(default="sub", validation_alias="SUBSCRIPTION_PATH")
-    external_config: str = Field(default="", validation_alias="EXTERNAL_CONFIG")
 
     @cached_property
     def path(self) -> str:

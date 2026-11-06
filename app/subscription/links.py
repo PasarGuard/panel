@@ -2,6 +2,7 @@ import base64
 import json
 import re
 import urllib.parse as urlparse
+from collections.abc import Iterable
 from random import choice
 from urllib.parse import quote
 
@@ -15,7 +16,6 @@ from app.models.subscription import (
     WebSocketTransportConfig,
     XHTTPTransportConfig,
 )
-from config import subscription_env_settings
 
 from . import BaseSubscription
 
@@ -118,9 +118,10 @@ class StandardLinks(BaseSubscription):
     def add_link(self, link):
         self.links.append(link)
 
+    def add_share_links(self, links: Iterable[str]):
+        self.links.extend(links)
+
     def render(self):
-        if subscription_env_settings.external_config:
-            self.links.append(subscription_env_settings.external_config)
         return "\n".join(self.links)
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):

@@ -1,4 +1,5 @@
 import json
+from collections.abc import Iterable
 from random import choice
 
 from pydantic import BaseModel
@@ -20,6 +21,7 @@ from app.models.subscription import (
 
 from . import BaseSubscription
 from .base import dumps_compact
+from .share_links import SHARE_LINK_ERRORS, parse_share_link
 
 
 class XrayConfiguration(BaseSubscription):
@@ -79,6 +81,27 @@ class XrayConfiguration(BaseSubscription):
 
     def render(self):
         return dumps_compact(self.config)
+
+    def add_share_links(self, links: Iterable[str]):
+        """Add a configuration for each vmess, vless, trojan or shadowsocks share link in ``links``.
+
+        A link of another scheme or transport, or one that does not parse, is skipped.
+        """
+        for link in links:
+            try:
+                parsed = parse_share_link(link)
+                if parsed is None:
+                    continue
+                remark, inbound, settings, xhttp_extra = parsed
+                outbound, extra_outbounds = self.protocol_handlers[inbound.protocol](
+                    address=inbound.address, inbound=inbound, settings=settings
+                )
+                if xhttp_extra:
+                    # The link already carries xHTTP extra in Xray's own field names.
+                    outbound["streamSettings"].setdefault(f"{inbound.network}Settings", {})["extra"] = xhttp_extra
+            except SHARE_LINK_ERRORS:
+                continue
+            self.add_config(remarks=remark, outbounds=[outbound, *extra_outbounds])
 
     def add(
         self,
@@ -628,8 +651,6 @@ class XrayConfiguration(BaseSubscription):
 
         Raises:
             ValueError: A selected port from a comma-separated string is not an integer.
-            IndexError: A gRPC multi-mode path beginning with ``/`` lacks the
-                ``|`` stream separator.
         """
         network = "masque" if protocol_type == "masque" else inbound.network
         path = inbound.transport_config.path

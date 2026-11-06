@@ -2384,6 +2384,7 @@ export interface Subscription {
   allow_browser_config?: boolean;
   disable_sub_template?: boolean;
   randomize_order?: boolean;
+  external_links?: string[];
   custom_variables?: CustomVariable[];
   clients_limit?: number;
 }

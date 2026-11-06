@@ -371,6 +371,8 @@
         "disableSubTemplateDescription": "When disabled, browser requests will return API responses instead of HTML subscription pages",
         "randomizeOrder": "Randomize Subscription Order",
         "randomizeOrderDescription": "Shuffle configuration order on each subscription request",
+        "externalLinks": "External Links",
+        "externalLinksDescription": "Share links (vmess, vless, trojan, ss), one per line, added to every subscription after the hosts. The links format gets each link as is; Xray JSON, sing-box and Clash get a configuration built from it. Links these formats cannot carry are left out of them.",
         "clientsLimit": "Client updates kept per user",
         "clientsLimitDescription": "How many recent subscription updates (client apps) are kept per user. 0 or less keeps all"
       },
