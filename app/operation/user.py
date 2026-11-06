@@ -1090,6 +1090,7 @@ class UserOperation(BaseOperation):
         emit_status_change_notification: bool = True,
     ):
         old_status = db_user.status
+        reset_traffic = db_user.used_traffic
 
         if clean_chart_data is None:
             clean_chart_data = (await general_settings()).usage.reset_usage_clean_chart_data
@@ -1100,7 +1101,7 @@ class UserOperation(BaseOperation):
         if emit_status_change_notification and user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
 
-        asyncio.create_task(notification.reset_user_data_usage(user, admin))
+        asyncio.create_task(notification.reset_user_data_usage(user, admin, reset_traffic))
 
         logger.info(f'User "{db_user.username}" usage was reset by admin "{admin.username}"')
 
@@ -1128,6 +1129,7 @@ class UserOperation(BaseOperation):
             db, bulk_users.ids, admin, load_usage_logs=False, scope_action="reset_usage"
         )
         old_statuses = {user.id: user.status for user in db_users}
+        reset_traffic = {user.id: user.used_traffic for user in db_users}
 
         db_users = await bulk_reset_user_data_usage(
             db,
@@ -1140,7 +1142,7 @@ class UserOperation(BaseOperation):
         for user in users:
             if user.status != old_statuses[user.id]:
                 asyncio.create_task(notification.user_status_change(user, admin))
-            asyncio.create_task(notification.reset_user_data_usage(user, admin))
+            asyncio.create_task(notification.reset_user_data_usage(user, admin, reset_traffic.get(user.id)))
             logger.info(f'User "{user.username}" usage was reset by admin "{admin.username}"')
 
         return self._build_bulk_action_response(users)

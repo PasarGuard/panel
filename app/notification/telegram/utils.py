@@ -2,6 +2,7 @@ from app.models.core import CoreResponse
 from app.models.host import BaseHost
 from app.models.user import UserNotificationResponse
 from app.models.user_template import UserTemplateResponse
+from app.notification.user_details import user_rows
 from app.utils.helpers import escape_tg_html
 
 
@@ -30,3 +31,11 @@ def escape_html_template(template: UserTemplateResponse, by: str) -> tuple[str, 
 def escape_html_core(core: CoreResponse, by: str) -> tuple[str, str, str, str]:
     """Escapes HTML special characters in core and by strings."""
     return escape_tg_html((core.name, core.exclude_tags, core.fallback_tags, by))
+
+
+def user_details_html(user: UserNotificationResponse, fields: tuple[str, ...], **extra) -> str:
+    """Renders the user detail rows, each on its own line, ready to follow the username line."""
+    return "".join(
+        f"\n<b>{label}:</b> <code>{value}</code>"
+        for label, value in (escape_tg_html(row) for row in user_rows(user, fields, **extra))
+    )

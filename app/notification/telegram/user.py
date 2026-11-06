@@ -1,13 +1,12 @@
 from app.models.settings import NotificationSettings
 from app.models.user import UserNotificationResponse
+from app.notification import user_details
 from app.notification.client import send_telegram_message
 from app.notification.helpers import get_telegram_channel, should_send_admin_notification
 from app.settings import notification_settings
-from app.utils.helpers import escape_tg_html
-from app.utils.system import readable_size
 
 from . import messages
-from .utils import escape_html_user
+from .utils import escape_html_user, user_details_html
 
 ENTITY = "user"
 
@@ -20,120 +19,56 @@ _status = {
 }
 
 
-async def user_status_change(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_html_user(user, by)
-    data = messages.USER_STATUS_CHANGE.format(
-        status=_status[user.status.value],
-        username=username,
-        admin_username=admin_username,
-        by=by,
-    )
+async def _send(user: UserNotificationResponse, data: str, action: str):
     settings: NotificationSettings = await notification_settings()
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)
         await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "status_change"):
+    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, action):
         await send_telegram_message(data, chat_id=user.admin.telegram_id)
+
+
+def _format(template: str, user: UserNotificationResponse, by: str, fields: tuple[str, ...], **extra) -> str:
+    username, admin_username, by = escape_html_user(user, by)
+    return template.format(
+        username=username,
+        details=user_details_html(user, fields, **extra),
+        admin_username=admin_username,
+        by=by,
+        status=_status[user.status.value],
+    )
+
+
+async def user_status_change(user: UserNotificationResponse, by: str, reason: str | None = None):
+    data = _format(messages.USER_STATUS_CHANGE, user, by, user_details.STATUS_CHANGE, reason=reason)
+    await _send(user, data, "status_change")
 
 
 async def create_user(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_html_user(user, by)
-    data = messages.CREATE_USER.format(
-        username=username,
-        data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
-        expire_date=user.expire if user.expire else "Never",
-        data_limit_reset_strategy=user.data_limit_reset_strategy.value,
-        groups=", ".join(escape_tg_html(tuple(user.group_names or ()))),
-        has_next_plan=bool(user.next_plan),
-        admin_username=admin_username,
-        by=by,
-    )
-    settings: NotificationSettings = await notification_settings()
-    if settings.notify_telegram:
-        chat_id, topic_id = get_telegram_channel(settings, ENTITY)
-        await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "create"):
-        await send_telegram_message(data, chat_id=user.admin.telegram_id)
+    data = _format(messages.CREATE_USER, user, by, user_details.CREATE)
+    await _send(user, data, "create")
 
 
 async def modify_user(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_html_user(user, by)
-    data = messages.MODIFY_USER.format(
-        username=username,
-        data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
-        expire_date=user.expire if user.expire else "Never",
-        data_limit_reset_strategy=user.data_limit_reset_strategy.value,
-        groups=", ".join(escape_tg_html(tuple(user.group_names or ()))),
-        has_next_plan=bool(user.next_plan),
-        admin_username=admin_username,
-        by=by,
-    )
-    settings: NotificationSettings = await notification_settings()
-    if settings.notify_telegram:
-        chat_id, topic_id = get_telegram_channel(settings, ENTITY)
-        await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "modify"):
-        await send_telegram_message(data, chat_id=user.admin.telegram_id)
+    data = _format(messages.MODIFY_USER, user, by, user_details.MODIFY)
+    await _send(user, data, "modify")
 
 
-async def remove_user(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_html_user(user, by)
-    data = messages.REMOVE_USER.format(
-        username=username,
-        admin_username=admin_username,
-        by=by,
-    )
-    settings: NotificationSettings = await notification_settings()
-    if settings.notify_telegram:
-        chat_id, topic_id = get_telegram_channel(settings, ENTITY)
-        await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "delete"):
-        await send_telegram_message(data, chat_id=user.admin.telegram_id)
+async def remove_user(user: UserNotificationResponse, by: str, reason: str | None = None):
+    data = _format(messages.REMOVE_USER, user, by, user_details.REMOVE, reason=reason)
+    await _send(user, data, "delete")
 
 
-async def reset_user_data_usage(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_html_user(user, by)
-    data = messages.RESET_USER_DATA_USAGE.format(
-        username=username,
-        data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
-        admin_username=admin_username,
-        by=by,
-    )
-    settings: NotificationSettings = await notification_settings()
-    if settings.notify_telegram:
-        chat_id, topic_id = get_telegram_channel(settings, ENTITY)
-        await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "reset_data_usage"):
-        await send_telegram_message(data, chat_id=user.admin.telegram_id)
+async def reset_user_data_usage(user: UserNotificationResponse, by: str, reset_traffic: int | None = None):
+    data = _format(messages.RESET_USER_DATA_USAGE, user, by, user_details.RESET_USAGE, reset_traffic=reset_traffic)
+    await _send(user, data, "reset_data_usage")
 
 
 async def user_data_reset_by_next(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_html_user(user, by)
-    data = messages.USER_DATA_RESET_BY_NEXT.format(
-        username=username,
-        data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
-        expire_date=user.expire if user.expire else "Never",
-        admin_username=admin_username,
-        by=by,
-    )
-    settings: NotificationSettings = await notification_settings()
-    if settings.notify_telegram:
-        chat_id, topic_id = get_telegram_channel(settings, ENTITY)
-        await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "data_reset_by_next"):
-        await send_telegram_message(data, chat_id=user.admin.telegram_id)
+    data = _format(messages.USER_DATA_RESET_BY_NEXT, user, by, user_details.RESET_BY_NEXT)
+    await _send(user, data, "data_reset_by_next")
 
 
 async def user_subscription_revoked(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_html_user(user, by)
-    data = messages.USER_SUBSCRIPTION_REVOKED.format(
-        username=username,
-        admin_username=admin_username,
-        by=by,
-    )
-    settings: NotificationSettings = await notification_settings()
-    if settings.notify_telegram:
-        chat_id, topic_id = get_telegram_channel(settings, ENTITY)
-        await send_telegram_message(data, chat_id, topic_id)
-    if user.admin and user.admin.telegram_id and should_send_admin_notification(user.admin, "subscription_revoked"):
-        await send_telegram_message(data, chat_id=user.admin.telegram_id)
+    data = _format(messages.USER_SUBSCRIPTION_REVOKED, user, by, user_details.REVOKE)
+    await _send(user, data, "subscription_revoked")

@@ -2,6 +2,7 @@ from app.models.core import CoreResponse
 from app.models.host import BaseHost
 from app.models.user import UserNotificationResponse
 from app.models.user_template import UserTemplateResponse
+from app.notification.user_details import user_rows
 from app.utils.helpers import escape_ds_markdown_list
 
 
@@ -30,3 +31,11 @@ def escape_md_template(template: UserTemplateResponse, by: str) -> tuple[str, st
 def escape_md_core(core: CoreResponse, by: str) -> tuple[str, str, str, str]:
     """Escapes markdown special characters in core and by strings for Discord."""
     return escape_ds_markdown_list((core.name, core.exclude_tags, core.fallback_tags, by))
+
+
+def user_details_md(user: UserNotificationResponse, fields: tuple[str, ...], **extra) -> str:
+    """Renders the user detail rows, each on its own line, ready to follow the username line."""
+    return "".join(
+        f"\n**{label}:** {value}"
+        for label, value in (escape_ds_markdown_list(row) for row in user_rows(user, fields, **extra))
+    )

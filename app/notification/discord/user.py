@@ -1,13 +1,12 @@
 from app.models.settings import NotificationSettings
 from app.models.user import UserNotificationResponse
+from app.notification import user_details
 from app.notification.client import send_discord_webhook
 from app.notification.helpers import get_discord_webhook, should_send_admin_notification
 from app.settings import notification_settings
-from app.utils.helpers import escape_ds_markdown_list
-from app.utils.system import readable_size
 
 from . import colors, messages
-from .utils import escape_md_user
+from .utils import escape_md_user, user_details_md
 
 ENTITY = "user"
 
@@ -27,149 +26,68 @@ _status_color = {
 }
 
 
-async def user_status_change(user: UserNotificationResponse, by: str):
+def _build(
+    template: dict, user: UserNotificationResponse, by: str, color: int, fields: tuple[str, ...], **extra
+) -> dict:
     username, admin_username, by = escape_md_user(user, by)
-    message = {**messages.USER_STATUS_CHANGE, "footer": dict(messages.USER_STATUS_CHANGE["footer"])}
+    message = {**template, "footer": dict(template["footer"])}
     message["title"] = message["title"].format(status=_status[user.status.value])
-    message["description"] = message["description"].format(username=username)
-    message["footer"]["text"] = message["footer"]["text"].format(admin_username=admin_username, by=by)
-    data = {
-        "content": "",
-        "embeds": [message],
-    }
-    data["embeds"][0]["color"] = _status_color[user.status.value]
+    message["description"] = message["description"].format(
+        username=username, details=user_details_md(user, fields, **extra)
+    )
+    message["footer"]["text"] = message["footer"]["text"].format(id=user.id, admin_username=admin_username, by=by)
+    message["color"] = color
+    return {"content": "", "embeds": [message]}
+
+
+async def _send(user: UserNotificationResponse, data: dict, action: str):
     settings: NotificationSettings = await notification_settings()
     if settings.notify_discord:
         webhook = get_discord_webhook(settings, ENTITY)
         await send_discord_webhook(data, webhook)
-    if user.admin and user.admin.discord_webhook and should_send_admin_notification(user.admin, "status_change"):
+    if user.admin and user.admin.discord_webhook and should_send_admin_notification(user.admin, action):
         await send_discord_webhook(data, user.admin.discord_webhook)
+
+
+async def user_status_change(user: UserNotificationResponse, by: str, reason: str | None = None):
+    data = _build(
+        messages.USER_STATUS_CHANGE,
+        user,
+        by,
+        _status_color[user.status.value],
+        user_details.STATUS_CHANGE,
+        reason=reason,
+    )
+    await _send(user, data, "status_change")
 
 
 async def create_user(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_md_user(user, by)
-    message = {**messages.CREATE_USER, "footer": dict(messages.CREATE_USER["footer"])}
-    message["description"] = message["description"].format(
-        username=username,
-        data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
-        expire_date=user.expire if user.expire else "Never",
-        data_limit_reset_strategy=user.data_limit_reset_strategy.value,
-        groups=", ".join(escape_ds_markdown_list(tuple(user.group_names or ()))),
-        has_next_plan=bool(user.next_plan),
-    )
-    message["footer"]["text"] = message["footer"]["text"].format(admin_username=admin_username, by=by)
-    data = {
-        "content": "",
-        "embeds": [message],
-    }
-    data["embeds"][0]["color"] = colors.GREEN
-    settings: NotificationSettings = await notification_settings()
-    if settings.notify_discord:
-        webhook = get_discord_webhook(settings, ENTITY)
-        await send_discord_webhook(data, webhook)
-    if user.admin and user.admin.discord_webhook and should_send_admin_notification(user.admin, "create"):
-        await send_discord_webhook(data, user.admin.discord_webhook)
+    data = _build(messages.CREATE_USER, user, by, colors.GREEN, user_details.CREATE)
+    await _send(user, data, "create")
 
 
 async def modify_user(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_md_user(user, by)
-    message = {**messages.MODIFY_USER, "footer": dict(messages.MODIFY_USER["footer"])}
-    message["description"] = message["description"].format(
-        username=username,
-        data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
-        expire_date=user.expire if user.expire else "Never",
-        data_limit_reset_strategy=user.data_limit_reset_strategy.value,
-        groups=", ".join(escape_ds_markdown_list(tuple(user.group_names or ()))),
-        has_next_plan=bool(user.next_plan),
+    data = _build(messages.MODIFY_USER, user, by, colors.YELLOW, user_details.MODIFY)
+    await _send(user, data, "modify")
+
+
+async def remove_user(user: UserNotificationResponse, by: str, reason: str | None = None):
+    data = _build(messages.REMOVE_USER, user, by, colors.RED, user_details.REMOVE, reason=reason)
+    await _send(user, data, "delete")
+
+
+async def reset_user_data_usage(user: UserNotificationResponse, by: str, reset_traffic: int | None = None):
+    data = _build(
+        messages.RESET_USER_DATA_USAGE, user, by, colors.CYAN, user_details.RESET_USAGE, reset_traffic=reset_traffic
     )
-    message["footer"]["text"] = message["footer"]["text"].format(admin_username=admin_username, by=by)
-    data = {
-        "content": "",
-        "embeds": [message],
-    }
-    data["embeds"][0]["color"] = colors.YELLOW
-    settings: NotificationSettings = await notification_settings()
-    if settings.notify_discord:
-        webhook = get_discord_webhook(settings, ENTITY)
-        await send_discord_webhook(data, webhook)
-    if user.admin and user.admin.discord_webhook and should_send_admin_notification(user.admin, "modify"):
-        await send_discord_webhook(data, user.admin.discord_webhook)
-
-
-async def remove_user(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_md_user(user, by)
-    message = {**messages.REMOVE_USER, "footer": dict(messages.REMOVE_USER["footer"])}
-    message["description"] = message["description"].format(username=username)
-    message["footer"]["text"] = message["footer"]["text"].format(id=user.id, admin_username=admin_username, by=by)
-    data = {
-        "content": "",
-        "embeds": [message],
-    }
-    data["embeds"][0]["color"] = colors.RED
-    settings: NotificationSettings = await notification_settings()
-    if settings.notify_discord:
-        webhook = get_discord_webhook(settings, ENTITY)
-        await send_discord_webhook(data, webhook)
-    if user.admin and user.admin.discord_webhook and should_send_admin_notification(user.admin, "delete"):
-        await send_discord_webhook(data, user.admin.discord_webhook)
-
-
-async def reset_user_data_usage(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_md_user(user, by)
-    message = {**messages.RESET_USER_DATA_USAGE, "footer": dict(messages.RESET_USER_DATA_USAGE["footer"])}
-    message["description"] = message["description"].format(
-        username=username,
-        data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
-    )
-    message["footer"]["text"] = message["footer"]["text"].format(id=user.id, admin_username=admin_username, by=by)
-    data = {
-        "content": "",
-        "embeds": [message],
-    }
-    data["embeds"][0]["color"] = colors.CYAN
-    settings: NotificationSettings = await notification_settings()
-    if settings.notify_discord:
-        webhook = get_discord_webhook(settings, ENTITY)
-        await send_discord_webhook(data, webhook)
-    if user.admin and user.admin.discord_webhook and should_send_admin_notification(user.admin, "reset_data_usage"):
-        await send_discord_webhook(data, user.admin.discord_webhook)
+    await _send(user, data, "reset_data_usage")
 
 
 async def user_data_reset_by_next(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_md_user(user, by)
-    message = {**messages.USER_DATA_RESET_BY_NEXT, "footer": dict(messages.USER_DATA_RESET_BY_NEXT["footer"])}
-    message["description"] = message["description"].format(
-        username=username,
-        data_limit=readable_size(user.data_limit) if user.data_limit else "Unlimited",
-        expire_date=user.expire if user.expire else "Never",
-    )
-    message["footer"]["text"] = message["footer"]["text"].format(id=user.id, admin_username=admin_username, by=by)
-    data = {
-        "content": "",
-        "embeds": [message],
-    }
-    data["embeds"][0]["color"] = colors.CYAN
-    settings: NotificationSettings = await notification_settings()
-    if settings.notify_discord:
-        webhook = get_discord_webhook(settings, ENTITY)
-        await send_discord_webhook(data, webhook)
-    if user.admin and user.admin.discord_webhook and should_send_admin_notification(user.admin, "data_reset_by_next"):
-        await send_discord_webhook(data, user.admin.discord_webhook)
+    data = _build(messages.USER_DATA_RESET_BY_NEXT, user, by, colors.CYAN, user_details.RESET_BY_NEXT)
+    await _send(user, data, "data_reset_by_next")
 
 
 async def user_subscription_revoked(user: UserNotificationResponse, by: str):
-    username, admin_username, by = escape_md_user(user, by)
-    message = {**messages.USER_SUBSCRIPTION_REVOKED, "footer": dict(messages.USER_SUBSCRIPTION_REVOKED["footer"])}
-    message["description"] = message["description"].format(username=username)
-    message["footer"]["text"] = message["footer"]["text"].format(id=user.id, admin_username=admin_username, by=by)
-    data = {
-        "content": "",
-        "embeds": [message],
-    }
-    data["embeds"][0]["color"] = colors.RED
-    settings: NotificationSettings = await notification_settings()
-    if settings.notify_discord:
-        webhook = get_discord_webhook(settings, ENTITY)
-        await send_discord_webhook(data, webhook)
-    if user.admin and user.admin.discord_webhook and should_send_admin_notification(user.admin, "subscription_revoked"):
-        await send_discord_webhook(data, user.admin.discord_webhook)
+    data = _build(messages.USER_SUBSCRIPTION_REVOKED, user, by, colors.RED, user_details.REVOKE)
+    await _send(user, data, "subscription_revoked")

@@ -27,6 +27,7 @@ from app.node.sync import (
     remove_user_awaited as sync_remove_user_awaited,
     sync_users,
 )
+from app.notification.user_details import UserEventReason
 from app.operation import OperatorType
 from app.operation.user import UserOperation
 from app.settings import general_settings, webhook_settings
@@ -37,9 +38,9 @@ logger = get_logger("review-users")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
 
 
-async def _notify_status_change(db_user: User, status: UserStatus) -> None:
+async def _notify_status_change(db_user: User, status: UserStatus, reason: UserEventReason | None = None) -> None:
     user = await user_operator.validate_user(db_user)
-    asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN))
+    asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN, reason))
     logger.info(f'User "{user.username}" status changed to {status.value}')
 
 
@@ -49,7 +50,9 @@ async def _notify_next_plan(db_user: User) -> None:
     logger.info(f'User "{db_user.username}" next plan activated')
 
 
-async def apply_status_changes(db: AsyncSession, users: list[User], status: UserStatus) -> None:
+async def apply_status_changes(
+    db: AsyncSession, users: list[User], status: UserStatus, reason: UserEventReason | None = None
+) -> None:
     """Bulk-sync status changes, only walking next-plan users one by one."""
     if not users:
         return
@@ -67,7 +70,7 @@ async def apply_status_changes(db: AsyncSession, users: list[User], status: User
             await update_users_status(db, plain_users, status)
         await sync_users(plain_users)
         for db_user in plain_users:
-            await _notify_status_change(db_user, status)
+            await _notify_status_change(db_user, status, reason)
 
     if not next_plan_users:
         return
@@ -129,7 +132,7 @@ async def remove_on_hold_users(db: AsyncSession, db_users: list[User]):
 
     # Notifications and logging run after successful removal, same as before.
     for user in users:
-        asyncio.create_task(notification.remove_user(user, SYSTEM_ADMIN))
+        asyncio.create_task(notification.remove_user(user, SYSTEM_ADMIN, UserEventReason.on_hold_timeout))
         logger.info(f'User "{user.username}" removed after on-hold timeout')
 
 
@@ -154,7 +157,9 @@ async def on_hold_to_active_users_job():
                 match settings.on_hold_timeout_action:
                     case OnHoldTimeoutAction.disable:
                         updated_users = await update_users_status(db, timed_out_users, UserStatus.disabled)
-                        await apply_status_changes(db, updated_users, UserStatus.disabled)
+                        await apply_status_changes(
+                            db, updated_users, UserStatus.disabled, UserEventReason.on_hold_timeout
+                        )
                     case OnHoldTimeoutAction.delete:
                         await remove_on_hold_users(db, timed_out_users)
 

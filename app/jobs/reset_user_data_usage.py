@@ -20,6 +20,7 @@ async def reset_data_usage():
     async with GetDB() as db:
         users = await get_users_to_reset_data_usage(db)
         old_statuses = {user.id: user.status for user in users}
+        reset_traffic = {user.id: user.used_traffic for user in users}
 
         updated_users = await bulk_reset_user_data_usage(
             db,
@@ -30,7 +31,7 @@ async def reset_data_usage():
         await sync_users(updated_users)
         for db_user in updated_users:
             user = await user_operator.validate_user(db_user)
-            asyncio.create_task(notification.reset_user_data_usage(user, SYSTEM_ADMIN))
+            asyncio.create_task(notification.reset_user_data_usage(user, SYSTEM_ADMIN, reset_traffic.get(user.id)))
 
             if old_statuses.get(user.id) != user.status:
                 asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN))

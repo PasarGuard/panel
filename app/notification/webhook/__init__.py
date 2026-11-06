@@ -1,5 +1,6 @@
 from datetime import UTC, datetime as dt
 from enum import Enum
+from uuid import uuid4
 
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -31,6 +32,8 @@ class Notification(BaseModel):
         reached_usage_percent = "reached_usage_percent"
         reached_days_left = "reached_days_left"
 
+    # Stays the same across delivery retries, so receivers can drop repeats.
+    id: str = Field(default_factory=lambda: uuid4().hex)
     enqueued_at: float = Field(default_factory=get_current_timestamp)
     send_at: float = Field(default_factory=get_current_timestamp)
     tries: int = Field(default=0)
@@ -68,15 +71,18 @@ class UserDeleted(UserNotification):
     action: Notification.Type = Notification.Type.user_deleted
     by: AdminDetails
     user: UserNotificationResponse
+    reason: str | None = None
 
 
 class UserLimited(UserNotification):
     action: Notification.Type = Notification.Type.user_limited
+    by: AdminDetails | None = None
     user: UserNotificationResponse
 
 
 class UserExpired(UserNotification):
     action: Notification.Type = Notification.Type.user_expired
+    by: AdminDetails | None = None
     user: UserNotificationResponse
 
 
@@ -97,10 +103,12 @@ class UserDataUsageReset(UserNotification):
     action: Notification.Type = Notification.Type.data_usage_reset
     by: AdminDetails
     user: UserNotificationResponse
+    reset_traffic: int | None = None
 
 
 class UserDataResetByNext(UserNotification):
-    action: Notification.Type = Notification.Type.data_usage_reset
+    action: Notification.Type = Notification.Type.data_reset_by_next
+    by: AdminDetails | None = None
     user: UserNotificationResponse
 
 
@@ -110,15 +118,15 @@ class UserSubscriptionRevoked(UserNotification):
     user: UserNotificationResponse
 
 
-async def status_change(user: UserNotificationResponse):
+async def status_change(user: UserNotificationResponse, by: AdminDetails | None = None, reason: str | None = None):
     if user.status == UserStatus.limited:
-        await notify(UserLimited(username=user.username, user=user))
+        await notify(UserLimited(username=user.username, user=user, by=by))
     elif user.status == UserStatus.expired:
-        await notify(UserExpired(username=user.username, user=user))
+        await notify(UserExpired(username=user.username, user=user, by=by))
     elif user.status == UserStatus.disabled:
-        await notify(UserDisabled(username=user.username, user=user))
+        await notify(UserDisabled(username=user.username, user=user, by=by, reason=reason))
     elif user.status == UserStatus.active or user.status == UserStatus.on_hold:
-        await notify(UserEnabled(username=user.username, user=user))
+        await notify(UserEnabled(username=user.username, user=user, by=by))
 
 
 async def notify(message: type[Notification]) -> None:

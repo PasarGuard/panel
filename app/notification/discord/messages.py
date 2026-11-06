@@ -1,94 +1,45 @@
 # In this file, we define message templates for Discord notifications.
 # Using templates helps to avoid string concatenation and improves code readability.
 
-USER_CREATED = {
-    "title": "New User Created",
-    "fields": [
-        {"name": "Username", "value": "{username}", "inline": True},
-        {"name": "Data Limit", "value": "{data_limit}", "inline": True},
-        {"name": "Expire Date", "value": "{expire_date}", "inline": True},
-    ],
-}
-
-USER_UPDATED = {
-    "title": "User Updated",
-    "fields": [
-        {"name": "Username", "value": "{username}", "inline": True},
-        {"name": "Data Limit", "value": "{data_limit}", "inline": True},
-        {"name": "Expire Date", "value": "{expire_date}", "inline": True},
-    ],
-}
-
-USER_DELETED = {
-    "title": "User Deleted",
-    "fields": [
-        {"name": "Username", "value": "{username}", "inline": True},
-    ],
-}
-
-USER_EXPIRED = {
-    "title": "User Expired",
-    "fields": [
-        {"name": "Username", "value": "{username}", "inline": True},
-    ],
-}
-
-USER_LIMITED = {
-    "title": "User Data Usage Limited",
-    "fields": [
-        {"name": "Username", "value": "{username}", "inline": True},
-    ],
-}
-
 USER_STATUS_CHANGE = {
     "title": "{status}",
-    "description": "**Username:** {username}\n",
+    "description": "**Username:** {username}{details}",
     "footer": {"text": "Belongs To:{admin_username}\nBy: {by}"},
 }
 
 CREATE_USER = {
     "title": "🆕 Create User",
-    "description": "**Username:** {username}\n"
-    + "**Data Limit**: {data_limit}\n"
-    + "**Expire Date:** {expire_date}\n"
-    + "**Data Limit Reset Strategy:** {data_limit_reset_strategy}\n"
-    + "**Groups:** {groups}\n"
-    + "**Has Next Plan**: {has_next_plan}",
+    "description": "**Username:** {username}{details}",
     "footer": {"text": "Belongs To:{admin_username}\nBy: {by}"},
 }
 
 MODIFY_USER = {
     "title": "✏️ Modify User",
-    "description": "**Username:** {username}\n"
-    + "**Data Limit**: {data_limit}\n"
-    + "**Expire Date:** {expire_date}\n"
-    + "**Data Limit Reset Strategy:** {data_limit_reset_strategy}\n"
-    + "**Groups:** {groups}\n"
-    + "**Has Next Plan**: {has_next_plan}",
+    "description": "**Username:** {username}{details}",
     "footer": {"text": "Belongs To:{admin_username}\nBy: {by}"},
 }
 
 REMOVE_USER = {
     "title": "🗑️ Remove User",
-    "description": "**Username:** {username}\n",
+    "description": "**Username:** {username}{details}",
     "footer": {"text": "ID: {id}\nBelongs To:{admin_username}\nBy: {by}"},
 }
 
 RESET_USER_DATA_USAGE = {
     "title": "🔁 Reset User Data Usage",
-    "description": "**Username:** {username}\n" + "**Data Limit**: {data_limit}\n",
+    "description": "**Username:** {username}{details}",
     "footer": {"text": "ID: {id}\nBelongs To:{admin_username}\nBy: {by}"},
 }
 
 USER_DATA_RESET_BY_NEXT = {
     "title": "🔁 Reset User",
-    "description": "**Username:** {username}\n" + "**Data Limit**: {data_limit}\n" + "**Expire Date:** {expire_date}",
+    "description": "**Username:** {username}{details}",
     "footer": {"text": "ID: {id}\nBelongs To:{admin_username}\nBy: {by}"},
 }
 
 USER_SUBSCRIPTION_REVOKED = {
     "title": "🛑 Revoke User Subscribtion",
-    "description": "**Username:** {username}\n",
+    "description": "**Username:** {username}{details}",
     "footer": {"text": "ID: {id}\nBelongs To:{admin_username}\nBy: {by}"},
 }
 

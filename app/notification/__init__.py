@@ -15,6 +15,7 @@ from app.utils.logger import get_logger
 
 from . import discord as ds, telegram as tg, webhook as wh
 from .dedup import claim_notification_slot
+from .user_details import UserEventReason
 
 logger = get_logger("Notification")
 
@@ -231,13 +232,13 @@ async def admin_login(username: str, password: str, client_ip: str, success: boo
         )
 
 
-async def user_status_change(user: UserNotificationResponse, by: AdminDetails):
+async def user_status_change(user: UserNotificationResponse, by: AdminDetails, reason: UserEventReason | None = None):
     if (await notification_enable()).user.status_change:
         await _gather_notifications(
             "user_status_change",
-            ds.user_status_change(user, by.username),
-            tg.user_status_change(user, by.username),
-            wh.status_change(user),
+            ds.user_status_change(user, by.username, reason),
+            tg.user_status_change(user, by.username, reason),
+            wh.status_change(user, by, reason),
         )
 
 
@@ -261,23 +262,24 @@ async def modify_user(user: UserNotificationResponse, by: AdminDetails):
         )
 
 
-async def remove_user(user: UserNotificationResponse, by: AdminDetails):
+async def remove_user(user: UserNotificationResponse, by: AdminDetails, reason: UserEventReason | None = None):
     if (await notification_enable()).user.delete:
         await _gather_notifications(
             "remove_user",
-            ds.remove_user(user, by.username),
-            tg.remove_user(user, by.username),
-            wh.notify(wh.UserDeleted(username=user.username, user=user, by=by)),
+            ds.remove_user(user, by.username, reason),
+            tg.remove_user(user, by.username, reason),
+            wh.notify(wh.UserDeleted(username=user.username, user=user, by=by, reason=reason)),
         )
 
 
-async def reset_user_data_usage(user: UserNotificationResponse, by: AdminDetails):
+async def reset_user_data_usage(user: UserNotificationResponse, by: AdminDetails, reset_traffic: int | None = None):
+    """`reset_traffic` is the usage the reset cleared, when the caller knows it."""
     if (await notification_enable()).user.reset_data_usage:
         await _gather_notifications(
             "reset_user_data_usage",
-            ds.reset_user_data_usage(user, by.username),
-            tg.reset_user_data_usage(user, by.username),
-            wh.notify(wh.UserDataUsageReset(username=user.username, user=user, by=by)),
+            ds.reset_user_data_usage(user, by.username, reset_traffic),
+            tg.reset_user_data_usage(user, by.username, reset_traffic),
+            wh.notify(wh.UserDataUsageReset(username=user.username, user=user, by=by, reset_traffic=reset_traffic)),
         )
 
 
