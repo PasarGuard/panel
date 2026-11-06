@@ -6,9 +6,12 @@ startup_functions = []
 shutdown_functions = []
 
 
-def on_startup(func):
+def on_startup(func, *, first: bool = False):
     if func not in startup_functions:
-        startup_functions.append(func)
+        if first:
+            startup_functions.insert(0, func)
+        else:
+            startup_functions.append(func)
     return func
 
 
