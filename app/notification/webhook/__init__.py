@@ -65,6 +65,8 @@ class UserUpdated(UserNotification):
     action: Notification.Type = Notification.Type.user_updated
     by: AdminDetails
     user: UserNotificationResponse
+    # The user before the change, when the caller captured it.
+    previous: UserNotificationResponse | None = None
 
 
 class UserDeleted(UserNotification):
@@ -118,15 +120,23 @@ class UserSubscriptionRevoked(UserNotification):
     user: UserNotificationResponse
 
 
-async def status_change(user: UserNotificationResponse, by: AdminDetails | None = None, reason: str | None = None):
+def status_change_message(
+    user: UserNotificationResponse, by: AdminDetails | None = None, reason: str | None = None
+) -> Notification | None:
     if user.status == UserStatus.limited:
-        await notify(UserLimited(username=user.username, user=user, by=by))
-    elif user.status == UserStatus.expired:
-        await notify(UserExpired(username=user.username, user=user, by=by))
-    elif user.status == UserStatus.disabled:
-        await notify(UserDisabled(username=user.username, user=user, by=by, reason=reason))
-    elif user.status == UserStatus.active or user.status == UserStatus.on_hold:
-        await notify(UserEnabled(username=user.username, user=user, by=by))
+        return UserLimited(username=user.username, user=user, by=by)
+    if user.status == UserStatus.expired:
+        return UserExpired(username=user.username, user=user, by=by)
+    if user.status == UserStatus.disabled:
+        return UserDisabled(username=user.username, user=user, by=by, reason=reason)
+    if user.status == UserStatus.active or user.status == UserStatus.on_hold:
+        return UserEnabled(username=user.username, user=user, by=by)
+    return None
+
+
+async def status_change(user: UserNotificationResponse, by: AdminDetails | None = None, reason: str | None = None):
+    if message := status_change_message(user, by, reason):
+        await notify(message)
 
 
 async def notify(message: type[Notification]) -> None:

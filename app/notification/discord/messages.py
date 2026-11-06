@@ -43,6 +43,24 @@ USER_SUBSCRIPTION_REVOKED = {
     "footer": {"text": "ID: {id}\nBelongs To:{admin_username}\nBy: {by}"},
 }
 
+USER_USAGE_REACHED = {
+    "title": "⚠️ User Usage Reached {threshold}%",
+    "description": "**Username:** {username}{details}",
+    "footer": {"text": "ID: {id}\nBelongs To:{admin_username}"},
+}
+
+USER_DAYS_LEFT = {
+    "title": "⏳ User Expiring, {threshold} days left",
+    "description": "**Username:** {username}{details}",
+    "footer": {"text": "ID: {id}\nBelongs To:{admin_username}"},
+}
+
+USERS_DIGEST = {
+    "title": "{header} ({count} users)",
+    "description": "{lines}",
+    "footer": {"text": "{reason}By: {by}"},
+}
+
 CREATE_ADMIN = {
     "title": "Create Admin",
     "description": "**Username:** {username}\n"

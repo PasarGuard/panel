@@ -22,10 +22,10 @@ async def remove_expired_users():
             default_autodelete_days=retention.expired_users_retention_days,
         )
 
+        asyncio.create_task(
+            notification.bulk_remove_users(deleted_users, SYSTEM_ADMIN, UserEventReason.expired_autodelete)
+        )
         for user in deleted_users:
-            asyncio.create_task(
-                notification.remove_user(user=user, by=SYSTEM_ADMIN, reason=UserEventReason.expired_autodelete)
-            )
             logger.info(f"User `{user.username}` has been deleted due to expiration.")
 
         if len(deleted_users) == AUTODELETE_MAX_USERS_PER_RUN:

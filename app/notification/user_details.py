@@ -153,9 +153,59 @@ REMOVE = ("reason", "status", "usage", "lifetime", "expire", "created", "online"
 RESET_USAGE = ("cleared", "data_limit", "lifetime", "expire")
 RESET_BY_NEXT = ("usage", "expire", "next_plan")
 REVOKE = ("status", "usage", "expire")
+REMINDER = ("usage", "expire", "online")
+
+
+# Fields compared between the user before and after a modify, and the current state shown next to the changes.
+MODIFY_DIFF = ("status", "data_limit", "expire", "reset_strategy", "groups", "next_plan", "note")
+MODIFY_CURRENT = ("status", "usage", "expire")
+
+Change = tuple[str, str, str, str]
+
+
+def change_rows(
+    old: UserNotificationResponse, new: UserNotificationResponse, fields: Iterable[str], now: dt | None = None
+) -> list[Change]:
+    """Returns (field, label, old value, new value) for each field whose shown value changed."""
+    now = now or dt.now(UTC)
+    changes = []
+    for name in fields:
+        old_row, new_row = _FIELDS[name](old, now, {}), _FIELDS[name](new, now, {})
+        if old_row == new_row:
+            continue
+        label = (new_row or old_row)[0]
+        changes.append((name, label, old_row[1] if old_row else "None", new_row[1] if new_row else "None"))
+    return changes
 
 
 def user_rows(user: UserNotificationResponse, fields: Iterable[str], now: dt | None = None, **extra) -> list[Row]:
     now = now or dt.now(UTC)
     rows = (_FIELDS[name](user, now, extra) for name in fields)
     return [row for row in rows if row is not None]
+
+
+# One action on this many users or more sends a single summary message per channel (and per owner admin)
+# instead of one message per user. Webhooks still get one event per user.
+DIGEST_MIN_USERS = 6
+DIGEST_MAX_LINES = 30
+
+# Short rows shown per user in a summary message.
+DIGEST_FIELDS = {
+    "create": ("data_limit", "expire"),
+    "modify": ("status", "usage", "expire"),
+    "remove": ("usage", "expire"),
+    "status": ("usage", "expire"),
+    "reset_usage": ("cleared", "data_limit"),
+    "reset_by_next": ("usage", "expire"),
+}
+
+
+def digest_rows(
+    users: list[UserNotificationResponse], kind: str, extras: dict[int, dict] | None = None, now: dt | None = None
+) -> tuple[list[tuple[str, list[Row]]], int]:
+    """Returns (username, rows) for the first DIGEST_MAX_LINES users and how many more were left out."""
+    now = now or dt.now(UTC)
+    extras = extras or {}
+    shown = users[:DIGEST_MAX_LINES]
+    lines = [(user.username, user_rows(user, DIGEST_FIELDS[kind], now, **extras.get(user.id, {}))) for user in shown]
+    return lines, len(users) - len(shown)

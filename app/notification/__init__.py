@@ -15,7 +15,7 @@ from app.utils.logger import get_logger
 
 from . import discord as ds, telegram as tg, webhook as wh
 from .dedup import claim_notification_slot
-from .user_details import UserEventReason
+from .user_details import DIGEST_MIN_USERS, UserEventReason
 
 logger = get_logger("Notification")
 
@@ -32,11 +32,11 @@ async def _gather_notifications(event_name: str, *aws):
             )
 
 
-def _safe_notification_task(func):
+def _safe_notification_task(func, dedup: bool = True):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
-            if not await claim_notification_slot(func.__name__, args, kwargs):
+            if dedup and not await claim_notification_slot(func.__name__, args, kwargs):
                 return None
             return await func(*args, **kwargs)
         except asyncio.CancelledError:
@@ -252,13 +252,15 @@ async def create_user(user: UserNotificationResponse, by: AdminDetails):
         )
 
 
-async def modify_user(user: UserNotificationResponse, by: AdminDetails):
+async def modify_user(
+    user: UserNotificationResponse, by: AdminDetails, previous: UserNotificationResponse | None = None
+):
     if (await notification_enable()).user.modify:
         await _gather_notifications(
             "modify_user",
-            ds.modify_user(user, by.username),
-            tg.modify_user(user, by.username),
-            wh.notify(wh.UserUpdated(username=user.username, user=user, by=by)),
+            ds.modify_user(user, by.username, previous),
+            tg.modify_user(user, by.username, previous),
+            wh.notify(wh.UserUpdated(username=user.username, user=user, by=by, previous=previous)),
         )
 
 
@@ -303,6 +305,20 @@ async def user_subscription_revoked(user: UserNotificationResponse, by: AdminDet
         )
 
 
+# The reminder jobs run once on the scheduler and send one per threshold, so these skip the per-event dedup:
+# its key would merge two thresholds a user crosses in the same run.
+async def user_usage_reached(user: UserNotificationResponse, threshold: int):
+    await _gather_notifications(
+        "user_usage_reached", ds.user_usage_reached(user, threshold), tg.user_usage_reached(user, threshold)
+    )
+
+
+async def user_days_left(user: UserNotificationResponse, threshold: int):
+    await _gather_notifications(
+        "user_days_left", ds.user_days_left(user, threshold), tg.user_days_left(user, threshold)
+    )
+
+
 async def create_core(core: CoreResponse, by: str):
     if (await notification_enable()).core.create:
         await _gather_notifications("create_core", ds.create_core(core, by), tg.create_core(core, by))
@@ -316,6 +332,127 @@ async def modify_core(core: CoreResponse, by: str):
 async def remove_core(core_id: int, by: str):
     if (await notification_enable()).core.delete:
         await _gather_notifications("remove_core", ds.remove_core(core_id, by), tg.remove_core(core_id, by))
+
+
+async def _bulk_user_event(
+    event: str,
+    users: list[UserNotificationResponse],
+    kind: str,
+    by: AdminDetails,
+    single,
+    webhooks,
+    *,
+    reason: UserEventReason | None = None,
+    extras: dict[int, dict] | None = None,
+):
+    """Sends per-user notifications for a few users and one summary per channel for many.
+
+    `single(user)` sends one user's notification, `webhooks()` builds the per-user webhook events: webhook receivers
+    always get one event per user. Callers check the event's enable flag first.
+    """
+    if len(users) < DIGEST_MIN_USERS:
+        for user in users:
+            await single(user)
+        return
+    await _gather_notifications(
+        event,
+        ds.users_digest(users, kind, by.username, reason, extras),
+        tg.users_digest(users, kind, by.username, reason, extras),
+        wh.bulk_notify([message for message in webhooks() if message is not None]),
+    )
+
+
+async def bulk_create_users(users: list[UserNotificationResponse], by: AdminDetails):
+    if (await notification_enable()).user.create:
+        await _bulk_user_event(
+            "bulk_create_users",
+            users,
+            "create",
+            by,
+            lambda user: create_user(user, by),
+            lambda: [wh.UserCreated(username=user.username, user=user, by=by) for user in users],
+        )
+
+
+async def bulk_modify_users(users: list[UserNotificationResponse], by: AdminDetails):
+    if (await notification_enable()).user.modify:
+        await _bulk_user_event(
+            "bulk_modify_users",
+            users,
+            "modify",
+            by,
+            lambda user: modify_user(user, by),
+            lambda: [wh.UserUpdated(username=user.username, user=user, by=by) for user in users],
+        )
+
+
+async def bulk_remove_users(
+    users: list[UserNotificationResponse], by: AdminDetails, reason: UserEventReason | None = None
+):
+    if (await notification_enable()).user.delete:
+        await _bulk_user_event(
+            "bulk_remove_users",
+            users,
+            "remove",
+            by,
+            lambda user: remove_user(user, by, reason),
+            lambda: [wh.UserDeleted(username=user.username, user=user, by=by, reason=reason) for user in users],
+            reason=reason,
+        )
+
+
+async def bulk_user_status_change(
+    users: list[UserNotificationResponse], by: AdminDetails, reason: UserEventReason | None = None
+):
+    if not (await notification_enable()).user.status_change:
+        return
+    by_status: dict[str, list[UserNotificationResponse]] = {}
+    for user in users:
+        by_status.setdefault(user.status.value, []).append(user)
+    for group in by_status.values():
+        await _bulk_user_event(
+            "bulk_user_status_change",
+            group,
+            "status",
+            by,
+            lambda user: user_status_change(user, by, reason),
+            lambda group=group: [wh.status_change_message(user, by, reason) for user in group],
+            reason=reason,
+        )
+
+
+async def bulk_reset_user_data_usage(
+    users: list[UserNotificationResponse], by: AdminDetails, reset_traffic: dict[int, int] | None = None
+):
+    """`reset_traffic` maps user id to the usage the reset cleared."""
+    reset_traffic = reset_traffic or {}
+    if (await notification_enable()).user.reset_data_usage:
+        await _bulk_user_event(
+            "bulk_reset_user_data_usage",
+            users,
+            "reset_usage",
+            by,
+            lambda user: reset_user_data_usage(user, by, reset_traffic.get(user.id)),
+            lambda: [
+                wh.UserDataUsageReset(
+                    username=user.username, user=user, by=by, reset_traffic=reset_traffic.get(user.id)
+                )
+                for user in users
+            ],
+            extras={user_id: {"reset_traffic": traffic} for user_id, traffic in reset_traffic.items()},
+        )
+
+
+async def bulk_user_data_reset_by_next(users: list[UserNotificationResponse], by: AdminDetails):
+    if (await notification_enable()).user.data_reset_by_next:
+        await _bulk_user_event(
+            "bulk_user_data_reset_by_next",
+            users,
+            "reset_by_next",
+            by,
+            lambda user: user_data_reset_by_next(user, by),
+            lambda: [wh.UserDataResetByNext(username=user.username, user=user, by=by) for user in users],
+        )
 
 
 for _task_name in (
@@ -361,5 +498,18 @@ for _task_name in (
     "remove_core",
 ):
     globals()[_task_name] = _safe_notification_task(globals()[_task_name])
+
+# One request or one scheduler run produces each of these, so they skip the per-event dedup.
+for _task_name in (
+    "user_usage_reached",
+    "user_days_left",
+    "bulk_create_users",
+    "bulk_modify_users",
+    "bulk_remove_users",
+    "bulk_user_status_change",
+    "bulk_reset_user_data_usage",
+    "bulk_user_data_reset_by_next",
+):
+    globals()[_task_name] = _safe_notification_task(globals()[_task_name], dedup=False)
 
 del _task_name

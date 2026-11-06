@@ -2,7 +2,7 @@ from app.models.core import CoreResponse
 from app.models.host import BaseHost
 from app.models.user import UserNotificationResponse
 from app.models.user_template import UserTemplateResponse
-from app.notification.user_details import user_rows
+from app.notification.user_details import MODIFY_CURRENT, MODIFY_DIFF, change_rows, user_rows
 from app.utils.helpers import escape_ds_markdown_list
 
 
@@ -39,3 +39,14 @@ def user_details_md(user: UserNotificationResponse, fields: tuple[str, ...], **e
         f"\n**{label}:** {value}"
         for label, value in (escape_ds_markdown_list(row) for row in user_rows(user, fields, **extra))
     )
+
+
+def user_changes_md(user: UserNotificationResponse, previous: UserNotificationResponse) -> str:
+    """Renders what a modify changed, then the current fields that did not change."""
+    changes = change_rows(previous, user, MODIFY_DIFF)
+    changed = {name for name, *_ in changes}
+    lines = "".join(
+        f"\n**{label}:** {old} → {new}"
+        for label, old, new in (escape_ds_markdown_list(change[1:]) for change in changes)
+    )
+    return lines + user_details_md(user, tuple(name for name in MODIFY_CURRENT if name not in changed))

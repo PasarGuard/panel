@@ -1,5 +1,7 @@
 """User notifications carry the user's state: usage, expiry, lifetime traffic and why the system acted."""
 
+import asyncio
+from contextlib import asynccontextmanager as asynccontextmanager_db
 from datetime import UTC, datetime as dt, timedelta as td
 from types import SimpleNamespace
 
@@ -157,3 +159,180 @@ def test_webhook_deleted_carries_reason():
     ).model_dump(mode="json")
 
     assert payload["reason"] == "expired_autodelete"
+
+
+def test_change_rows_list_only_changed_fields():
+    old = _user(data_limit=10 * GB, group_names=["vip"], note=None)
+    new = _user(data_limit=20 * GB, group_names=["vip", "eu"], note="renewed")
+
+    assert user_details.change_rows(old, new, user_details.MODIFY_DIFF, now=NOW) == [
+        ("data_limit", "Data Limit", "10.0 GB", "20.0 GB"),
+        ("groups", "Groups", "vip", "vip, eu"),
+        ("note", "Note", "None", "renewed"),
+    ]
+
+
+async def test_telegram_modify_shows_changes_then_current_state(sent):
+    await tg_user.modify_user(_user(data_limit=20 * GB), "admin", previous=_user())
+
+    (text,) = sent
+    assert "<b>Data Limit:</b> <code>10.0 GB</code> → <code>20.0 GB</code>" in text
+    assert "<b>Usage:</b> <code>3.0 GB / 20.0 GB (15.0%)</code>" in text
+    assert "Reset Strategy" not in text
+
+
+def test_notification_snapshot_skips_unloaded_relations():
+    from app.operation.user import UserOperation
+
+    loaded = SimpleNamespace(
+        id=7,
+        username="alice",
+        status=UserStatus.active,
+        used_traffic=0,
+        data_limit=GB,
+        data_limit_reset_strategy=DataLimitResetStrategy.no_reset,
+        expire=None,
+        note=None,
+        on_hold_expire_duration=None,
+        on_hold_timeout=None,
+        created_at=NOW,
+        online_at=None,
+        group_names=["vip"],
+        next_plan=None,
+    )
+    loaded.groups = []
+    snapshot = UserOperation.notification_snapshot(loaded)
+    assert snapshot is not None and snapshot.group_names == ["vip"] and snapshot.data_limit == GB
+
+    del loaded.groups
+    assert UserOperation.notification_snapshot(loaded) is None
+
+
+def _owned(user_id: int, admin_username: str | None, telegram_id: int | None = None, **overrides):
+    admin = {"username": admin_username, "telegram_id": telegram_id} if admin_username else None
+    return _user(id=user_id, username=f"user{user_id}", admin=admin, **overrides)
+
+
+async def test_digest_sends_one_message_per_channel_and_owner(sent):
+    users = [_owned(i, "reseller", telegram_id=55) for i in range(4)] + [_owned(i, None) for i in range(4, 8)]
+
+    await tg_user.users_digest(users, "remove", "system", UserEventReason.expired_autodelete)
+
+    channel, owner = sent
+    assert "#Remove_User <b>8 users</b>" in channel
+    assert "<code>user0</code>: Usage 3.0 GB / 10.0 GB (30.0%), Expire" in channel
+    assert "Reason: Auto-deleted after expiry" in channel
+    assert "<b>4 users</b>" in owner and "user4" not in owner
+
+
+async def test_digest_caps_lines(sent):
+    users = [_owned(i, None) for i in range(user_details.DIGEST_MAX_LINES + 5)]
+
+    await ds_user.users_digest(users, "status", "system")
+
+    embed = sent[0]["embeds"][0]
+    assert embed["title"] == f"**📅 Expired** ({len(users)} users)"
+    assert embed["description"].endswith("*and 5 more*")
+
+
+async def test_bulk_dispatch_uses_singles_below_threshold_and_digest_above(monkeypatch):
+    from app import notification
+
+    calls = []
+
+    async def enabled():
+        return SimpleNamespace(user=SimpleNamespace(delete=True))
+
+    async def single(user, by, reason=None):
+        calls.append(("single", user.username))
+
+    async def digest(users, kind, by, reason=None, extras=None):
+        calls.append(("digest", len(users)))
+
+    async def bulk_notify(messages):
+        calls.append(("webhooks", len(messages)))
+
+    monkeypatch.setattr(notification, "notification_enable", enabled)
+    monkeypatch.setattr(notification, "remove_user", single)
+    monkeypatch.setattr(notification.tg, "users_digest", digest)
+    monkeypatch.setattr(notification.ds, "users_digest", digest)
+    monkeypatch.setattr(notification.wh, "bulk_notify", bulk_notify)
+    by = SimpleNamespace(username="system")
+
+    await notification.bulk_remove_users([_owned(i, None) for i in range(2)], by)
+    assert calls == [("single", "user0"), ("single", "user1")]
+
+    calls.clear()
+    many = [_owned(i, None) for i in range(user_details.DIGEST_MIN_USERS)]
+    monkeypatch.setattr(notification.wh, "UserDeleted", lambda **kwargs: kwargs)
+    await notification.bulk_remove_users(many, by)
+    assert sorted(calls) == [("digest", len(many)), ("digest", len(many)), ("webhooks", len(many))]
+
+
+async def test_reminders_reach_telegram(sent):
+    await tg_user.user_usage_reached(_user(status=UserStatus.active), 80)
+    await tg_user.user_days_left(_user(status=UserStatus.active, expire=NOW + td(days=3)), 3)
+
+    usage, days = sent
+    assert "#User_Usage_Reached <b>80%</b>" in usage
+    assert "<b>Usage:</b> <code>3.0 GB / 10.0 GB (30.0%)</code>" in usage
+    assert "#User_Expiring <b>3 days left</b>" in days
+
+
+async def test_reminder_job_sends_chat_without_webhooks(monkeypatch):
+    from app.jobs import review_users
+
+    async def webhook_settings():
+        return SimpleNamespace(enable=False, usage_percent=[80], days_left=[])
+
+    async def notification_settings():
+        return SimpleNamespace(notify_telegram=True, notify_discord=False)
+
+    async def notification_enable():
+        return SimpleNamespace(percentage_reached=True, days_left=True)
+
+    db_user = SimpleNamespace(id=7, usage_percentage=81.0, expire=None)
+    user_model = _user(status=UserStatus.active)
+    reached, webhooks = [], []
+
+    async def usage_reached(user, threshold):
+        reached.append((user.username, threshold))
+
+    async def bulk_notify(messages):
+        webhooks.extend(messages)
+
+    async def users_at(db, percent):
+        return [db_user]
+
+    @asynccontextmanager_db
+    async def get_db():
+        yield None
+
+    async def create_reminders(db, data):
+        pass
+
+    monkeypatch.setattr(review_users, "webhook_settings", webhook_settings)
+    monkeypatch.setattr(review_users, "notification_settings", notification_settings)
+    monkeypatch.setattr(review_users, "notification_enable", notification_enable)
+    monkeypatch.setattr(review_users, "get_usage_percentage_reached_users", users_at)
+    monkeypatch.setattr(review_users, "bulk_create_notification_reminders", create_reminders)
+    monkeypatch.setattr(review_users, "GetDB", get_db)
+    monkeypatch.setattr(review_users.UserNotificationResponse, "model_validate", lambda user: user_model)
+    monkeypatch.setattr(review_users.notification, "user_usage_reached", usage_reached)
+    monkeypatch.setattr(review_users.notification.wh, "bulk_notify", bulk_notify)
+
+    await review_users.usage_percent_notification_job()
+    await asyncio.sleep(0)
+
+    assert reached == [("alice", 80)]
+    assert webhooks == []
+
+
+@pytest.mark.parametrize(
+    ("password", "masked"),
+    [("hunter2", "******* (7 chars)"), ("correct-horse", "c***********e (13 chars)"), ("", " (0 chars)")],
+)
+def test_mask_password(password, masked):
+    from app.notification.helpers import mask_password
+
+    assert mask_password(password) == masked
