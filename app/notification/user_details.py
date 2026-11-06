@@ -188,6 +188,8 @@ def user_rows(user: UserNotificationResponse, fields: Iterable[str], now: dt | N
 # instead of one message per user. Webhooks still get one event per user.
 DIGEST_MIN_USERS = 6
 DIGEST_MAX_LINES = 30
+# Room for the rendered user lines; Telegram messages and Discord embed descriptions stop at 4096 characters.
+DIGEST_MAX_CHARS = 3500
 
 # Short rows shown per user in a summary message.
 DIGEST_FIELDS = {
@@ -209,3 +211,16 @@ def digest_rows(
     shown = users[:DIGEST_MAX_LINES]
     lines = [(user.username, user_rows(user, DIGEST_FIELDS[kind], now, **extras.get(user.id, {}))) for user in shown]
     return lines, len(users) - len(shown)
+
+
+def fit_digest_lines(lines: list[str], omitted: int, more_line: Callable[[int], str]) -> list[str]:
+    """Keeps rendered lines within DIGEST_MAX_CHARS and ends with `more_line(n)` for every user left out."""
+    kept: list[str] = []
+    budget = DIGEST_MAX_CHARS - len(more_line(omitted + len(lines)))
+    for line in lines:
+        budget -= len(line) + 1
+        if budget < 0:
+            break
+        kept.append(line)
+    omitted += len(lines) - len(kept)
+    return kept + [more_line(omitted)] if omitted else kept

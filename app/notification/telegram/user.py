@@ -111,8 +111,7 @@ def _format_digest(
         + ", ".join(f"{html.escape(label)} {html.escape(value)}" for label, value in values)
         for username, values in rows
     ]
-    if more:
-        lines.append(f"<i>and {more} more</i>")
+    lines = user_details.fit_digest_lines(lines, more, lambda count: f"<i>and {count} more</i>")
     reason_text = user_details.REASON_LABELS.get(reason, reason) if reason else None
     return messages.USERS_DIGEST.format(
         header=header or _status[users[0].status.value],

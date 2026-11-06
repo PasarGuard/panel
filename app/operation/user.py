@@ -466,6 +466,12 @@ class UserOperation(BaseOperation):
             else None,
         )
 
+    @classmethod
+    def _notification_snapshots(cls, db_users: list[User]) -> dict[int, UserNotificationResponse]:
+        """Snapshots by user id for a bulk modify; users whose relations are not loaded are left out."""
+        snapshots = {db_user.id: cls.notification_snapshot(db_user) for db_user in db_users}
+        return {user_id: snapshot for user_id, snapshot in snapshots.items() if snapshot is not None}
+
     async def update_user(self, db_user: User, include_subscription_url: bool = True) -> UserNotificationResponse:
         await sync_user(db_user)
 
@@ -1236,6 +1242,7 @@ class UserOperation(BaseOperation):
             return []
 
         prepared_updates = []
+        previous = self._notification_snapshots(db_users)
         for db_user in db_users:
             original_status = db_user.status
             modified_user = UserModify(status=status)
@@ -1278,7 +1285,7 @@ class UserOperation(BaseOperation):
                 old_status_value = getattr(original_status, "value", original_status)
                 new_status_value = getattr(user.status, "value", user.status)
                 logger.info(f'User "{user.username}" status changed from "{old_status_value}" to "{new_status_value}"')
-        asyncio.create_task(notification.bulk_modify_users(modified, admin))
+        asyncio.create_task(notification.bulk_modify_users(modified, admin, previous))
         asyncio.create_task(notification.bulk_user_status_change(status_changed, admin))
 
         return users
@@ -1974,6 +1981,8 @@ class UserOperation(BaseOperation):
             await self.raise_error("this template is disabled", 403)
 
         prepared_updates = []
+        previous = self._notification_snapshots(db_users)
+        reset_traffic = {db_user.id: db_user.used_traffic for db_user in db_users} if user_template.reset_usages else {}
         for db_user in db_users:
             original_status = db_user.status
             user_args = self.load_base_user_args(user_template)
@@ -2043,8 +2052,8 @@ class UserOperation(BaseOperation):
                 new_status_value = getattr(user.status, "value", user.status)
                 logger.info(f'User "{user.username}" status changed from "{old_status_value}" to "{new_status_value}"')
         asyncio.create_task(notification.bulk_user_status_change(status_changed, admin))
-        asyncio.create_task(notification.bulk_reset_user_data_usage(reset, admin))
-        asyncio.create_task(notification.bulk_modify_users(modified, admin))
+        asyncio.create_task(notification.bulk_reset_user_data_usage(reset, admin, reset_traffic))
+        asyncio.create_task(notification.bulk_modify_users(modified, admin, previous))
 
         return self._build_bulk_action_response(users)
 

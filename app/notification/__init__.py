@@ -344,13 +344,14 @@ async def _bulk_user_event(
     *,
     reason: UserEventReason | None = None,
     extras: dict[int, dict] | None = None,
+    digest: bool | None = None,
 ):
     """Sends per-user notifications for a few users and one summary per channel for many.
 
     `single(user)` sends one user's notification, `webhooks()` builds the per-user webhook events: webhook receivers
-    always get one event per user. Callers check the event's enable flag first.
+    always get one event per user. `digest` overrides the size check. Callers check the event's enable flag first.
     """
-    if len(users) < DIGEST_MIN_USERS:
+    if not (len(users) >= DIGEST_MIN_USERS if digest is None else digest):
         for user in users:
             await single(user)
         return
@@ -374,15 +375,24 @@ async def bulk_create_users(users: list[UserNotificationResponse], by: AdminDeta
         )
 
 
-async def bulk_modify_users(users: list[UserNotificationResponse], by: AdminDetails):
+async def bulk_modify_users(
+    users: list[UserNotificationResponse],
+    by: AdminDetails,
+    previous: dict[int, UserNotificationResponse] | None = None,
+):
+    """`previous` maps user id to the user before the change."""
+    previous = previous or {}
     if (await notification_enable()).user.modify:
         await _bulk_user_event(
             "bulk_modify_users",
             users,
             "modify",
             by,
-            lambda user: modify_user(user, by),
-            lambda: [wh.UserUpdated(username=user.username, user=user, by=by) for user in users],
+            lambda user: modify_user(user, by, previous.get(user.id)),
+            lambda: [
+                wh.UserUpdated(username=user.username, user=user, by=by, previous=previous.get(user.id))
+                for user in users
+            ],
         )
 
 
@@ -406,6 +416,11 @@ async def bulk_user_status_change(
 ):
     if not (await notification_enable()).user.status_change:
         return
+    if len(users) < DIGEST_MIN_USERS:
+        for user in users:
+            await user_status_change(user, by, reason)
+        return
+    # The summary threshold counts the whole action; each status still gets its own summary (its own header).
     by_status: dict[str, list[UserNotificationResponse]] = {}
     for user in users:
         by_status.setdefault(user.status.value, []).append(user)
@@ -418,6 +433,7 @@ async def bulk_user_status_change(
             lambda user: user_status_change(user, by, reason),
             lambda group=group: [wh.status_change_message(user, by, reason) for user in group],
             reason=reason,
+            digest=True,
         )
 
 

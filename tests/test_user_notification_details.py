@@ -336,3 +336,62 @@ def test_mask_password(password, masked):
     from app.notification.helpers import mask_password
 
     assert mask_password(password) == masked
+
+
+async def test_digest_stays_under_the_message_limit(sent):
+    users = [_user(id=i, username=f"{'x' * 200}{i}") for i in range(user_details.DIGEST_MAX_LINES)]
+
+    await tg_user.users_digest(users, "remove", "system")
+
+    (text,) = sent
+    assert len(text) < 4096
+    shown = text.count("<code>x")
+    assert 0 < shown < len(users)
+    assert f"<i>and {len(users) - shown} more</i>" in text
+
+
+async def test_bulk_status_change_counts_the_whole_action(monkeypatch):
+    from app import notification
+
+    digests = []
+
+    async def enabled():
+        return SimpleNamespace(user=SimpleNamespace(status_change=True))
+
+    async def digest(users, kind, by, reason=None, extras=None):
+        digests.append(sorted({user.status.value for user in users}))
+
+    async def bulk_notify(messages):
+        pass
+
+    monkeypatch.setattr(notification, "notification_enable", enabled)
+    monkeypatch.setattr(notification.tg, "users_digest", digest)
+    monkeypatch.setattr(notification.ds, "users_digest", digest)
+    monkeypatch.setattr(notification.wh, "bulk_notify", bulk_notify)
+    users = [_owned(i, None, status=UserStatus.active) for i in range(3)] + [
+        _owned(i, None, status=UserStatus.limited) for i in range(3, 6)
+    ]
+
+    await notification.bulk_user_status_change(users, SimpleNamespace(username="system"))
+
+    assert sorted(digests) == [["active"], ["active"], ["limited"], ["limited"]]
+
+
+async def test_bulk_modify_passes_previous_state(monkeypatch):
+    from app import notification
+
+    seen = []
+
+    async def enabled():
+        return SimpleNamespace(user=SimpleNamespace(modify=True))
+
+    async def single(user, by, previous=None):
+        seen.append(previous.data_limit if previous else None)
+
+    monkeypatch.setattr(notification, "notification_enable", enabled)
+    monkeypatch.setattr(notification, "modify_user", single)
+    users = [_owned(1, None), _owned(2, None)]
+
+    await notification.bulk_modify_users(users, SimpleNamespace(username="a"), {1: _owned(1, None, data_limit=GB)})
+
+    assert seen == [GB, None]

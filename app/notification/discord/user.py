@@ -135,8 +135,7 @@ def _build_digest(
         + ", ".join(f"{escape_ds_markdown(label)} {escape_ds_markdown(value)}" for label, value in values)
         for username, values in rows
     ]
-    if more:
-        lines.append(f"*and {more} more*")
+    lines = user_details.fit_digest_lines(lines, more, lambda count: f"*and {count} more*")
     reason_text = user_details.REASON_LABELS.get(reason, reason) if reason else None
     message = {**messages.USERS_DIGEST, "footer": dict(messages.USERS_DIGEST["footer"])}
     message["title"] = message["title"].format(header=title or _status[status], count=len(users))
