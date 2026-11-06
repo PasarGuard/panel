@@ -118,13 +118,13 @@ def test_api_key_authenticates_protected_requests(access_token):
         assert user["admin"]["username"] == admin["username"]
 
         delete_user_response = client.delete(
-            f"/api/user/{username}",
+            f"/api/user/{user['id']}",
             headers={"Authorization": f"ApiKey {raw_api_key}"},
         )
         assert delete_user_response.status_code == status.HTTP_204_NO_CONTENT
 
         delete_again_response = client.delete(
-            f"/api/user/{username}",
+            f"/api/user/{user['id']}",
             headers={"Authorization": f"ApiKey {raw_api_key}"},
         )
         assert delete_again_response.status_code == status.HTTP_404_NOT_FOUND

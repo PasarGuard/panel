@@ -251,7 +251,7 @@ def test_get_user_uses_two_selects_and_preserves_lifetime_traffic():
 
     event.listen(engine.sync_engine, "before_cursor_execute", _count_selects)
     try:
-        response = client.get(f"/api/user/{user['username']}", headers=auth_headers(access_token))
+        response = client.get(f"/api/user/{user['id']}", headers=auth_headers(access_token))
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["lifetime_used_traffic"] == 12345
         assert select_count == 2
@@ -453,7 +453,7 @@ def test_user_hwid_limit_stays_null_on_create_and_null_modify_clears(access_toke
         assert explicit_null["hwid_limit"] is None
 
         response = client.put(
-            f"/api/user/{user['username']}",
+            f"/api/user/{user['id']}",
             headers=auth_headers(access_token),
             json={"hwid_limit": 2},
         )
@@ -461,7 +461,7 @@ def test_user_hwid_limit_stays_null_on_create_and_null_modify_clears(access_toke
         assert response.json()["hwid_limit"] == 2
 
         response = client.put(
-            f"/api/user/{user['username']}",
+            f"/api/user/{user['id']}",
             headers=auth_headers(access_token),
             json={"hwid_limit": None},
         )
@@ -541,23 +541,33 @@ def test_limited_admin_cannot_create_or_modify_user_to_unlimited_data_or_expire(
             },
         )
         assert response.status_code == status.HTTP_201_CREATED
+        user_id = response.json()["id"]
 
-        response = client.put(f"/api/user/{username}", headers=auth_headers(admin_token), json={"note": "allowed"})
+        response = client.put(f"/api/user/{user_id}", headers=auth_headers(admin_token), json={"note": "allowed"})
         assert response.status_code == status.HTTP_200_OK
 
-        response = client.put(f"/api/user/{username}", headers=auth_headers(admin_token), json={"data_limit": 0})
+        response = client.put(f"/api/user/{user_id}", headers=auth_headers(admin_token), json={"data_limit": 0})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "Data limit cannot be unlimited" in response.json()["detail"]
 
-        response = client.put(f"/api/user/{username}", headers=auth_headers(admin_token), json={"expire": 0})
+        response = client.put(f"/api/user/{user_id}", headers=auth_headers(admin_token), json={"expire": 0})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "Expire cannot be unlimited" in response.json()["detail"]
 
-        response = client.put(f"/api/user/{username}", headers=auth_headers(admin_token), json={"hwid_limit": 0})
+        response = client.put(f"/api/user/{user_id}", headers=auth_headers(admin_token), json={"hwid_limit": 0})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "HWID limit cannot be unlimited" in response.json()["detail"]
     finally:
-        client.delete(f"/api/user/{username}", headers=auth_headers(access_token))
+        user_lookup = client.get(
+            "/api/users",
+            headers=auth_headers(access_token),
+            params={"username": username},
+        )
+        assert user_lookup.status_code == status.HTTP_200_OK
+        users = user_lookup.json()["users"]
+        db_user = next((item for item in users if item["username"] == username), None)
+        if db_user is not None:
+            client.delete(f"/api/user/{db_user['id']}", headers=auth_headers(access_token))
         delete_admin(access_token, admin["username"])
         _delete_role(access_token, role["id"])
 
@@ -946,14 +956,14 @@ def test_users_get_filters_by_admin_ids(access_token):
 
     try:
         set_owner_a = client.put(
-            f"/api/user/{user_a['username']}/set_owner",
+            f"/api/user/{user_a['id']}/set_owner",
             headers=auth_headers(access_token),
             params={"admin_username": admin_a["username"]},
         )
         assert set_owner_a.status_code == status.HTTP_200_OK
 
         set_owner_b = client.put(
-            f"/api/user/{user_b['username']}/set_owner",
+            f"/api/user/{user_b['id']}/set_owner",
             headers=auth_headers(access_token),
             params={"admin_username": admin_b["username"]},
         )
@@ -1078,7 +1088,7 @@ def test_user_subscription_head_route(access_token):
         cleanup_groups(access_token, core, groups)
 
 
-def test_user_routes_by_id_and_by_username(access_token):
+def test_user_routes_by_id_and_default_id(access_token):
     core, groups = setup_groups(access_token, 1)
     user = create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("id_routes_user")})
     try:
@@ -1086,9 +1096,9 @@ def test_user_routes_by_id_and_by_username(access_token):
         assert by_id_get.status_code == status.HTTP_200_OK
         assert by_id_get.json()["username"] == user["username"]
 
-        by_username_get = client.get(f"/api/user/by-username/{user['username']}", headers=auth_headers(access_token))
-        assert by_username_get.status_code == status.HTTP_200_OK
-        assert by_username_get.json()["id"] == user["id"]
+        default_get = client.get(f"/api/user/{user['id']}", headers=auth_headers(access_token))
+        assert default_get.status_code == status.HTTP_200_OK
+        assert default_get.json()["id"] == user["id"]
 
         patch_payload = {"note": "updated via by-id"}
         by_id_modify = client.put(
@@ -1099,12 +1109,12 @@ def test_user_routes_by_id_and_by_username(access_token):
         assert by_id_modify.status_code == status.HTTP_200_OK
         assert by_id_modify.json()["note"] == patch_payload["note"]
 
-        by_username_usage = client.get(
-            f"/api/user/by-username/{user['username']}/usage",
+        default_usage = client.get(
+            f"/api/user/{user['id']}/usage",
             headers=auth_headers(access_token),
             params={"period": "hour"},
         )
-        assert by_username_usage.status_code == status.HTTP_200_OK
+        assert default_usage.status_code == status.HTTP_200_OK
     finally:
         delete_user(access_token, user["username"])
         cleanup_groups(access_token, core, groups)
@@ -1244,7 +1254,7 @@ def test_user_sub_update_user_agent(access_token):
         ip = "203.0.113.10"
         client.get(url, headers={"User-Agent": user_agent, "X-Forwarded-For": ip})
         response = client.get(
-            f"/api/user/{user['username']}/sub_update",
+            f"/api/user/{user['id']}/sub_update",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == status.HTTP_200_OK
@@ -1285,7 +1295,7 @@ def test_user_sub_update_user_agent_truncates_long_values(access_token):
         long_user_agent = "A" * 1000
         client.get(url, headers={"User-Agent": long_user_agent})
         response = client.get(
-            f"/api/user/{user['username']}/sub_update",
+            f"/api/user/{user['id']}/sub_update",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == status.HTTP_200_OK
@@ -1597,13 +1607,11 @@ def test_xray_subscription_uses_host_specific_template_override(access_token):
         access_token,
         name=unique_name("xray_host_override_template"),
         template_type="xray_subscription",
-        content=json.dumps(
-            {
-                "log": {"loglevel": "warning"},
-                "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
-                "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
-            }
-        ),
+        content=json.dumps({
+            "log": {"loglevel": "warning"},
+            "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
+            "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
+        }),
     )
 
     host_response = client.post(
@@ -1669,13 +1677,11 @@ def test_xray_subscription_template_override_isolated_per_host(access_token):
         access_token,
         name=unique_name("xray_host_isolated_template"),
         template_type="xray_subscription",
-        content=json.dumps(
-            {
-                "log": {"loglevel": "warning"},
-                "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
-                "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
-            }
-        ),
+        content=json.dumps({
+            "log": {"loglevel": "warning"},
+            "inbounds": [{"tag": "placeholder", "protocol": "vmess", "settings": {"clients": []}}],
+            "outbounds": [{"tag": "template-marker", "protocol": "freedom", "settings": {}}],
+        }),
     )
 
     first_host_response = client.post(
@@ -1935,7 +1941,7 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
 
         # Test no-op update preserves allocated peer_ips
         update_response = client.put(
-            f"/api/user/{user['username']}",
+            f"/api/user/{user['id']}",
             headers=auth_headers(access_token),
             json={"note": "keep existing wireguard allocations"},
         )
@@ -1948,6 +1954,7 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
         client.delete(f"/api/host/{second_host_id}", headers=auth_headers(access_token))
         delete_core(access_token, first_core["id"])
         delete_core(access_token, second_core["id"])
+
 
 
 def test_format_rule_response_headers_supports_strings_and_json():
@@ -2111,7 +2118,7 @@ def test_reset_user_usage(access_token):
     )
     try:
         response = client.post(
-            f"/api/user/{user['username']}/reset",
+            f"/api/user/{user['id']}/reset",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == status.HTTP_200_OK
@@ -2123,15 +2130,15 @@ def test_reset_user_usage(access_token):
 def _put_user_back_on_hold(access_token: str, user: dict, how: str) -> dict:
     if how == "toggle":
         response = client.put(
-            f"/api/user/{user['username']}/disabled", headers=auth_headers(access_token), json={"disabled": False}
+            f"/api/user/{user['id']}/disabled", headers=auth_headers(access_token), json={"disabled": False}
         )
     elif how == "bulk_enable":
         response = client.post("/api/users/bulk/enable", headers=auth_headers(access_token), json={"ids": [user["id"]]})
         assert response.status_code == status.HTTP_200_OK
-        response = client.get(f"/api/user/{user['username']}", headers=auth_headers(access_token))
+        response = client.get(f"/api/user/{user['id']}", headers=auth_headers(access_token))
     else:
         response = client.put(
-            f"/api/user/{user['username']}",
+            f"/api/user/{user['id']}",
             headers=auth_headers(access_token),
             json={"status": "on_hold", "on_hold_expire_duration": 3600},
         )
@@ -2158,7 +2165,7 @@ def test_user_put_back_on_hold_ignores_earlier_traffic(access_token):
                 seen_at = (datetime.now(UTC) - timedelta(seconds=3)).replace(microsecond=0)
                 set_user_online_at(user["username"], seen_at)
                 response = client.put(
-                    f"/api/user/{user['username']}/disabled",
+                    f"/api/user/{user['id']}/disabled",
                     headers=auth_headers(access_token),
                     json={"disabled": True},
                 )
@@ -2276,7 +2283,7 @@ def test_user_update(access_token):
     )
     try:
         response = client.put(
-            f"/api/user/{user['username']}",
+            f"/api/user/{user['id']}",
             headers={"Authorization": f"Bearer {access_token}"},
             json={
                 "group_ids": [groups[1]["id"]],
@@ -2305,13 +2312,13 @@ def test_reset_by_next_user_usage(access_token):
     )
     try:
         update = client.put(
-            f"/api/user/{user['username']}",
+            f"/api/user/{user['id']}",
             headers={"Authorization": f"Bearer {access_token}"},
             json={"next_plan": {"data_limit": 100, "expire": 100, "add_remaining_traffic": True}},
         )
         assert update.status_code == status.HTTP_200_OK
         response = client.post(
-            f"/api/user/{user['username']}/active_next",
+            f"/api/user/{user['id']}/active_next",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == status.HTTP_200_OK
@@ -2320,15 +2327,15 @@ def test_reset_by_next_user_usage(access_token):
         cleanup_groups(access_token, core, groups)
 
 
-def _activate_next_plan_template(access_token: str, username: str, template_id: int) -> dict:
+def _activate_next_plan_template(access_token: str, user_id: int, template_id: int) -> dict:
     """Give the user a template next plan and activate it now."""
     update = client.put(
-        f"/api/user/{username}",
+        f"/api/user/{user_id}",
         headers=auth_headers(access_token),
         json={"next_plan": {"user_template_id": template_id}},
     )
     assert update.status_code == status.HTTP_200_OK, update.text
-    response = client.post(f"/api/user/{username}/active_next", headers=auth_headers(access_token))
+    response = client.post(f"/api/user/{user_id}/active_next", headers=auth_headers(access_token))
     assert response.status_code == status.HTTP_200_OK, response.text
     return response.json()
 
@@ -2350,7 +2357,7 @@ def test_next_plan_with_on_hold_template_keeps_user_on_hold(access_token):
     )
     try:
         before = datetime.now(UTC)
-        body = _activate_next_plan_template(access_token, user["username"], template["id"])
+        body = _activate_next_plan_template(access_token, user["id"], template["id"])
 
         assert body["status"] == "on_hold"
         assert not body["expire"]
@@ -2379,7 +2386,7 @@ def test_next_plan_with_active_template_clears_on_hold_fields(access_token):
         },
     )
     try:
-        body = _activate_next_plan_template(access_token, user["username"], template["id"])
+        body = _activate_next_plan_template(access_token, user["id"], template["id"])
 
         assert body["status"] == "active"
         assert body["expire"]
@@ -2401,7 +2408,7 @@ def test_revoke_user_subscription(access_token):
     )
     try:
         response = client.post(
-            f"/api/user/{user['username']}/revoke_sub",
+            f"/api/user/{user['id']}/revoke_sub",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == status.HTTP_200_OK
@@ -2435,7 +2442,7 @@ def test_revoke_user_subscription_regenerates_wireguard_keys(access_token):
         assert old_wireguard["peer_ips"]
 
         response = client.post(
-            f"/api/user/{user['username']}/revoke_sub",
+            f"/api/user/{user['id']}/revoke_sub",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == status.HTTP_200_OK
@@ -2462,7 +2469,7 @@ def test_user_delete(access_token):
     )
     try:
         response = client.delete(
-            f"/api/user/{user['username']}",
+            f"/api/user/{user['id']}",
             headers={"Authorization": f"Bearer {access_token}"},
         )
         assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -2678,10 +2685,11 @@ def test_role_allowed_group_ids_blocks_assigning_unknown_group_by_id(access_toke
         )
         assert create_allowed.status_code == status.HTTP_201_CREATED
         created_username = create_allowed.json()["username"]
+        created_id = create_allowed.json()["id"]
         assert create_allowed.json()["group_ids"] == [allowed_group["id"]]
 
         modify_forbidden = client.put(
-            f"/api/user/{created_username}",
+            f"/api/user/{created_id}",
             headers=auth_headers(admin_token),
             json={"group_ids": [allowed_group["id"], forbidden_group["id"]]},
         )
@@ -2695,7 +2703,7 @@ def test_role_allowed_group_ids_blocks_assigning_unknown_group_by_id(access_toke
             payload={"username": unique_name("group_acl_mixed")},
         )
         keep_existing = client.put(
-            f"/api/user/{mixed_user['username']}",
+            f"/api/user/{mixed_user['id']}",
             headers=auth_headers(admin_token),
             json={"group_ids": [allowed_group["id"], forbidden_group["id"]], "note": "keep"},
         )
@@ -2747,9 +2755,17 @@ def test_modify_user_with_template(access_token):
         headers={"Authorization": f"Bearer {access_token}"},
         json={"username": username, "user_template_id": template["id"]},
     )
+    user_lookup = client.get(
+        "/api/users",
+        headers={"Authorization": f"Bearer {access_token}"},
+        params={"username": username},
+    )
+    assert user_lookup.status_code == status.HTTP_200_OK
+    created_user = next((item for item in user_lookup.json()["users"] if item["username"] == username), None)
+    assert created_user is not None
     try:
         response = client.put(
-            f"/api/user/from_template/{username}",
+            f"/api/user/from_template/{created_user['id']}",
             headers={"Authorization": f"Bearer {access_token}"},
             json={"user_template_id": template["id"]},
         )
@@ -2773,7 +2789,7 @@ def test_role_requiring_template_cannot_manually_modify_user(access_token):
 
     try:
         manual_response = client.put(
-            f"/api/user/{user['username']}",
+            f"/api/user/{user['id']}",
             headers=auth_headers(admin_token),
             json={"data_limit": 2 * 1024 * 1024},
         )
@@ -2781,7 +2797,7 @@ def test_role_requiring_template_cannot_manually_modify_user(access_token):
         assert manual_response.json()["detail"] == "Manual user create/modify is not allowed for your role"
 
         template_response = client.put(
-            f"/api/user/from_template/{user['username']}",
+            f"/api/user/from_template/{user['id']}",
             headers=auth_headers(admin_token),
             json={"user_template_id": template["id"]},
         )
@@ -2815,7 +2831,7 @@ def test_template_required_admin_can_toggle_user_disabled_status(access_token):
         user_created = True
 
         manual_response = client.put(
-            f"/api/user/{username}",
+            f"/api/user/{create_response.json()['id']}",
             headers=auth_headers(admin_token),
             json={"data_limit": 2 * 1024 * 1024},
         )
@@ -2976,7 +2992,7 @@ def test_modify_user_with_template_does_not_reset_usage_when_hwid_limit_is_inval
         assert asyncio.run(_seed_user_state()) == 1234
 
         response = client.put(
-            f"/api/user/from_template/{user['username']}",
+            f"/api/user/from_template/{user['id']}",
             headers={"Authorization": f"Bearer {access_token}"},
             json={"user_template_id": template["id"]},
         )
@@ -3026,7 +3042,18 @@ def test_bulk_create_users_from_template_sequence(access_token):
         expected_usernames = [f"{base_username}{start_number + idx}" for idx in range(count)]
 
         for username in expected_usernames:
-            user_response = client.get(f"/api/user/{username}", headers={"Authorization": f"Bearer {access_token}"})
+            list_response = client.get(
+                "/api/users",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={"username": username},
+            )
+            assert list_response.status_code == status.HTTP_200_OK
+            created_user = next((item for item in list_response.json()["users"] if item["username"] == username), None)
+            assert created_user is not None
+            user_response = client.get(
+                f"/api/user/{created_user['id']}",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
             assert user_response.status_code == status.HTTP_200_OK
             assert user_response.json()["data_limit"] == template["data_limit"]
             assert user_response.json()["status"] == template["status"]
@@ -3072,7 +3099,18 @@ def test_bulk_create_users_from_template_sequence_with_template_affixes(access_t
         expected_usernames = [f"{prefix}{base_username}{suffix}{start_number + idx}" for idx in range(count)]
 
         for username in expected_usernames:
-            user_response = client.get(f"/api/user/{username}", headers={"Authorization": f"Bearer {access_token}"})
+            list_response = client.get(
+                "/api/users",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={"username": username},
+            )
+            assert list_response.status_code == status.HTTP_200_OK
+            created_user = next((item for item in list_response.json()["users"] if item["username"] == username), None)
+            assert created_user is not None
+            user_response = client.get(
+                f"/api/user/{created_user['id']}",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
             assert user_response.status_code == status.HTTP_200_OK
             assert user_response.json()["data_limit"] == template["data_limit"]
             assert user_response.json()["status"] == template["status"]
@@ -3165,8 +3203,11 @@ def test_bulk_apply_template_to_users(access_token):
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["count"] == 2
 
-        for username in (user1["username"], user2["username"]):
-            user_response = client.get(f"/api/user/{username}", headers={"Authorization": f"Bearer {access_token}"})
+        for user_id in (user1["id"], user2["id"]):
+            user_response = client.get(
+                f"/api/user/{user_id}",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
             assert user_response.status_code == status.HTTP_200_OK
             assert user_response.json()["data_limit"] == template["data_limit"]
             assert user_response.json()["status"] == template["status"]
@@ -3706,8 +3747,8 @@ def test_wireguard_subnet_resize_and_release(access_token):
         )
         assert response.status_code == status.HTTP_200_OK, response.text
 
-    def get_peer_ips(username: str) -> list[str]:
-        response = client.get(f"/api/user/{username}", headers=auth_headers(access_token))
+    def get_peer_ips(user_id: int) -> list[str]:
+        response = client.get(f"/api/user/{user_id}", headers=auth_headers(access_token))
         assert response.status_code == status.HTTP_200_OK
         return response.json()["proxy_settings"]["wireguard"]["peer_ips"]
 
@@ -3715,23 +3756,23 @@ def test_wireguard_subnet_resize_and_release(access_token):
     try:
         user1 = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_rs_user1")})
         user2 = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_rs_user2")})
-        assert get_peer_ips(user1["username"]) == ["10.99.0.2/32"]
-        assert get_peer_ips(user2["username"]) == ["10.99.0.3/32"]
+        assert get_peer_ips(user1["id"]) == ["10.99.0.2/32"]
+        assert get_peer_ips(user2["id"]) == ["10.99.0.3/32"]
 
         # grow /25 -> /24: nothing moves
         modify_core_address("10.99.0.1/24")
-        assert get_peer_ips(user1["username"]) == ["10.99.0.2/32"]
-        assert get_peer_ips(user2["username"]) == ["10.99.0.3/32"]
+        assert get_peer_ips(user1["id"]) == ["10.99.0.2/32"]
+        assert get_peer_ips(user2["id"]) == ["10.99.0.3/32"]
 
         # shrink to /30: only offset 2 remains usable; user2 no longer fits
         modify_core_address("10.99.0.1/30")
-        assert get_peer_ips(user1["username"]) == ["10.99.0.2/32"]
-        assert get_peer_ips(user2["username"]) == []  # subnet exhausted for user2
+        assert get_peer_ips(user1["id"]) == ["10.99.0.2/32"]
+        assert get_peer_ips(user2["id"]) == []  # subnet exhausted for user2
 
         # grow back: user2 gets an address again
         modify_core_address("10.99.0.1/24")
-        assert get_peer_ips(user1["username"]) == ["10.99.0.2/32"]
-        assert get_peer_ips(user2["username"]) == ["10.99.0.3/32"]
+        assert get_peer_ips(user1["id"]) == ["10.99.0.2/32"]
+        assert get_peer_ips(user2["id"]) == ["10.99.0.3/32"]
 
         # losing WG access releases the IP...
         other_core = create_core(access_token)
@@ -3740,7 +3781,7 @@ def test_wireguard_subnet_resize_and_release(access_token):
         ]
         try:
             response = client.put(
-                f"/api/user/{user2['username']}",
+                f"/api/user/{user2['id']}",
                 headers=auth_headers(access_token),
                 json={"group_ids": [other_groups[0]["id"]]},
             )
@@ -3751,7 +3792,7 @@ def test_wireguard_subnet_resize_and_release(access_token):
 
             # ...and coming back reuses the freed address
             response = client.put(
-                f"/api/user/{user2['username']}",
+                f"/api/user/{user2['id']}",
                 headers=auth_headers(access_token),
                 json={"group_ids": [group["id"]]},
             )
@@ -3838,7 +3879,7 @@ def test_group_edit_that_exhausts_wireguard_subnet_changes_nothing(access_token,
         stored_plain = client.get(f"/api/group/{plain['id']}", headers=auth_headers(access_token)).json()
         stored_wg = client.get(f"/api/group/{wg_group['id']}", headers=auth_headers(access_token)).json()
         stored_users = [
-            client.get(f"/api/user/{user['username']}", headers=auth_headers(access_token)).json() for user in users
+            client.get(f"/api/user/{user['id']}", headers=auth_headers(access_token)).json() for user in users
         ]
         if users_count > 1:
             assert response.status_code == status.HTTP_400_BAD_REQUEST
