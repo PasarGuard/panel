@@ -331,22 +331,22 @@ function XrayParityFormControlContent({ field, value, onChange, disabled, classN
   if (selectOptions) {
     const hasCustomValue = value.trim().length > 0 && !selectOptions.includes(value)
     return (
-      <FormControl>
-        <Select value={value || '__empty__'} onValueChange={next => onChange(next === '__empty__' ? '' : next)} disabled={disabled}>
+      <Select value={value || '__empty__'} onValueChange={next => onChange(next === '__empty__' ? '' : next)} disabled={disabled}>
+        <FormControl>
           <SelectTrigger className={cn('h-10 w-full min-w-0', className)}>
             <SelectValue placeholder={placeholder ?? t('coreEditor.parityUi.selectValuePlaceholder', { defaultValue: 'Select value' })} />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__empty__">{t('coreEditor.parityUi.selectDefault', { defaultValue: 'Default' })}</SelectItem>
-            {hasCustomValue && <SelectItem value={value}>{value}</SelectItem>}
-            {selectOptions.map(option => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FormControl>
+        </FormControl>
+        <SelectContent>
+          <SelectItem value="__empty__">{t('coreEditor.parityUi.selectDefault', { defaultValue: 'Default' })}</SelectItem>
+          {hasCustomValue && <SelectItem value={value}>{value}</SelectItem>}
+          {selectOptions.map(option => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     )
   }
 

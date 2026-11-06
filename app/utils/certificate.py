@@ -3,6 +3,7 @@ import os
 import stat
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
+from pathlib import Path
 
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
@@ -13,14 +14,35 @@ from app.models.certificate import CertificateDetails, CertificateInspectRequest
 
 MAX_CERTIFICATE_BYTES = 1_048_576
 MAX_KEY_BYTES = 65_536
+CERTIFICATE_DIRECTORIES = (
+    Path("/var/lib/pasarguard/certs"),
+    Path("/etc/letsencrypt/live"),
+    Path("/etc/letsencrypt/archive"),
+    Path("/etc/ssl/certs"),
+    Path("/etc/ssl/private"),
+)
 
 
 def _read_pem_file(path: str, limit: int) -> bytes:
-    # O_NONBLOCK prevents opening a FIFO from tying up a worker. Symlinks are
-    # intentionally supported for ACME clients' live/fullchain.pem paths.
-    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
-    fd = os.open(path, flags)
+    requested = Path(path)
+    if not requested.is_absolute() or ".." in requested.parts:
+        raise ValueError("unsupported_file")
+    if not any(requested.is_relative_to(root) for root in CERTIFICATE_DIRECTORIES):
+        raise ValueError("unsupported_file")
+    # ACME live paths can link to the archive directory.
+    resolved = requested.resolve(strict=True)
+    if not any(resolved.is_relative_to(root) for root in CERTIFICATE_DIRECTORIES):
+        raise ValueError("unsupported_file")
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(resolved, flags)
     with os.fdopen(fd, "rb") as stream:
+        # Verify the opened file on Linux before reading in case a directory
+        # changed between resolving and opening the path.
+        fd_path = Path("/proc/self/fd")
+        if fd_path.is_dir():
+            opened = Path(os.readlink(fd_path / str(stream.fileno())))
+            if not any(opened.is_relative_to(root) for root in CERTIFICATE_DIRECTORIES):
+                raise ValueError("unsupported_file")
         info = os.fstat(stream.fileno())
         if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
             raise ValueError("unsupported_file")

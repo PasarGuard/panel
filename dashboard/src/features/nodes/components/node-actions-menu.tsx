@@ -12,6 +12,7 @@ import UserOnlineStatsDialog from '@/features/users/dialogs/user-online-stats-mo
 import UpdateCoreDialog from '@/features/nodes/dialogs/update-core-modal'
 import UpdateGeofilesDialog from '@/features/nodes/dialogs/update-geofiles-modal'
 import { translateHtml } from '@/utils/html-translation'
+import { isXrayCoreType } from '@/features/core-editor/kit/core-kind'
 
 interface NodeActionsMenuProps {
   node: NodeResponse
@@ -264,11 +265,12 @@ export default function NodeActionsMenu({
     syncNodeSnapshot(node)
   }, [node])
 
-  const isWireGuard = coresData?.cores?.find(core => core.id === node.core_config_id)?.type === 'wg'
+  // Core and geofile updates are Xray-only; Update Node stays for every core (the node image carries telemt).
+  const isXrayCore = isXrayCoreType(coresData?.cores?.find(core => core.id === node.core_config_id)?.type)
   const hasRowActions = canUpdate || canDelete || canReconnect || canUpdateCore || canReadStats
   const primaryActionCount = canUpdate ? 2 : 0
   const secondaryActionCount = (canReadStats ? 1 : 0) + (canUpdate ? 2 : 0) + (canReconnect ? 1 : 0)
-  const coreActionCount = (canUpdateCore && !isWireGuard ? 2 : 0) + (canUpdateCore ? 1 : 0)
+  const coreActionCount = (canUpdateCore && isXrayCore ? 2 : 0) + (canUpdateCore ? 1 : 0)
   const destructiveActionCount = canDelete ? 1 : 0
 
   const handleDeleteClick = (event: Event) => {
@@ -485,7 +487,7 @@ export default function NodeActionsMenu({
                 </DropdownMenuItem>
               )}
               {secondaryActionCount > 0 && coreActionCount > 0 && <DropdownMenuSeparator />}
-              {canUpdateCore && !isWireGuard && (
+              {canUpdateCore && isXrayCore && (
                 <>
                   <DropdownMenuItem
                     onSelect={e => {

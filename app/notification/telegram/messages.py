@@ -4,7 +4,7 @@
 USER_STATUS_CHANGE = """
 {status}
 ➖➖➖➖➖➖➖➖➖
-<b>Username:</b> <code>{username}</code>
+<b>Username:</b> <code>{username}</code>{details}
 ➖➖➖➖➖➖➖➖➖
 <i>Belongs To</i>: <code>{admin_username}</code>
 <i>By: #{by}</i>
@@ -13,12 +13,7 @@ USER_STATUS_CHANGE = """
 CREATE_USER = """
 🆕 #Create_User
 ➖➖➖➖➖➖➖➖➖
-<b>Username:</b> <code>{username}</code>
-<b>Data Limit</b>: <code>{data_limit}</code>
-<b>Expire Date:</b> <code>{expire_date}</code>
-<b>Data Limit Reset Strategy:</b> <code>{data_limit_reset_strategy}</code>
-<b>Groups:</b> <code>{groups}</code>
-<b>Has Next Plan</b>: <code>{has_next_plan}</code>
+<b>Username:</b> <code>{username}</code>{details}
 ➖➖➖➖➖➖➖➖➖
 <i>Belongs To</i>: <code>{admin_username}</code>
 <i>By: #{by}</i>
@@ -27,12 +22,7 @@ CREATE_USER = """
 MODIFY_USER = """
 ✏️ #Modify_User
 ➖➖➖➖➖➖➖➖➖
-<b>Username:</b> <code>{username}</code>
-<b>Data Limit</b>: <code>{data_limit}</code>
-<b>Expire Date:</b> <code>{expire_date}</code>
-<b>Data Limit Reset Strategy:</b> <code>{data_limit_reset_strategy}</code>
-<b>Groups:</b> <code>{groups}</code>
-<b>Has Next Plan</b>: <code>{has_next_plan}</code>
+<b>Username:</b> <code>{username}</code>{details}
 ➖➖➖➖➖➖➖➖➖
 <i>Belongs To</i>: <code>{admin_username}</code>
 <i>By: #{by}</i>
@@ -41,7 +31,7 @@ MODIFY_USER = """
 REMOVE_USER = """
 🗑️ #Remove_User
 ➖➖➖➖➖➖➖➖➖
-<b>Username:</b> <code>{username}</code>
+<b>Username:</b> <code>{username}</code>{details}
 ➖➖➖➖➖➖➖➖➖
 <i>Belongs To</i>: <code>{admin_username}</code>
 <i>By: #{by}</i>
@@ -50,8 +40,7 @@ REMOVE_USER = """
 RESET_USER_DATA_USAGE = """
 🔁 #Reset_User_Data_Usage
 ➖➖➖➖➖➖➖➖➖
-<b>Username:</b> <code>{username}</code>
-<b>Data Limit</b>: <code>{data_limit}</code>
+<b>Username:</b> <code>{username}</code>{details}
 ➖➖➖➖➖➖➖➖➖
 <i>Belongs To</i>: <code>{admin_username}</code>
 <i>By: #{by}</i>
@@ -60,9 +49,7 @@ RESET_USER_DATA_USAGE = """
 USER_DATA_RESET_BY_NEXT = """
 🔁 #Reset_User_By_Next
 ➖➖➖➖➖➖➖➖➖
-<b>Username:</b> <code>{username}</code>
-<b>Data Limit</b>: <code>{data_limit}</code>
-<b>Expire Date:</b> <code>{expire_date}</code>
+<b>Username:</b> <code>{username}</code>{details}
 ➖➖➖➖➖➖➖➖➖
 <i>Belongs To</i>: <code>{admin_username}</code>
 <i>By: #{by}</i>
@@ -71,10 +58,34 @@ USER_DATA_RESET_BY_NEXT = """
 USER_SUBSCRIPTION_REVOKED = """
 🛑 #Revoke_User_Subscribtion
 ➖➖➖➖➖➖➖➖➖
-<b>Username:</b> <code>{username}</code>
+<b>Username:</b> <code>{username}</code>{details}
 ➖➖➖➖➖➖➖➖➖
 <i>Belongs To</i>: <code>{admin_username}</code>
 <i>By: #{by}</i>
+"""
+
+USER_USAGE_REACHED = """
+⚠️ #User_Usage_Reached <b>{threshold}%</b>
+➖➖➖➖➖➖➖➖➖
+<b>Username:</b> <code>{username}</code>{details}
+➖➖➖➖➖➖➖➖➖
+<i>Belongs To</i>: <code>{admin_username}</code>
+"""
+
+USER_DAYS_LEFT = """
+⏳ #User_Expiring <b>{threshold} days left</b>
+➖➖➖➖➖➖➖➖➖
+<b>Username:</b> <code>{username}</code>{details}
+➖➖➖➖➖➖➖➖➖
+<i>Belongs To</i>: <code>{admin_username}</code>
+"""
+
+USERS_DIGEST = """
+{header} <b>{count} users</b>
+➖➖➖➖➖➖➖➖➖
+{lines}
+➖➖➖➖➖➖➖➖➖
+{reason}<i>By: #{by}</i>
 """
 
 CREATE_ADMIN = """

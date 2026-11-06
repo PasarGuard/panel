@@ -183,6 +183,8 @@ class XDriveTransportConfig(BaseTransportConfig):
     eager_window_ms: int | None = Field(None, serialization_alias="eagerWindowMs")
     hole_timeout_ms: int | None = Field(None, serialization_alias="holeTimeoutMs")
     template: dict[str, Any] | None = Field(None)
+    s3: dict[str, Any] | None = Field(None)
+    xmux: dict[str, Any] | None = Field(None)
 
 
 class KCPTransportConfig(BaseTransportConfig):
@@ -325,6 +327,14 @@ class SubscriptionInboundData(BaseModel):
 
     # MASQUE DNS comes from the host or its inbound, not the user.
     masque_remote_dns: list[str] = Field(default_factory=list)
+
+    # MTProto / telemt
+    mtproto_modes: dict[str, bool] = Field(default_factory=dict)
+    mtproto_tls_domain: str = Field("")
+    mtproto_link_type: str = Field("auto")
+    mtproto_link_domains: list[str] = Field(default_factory=list)
+    mtproto_native: bool = Field(True)
+    mtproto_web_vhosts: list[dict[str, str]] = Field(default_factory=list)
 
     # Flow (from inbound, user can override)
     inbound_flow: str = Field("")

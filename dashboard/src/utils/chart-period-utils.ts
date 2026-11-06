@@ -31,6 +31,64 @@ export const CHART_PERIOD_OVERRIDE_AUTO = 'auto' as const
 export type ChartPeriodOverride = typeof CHART_PERIOD_OVERRIDE_AUTO | Period
 export const CHART_PERIOD_VALUES = [Period.minute, Period.hour, Period.day, Period.month] as const
 
+/** Most buckets one chart series may show for a hand-picked minute or hour period. */
+export const MAX_CHART_BUCKETS = 500
+
+/** Usage history (node usages, user usages) is stored in 10 minute rows, so minute buckets over it are 10 minutes apart. */
+export const USAGE_RECORD_BUCKET_MINUTES = 10
+
+/** Shortest width of each period in minutes (month as 28 days, so counts are an upper bound). */
+const PERIOD_BUCKET_MINUTES: Record<Period, number> = {
+  [Period.minute]: 1,
+  [Period.hour]: 60,
+  [Period.day]: 24 * 60,
+  [Period.month]: 28 * 24 * 60,
+}
+
+/** Day and month are always allowed: "all time" uses day buckets and they never outnumber the days of stored history. */
+const BUCKET_LIMITED_PERIODS: readonly Period[] = [Period.minute, Period.hour]
+
+export type ChartRangeSelection = {
+  shortcut?: string
+  customRange?: DateRange
+}
+
+export type ChartPeriodLimitOptions = {
+  /** Spacing of the stored rows in minutes. Use USAGE_RECORD_BUCKET_MINUTES for usage charts. Defaults to 1. */
+  recordBucketMinutes?: number
+}
+
+/** Range length in minutes; Infinity for "all" or an unknown shortcut. Custom ranges cover whole days, like the query. */
+export const getChartRangeMinutes = ({ shortcut, customRange }: ChartRangeSelection): number => {
+  if (customRange?.from && customRange?.to) {
+    const from = dayjs(customRange.from).startOf('day')
+    const to = dayjs(customRange.to).endOf('day')
+    return Math.abs(to.diff(from, 'minute', true))
+  }
+
+  if (!shortcut) return Number.POSITIVE_INFINITY
+  const meta = getShortcutMeta(shortcut)
+  if ('hours' in meta && meta.hours) return meta.hours * 60
+  if ('days' in meta && meta.days) return meta.days * 24 * 60
+  if ('months' in meta && meta.months) return meta.months * 30 * 24 * 60
+  return Number.POSITIVE_INFINITY
+}
+
+/** Periods the period picker may offer for a range. Auto is always allowed. */
+export const getAllowedChartPeriods = (range: ChartRangeSelection, options?: ChartPeriodLimitOptions): ChartPeriodOverride[] => {
+  const rangeMinutes = getChartRangeMinutes(range)
+  const recordBucketMinutes = Math.max(1, options?.recordBucketMinutes ?? 1)
+
+  return [
+    CHART_PERIOD_OVERRIDE_AUTO,
+    ...CHART_PERIOD_VALUES.filter(period => {
+      if (!BUCKET_LIMITED_PERIODS.includes(period)) return true
+      const bucketMinutes = Math.max(PERIOD_BUCKET_MINUTES[period], recordBucketMinutes)
+      return rangeMinutes / bucketMinutes <= MAX_CHART_BUCKETS
+    }),
+  ]
+}
+
 export const resolvePeriodOverride = (override?: ChartPeriodOverride): Period | undefined => {
   if (!override || override === CHART_PERIOD_OVERRIDE_AUTO) return undefined
   return override

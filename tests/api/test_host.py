@@ -11,6 +11,7 @@ from tests.api.helpers import (
     get_inbounds,
     unique_name,
 )
+from tests.api.sample_data import XRAY_CONFIG
 
 
 def test_host_create(access_token):
@@ -672,4 +673,31 @@ def test_host_finalmask_header_custom_numeric_rand(access_token):
     finally:
         for host_id in created_ids:
             client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_core(access_token, core["id"])
+
+
+def test_non_mtproto_host_ignores_mtproto_settings(access_token):
+    core = create_core(access_token)
+    # Use an inbound of the Xray core created here: the global list can start with another core's MTProto inbound.
+    available = set(get_inbounds(access_token))
+    xray_inbound = next(inbound["tag"] for inbound in XRAY_CONFIG["inbounds"] if inbound["tag"] in available)
+    host_id = None
+    try:
+        response = client.post(
+            "/api/host",
+            headers=auth_headers(access_token),
+            json={
+                "remark": unique_name("xray_host_mtproto_settings"),
+                "address": ["127.0.0.1"],
+                "port": 443,
+                "inbound_tag": xray_inbound,
+                "priority": 1,
+                "transport_settings": {"mtproto_settings": {"link_type": "web"}},
+            },
+        )
+        assert response.status_code == status.HTTP_201_CREATED, response.text
+        host_id = response.json()["id"]
+    finally:
+        if host_id is not None:
+            client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
         delete_core(access_token, core["id"])

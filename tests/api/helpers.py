@@ -9,6 +9,7 @@ from uuid import uuid4
 from fastapi import status
 
 from app.db.crud.hwid import register_user_hwid, reset_user_hwids
+from app.db.models import User
 from config import nats_settings, runtime_settings
 from tests.api import TestSession, client
 from tests.api.sample_data import XRAY_CONFIG
@@ -72,11 +73,25 @@ def create_core(
         "name": name or unique_name("core"),
         "type": type,
         "exclude_inbound_tags": list(exclude or []),
-        "fallbacks_inbound_tags": list(fallbacks or ([] if type == "wg" else ["fallback-A", "fallback-B"])),
+        "fallbacks_inbound_tags": list(
+            fallbacks or ([] if type in {"wg", "mtproto"} else ["fallback-A", "fallback-B"])
+        ),
     }
     response = client.post("/api/core", headers=auth_headers(access_token), json=payload)
     assert response.status_code == status.HTTP_201_CREATED
     return response.json()
+
+
+def create_mtproto_core(
+    access_token: str, *, tag: str | None = None, config: dict | None = None, name: str | None = None
+) -> dict:
+    config = config or {
+        "inbound_tag": tag or unique_name("mtp"),
+        "general": {"modes": {"classic": False, "secure": False, "tls": True}},
+        "server": {"port": 443},
+        "censorship": {"tls_domain": "www.example.org"},
+    }
+    return create_core(access_token, name=name, config=config, type="mtproto", fallbacks=[])
 
 
 def delete_core(access_token: str, core_id: int) -> None:
@@ -165,7 +180,7 @@ def create_hosts_for_inbounds(access_token: str, *, address: list[str] | None = 
             "inbound_tag": inbound["tag"],
             "priority": idx + 1,
         }
-        if inbound["protocol"] != "wireguard":
+        if inbound["protocol"] not in {"wireguard", "mtproto"}:
             payload["sni"] = [f"test_host_{idx}.example.com"]
         response = client.post("/api/host", headers=auth_headers(access_token), json=payload)
         assert response.status_code == status.HTTP_201_CREATED
@@ -269,6 +284,33 @@ def set_user_hwids(user_id: int, count: int) -> None:
             await session.commit()
 
     asyncio.run(_register())
+
+
+def strip_mtproto_settings(user_id: int) -> None:
+    """Remove the stored `mtproto` settings of a user, written directly to the database."""
+
+    async def _strip() -> None:
+        async with TestSession() as session:
+            db_user = await session.get(User, user_id)
+            assert db_user is not None
+            db_user.proxy_settings = {key: value for key, value in db_user.proxy_settings.items() if key != "mtproto"}
+            await session.commit()
+
+    asyncio.run(_strip())
+
+
+def store_mtproto_secret(user_id: int, secret: str) -> None:
+    """Store a raw `mtproto.secret` for a user directly in the database, bypassing the write paths."""
+
+    async def _store() -> None:
+        async with TestSession() as session:
+            db_user = await session.get(User, user_id)
+            assert db_user is not None
+            mtproto = dict(db_user.proxy_settings.get("mtproto") or {})
+            db_user.proxy_settings = {**db_user.proxy_settings, "mtproto": {**mtproto, "secret": secret}}
+            await session.commit()
+
+    asyncio.run(_store())
 
 
 def delete_user_template(access_token: str, template_id: int) -> None:

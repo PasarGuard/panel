@@ -14,7 +14,7 @@ from app.middlewares import setup_middleware
 from app.nats import is_multi_worker, require_nats_if_multiworker
 from app.nats.message import MessageTopic
 from app.nats.router import router
-from app.settings import handle_settings_message
+from app.settings import handle_settings_message, refresh_caches
 from app.subscription.client_templates import handle_client_template_message
 from app.utils.logger import get_logger
 from app.version import __version__
@@ -153,6 +153,11 @@ def _log_database_pool_budget() -> None:
     logger.info(database_pool_summary(database_settings, process_count))
 
 
+async def _refresh_settings_message(_: dict):
+    # Node workers read panel settings too, but must not run the Telegram bot
+    await refresh_caches()
+
+
 async def _ignore_worker_sync_message(_: dict):
     return None
 
@@ -195,12 +200,15 @@ def _register_nats_handlers(
     enable_client_templates: bool,
     ignore_host_messages: bool = False,
     enable_node_sync: bool = False,
+    enable_settings_refresh: bool = False,
 ):
     if enable_router:
         on_startup(router.start)
         on_shutdown(router.stop)
     if enable_settings:
         router.register_handler(MessageTopic.SETTING, handle_settings_message)
+    elif enable_settings_refresh:
+        router.register_handler(MessageTopic.SETTING, _refresh_settings_message)
     if enable_client_templates:
         router.register_handler(MessageTopic.CLIENT_TEMPLATE, handle_client_template_message)
     if ignore_host_messages:
@@ -388,8 +396,14 @@ def create_app() -> FastAPI:
     enable_client_templates = runtime_settings.role.runs_panel or runtime_settings.role.runs_scheduler
     ignore_host_messages = not runtime_settings.role.runs_panel
     enable_node_sync = runtime_settings.role.runs_node
+    enable_settings_refresh = runtime_settings.role.runs_node
     _register_nats_handlers(
-        enable_router, enable_settings, enable_client_templates, ignore_host_messages, enable_node_sync
+        enable_router,
+        enable_settings,
+        enable_client_templates,
+        ignore_host_messages,
+        enable_node_sync,
+        enable_settings_refresh,
     )
     _register_scheduler_hooks()
     _register_jobs()

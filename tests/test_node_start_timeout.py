@@ -6,7 +6,7 @@ from PasarGuardNodeBridge import Health, NodeAPIError
 from PasarGuardNodeBridge.storage import LifecycleStatus
 from pydantic import ValidationError
 
-from app.db.models import NodeStatus
+from app.db.models import CoreType, NodeStatus
 from app.jobs import node_checker
 from app.models.node import NodeModify
 from app.operation import node as node_operation_module
@@ -96,7 +96,7 @@ async def test_force_start_skips_attach_and_starts_core(monkeypatch: pytest.Monk
 async def test_connect_node_attaches_when_remote_start_finishes_after_timeout(monkeypatch: pytest.MonkeyPatch):
     pg_node = object()
     db_node = SimpleNamespace(id=19, name="slow-node", status=NodeStatus.connecting)
-    core = SimpleNamespace(type=object())
+    core = SimpleNamespace(type=CoreType.xray)
     attached = SimpleNamespace(node_version="0.5.4", core_version="1.0.20260223")
 
     monkeypatch.setattr(node_operation_module.node_manager, "get_node", AsyncMock(return_value=pg_node))

@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/components/ui/chart'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { Upload, Download, Calendar, Activity, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -24,6 +25,10 @@ interface NodeStatsModalProps {
   title?: string
   distributionTitle?: string
   description?: string
+  // Replaces the date of data._period_start, e.g. for a whole-range summary
+  dateLabel?: string
+  // Extra content under an item's row, given the item's chart key
+  renderItemDetails?: (key: string) => ReactNode
 }
 
 interface NodeTrafficTooltipProps {
@@ -82,13 +87,15 @@ const NodeStatsModal = ({
   title,
   distributionTitle,
   description,
+  dateLabel,
+  renderItemDetails,
 }: NodeStatsModalProps) => {
   const { t, i18n } = useTranslation()
   const dir = useDirDetection()
 
   if (!data) return null
 
-  const formattedDate = data._period_start ? formatTooltipDate(data._period_start, period, i18n.language) : ''
+  const formattedDate = dateLabel ?? (data._period_start ? formatTooltipDate(data._period_start, period, i18n.language) : '')
 
   const isRTL = dir === 'rtl'
 
@@ -119,7 +126,9 @@ const NodeStatsModal = ({
   const activeNodes = Object.keys(data)
     .filter(key => !key.startsWith('_') && key !== 'time' && key !== '_period_start' && (data[key] || 0) > 0)
     .map(nodeName => ({
-      name: nodeName,
+      key: nodeName,
+      // Series keys can differ from what the chart shows (the outbound chart keys by index)
+      name: String(chartConfig?.[nodeName]?.label ?? nodeName),
       usage: data[nodeName] || 0,
       uplink: data[`_uplink_${nodeName}`] || 0,
       downlink: data[`_downlink_${nodeName}`] || 0,
@@ -233,36 +242,39 @@ const NodeStatsModal = ({
 
                   <div dir="ltr" className="grid max-h-[32dvh] min-w-0 flex-1 gap-2 overflow-x-hidden overflow-y-auto sm:max-h-[36dvh] sm:gap-3 md:max-h-80">
                     {nodesWithDistribution.map(node => (
-                      <div key={node.name} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 sm:flex-nowrap sm:p-3`}>
-                        <div className={`flex min-w-0 flex-1 items-center gap-2 sm:gap-3`}>
-                          <div className="h-2 w-2 flex-shrink-0 rounded-full sm:h-3 sm:w-3" style={{ backgroundColor: node.color }} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span dir="ltr" className="text-foreground font-mono text-[10px] font-bold sm:text-xs">
-                                {node.percentage.toFixed(1)}%
-                              </span>
-                              <div className={`truncate text-xs font-medium break-all sm:text-sm`}>{node.name}</div>
+                      <div key={node.key} className="rounded-lg border p-2 sm:p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 sm:flex-nowrap">
+                          <div className={`flex min-w-0 flex-1 items-center gap-2 sm:gap-3`}>
+                            <div className="h-2 w-2 flex-shrink-0 rounded-full sm:h-3 sm:w-3" style={{ backgroundColor: node.color }} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span dir="ltr" className="text-foreground font-mono text-[10px] font-bold sm:text-xs">
+                                  {node.percentage.toFixed(1)}%
+                                </span>
+                                <div className={`truncate text-xs font-medium break-all sm:text-sm`}>{node.name}</div>
+                              </div>
+                              <div className={`text-muted-foreground text-xs`}>{formatBytes(node.bytes)}</div>
                             </div>
-                            <div className={`text-muted-foreground text-xs`}>{formatBytes(node.bytes)}</div>
                           </div>
-                        </div>
 
-                        {!hideUplinkDownlink && (
-                          <div className={`flex w-full items-center justify-end gap-1 text-xs sm:w-auto sm:gap-2`}>
-                            <div className={`flex items-center gap-1`}>
-                              <Upload className="h-2 w-2 text-green-500 sm:h-3 sm:w-3" />
-                              <span dir="ltr" className="max-w-[60px] truncate font-mono text-xs sm:max-w-none">
-                                {formatBytes(node.uplink)}
-                              </span>
+                          {!hideUplinkDownlink && (
+                            <div className={`flex w-full items-center justify-end gap-1 text-xs sm:w-auto sm:gap-2`}>
+                              <div className={`flex items-center gap-1`}>
+                                <Upload className="h-2 w-2 text-green-500 sm:h-3 sm:w-3" />
+                                <span dir="ltr" className="max-w-[60px] truncate font-mono text-xs sm:max-w-none">
+                                  {formatBytes(node.uplink)}
+                                </span>
+                              </div>
+                              <div className={`flex items-center gap-1`}>
+                                <Download className="h-2 w-2 text-blue-500 sm:h-3 sm:w-3" />
+                                <span dir="ltr" className="max-w-[60px] truncate font-mono text-xs sm:max-w-none">
+                                  {formatBytes(node.downlink)}
+                                </span>
+                              </div>
                             </div>
-                            <div className={`flex items-center gap-1`}>
-                              <Download className="h-2 w-2 text-blue-500 sm:h-3 sm:w-3" />
-                              <span dir="ltr" className="max-w-[60px] truncate font-mono text-xs sm:max-w-none">
-                                {formatBytes(node.downlink)}
-                              </span>
-                            </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                        {renderItemDetails?.(node.key)}
                       </div>
                     ))}
                   </div>

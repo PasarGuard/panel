@@ -47,3 +47,20 @@ test('other protocols keep port lists', () => {
   assert.deepEqual(issuePaths({ protocol: 'vless', tag: 'V', port: '' }), [])
   assert.deepEqual(messagesAt('port', { protocol: 'vless', tag: 'V', port: '0' }), ['Port must be a port number or list like 443, 1000-2000,444.'])
 })
+
+test('TUN inbound validates tunMtu and tunUserLevel', () => {
+  const tunBase = { protocol: 'tun', tag: 'tun-in', tunName: 'tun0', tunMtu: '1500', tunUserLevel: '0' }
+  assert.deepEqual(issuePaths(tunBase), [])
+  assert.deepEqual(issuePaths({ ...tunBase, tunUserLevel: '' }), [])
+  assert.deepEqual(issuePaths({ ...tunBase, tunUserLevel: '1' }), [])
+
+  // Invalid userLevel: negative or decimal or non-numeric
+  for (const bad of ['-1', '1.5', 'abc']) {
+    assert.deepEqual(messagesAt('tunUserLevel', { ...tunBase, tunUserLevel: bad }), ['User level must be a non-negative whole number.'], bad)
+  }
+
+  // Invalid tunMtu: zero or negative or decimal or non-numeric
+  for (const bad of ['0', '-1500', '1500.5', 'abc']) {
+    assert.deepEqual(messagesAt('tunMtu', { ...tunBase, tunMtu: bad }), ['MTU must be a positive whole number.'], bad)
+  }
+})

@@ -1,4 +1,50 @@
 {
+  "usersView": {
+    "customize": "自定义视图",
+    "description": "添加可选列或手机详情，同时保留原来的布局。设置保存在此浏览器中。",
+    "columnsHint": "选择额外列并拖动手柄调整顺序。流量和操作始终位于末尾。",
+    "dragField": "拖动以调整{{field}}的顺序",
+    "desktop": "桌面列",
+    "mobile": "手机字段",
+    "expandedHint": "选择在原有展开详情下方显示的额外属性，拖动手柄调整顺序。",
+    "search": "搜索属性…",
+    "preview": "预览",
+    "fixedDesktop": "用户名、ID、在线指示器、状态、到期时间、流量和操作保留原来的显示方式和位置。",
+    "fixedMobile": "紧凑行及展开后的流量、到期时间、在线状态、ID和操作保留原来的显示方式。",
+    "resetDefaults": "恢复默认",
+    "storageError": "视图已应用，但浏览器无法保存。重新加载后可能恢复默认。",
+    "unlimited": "无限制",
+    "pendingActivation": "等待激活",
+    "carryOver": "结转流量",
+    "durationHours": "{{count}}小时",
+    "durationMinutes": "{{count}}分钟",
+    "durationSeconds": "{{count}}秒",
+    "durationDays": "{{count}}天",
+    "template": "模板",
+    "actions": "用户操作",
+    "fields": {
+      "creator": "创建者",
+      "created_at": "创建时间",
+      "edit_at": "修改时间",
+      "remaining_traffic": "剩余流量",
+      "groups": "分组",
+      "note": "备注",
+      "hwid_count": "设备数量",
+      "hwid_limit": "设备限制",
+      "data_limit_reset_strategy": "流量重置",
+      "on_hold_timeout": "激活截止时间",
+      "on_hold_expire_duration": "激活后有效期",
+      "auto_delete_in_days": "自动删除延迟",
+      "next_plan": "下个套餐"
+    },
+    "reset": {
+      "no_reset": "从不",
+      "day": "每天",
+      "week": "每周",
+      "month": "每月",
+      "year": "每年"
+    }
+  },
   "active": "激活",
   "platform": "平台",
   "dashboard": "仪表板",
@@ -253,7 +299,9 @@
         "disableSubTemplate": "禁用订阅模板",
         "disableSubTemplateDescription": "禁用后，浏览器请求将返回 API 响应而不是 HTML 订阅页面",
         "randomizeOrder": "随机化订阅顺序",
-        "randomizeOrderDescription": "每次请求订阅时，随机打乱配置顺序"
+        "randomizeOrderDescription": "每次请求订阅时，随机打乱配置顺序",
+        "clientsLimit": "每位用户保留的更新数",
+        "clientsLimitDescription": "每位用户保留多少条最近的订阅更新（客户端应用）。0 或更小表示全部保留"
       },
       "responseHeaders": {
         "title": "响应头",
@@ -516,6 +564,60 @@
       "saveSuccess": "清理操作成功完成",
       "saveFailed": "清理操作失败",
       "cancelSuccess": "清理操作已取消",
+      "retention": {
+        "title": "自动保留",
+        "description": "保留所需的近期数据，并以对硬件安全的小批量方式删除旧记录。",
+        "hourly": "每小时执行",
+        "days": "天",
+        "purge": "较旧数据",
+        "forever": "永久保留",
+        "today": "今天",
+        "cutoff": "超过 {{days}} 天的记录将自动删除。",
+        "disabledHint": "此数据的自动清理已禁用。",
+        "cascadeWarning": "删除过期账户也会删除该用户的流量历史。系统汇总和节点汇总仅在各自配置的保留期限内可用。",
+        "validation": "过期账户可设为 0 天；其他已启用规则需输入 1 到 36,500 之间的整数。",
+        "save": "保存保留设置",
+        "saving": "保存中...",
+        "reset": "放弃更改",
+        "expiredUsers": {
+          "title": "过期账户",
+          "description": "账户保持过期状态指定天数后删除。每个账户的 auto_delete_in_days 覆盖值仍具有优先权。",
+          "includeLimited": "同时删除受限用户",
+          "disabledHint": "未设置默认规则。设置了自身自动删除天数的用户仍会被删除。"
+        },
+        "usageHistory": {
+          "title": "流量历史",
+          "description": "用户、节点和出站流量图表的保留期限。"
+        },
+        "nodeStats": {
+          "title": "节点系统指标",
+          "description": "CPU、内存和带宽速度样本的保留时间。"
+        }
+      },
+      "rollup": {
+        "title": "用量历史精度",
+        "description": "将较早的流量记录合并到更粗的时间区间，使用量表不再以 10 分钟精度持续增长。",
+        "off": "关闭",
+        "hourlyStep": {
+          "title": "按小时",
+          "description": "早于此天数的记录合并为每小时一条。"
+        },
+        "halfDayStep": {
+          "title": "按 12 小时",
+          "description": "早于此天数的记录合并为每 12 小时一条。"
+        },
+        "dailyStep": {
+          "title": "按天",
+          "description": "早于此天数的记录合并为每天一条。"
+        },
+        "cutoff": "早于 {{days}} 天的完整日期会被合并。",
+        "disabledHint": "此步骤已关闭。",
+        "note": "总量保持精确：只降低时间精度，旧数据的图表显示更粗的时间步长。时间段按 UTC 划分。合并在每小时的保留清理之后运行，每次最多几分钟。",
+        "validation": "已启用的步骤需要 1 到 36,500 之间的整数。",
+        "orderValidation": "天数必须按小时、12 小时、天的顺序递增。",
+        "save": "保存精度设置",
+        "firstRun": "首次开启：如果面板已有大量流量历史，合并旧数据可能需要数小时到数天。它每小时只运行几分钟，因此面板保持流畅；在处理到之前，旧图表保持当前精度。"
+      },
       "expiredUsers": {
         "title": "按状态删除账户",
         "description": "删除符合特定状态的账户，可选按日期过滤",
@@ -601,7 +703,8 @@
         "warning": "警告：此操作将永久删除所选表中的所有使用数据。此操作无法撤销。",
         "tables": {
           "nodeUserUsages": "节点用户使用情况",
-          "nodeUsages": "节点使用情况"
+          "nodeUsages": "节点使用情况",
+          "nodeOutboundUsages": "节点出站使用情况"
         }
       }
     },
@@ -670,7 +773,51 @@
         "disable": "禁用用户",
         "delete": "删除用户"
       },
-      "errorLoadingSettings": "加载设置时出错"
+      "errorLoadingSettings": "加载设置时出错",
+      "usage": {
+        "title": "用量记录",
+        "description": "选择面板保存哪些用量数据",
+        "recordNodeUsage": {
+          "title": "记录节点用量",
+          "description": "按节点保存用户和节点的流量。用户和管理员的用量始终会统计"
+        },
+        "recordNodeStats": {
+          "title": "记录节点系统统计",
+          "description": "保存节点的 CPU、内存和带宽历史。仅支持 PostgreSQL 和 TimescaleDB"
+        },
+        "resetUsageCleanChartData": {
+          "title": "重置用量时清除图表",
+          "description": "重置用户流量时删除其用量图表历史"
+        },
+        "recordOutboundUsage": {
+          "title": "按出站记录使用量",
+          "description": "为每个节点按出站标签保存流量，用于显示出站使用情况图表。会增加数据库行数，出站较多时更多。"
+        }
+      },
+      "nodeHealth": {
+        "title": "节点健康检查",
+        "description": "节点何时被判定为离线或恢复",
+        "failThreshold": {
+          "title": "失败阈值",
+          "description": "连续失败多少次检查后将节点标记为错误"
+        },
+        "recoverThreshold": {
+          "title": "恢复阈值",
+          "description": "连续成功多少次检查后将节点重新标记为已连接"
+        },
+        "probeTimeout": {
+          "title": "探测超时（秒）",
+          "description": "健康探测等待节点响应的时间，不会超过节点自身的超时"
+        },
+        "maxBackoff": {
+          "title": "最大退避（秒）",
+          "description": "处于错误状态的节点两次探测之间的最长间隔。0 表示每次检查都探测"
+        }
+      },
+      "stopNodesOnShutdown": {
+        "title": "关闭时停止节点核心",
+        "description": "面板关闭时停止所有节点的核心。仅在单个 worker 时生效"
+      }
     },
     "errorLoadingSettings": "加载设置时出错"
   },
@@ -853,6 +1000,11 @@
     "inheritPermissions": "继承管理员权限",
     "inheritPermissionsDescription": "使用拥有者管理员当前角色的权限。关闭后将在此密钥上保存自定义权限。",
     "inherited": "已继承",
+    "maxRequests": "最大请求数",
+    "maxRequestsDescription": "此密钥可发出的最大请求数。留空表示无限制。",
+    "requestCount": "已用请求数",
+    "deleteOnLimit": "达到限制后删除",
+    "deleteOnLimitDescription": "达到请求限制后自动删除此密钥，而不仅仅是禁用它。",
     "noKeys": "未配置 API 密钥",
     "noKeysDescription": "创建 API 密钥以允许程序化访问。",
     "noSearchResults": "没有 API 密钥符合搜索条件。请调整搜索词或筛选器。",
@@ -1269,6 +1421,14 @@
   "header.logout": "退出",
   "header.nodeSettings": "节点设置",
   "header.nodesUsage": "节点统计",
+  "realityFingerprint": {
+    "title": "REALITY 指纹兼容性",
+    "tls13": "此预设不支持 Xray REALITY 所需的 TLS 1.3 握手。请选择 chrome 或 firefox。",
+    "modern": "此预设可能无法提供新版 Xray REALITY 服务端所需的 X25519MLKEM768。请使用 chrome 或 firefox，并保持客户端为最新版本。",
+    "random": "随机预设可能生成被新版 Xray REALITY 服务端拒绝的握手。请选择 chrome 或 firefox 以使用固定预设，并保持客户端为最新版本。",
+    "unsafe": "unsafe 不是 uTLS 预设，不能用于 Xray REALITY。请选择 chrome 或 firefox。",
+    "useChrome": "使用 Chrome"
+  },
   "hostsDialog": {
     "addHost": "添加主机",
     "selectInbound": "选择入站",
@@ -1296,6 +1456,9 @@
       "remoteDns": "MASQUE 远程 DNS 服务器",
       "remoteDnsHint": "留空则使用入站 DNS 服务器",
       "xmuxHint": "客户端需要 Xray 26.10.21 或更新版本。全部留空时使用 Xray 默认值：一个隧道，可复用 1800-3000 秒。设置任一字段后，这些默认值将被替换。最大连接数和最大并发数不能同时设置。"
+    },
+    "xdrive": {
+      "xmuxHint": "XDrive 连接复用限制。设置最大连接数或最大并发数，不能同时设置。"
     },
     "transportSettings": "传输设置",
     "transportType": "传输类型",
@@ -1459,6 +1622,10 @@
       "invalidJson": "无效的 JSON: {{error}}",
       "tcpLayers": "TCP 层",
       "addTcpLayer": "添加 TCP 层",
+      "filterHint": "仅适用于入站流量。请将过滤器放在最后，使其成为最外层 TCP 遮罩。阻止列表优先于允许列表。",
+      "allowedSourceIPs": "允许的来源 IP",
+      "blockedSourceIPs": "阻止的来源 IP",
+      "sourceIPsPlaceholder": "添加 CIDR 或 geoip:cn",
       "noTcpLayers": "未配置 TCP 层",
       "udpLayers": "UDP 层",
       "addUdpLayer": "添加 UDP 层",
@@ -1561,7 +1728,17 @@
       "noiseRandPlaceholder": "例如 1-8192",
       "noiseRandRange": "随机范围",
       "noiseRandRangePlaceholder": "例如 0-255",
-      "noiseExpPlaceholder": "例如 <b 0d0a><t><r 24-48>"
+      "noiseExpPlaceholder": "例如 <b 0d0a><t><r 24-48>",
+      "noiseExpSyntaxTitle": "数据包表达式语法",
+      "noiseExpSyntaxIntro": "按顺序连接这些部分以构建一个数据包。每次发送时都会重新计算表达式。",
+      "noiseExpBytes": "固定的十六进制字节（可选 0x 前缀）",
+      "noiseExpRandom": "N 个随机字节，或 A 到 B 个随机字节",
+      "noiseExpLetters": "随机字母 (a-zA-Z)",
+      "noiseExpDigits": "随机数字 (0-9)",
+      "noiseExpTime": "当前 Unix 时间（秒），4 字节，大端序",
+      "noiseExpCounter": "4 字节计数器，每次发送递增",
+      "noiseExpNonce": "8 个随机字节",
+      "noiseExpExample": "示例："
     },
     "muxSettings": "Mux 设置",
     "enableMux": "启用 Mux",
@@ -1749,6 +1926,21 @@
       "reserved": "Reserved（例如 0,0,0）",
       "dns": "DNS 服务器",
       "dnsHint": "留空使用系统 DNS"
+    },
+    "mtproto": {
+      "hint": "订阅页面和仪表盘会为 MTProto 主机显示 Telegram 代理链接；客户端应用永远不会收到该链接。",
+      "linkType": "链接类型",
+      "linkTypeHelp": "这里只决定用户从此主机获得哪些链接。所有类型都使用同一个用户密钥，因此只有核心的模式开关才能真正关闭某种类型。",
+      "linkTypes": {
+        "auto": "自动",
+        "tls": "Fake TLS",
+        "secure": "Secure",
+        "classic": "经典",
+        "web": "WEB"
+      },
+      "fakeTlsDomain": "Fake TLS 域名",
+      "fakeTlsDomainHelp": "必须是核心的 Fake TLS 域名之一。留空则使用核心的主域名。",
+      "webAddressHelp": "每个地址都必须是核心的 WEB vhost 域名之一。WEB 链接始终使用 443 端口，因此会忽略端口设置。"
     }
   },
   "inbound": "入站",
@@ -1810,6 +2002,8 @@
   "subscriptionModal.fetchError": "获取配置失败",
   "subscriptionModal.noConfigs": "未找到配置",
   "subscriptionModal.unknownConfig": "未知配置",
+  "subscriptionModal.telegramProxy": "Telegram 代理",
+  "subscriptionModal.telegramWebProxy": "Telegram WEB 代理",
   "subscriptionModal.qrFormat": "二维码格式",
   "subscriptionModal.qrFormatConfig": "配置",
   "configActions.copyConfig": "复制配置",
@@ -1960,6 +2154,12 @@
   "userDialog.proxySettings.wireguardPublicKey": "WireGuard 公钥",
   "userDialog.proxySettings.generateWireGuardKeyPair": "WireGuard 密钥对",
   "userDialog.proxySettings.wireguardGenerated": "WireGuard 密钥对已生成",
+  "userDialog.proxySettings.mtprotoSecret": "MTProto 密钥",
+  "userDialog.proxySettings.mtprotoSecretPlaceholder": "32 个十六进制字符，留空则保留当前密钥",
+  "userDialog.proxySettings.mtprotoSecretPlaceholderNew": "32 个十六进制字符，留空则自动生成",
+  "userDialog.proxySettings.generateMtprotoSecret": "生成 MTProto 密钥",
+  "userDialog.proxySettings.mtprotoGenerated": "MTProto 密钥已生成",
+  "userDialog.proxySettings.mtprotoSecretInvalid": "必须是 32 个十六进制字符",
   "userDialog.proxySettings.desc": "为此用户配置协议专属设置。",
   "userDialog.expireDate": "过期日期",
   "userDialog.selectedGroups": "已选择 {{count}} 个分组",
@@ -1993,6 +2193,7 @@
     "refreshNow": "立即刷新"
   },
   "statistics.system": "系统",
+  "statistics.periodTooFineForRange": "此时间范围的数据点过多，请选择更短的范围。",
   "statistics.totalTraffic": "总流量",
   "statistics.ramUsage": "RAM 使用情况",
   "statistics.cpuUsage": "CPU 使用情况",
@@ -2014,7 +2215,7 @@
   "statistics.subscriptionDistribution": "订阅客户端分布",
   "statistics.subscriptionDistributionDetails": "订阅客户端详情",
   "statistics.subscriptionDistributionDescription": "不同代理和应用的订阅更新占比。",
-  "statistics.subscriptionDistributionRetentionNote": "默认每位用户仅保留最近 {{limit}} 条订阅更新记录。如需修改，请在环境变量中设置 {{env}}。",
+  "statistics.subscriptionDistributionRetentionNote": "默认每位用户仅保留最近 {{limit}} 条订阅更新记录。可在订阅设置中修改。",
   "statistics.totalSubscriptions": "总更新次数",
   "statistics.percentage": "百分比",
   "statistics.adminFilterLabel": "按管理员筛选",
@@ -2456,7 +2657,8 @@
     "shadowsocksPasswordGenerationFailed": "密码生成失败",
     "discardChangesTitle": "放弃更改？",
     "discardChangesDescription": "如果关闭此编辑器，未保存的内核配置更改将会丢失。",
-    "scanRealityTarget": "扫描目标"
+    "scanRealityTarget": "扫描目标",
+    "mtprotoHint": "MTProto (telemt) 核心。保存前请将 censorship.tls_domain 设置为真实域名：之后再更改会使所有已分享的 ee 链接失效。请为每个 MTProto 核心设置独立的 inbound_tag。"
   },
   "coreEditor": {
     "nameRequired": "名称为必填项",
@@ -2507,7 +2709,8 @@
       "dns": "DNS",
       "bindings": "绑定",
       "advanced": "高级",
-      "interface": "接口"
+      "interface": "接口",
+      "mtproto": "MTProto 代理"
     },
     "sectionDesc": {
       "wgInterface": "WireGuard 接口与密钥",
@@ -2518,7 +2721,53 @@
       "routing": "路由规则与流量策略",
       "balancers": "负载均衡与调度策略",
       "dns": "DNS 解析与解析器",
-      "bindings": "入站标签回退与排除"
+      "bindings": "入站标签回退与排除",
+      "mtproto": "此核心的 telemt 设置。用户、控制 API 和指标由节点管理。"
+    },
+    "mtproto": {
+      "inboundTag": "入站标签",
+      "inboundTagHint": "在所有核心中必须唯一。主机和组会引用它。",
+      "port": "端口",
+      "tlsDomain": "TLS 域名",
+      "tlsDomainHint": "Fake TLS 所伪装的网站。之后再更改会使所有已分享的 ee 链接失效。",
+      "modes": "模式",
+      "modeTls": "Fake TLS（ee，推荐）",
+      "modeSecure": "安全（dd）",
+      "modeClassic": "经典",
+      "tlsDomains": "额外的 Fake TLS 域名",
+      "tlsDomainsHint": "可选。除上面的 TLS 域名外，Fake TLS 客户端还可以使用的其他站点。",
+      "tlsDomainsAdd": "添加域名",
+      "remove": "移除",
+      "webEnable": "WEB 模式",
+      "webHint": "WEB 通过 HTTPS 传输 MTProto。服务器上需要一个 HTTPS 前端（Caddy 或 nginx）来持有证书并转发到 WEB 监听器。",
+      "webOneServer": "WEB 设置只适用于一台服务器；如果有多个 MTProto 节点，请为每个节点使用一个核心。",
+      "webGuide": "如何设置 WEB",
+      "webListenerPort": "WEB 监听端口",
+      "webListenerPortHint": "前端转发到的本地端口，必须与 MTProto 端口不同。",
+      "webVhosts": "域名",
+      "webVhostAdd": "添加域名",
+      "webHost": "域名",
+      "webBasePath": "路径（可选）",
+      "webPublicAddr": "公网地址",
+      "webPublicAddrHint": "服务器的公网 IP 和 443 端口。",
+      "webDecoyUpstream": "诱饵站点 URL",
+      "webDecoyUpstreamHint": "其他访问者看到的是这个站点。其地址必须是回环或私有 IP。",
+      "webSecretMode": "密钥模式",
+      "webSecretModeDd": "dd（推荐）",
+      "webSecretModePlain": "普通",
+      "config": "配置（JSON）",
+      "invalidJson": "配置不是有效的 JSON。",
+      "issue": {
+        "inboundTag": "入站标签不能为空，也不能包含 , 或 <=>。",
+        "port": "端口必须为 1 至 65535 之间的整数。",
+        "modes": "请至少启用一种模式。",
+        "tlsDomain": "Fake TLS 需要 TLS 域名：只填写域名本身，不能使用模板中的占位符。",
+        "listenerPort": "每个 MTProxy 监听器的端口必须与服务器端口一致。",
+        "tlsDomains": "每个额外的 TLS 域名都必须是纯域名，不能是模板占位符。",
+        "webListener": "WEB 需要 web.enabled 以及一个 transport 为 \"web\" 的监听器，它位于回环或私有 IP 上，并使用与服务器端口不同的独立端口。",
+        "webBasePath": "每个域名路径必须为空，或最多 128 个字符，由以 \"/\" 分隔的若干部分组成，只能包含英文字母、数字、\"-\" 和 \"_\"，每部分以字母或数字开头，开头和结尾不能有 \"/\"（例如 tg 或 my-app/web）。",
+        "webVhost": "WEB 至少需要一个域名，每个都要有域名和位于回环或私有 IP 上的诱饵站点 URL。"
+      }
     },
     "api": {
       "title": "API 服务",
@@ -2780,12 +3029,24 @@
       "service": "存储服务",
       "serviceLocal": "本地文件夹（local）",
       "serviceTemplate": "自定义模板（template）",
+      "serviceS3": "Amazon S3 / S3 兼容存储（s3）",
       "folderLocal": "文件夹路径",
       "folderLocalHint": "双方都能访问的目录，主要用于测试。",
       "folderGoogleDrive": "文件夹 ID",
       "folderGoogleDriveHint": "双方共享的 Drive 文件夹的 ID。",
       "folderTemplate": "文件夹",
       "folderTemplateHint": "可选。模板通过 {folder} 读取它。",
+      "folderS3": "存储桶路径 / 前缀",
+      "folderS3Hint": "存储桶内的相对路径或前缀。",
+      "s3Endpoint": "终端节点 URL (Endpoint)",
+      "s3Region": "区域 (Region)",
+      "s3Bucket": "存储桶名称 (Bucket)",
+      "s3PathStyle": "路径样式寻址 (Path-style)",
+      "s3PathStyleHint": "使用路径样式 URL (endpoint/bucket) 而非虚拟主机样式。",
+      "s3AccessKeyId": "访问密钥 ID (Access Key ID)",
+      "s3SecretAccessKey": "私有访问密钥 (Secret Access Key)",
+      "s3SessionToken": "会话令牌（可选）",
+      "s3Hint": "提供 S3 存储的凭据和存储桶配置。",
       "clientId": "客户端 ID",
       "clientSecret": "客户端密钥",
       "refreshToken": "刷新令牌",
@@ -2795,6 +3056,9 @@
       "template": "模板（JSON 对象）",
       "templateHint": "描述存储 API 的请求。",
       "templateInvalid": "模板必须是 JSON 对象。",
+      "xmux": "XMUX（JSON 对象）",
+      "xmuxHint": "可选的连接复用限制，类似 XHTTP。设置最大连接数或最大并发数，不能同时设置。",
+      "xmuxInvalid": "XMUX 必须是 JSON 对象。",
       "tuning": "调优",
       "tuningHint": "留空或 0 时使用各字段中显示的 Xray 默认值。",
       "segmentBytes": "分段大小（字节）",
@@ -2989,6 +3253,41 @@
       "shadowsocks": {
         "network": "网络"
       },
+      "tun": {
+        "name": "接口名称",
+        "mtu": "MTU",
+        "desc": "适配器描述",
+        "userLevel": "用户级别 (User Level)",
+        "gateway": "网关 (Gateway)",
+        "gatewayHint": "每行一个 CIDR，例如 10.0.0.1/16",
+        "gatewayAddPlaceholder": "添加网关 CIDR",
+        "addItem": "添加",
+        "gatewayItems": "网关 CIDR 列表",
+        "noGatewayItems": "未添加网关 CIDR。",
+        "dns": "DNS",
+        "dnsHint": "每行一个 DNS 服务器，例如 1.1.1.1",
+        "dnsAddPlaceholder": "添加 DNS 服务器",
+        "dnsItems": "DNS 服务器列表",
+        "noDnsItems": "未添加 DNS 服务器。",
+        "autoSystemRoutingTable": "系统自动路由表",
+        "autoSystemRoutingTableHint": "每行一个 CIDR，例如 0.0.0.0/0",
+        "autoRouteAddPlaceholder": "添加路由 CIDR",
+        "autoRouteItems": "路由 CIDR 列表",
+        "noAutoRouteItems": "未添加路由 CIDR。",
+        "autoOutboundsInterface": "自动出站接口",
+        "autoSystemDnsToGateway": "系统 DNS 自动指向网关",
+        "autoSystemDnsToGatewayHint": "将系统 DNS 查询指向网关地址（Linux / FreeBSD）。",
+        "autoSystemWfpBlockLeak": "WFP 泄露防护规则",
+        "autoSystemWfpBlockLeakHint": "规则：dns, misconfigtun, windnsclient, tcp/853, udp/853, tcp/<端口>, udp/<端口>",
+        "autoSystemWfpBlockLeakAddPlaceholder": "添加规则（例如 dns, tcp/853）",
+        "autoSystemWfpBlockLeakItems": "WFP 规则列表",
+        "noAutoSystemWfpBlockLeakItems": "未添加 WFP 规则。"
+      },
+      "xhttp": {
+        "h2Params": "HTTP/2 参数 (h2Params)",
+        "h2ParamsHint": "可选的 HTTP/2 服务端配置 JSON（例如 maxConcurrentStreams, pingTimeout）。",
+        "h2ParamsInvalid": "HTTP/2 参数必须是有效的 JSON 对象。"
+      },
       "sniffing": {
         "section": "流量嗅探",
         "enabled": "启用",
@@ -3000,6 +3299,8 @@
         "protocolInvalid": "请选择有效协议。",
         "portRange": "端口必须是端口号或端口列表，例如 443, 1000-2000,444。",
         "destinationPortRange": "目标端口必须为 0 至 65535 之间的整数。",
+        "tunMtuRange": "MTU 必须为正整数。",
+        "tunUserLevelInvalid": "用户级别必须为非负整数。",
         "realityServerNamesRequired": "REALITY 至少需要填写一个 server name。",
         "realityServerNamesFormat": "REALITY 的 server names 必须为非空字符串的列表。",
         "realityServerNamesNoEmpty": "每个 REALITY server name 都必须非空；请删除空行或多余逗号。",
@@ -3490,6 +3791,10 @@
   "usersTable.delete": "删除",
   "usersTable.cancel": "取消",
   "statistics.trafficUsage": "流量使用",
+  "statistics.outboundUsage": "出站使用情况",
+  "statistics.outboundUsageDescription": "按出站标签统计的流量（direct、warp、block 等）",
+  "statistics.outboundUsageEmpty": "此时间段内没有出站使用数据。仅在 设置 > 常规 中开启“按出站记录使用量”时才会记录。",
+  "statistics.outboundUsageOther": "其他",
   "statistics.trafficUsageDescription": "所有服务器的总流量使用情况",
   "statistics.usageDuringPeriod": "期间使用量",
   "statistics.users": "用户",
@@ -3513,6 +3818,10 @@
   "statistics.coreStats": "核心统计",
   "statistics.coreTrafficDistribution": "核心流量分布",
   "statistics.coreStatsDescription": "此时间段内每个核心的详细流量统计。点击图表中的柱状图查看更多详情。",
+  "statistics.outboundStats": "出站统计",
+  "statistics.outboundTrafficDistribution": "出站流量分布",
+  "statistics.outboundStatsDescription": "此时间段内每个出站标签的详细流量统计。点击图表中的柱状图查看更多详情。",
+  "statistics.outboundNodeSplitError": "无法加载按节点的拆分",
   "statistics.adminStats": "管理员统计",
   "statistics.adminTrafficDistribution": "管理员流量分布",
   "statistics.adminStatsDescription": "此时间段内每个管理员的详细流量统计。点击图表中的柱状图查看更多详情。",

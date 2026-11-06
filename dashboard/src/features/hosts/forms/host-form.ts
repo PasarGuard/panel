@@ -1,5 +1,5 @@
 import * as z from 'zod'
-import type { CreateHost, FinalMask, XMuxSettings, XrayNoiseSettings } from '@/service/api'
+import type { CreateHost, FinalMask, MtprotoHostSettingsLinkType, XMuxSettings, XrayNoiseSettings } from '@/service/api'
 
 interface Brutal {
   enable?: boolean
@@ -114,6 +114,9 @@ export interface HostFormValues {
       remote_dns?: string[]
       xmux?: MasqueXMuxFormValues
     }
+    xdrive_settings?: {
+      xmux?: MasqueXMuxFormValues & { h_max_request_times?: string }
+    }
     xhttp_settings?: {
       mode?: 'auto' | 'packet-up' | 'stream-up' | 'stream-one'
       no_grpc_header?: boolean
@@ -178,6 +181,9 @@ export interface HostFormValues {
     websocket_settings?: {
       heartbeatPeriod?: number
     }
+    mtproto_settings?: {
+      link_type?: MtprotoHostSettingsLinkType
+    }
   }
   final_mask_settings?: FinalMask
   cipher_suites?: string
@@ -198,12 +204,29 @@ export function mapHostTransportSettingsForApi(settings: HostFormValues['transpo
         hKeepAlivePeriod: masqueXmux.h_keep_alive_period ?? undefined,
       }
     : undefined
+  const xdrive = settings.xdrive_settings
+  const xdriveXmux = xdrive?.xmux
+  const mappedXdriveXmux = xdriveXmux
+    ? {
+        maxConcurrency: xdriveXmux.max_concurrency || undefined,
+        maxConnections: xdriveXmux.max_connections || undefined,
+        cMaxReuseTimes: xdriveXmux.c_max_reuse_times || undefined,
+        hMaxReusableSecs: xdriveXmux.h_max_reusable_secs || undefined,
+        hMaxRequestTimes: xdriveXmux.h_max_request_times || undefined,
+        hKeepAlivePeriod: xdriveXmux.h_keep_alive_period ?? undefined,
+      }
+    : undefined
   return {
     ...settings,
     masque_settings: masque
       ? {
           ...masque,
           xmux: mappedMasqueXmux && Object.values(mappedMasqueXmux).some(value => value !== undefined) ? mappedMasqueXmux : undefined,
+        }
+      : undefined,
+    xdrive_settings: xdrive
+      ? {
+          xmux: mappedXdriveXmux && Object.values(mappedXdriveXmux).some(value => value !== undefined) ? mappedXdriveXmux : undefined,
         }
       : undefined,
     xhttp_settings: xhttp
@@ -224,16 +247,18 @@ export function mapHostTransportSettingsForApi(settings: HostFormValues['transpo
   }
 }
 
-export function mapMasqueXmuxForForm(xmux: XMuxSettings | null | undefined): MasqueXMuxFormValues | undefined {
+export function mapMasqueXmuxForForm(xmux: XMuxSettings | null | undefined): (MasqueXMuxFormValues & { h_max_request_times?: string }) | undefined {
   if (!xmux) return undefined
   return {
     max_concurrency: xmux.maxConcurrency ?? undefined,
     max_connections: xmux.maxConnections ?? undefined,
     c_max_reuse_times: xmux.cMaxReuseTimes ?? undefined,
     h_max_reusable_secs: xmux.hMaxReusableSecs ?? undefined,
+    h_max_request_times: xmux.hMaxRequestTimes ?? undefined,
     h_keep_alive_period: xmux.hKeepAlivePeriod ?? undefined,
   }
 }
+export const mapXmuxForForm = mapMasqueXmuxForForm
 
 const masqueXmuxRangeField = z
   .string()
@@ -424,6 +449,39 @@ const transportSettingsSchema = z
             max_connections: masqueXmuxRangeField,
             c_max_reuse_times: masqueXmuxRangeField,
             h_max_reusable_secs: masqueXmuxRangeField,
+            h_keep_alive_period: z.number().int().nullish().optional(),
+          })
+          .superRefine((value, context) => {
+            const connections = Number(value.max_connections?.split('-').pop() || 0)
+            const concurrency = Number(value.max_concurrency?.split('-').pop() || 0)
+            if (connections > 0 && concurrency > 0) {
+              context.addIssue({
+                code: 'custom',
+                path: ['max_concurrency'],
+                message: 'Max Connections and Max Concurrency cannot both be set',
+              })
+            }
+          })
+          .nullish()
+          .optional(),
+      })
+      .nullish()
+      .optional(),
+    mtproto_settings: z
+      .object({
+        link_type: z.enum(['auto', 'tls', 'secure', 'classic', 'web']).optional(),
+      })
+      .nullish()
+      .optional(),
+    xdrive_settings: z
+      .object({
+        xmux: z
+          .object({
+            max_concurrency: masqueXmuxRangeField,
+            max_connections: masqueXmuxRangeField,
+            c_max_reuse_times: masqueXmuxRangeField,
+            h_max_reusable_secs: masqueXmuxRangeField,
+            h_max_request_times: masqueXmuxRangeField,
             h_keep_alive_period: z.number().int().nullish().optional(),
           })
           .superRefine((value, context) => {

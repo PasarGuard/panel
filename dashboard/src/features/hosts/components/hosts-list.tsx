@@ -266,6 +266,11 @@ export default function HostsList({
                   xmux: mapMasqueXmuxForForm(host.transport_settings.masque_settings.xmux),
                 }
               : undefined,
+            xdrive_settings: host.transport_settings.xdrive_settings
+              ? {
+                  xmux: mapMasqueXmuxForForm(host.transport_settings.xdrive_settings.xmux),
+                }
+              : undefined,
             xhttp_settings: host.transport_settings.xhttp_settings
               ? {
                   mode: host.transport_settings.xhttp_settings.mode ?? undefined,
@@ -344,6 +349,11 @@ export default function HostsList({
             websocket_settings: host.transport_settings.websocket_settings
               ? {
                   heartbeatPeriod: host.transport_settings.websocket_settings.heartbeatPeriod ?? undefined,
+                }
+              : undefined,
+            mtproto_settings: host.transport_settings.mtproto_settings
+              ? {
+                  link_type: host.transport_settings.mtproto_settings.link_type ?? undefined,
                 }
               : undefined,
           }
@@ -648,6 +658,11 @@ export default function HostsList({
                     xmux: host.transport_settings.masque_settings.xmux ?? undefined,
                   }
                 : undefined,
+              xdrive_settings: host.transport_settings.xdrive_settings
+                ? {
+                    xmux: host.transport_settings.xdrive_settings.xmux ?? undefined,
+                  }
+                : undefined,
               xhttp_settings: host.transport_settings.xhttp_settings
                 ? {
                     mode: host.transport_settings.xhttp_settings.mode ?? undefined,
@@ -717,6 +732,11 @@ export default function HostsList({
               websocket_settings: host.transport_settings.websocket_settings
                 ? {
                     heartbeatPeriod: host.transport_settings.websocket_settings.heartbeatPeriod ?? undefined,
+                  }
+                : undefined,
+              mtproto_settings: host.transport_settings.mtproto_settings
+                ? {
+                    link_type: host.transport_settings.mtproto_settings.link_type ?? undefined,
                   }
                 : undefined,
             }

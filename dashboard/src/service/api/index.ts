@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 5.5.0
+ * OpenAPI spec version: 5.6.0
  */
 import {
   useMutation,
@@ -230,6 +230,8 @@ export interface APIKeyCreate {
   permissions?: RolePermissions;
   inherit_permissions?: boolean;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   admin_id?: number | null;
 }
 
@@ -251,6 +253,8 @@ export interface APIKeyCreateResponse {
   permissions?: RolePermissions;
   inherit_permissions?: boolean;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   id: number;
   admin_id: number;
   created_at: string;
@@ -258,6 +262,7 @@ export interface APIKeyCreateResponse {
   revoked_at?: string | null;
   status?: APIKeyStatus;
   is_expired?: boolean;
+  request_count?: number;
   api_key: string;
 }
 
@@ -271,6 +276,8 @@ export interface APIKeyResponse {
   permissions?: RolePermissions;
   inherit_permissions?: boolean;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   id: number;
   admin_id: number;
   created_at: string;
@@ -278,6 +285,7 @@ export interface APIKeyResponse {
   revoked_at?: string | null;
   status?: APIKeyStatus;
   is_expired?: boolean;
+  request_count?: number;
 }
 
 export interface APIKeyUpdate {
@@ -287,6 +295,8 @@ export interface APIKeyUpdate {
   permissions?: RolePermissions | null;
   inherit_permissions?: boolean | null;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   status?: APIKeyStatus | null;
 }
 
@@ -623,6 +633,8 @@ export interface Application {
 
 export type BaseHostHttpHeaders = {[key: string]: string} | null;
 
+export type BaseHostFinalMaskSettings = { [key: string]: unknown } | null;
+
 export type ProxyHostSecurity = typeof ProxyHostSecurity[keyof typeof ProxyHostSecurity];
 
 
@@ -760,6 +772,25 @@ export interface MasqueHostSettings {
   xmux?: XMuxSettings | null;
 }
 
+export type MtprotoHostSettingsLinkType = typeof MtprotoHostSettingsLinkType[keyof typeof MtprotoHostSettingsLinkType];
+
+
+export const MtprotoHostSettingsLinkType = {
+  auto: 'auto',
+  tls: 'tls',
+  secure: 'secure',
+  classic: 'classic',
+  web: 'web',
+} as const;
+
+export interface MtprotoHostSettings {
+  link_type?: MtprotoHostSettingsLinkType;
+}
+
+export interface XDriveHostSettings {
+  xmux?: XMuxSettings | null;
+}
+
 export interface TransportSettings {
   xhttp_settings?: XHttpSettings | null;
   grpc_settings?: GRPCSettings | null;
@@ -767,6 +798,8 @@ export interface TransportSettings {
   tcp_settings?: TcpSettings | null;
   websocket_settings?: WebSocketSettings | null;
   masque_settings?: MasqueHostSettings | null;
+  mtproto_settings?: MtprotoHostSettings | null;
+  xdrive_settings?: XDriveHostSettings | null;
 }
 
 export type MultiplexProtocol = typeof MultiplexProtocol[keyof typeof MultiplexProtocol];
@@ -926,247 +959,6 @@ export interface SubscriptionTemplates {
   xray?: number | null;
 }
 
-export type FinalMaskTcpType = typeof FinalMaskTcpType[keyof typeof FinalMaskTcpType];
-
-
-export const FinalMaskTcpType = {
-  'header-custom': 'header-custom',
-  fragment: 'fragment',
-  sudoku: 'sudoku',
-  xmc: 'xmc',
-} as const;
-
-/**
- * Packet camouflage item used by FinalMask. Unlike Freedom noise, this has no apply_to.
- */
-export interface FinalMaskNoiseItem {
-  type?: string | null;
-  packet?: string | number[] | null;
-  delay?: string | number | null;
-  rand?: number | string | null;
-  randRange?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskTcpHeaderCustomSettings {
-  clients?: FinalMaskNoiseItem[][] | null;
-  servers?: FinalMaskNoiseItem[][] | null;
-  errors?: FinalMaskNoiseItem[][] | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskFragmentSettings {
-  packets?: string | null;
-  lengths?: (string | number)[] | null;
-  delays?: (string | number)[] | null;
-  maxSplit?: string | number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskSudokuSettings {
-  password?: string | null;
-  ascii?: string | null;
-  customTable?: string | null;
-  customTables?: string[] | null;
-  paddingMin?: number | null;
-  paddingMax?: number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXmcProfile {
-  username: string;
-  uuid: string;
-  texturesValue: string;
-  texturesSignature: string;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXmcSettings {
-  hostname?: string | null;
-  password?: string | null;
-  profiles?: FinalMaskXmcProfile[] | null;
-  usernames?: string[] | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskTcpLayerSettings = FinalMaskTcpHeaderCustomSettings | FinalMaskFragmentSettings | FinalMaskSudokuSettings | FinalMaskXmcSettings | { [key: string]: unknown };
-
-export interface FinalMaskTcpLayer {
-  type: FinalMaskTcpType;
-  settings?: FinalMaskTcpLayerSettings;
-  [key: string]: unknown;
- }
-
-export type FinalMaskUdpType = typeof FinalMaskUdpType[keyof typeof FinalMaskUdpType];
-
-
-export const FinalMaskUdpType = {
-  'header-custom': 'header-custom',
-  'mkcp-legacy': 'mkcp-legacy',
-  noise: 'noise',
-  salamander: 'salamander',
-  sudoku: 'sudoku',
-  xdns: 'xdns',
-  xicmp: 'xicmp',
-  realm: 'realm',
-  udphop: 'udphop',
-  'header-dns': 'header-dns',
-  'header-dtls': 'header-dtls',
-  'header-srtp': 'header-srtp',
-  'header-utp': 'header-utp',
-  'header-wechat': 'header-wechat',
-  'header-wireguard': 'header-wireguard',
-  'mkcp-original': 'mkcp-original',
-  'mkcp-aes128gcm': 'mkcp-aes128gcm',
-} as const;
-
-export interface FinalMaskUdpHeaderCustomSettings {
-  client?: FinalMaskNoiseItem[] | null;
-  server?: FinalMaskNoiseItem[] | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskPasswordSettings {
-  password?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskDomainSettings {
-  domain?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXdnsDomain {
-  names?: string[];
-  lenLimit?: number | null;
-  labelLimit?: number | null;
-  types?: number[] | null;
-  edns0?: number | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskXdnsResolverTlsConfig = { [key: string]: unknown } | null;
-
-export type FinalMaskXdnsResolverQuicConfig = { [key: string]: unknown } | null;
-
-export interface FinalMaskXdnsResolver {
-  addrs?: string[];
-  worker?: number | null;
-  tlsConfig?: FinalMaskXdnsResolverTlsConfig;
-  quicConfig?: FinalMaskXdnsResolverQuicConfig;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXdnsSettings {
-  domains?: FinalMaskXdnsDomain[] | null;
-  resolvers?: FinalMaskXdnsResolver[] | null;
-  extraPoll?: number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXicmpSettings {
-  dgram?: boolean | null;
-  ips?: string[] | null;
-  [key: string]: unknown;
- }
-
-/**
- * Packet item of the UDP noise mask. Unlike header-custom items, it also accepts exp, a packet template.
- */
-export interface FinalMaskNoiseMaskItem {
-  type?: string | null;
-  packet?: string | number[] | null;
-  delay?: string | number | null;
-  rand?: number | string | null;
-  randRange?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskNoiseSettings {
-  reset?: string | number | null;
-  noise?: FinalMaskNoiseMaskItem[] | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskSalamanderSettings {
-  password?: string | null;
-  packetSize?: unknown | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskRealmSettingsTlsConfig = { [key: string]: unknown } | null;
-
-export interface FinalMaskRealmSettings {
-  url?: string | null;
-  stunServers?: string[] | null;
-  tlsConfig?: FinalMaskRealmSettingsTlsConfig;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskUdpHopSettings {
-  /** @pattern ^(?i:intervalLocal|intervalRemote|perConnRemote)(,(?i:intervalLocal|intervalRemote|perConnRemote))*$ */
-  mode: string;
-  interval?: string | null;
-  remoteIPs?: string[] | null;
-  remotePorts?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskMkcpLegacySettings {
-  header?: string | null;
-  value?: string | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskUdpLayerSettings = FinalMaskUdpHeaderCustomSettings | FinalMaskPasswordSettings | FinalMaskSudokuSettings | FinalMaskDomainSettings | FinalMaskXdnsSettings | FinalMaskXicmpSettings | FinalMaskNoiseSettings | FinalMaskSalamanderSettings | FinalMaskRealmSettings | FinalMaskUdpHopSettings | FinalMaskMkcpLegacySettings | { [key: string]: unknown };
-
-export interface FinalMaskUdpLayer {
-  type: FinalMaskUdpType;
-  settings?: FinalMaskUdpLayerSettings;
-  [key: string]: unknown;
- }
-
-export type FinalMaskQuicCongestion = typeof FinalMaskQuicCongestion[keyof typeof FinalMaskQuicCongestion];
-
-
-export const FinalMaskQuicCongestion = {
-  reno: 'reno',
-  bbr: 'bbr',
-  brutal: 'brutal',
-  'force-brutal': 'force-brutal',
-} as const;
-
-export interface FinalMaskUdpHop {
-  ports?: string | null;
-  interval?: string | number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskQuicParams {
-  congestion?: FinalMaskQuicCongestion | null;
-  debug?: boolean | null;
-  bbrProfile?: string | null;
-  brutalUp?: string | number | null;
-  brutalDown?: string | number | null;
-  udpHop?: FinalMaskUdpHop | null;
-  initStreamReceiveWindow?: number | null;
-  maxStreamReceiveWindow?: number | null;
-  initConnectionReceiveWindow?: number | null;
-  maxConnectionReceiveWindow?: number | null;
-  maxIdleTimeout?: number | null;
-  keepAlivePeriod?: number | null;
-  disablePathMTUDiscovery?: boolean | null;
-  maxIncomingStreams?: number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMask {
-  tcp?: FinalMaskTcpLayer[] | null;
-  udp?: FinalMaskUdpLayer[] | null;
-  quicParams?: FinalMaskQuicParams | null;
-  [key: string]: unknown;
- }
-
 export interface BaseHost {
   id?: number | null;
   remark: string;
@@ -1196,7 +988,7 @@ export interface BaseHost {
   verify_peer_cert_by_name?: string[] | null;
   wireguard_overrides?: WireGuardHostOverrides | null;
   subscription_templates?: SubscriptionTemplates | null;
-  final_mask_settings?: FinalMask | null;
+  final_mask_settings?: BaseHostFinalMaskSettings;
   cipher_suites?: string | null;
 }
 
@@ -1402,6 +1194,19 @@ export interface BulkUsersSetOwner {
   admin_username: string;
 }
 
+/**
+ * Automatic retention periods. ``None`` keeps the corresponding data indefinitely.
+ */
+export interface CleanupSettings {
+  expired_users_retention_days?: number | null;
+  include_limited_users?: boolean;
+  usage_history_retention_days?: number | null;
+  node_stats_retention_days?: number | null;
+  usage_rollup_hourly_after_days?: number | null;
+  usage_rollup_half_day_after_days?: number | null;
+  usage_rollup_daily_after_days?: number | null;
+}
+
 export type ClientTemplateType = typeof ClientTemplateType[keyof typeof ClientTemplateType];
 
 
@@ -1542,6 +1347,252 @@ export interface MuxSettingsInput {
   xray?: XrayMuxSettingsInput | null;
 }
 
+export type FinalMaskTcpType = typeof FinalMaskTcpType[keyof typeof FinalMaskTcpType];
+
+
+export const FinalMaskTcpType = {
+  'header-custom': 'header-custom',
+  fragment: 'fragment',
+  sudoku: 'sudoku',
+  xmc: 'xmc',
+} as const;
+
+export interface FinalMaskTcpHeaderCustomItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  rand?: number | null;
+  randRange?: string | null;
+  delay?: number | string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskTcpHeaderCustomSettings {
+  clients?: FinalMaskTcpHeaderCustomItem[][] | null;
+  servers?: FinalMaskTcpHeaderCustomItem[][] | null;
+  errors?: FinalMaskTcpHeaderCustomItem[][] | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskFragmentSettings {
+  packets?: string | null;
+  lengths?: (string | number)[] | null;
+  delays?: (string | number)[] | null;
+  maxSplit?: string | number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskSudokuSettings {
+  password?: string | null;
+  ascii?: string | null;
+  customTable?: string | null;
+  customTables?: string[] | null;
+  paddingMin?: number | null;
+  paddingMax?: number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXmcProfile {
+  username: string;
+  uuid: string;
+  texturesValue: string;
+  texturesSignature: string;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXmcSettings {
+  hostname?: string | null;
+  password?: string | null;
+  profiles?: FinalMaskXmcProfile[] | null;
+  usernames?: string[] | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskTcpLayerSettings = FinalMaskTcpHeaderCustomSettings | FinalMaskFragmentSettings | FinalMaskSudokuSettings | FinalMaskXmcSettings | { [key: string]: unknown };
+
+export interface FinalMaskTcpLayer {
+  type: FinalMaskTcpType;
+  settings?: FinalMaskTcpLayerSettings;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskUdpType = typeof FinalMaskUdpType[keyof typeof FinalMaskUdpType];
+
+
+export const FinalMaskUdpType = {
+  'header-custom': 'header-custom',
+  'mkcp-legacy': 'mkcp-legacy',
+  noise: 'noise',
+  salamander: 'salamander',
+  sudoku: 'sudoku',
+  xdns: 'xdns',
+  xicmp: 'xicmp',
+  realm: 'realm',
+  udphop: 'udphop',
+  'header-dns': 'header-dns',
+  'header-dtls': 'header-dtls',
+  'header-srtp': 'header-srtp',
+  'header-utp': 'header-utp',
+  'header-wechat': 'header-wechat',
+  'header-wireguard': 'header-wireguard',
+  'mkcp-original': 'mkcp-original',
+  'mkcp-aes128gcm': 'mkcp-aes128gcm',
+} as const;
+
+export interface FinalMaskUdpHeaderCustomItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  rand?: number | null;
+  randRange?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskUdpHeaderCustomSettings {
+  client?: FinalMaskUdpHeaderCustomItem[] | null;
+  server?: FinalMaskUdpHeaderCustomItem[] | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskPasswordSettings {
+  password?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskDomainSettings {
+  domain?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXdnsDomain {
+  names?: string[];
+  lenLimit?: number | null;
+  labelLimit?: number | null;
+  types?: number[] | null;
+  edns0?: number | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskXdnsResolverTlsConfig = { [key: string]: unknown } | null;
+
+export type FinalMaskXdnsResolverQuicConfig = { [key: string]: unknown } | null;
+
+export interface FinalMaskXdnsResolver {
+  addrs?: string[];
+  worker?: number | null;
+  tlsConfig?: FinalMaskXdnsResolverTlsConfig;
+  quicConfig?: FinalMaskXdnsResolverQuicConfig;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXdnsSettings {
+  domains?: FinalMaskXdnsDomain[] | null;
+  resolvers?: FinalMaskXdnsResolver[] | null;
+  extraPoll?: number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXicmpSettings {
+  dgram?: boolean | null;
+  ips?: string[] | null;
+  [key: string]: unknown;
+ }
+
+/**
+ * Packet item of the UDP noise mask. Unlike header-custom items, it also accepts exp, a packet template.
+ */
+export interface FinalMaskNoiseMaskItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  delay?: string | number | null;
+  rand?: number | string | null;
+  randRange?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskNoiseSettings {
+  reset?: string | number | null;
+  noise?: FinalMaskNoiseMaskItem[] | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskSalamanderSettings {
+  password?: string | null;
+  packetSize?: unknown | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskRealmSettingsTlsConfig = { [key: string]: unknown } | null;
+
+export interface FinalMaskRealmSettings {
+  url?: string | null;
+  stunServers?: string[] | null;
+  tlsConfig?: FinalMaskRealmSettingsTlsConfig;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskUdpHopSettings {
+  /** @pattern ^(?i:intervalLocal|intervalRemote|perConnRemote)(,(?i:intervalLocal|intervalRemote|perConnRemote))*$ */
+  mode: string;
+  interval?: string | null;
+  remoteIPs?: string[] | null;
+  remotePorts?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskMkcpLegacySettings {
+  header?: string | null;
+  value?: string | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskUdpLayerSettings = FinalMaskUdpHeaderCustomSettings | FinalMaskPasswordSettings | FinalMaskSudokuSettings | FinalMaskDomainSettings | FinalMaskXdnsSettings | FinalMaskXicmpSettings | FinalMaskNoiseSettings | FinalMaskSalamanderSettings | FinalMaskRealmSettings | FinalMaskUdpHopSettings | FinalMaskMkcpLegacySettings | { [key: string]: unknown };
+
+export interface FinalMaskUdpLayer {
+  type: FinalMaskUdpType;
+  settings?: FinalMaskUdpLayerSettings;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskQuicCongestion = typeof FinalMaskQuicCongestion[keyof typeof FinalMaskQuicCongestion];
+
+
+export const FinalMaskQuicCongestion = {
+  reno: 'reno',
+  bbr: 'bbr',
+  brutal: 'brutal',
+  'force-brutal': 'force-brutal',
+} as const;
+
+export interface FinalMaskUdpHop {
+  ports?: string | null;
+  interval?: string | number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskQuicParams {
+  congestion?: FinalMaskQuicCongestion | null;
+  debug?: boolean | null;
+  bbrProfile?: string | null;
+  brutalUp?: string | number | null;
+  brutalDown?: string | number | null;
+  udpHop?: FinalMaskUdpHop | null;
+  initStreamReceiveWindow?: number | null;
+  maxStreamReceiveWindow?: number | null;
+  initConnectionReceiveWindow?: number | null;
+  maxConnectionReceiveWindow?: number | null;
+  maxIdleTimeout?: number | null;
+  keepAlivePeriod?: number | null;
+  disablePathMTUDiscovery?: boolean | null;
+  maxIncomingStreams?: number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMask {
+  tcp?: FinalMaskTcpLayer[] | null;
+  udp?: FinalMaskUdpLayer[] | null;
+  quicParams?: FinalMaskQuicParams | null;
+  [key: string]: unknown;
+ }
+
 export interface CreateHost {
   id?: number | null;
   remark: string;
@@ -1609,10 +1660,31 @@ export const OnHoldTimeoutAction = {
   delete: 'delete',
 } as const;
 
+export interface UsageSettings {
+  record_node_usage?: boolean;
+  record_node_stats?: boolean;
+  reset_usage_clean_chart_data?: boolean;
+  record_outbound_usage?: boolean;
+}
+
+export interface NodeHealthSettings {
+  /** @minimum 1 */
+  fail_threshold?: number;
+  /** @minimum 1 */
+  recover_threshold?: number;
+  /** @minimum 1 */
+  probe_timeout?: number;
+  /** @minimum 0 */
+  max_backoff?: number;
+}
+
 export interface General {
   default_method?: ShadowsocksMethods;
   on_hold_timeout_action?: OnHoldTimeoutAction;
   custom_variables?: CustomVariable[] | null;
+  usage?: UsageSettings;
+  node_health?: NodeHealthSettings;
+  stop_nodes_on_shutdown?: boolean;
 }
 
 export type GeoFilseRegion = typeof GeoFilseRegion[keyof typeof GeoFilseRegion];
@@ -1729,6 +1801,8 @@ export interface InboundSummary {
   tag: string;
   protocol: string;
   network?: string | null;
+  security?: string | null;
+  fingerprint?: string | null;
 }
 
 export interface MasqueSettings {
@@ -1739,6 +1813,21 @@ export interface MasqueSettings {
 export interface ModifyUserByTemplate {
   user_template_id: number;
   note?: string | null;
+}
+
+export interface MtprotoSettings {
+  secret?: string | null;
+  user_ad_tag?: string;
+  /**
+     * @minimum 0
+     * @maximum 4294967295
+     */
+  max_tcp_conns?: number;
+  /**
+     * @minimum 0
+     * @maximum 4294967295
+     */
+  max_unique_ips?: number;
 }
 
 export interface NextPlanModel {
@@ -1842,6 +1931,35 @@ export interface NodeOutboundLatency {
   source: string;
 }
 
+export interface NodeOutboundUsageStat {
+  period_start: string;
+  uplink: number;
+  downlink: number;
+  node_id?: number | null;
+}
+
+export type NodeOutboundUsageStatsListStats = {[key: string]: NodeOutboundUsageStat[]};
+
+export type Period = typeof Period[keyof typeof Period];
+
+
+export const Period = {
+  minute: 'minute',
+  hour: 'hour',
+  day: 'day',
+  month: 'month',
+} as const;
+
+/**
+ * Usage per outbound tag; the key is the tag. With group_by_node each stat also carries its node_id.
+ */
+export interface NodeOutboundUsageStatsList {
+  period?: Period | null;
+  start: string;
+  end: string;
+  stats: NodeOutboundUsageStatsListStats;
+}
+
 export interface NodeOutboundsLatencyResponse {
   latencies: NodeOutboundLatency[];
 }
@@ -1913,16 +2031,6 @@ export interface NodeStats {
   incoming_bandwidth_speed: number;
   outgoing_bandwidth_speed: number;
 }
-
-export type Period = typeof Period[keyof typeof Period];
-
-
-export const Period = {
-  minute: 'minute',
-  hour: 'hour',
-  day: 'day',
-  month: 'month',
-} as const;
 
 export interface NodeStatsList {
   period?: Period | null;
@@ -2086,6 +2194,7 @@ export interface ProxyTable {
   wireguard?: WireGuardSettings;
   hysteria?: HysteriaSettings;
   masque?: MasqueSettings;
+  mtproto?: MtprotoSettings;
 }
 
 export interface RealityScanRequest {
@@ -2276,6 +2385,7 @@ export interface Subscription {
   disable_sub_template?: boolean;
   randomize_order?: boolean;
   custom_variables?: CustomVariable[];
+  clients_limit?: number;
 }
 
 export interface SettingsSchema {
@@ -2286,6 +2396,7 @@ export interface SettingsSchema {
   subscription?: Subscription | null;
   hwid?: HWIDSettings | null;
   general?: General | null;
+  cleanup?: CleanupSettings | null;
 }
 
 export interface SubscriptionUserResponse {
@@ -2368,6 +2479,7 @@ export type UsageTable = typeof UsageTable[keyof typeof UsageTable];
 export const UsageTable = {
   node_user_usages: 'node_user_usages',
   node_usages: 'node_usages',
+  node_outbound_usages: 'node_outbound_usages',
 } as const;
 
 export type UserCountMetric = typeof UserCountMetric[keyof typeof UserCountMetric];
@@ -2824,6 +2936,14 @@ limit?: number;
 };
 
 export type GetUsageParams = {
+period?: Period;
+node_id?: number | null;
+group_by_node?: boolean;
+start?: string | null;
+end?: string | null;
+};
+
+export type GetOutboundUsageParams = {
 period?: Period;
 node_id?: number | null;
 group_by_node?: boolean;
@@ -11715,6 +11835,115 @@ export function useGetUsage<TData = Awaited<ReturnType<typeof getUsage>>, TError
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetUsageQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOutboundUsageUrl = (params?: GetOutboundUsageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/node/usage/outbounds?${stringifiedParams}` : `/api/node/usage/outbounds`
+}
+
+/**
+ * Retrieve usage per outbound tag, over all nodes or one, within a date range.
+ * @summary Get Outbound Usage
+ */
+export const getOutboundUsage = async (params?: GetOutboundUsageParams, options?: RequestInit): Promise<NodeOutboundUsageStatsList> => {
+
+  return orvalFetcher<NodeOutboundUsageStatsList>(getGetOutboundUsageUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOutboundUsageQueryKey = (params?: GetOutboundUsageParams,) => {
+    return [
+    `/api/node/usage/outbounds`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOutboundUsageQueryOptions = <TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOutboundUsageQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOutboundUsage>>> = ({ signal }) => getOutboundUsage(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetOutboundUsageQueryResult = NonNullable<Awaited<ReturnType<typeof getOutboundUsage>>>
+export type GetOutboundUsageQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params: undefined |  GetOutboundUsageParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOutboundUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getOutboundUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOutboundUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getOutboundUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Outbound Usage
+ */
+
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetOutboundUsageQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

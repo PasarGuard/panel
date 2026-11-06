@@ -31,11 +31,21 @@ from app.db.models import (
     users_groups_association,
 )
 from app.jobs import review_users
-from app.models.settings import HWIDSettings, OnHoldTimeoutAction
+from app.models.settings import General, HWIDSettings, OnHoldTimeoutAction
 from app.models.user import UserNotificationResponse
-from app.operation import OperatorType
+from app.operation import OperatorType, user as user_module
 from app.operation.subscription import SubscriptionOperation
 from app.operation.user import UserOperation
+
+
+@pytest.fixture(autouse=True)
+def _default_general_settings(monkeypatch):
+    # The jobs read panel settings; without this they would hit the app database (empty in unit tests)
+    async def general_settings():
+        return General()
+
+    for module in (review_users, user_module):
+        monkeypatch.setattr(module, "general_settings", general_settings)
 
 
 def _user(user_id: int, *, next_plan=None) -> SimpleNamespace:
@@ -53,7 +63,7 @@ async def test_apply_status_changes_syncs_plain_users_in_one_call():
         patch("app.jobs.review_users.update_users_status", new_callable=AsyncMock) as update_status,
         patch("app.jobs.review_users.sync_users", new_callable=AsyncMock) as sync,
         patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
-        patch("app.jobs.review_users.notification.user_status_change", new_callable=AsyncMock) as status_change,
+        patch("app.jobs.review_users.notification.bulk_user_status_change", new_callable=AsyncMock) as status_change,
         patch("app.jobs.review_users.reset_user_by_next", new_callable=AsyncMock) as reset_next,
     ):
         await review_users.apply_status_changes(AsyncMock(), users, UserStatus.expired)
@@ -62,7 +72,8 @@ async def test_apply_status_changes_syncs_plain_users_in_one_call():
     assert update_status.await_args.args[1] == users
     sync.assert_awaited_once_with(users)
     reset_next.assert_not_called()
-    assert status_change.call_count == 3
+    status_change.assert_called_once()
+    assert [user.id for user in status_change.call_args.args[0]] == [1, 2, 3]
 
 
 @pytest.mark.asyncio
@@ -80,8 +91,10 @@ async def test_apply_status_changes_resets_next_plan_users_separately():
         patch("app.jobs.review_users.update_users_status", new_callable=AsyncMock) as update_status,
         patch("app.jobs.review_users.sync_users", new_callable=AsyncMock) as sync,
         patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
-        patch("app.jobs.review_users.notification.user_status_change", new_callable=AsyncMock),
-        patch("app.jobs.review_users.notification.user_data_reset_by_next", new_callable=AsyncMock) as reset_notify,
+        patch("app.jobs.review_users.notification.bulk_user_status_change", new_callable=AsyncMock),
+        patch(
+            "app.jobs.review_users.notification.bulk_user_data_reset_by_next", new_callable=AsyncMock
+        ) as reset_notify,
         patch(
             "app.jobs.review_users.reset_user_by_next", new_callable=AsyncMock, return_value=reset_user
         ) as reset_next,
@@ -93,6 +106,7 @@ async def test_apply_status_changes_resets_next_plan_users_separately():
     reset_next.assert_awaited_once()
     assert [call.args[0] for call in sync.await_args_list] == [[plain], [reset_user]]
     reset_notify.assert_called_once()
+    assert [user.id for user in reset_notify.call_args.args[0]] == [2]
 
 
 @pytest.mark.asyncio
@@ -107,7 +121,7 @@ async def test_apply_status_changes_skips_status_update_when_already_active():
             new_callable=AsyncMock,
             return_value=SimpleNamespace(id=1, username="u1"),
         ),
-        patch("app.jobs.review_users.notification.user_status_change", new_callable=AsyncMock),
+        patch("app.jobs.review_users.notification.bulk_user_status_change", new_callable=AsyncMock),
     ):
         await review_users.apply_status_changes(AsyncMock(), users, UserStatus.active)
 
@@ -467,8 +481,8 @@ async def test_on_hold_timeout_action_only_hits_users_whose_timeout_expired(db_s
         # The post-commit removal re-queue (if present) would serialize the stub users below.
         patch.object(review_users, "sync_remove_user", AsyncMock(), create=True),
         patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
-        patch("app.jobs.review_users.notification.user_status_change", AsyncMock()),
-        patch("app.jobs.review_users.notification.remove_user", AsyncMock()),
+        patch("app.jobs.review_users.notification.bulk_user_status_change", AsyncMock()),
+        patch("app.jobs.review_users.notification.bulk_remove_users", AsyncMock()),
     ):
         await review_users.on_hold_to_active_users_job()
 
@@ -534,7 +548,7 @@ async def test_user_put_back_on_hold_by_activate_all_gets_the_timeout_action(db_
         ),
         patch.object(review_users, "sync_users", AsyncMock()),
         patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
-        patch("app.jobs.review_users.notification.user_status_change", AsyncMock()),
+        patch("app.jobs.review_users.notification.bulk_user_status_change", AsyncMock()),
     ):
         await review_users.on_hold_to_active_users_job()
 
@@ -571,8 +585,8 @@ async def test_bad_next_plan_does_not_stall_other_next_plan_users(db_session):
         patch.object(review_users, "GetDB", _get_db),
         patch.object(review_users, "sync_users", AsyncMock()) as sync,
         patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
-        patch("app.jobs.review_users.notification.user_data_reset_by_next", AsyncMock()),
-        patch("app.jobs.review_users.notification.user_status_change", AsyncMock()),
+        patch("app.jobs.review_users.notification.bulk_user_data_reset_by_next", AsyncMock()),
+        patch("app.jobs.review_users.notification.bulk_user_status_change", AsyncMock()),
     ):
         await review_users.limit_users_job()
 

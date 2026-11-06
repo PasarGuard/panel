@@ -1,4 +1,54 @@
 {
+  "usersView": {
+    "customize": "Customize view",
+    "description": "Add optional columns or mobile details while keeping the original layout. Changes are saved in this browser.",
+    "columnsHint": "Choose extra columns and drag their handles to reorder them. Usage and actions stay at the end.",
+    "dragField": "Drag to reorder {{field}}",
+    "desktop": "Desktop columns",
+    "mobile": "Mobile fields",
+    "expandedHint": "Choose extra properties below the original expanded details. Drag their handles to reorder them.",
+    "search": "Search properties…",
+    "preview": "Preview",
+    "fixedDesktop": "Username, ID, online indicator, status, expiry, usage and actions keep their original display and positions.",
+    "fixedMobile": "The compact row and expanded usage, expiry, online status, ID and actions keep their original display.",
+    "resetDefaults": "Reset to default",
+    "storageError": "Your view was applied, but this browser could not save it. It may reset after a reload.",
+    "unlimited": "Unlimited",
+    "pendingActivation": "Pending activation",
+    "carryOver": "Carry over",
+    "durationHours_one": "{{count}} hour",
+    "durationHours_other": "{{count}} hours",
+    "durationMinutes_one": "{{count}} minute",
+    "durationMinutes_other": "{{count}} minutes",
+    "durationSeconds_one": "{{count}} second",
+    "durationSeconds_other": "{{count}} seconds",
+    "durationDays_one": "{{count}} day",
+    "durationDays_other": "{{count}} days",
+    "template": "Template",
+    "actions": "User actions",
+    "fields": {
+      "creator": "Created by",
+      "created_at": "Created at",
+      "edit_at": "Edited at",
+      "remaining_traffic": "Remaining traffic",
+      "groups": "Groups",
+      "note": "Note",
+      "hwid_count": "Device count",
+      "hwid_limit": "Device limit",
+      "data_limit_reset_strategy": "Traffic reset",
+      "on_hold_timeout": "Activation deadline",
+      "on_hold_expire_duration": "Duration after activation",
+      "auto_delete_in_days": "Auto-delete delay",
+      "next_plan": "Next plan"
+    },
+    "reset": {
+      "no_reset": "Never",
+      "day": "Daily",
+      "week": "Weekly",
+      "month": "Monthly",
+      "year": "Yearly"
+    }
+  },
   "pasarguard": "PasarGuard",
   "dashboard": "Dashboard",
   "master": "Overall",
@@ -172,7 +222,51 @@
         "disable": "Disable user",
         "delete": "Delete user"
       },
-      "errorLoadingSettings": "Error loading settings"
+      "errorLoadingSettings": "Error loading settings",
+      "usage": {
+        "title": "Usage recording",
+        "description": "Choose which usage data the panel stores",
+        "recordNodeUsage": {
+          "title": "Record node usage",
+          "description": "Store traffic per node for users and nodes. User and admin usage is counted either way"
+        },
+        "recordNodeStats": {
+          "title": "Record node system stats",
+          "description": "Store CPU, memory and bandwidth history of nodes. PostgreSQL and TimescaleDB only"
+        },
+        "resetUsageCleanChartData": {
+          "title": "Clear charts on usage reset",
+          "description": "Delete a user's usage chart history when their data usage is reset"
+        },
+        "recordOutboundUsage": {
+          "title": "Record usage per outbound",
+          "description": "Store traffic per outbound tag for each node to show the Outbound Usage chart. Adds rows to the database, more with many outbounds."
+        }
+      },
+      "nodeHealth": {
+        "title": "Node health checks",
+        "description": "When a node is reported as down or back up",
+        "failThreshold": {
+          "title": "Failure threshold",
+          "description": "Failed checks in a row before a node is marked as error"
+        },
+        "recoverThreshold": {
+          "title": "Recovery threshold",
+          "description": "Good checks in a row before a node is marked as connected again"
+        },
+        "probeTimeout": {
+          "title": "Probe timeout (seconds)",
+          "description": "How long a health probe waits for a node, never longer than the node's own timeout"
+        },
+        "maxBackoff": {
+          "title": "Maximum backoff (seconds)",
+          "description": "Longest wait between probes of a node in error. 0 probes it on every check"
+        }
+      },
+      "stopNodesOnShutdown": {
+        "title": "Stop node cores on shutdown",
+        "description": "Stop the cores of all nodes when the panel shuts down. Only with a single worker"
+      }
     },
     "notifications": {
       "title": "Notifications",
@@ -276,7 +370,9 @@
         "disableSubTemplate": "Disable Subscription Template",
         "disableSubTemplateDescription": "When disabled, browser requests will return API responses instead of HTML subscription pages",
         "randomizeOrder": "Randomize Subscription Order",
-        "randomizeOrderDescription": "Shuffle configuration order on each subscription request"
+        "randomizeOrderDescription": "Shuffle configuration order on each subscription request",
+        "clientsLimit": "Client updates kept per user",
+        "clientsLimitDescription": "How many recent subscription updates (client apps) are kept per user. 0 or less keeps all"
       },
       "responseHeaders": {
         "title": "Response Headers",
@@ -545,6 +641,60 @@
       "saveSuccess": "Cleanup operation completed successfully",
       "saveFailed": "Failed to complete cleanup operation",
       "cancelSuccess": "Cleanup operation cancelled",
+      "retention": {
+        "title": "Automatic retention",
+        "description": "Keep the recent data you need and remove older records in small, hardware-safe batches.",
+        "hourly": "Runs hourly",
+        "days": "days",
+        "purge": "Older data",
+        "forever": "Keep forever",
+        "today": "Today",
+        "cutoff": "Records older than {{days}} days are removed automatically.",
+        "disabledHint": "Automatic cleanup is disabled for this data.",
+        "cascadeWarning": "Deleting an expired account also removes its per-user traffic history. System and node totals remain available only for their configured retention window.",
+        "validation": "Expired accounts may use 0 days; other enabled rules require a whole number from 1 to 36,500.",
+        "save": "Save retention",
+        "saving": "Saving...",
+        "reset": "Discard changes",
+        "expiredUsers": {
+          "title": "Expired accounts",
+          "description": "Delete accounts after their expired status has been kept for this many days. Per-account overrides still apply.",
+          "includeLimited": "Also delete limited users",
+          "disabledHint": "No default rule. Users with their own auto delete days are still deleted."
+        },
+        "usageHistory": {
+          "title": "Traffic history",
+          "description": "Retention for user, node and outbound traffic charts."
+        },
+        "nodeStats": {
+          "title": "Node system metrics",
+          "description": "Retention for CPU, memory and bandwidth-speed samples."
+        }
+      },
+      "rollup": {
+        "title": "Usage history detail",
+        "description": "Merge older traffic rows into coarser time buckets so the usage tables stop growing at 10-minute detail.",
+        "off": "Off",
+        "hourlyStep": {
+          "title": "Hourly",
+          "description": "Rows older than this are merged into one row per hour."
+        },
+        "halfDayStep": {
+          "title": "12-hour",
+          "description": "Rows older than this are merged into one row per 12 hours."
+        },
+        "dailyStep": {
+          "title": "Daily",
+          "description": "Rows older than this are merged into one row per day."
+        },
+        "cutoff": "Whole days older than {{days}} days are merged.",
+        "disabledHint": "This step is off.",
+        "note": "Totals stay exact: only the time detail is reduced, and charts of old data show coarser steps. Buckets are cut in UTC. The merge runs hourly after the retention cleanup, for at most a couple of minutes each time.",
+        "validation": "Enabled steps need a whole number from 1 to 36,500.",
+        "orderValidation": "Days must increase from hourly to 12-hour to daily.",
+        "save": "Save detail settings",
+        "firstRun": "Turning this on for the first time: if the panel already has a lot of usage history, merging the older data can take from a few hours to several days. It works only a couple of minutes each hour, so the panel stays fast, and older charts keep their current detail until it reaches them."
+      },
       "expiredUsers": {
         "title": "Delete Accounts by Status",
         "description": "Remove accounts matching a specific status, optionally filtered by date",
@@ -630,7 +780,8 @@
         "warning": "Warning: This will permanently delete all usage data from the selected table. This action cannot be undone.",
         "tables": {
           "nodeUserUsages": "Node User Usages",
-          "nodeUsages": "Node Usages"
+          "nodeUsages": "Node Usages",
+          "nodeOutboundUsages": "Node Outbound Usages"
         }
       }
     },
@@ -860,6 +1011,11 @@
     "inheritPermissions": "Inherit admin permissions",
     "inheritPermissionsDescription": "Use the owning admin's current role permissions. Disable to store custom permissions on this key.",
     "inherited": "Inherited",
+    "maxRequests": "Max Requests",
+    "maxRequestsDescription": "Maximum number of requests this key may make. Leave empty for unlimited.",
+    "requestCount": "Requests Used",
+    "deleteOnLimit": "Delete on limit reached",
+    "deleteOnLimitDescription": "Automatically delete this key once it reaches its request limit, instead of just disabling it.",
     "noKeys": "No API keys configured",
     "noKeysDescription": "Create an API key to allow programmatic access.",
     "noSearchResults": "No API keys match your search criteria. Try adjusting your search terms or filters.",
@@ -1300,6 +1456,14 @@
     "cancelEdit": "Cancel edit",
     "clickToEdit": "Click to edit"
   },
+  "realityFingerprint": {
+    "title": "REALITY fingerprint compatibility",
+    "tls13": "This preset does not support the TLS 1.3 handshake required by Xray REALITY. Choose chrome or firefox.",
+    "modern": "This preset may not provide X25519MLKEM768, which newer Xray REALITY servers require. Use chrome or firefox with an up-to-date client.",
+    "random": "Random presets can produce handshakes that newer Xray REALITY servers reject. Use chrome or firefox for a consistent preset, and keep the client up to date.",
+    "unsafe": "The unsafe setting is not a uTLS preset and cannot be used with Xray REALITY. Choose chrome or firefox.",
+    "useChrome": "Use Chrome"
+  },
   "hostsDialog": {
     "addHost": "Create Host",
     "selectInbound": "Select an inbound",
@@ -1327,6 +1491,9 @@
       "remoteDns": "MASQUE remote DNS servers",
       "remoteDnsHint": "Leave empty to use the inbound DNS servers",
       "xmuxHint": "Requires Xray 26.10.21 or newer on the client. Leave all fields blank for Xray defaults: one tunnel, reusable for 1800-3000 seconds. Setting any field replaces those defaults. Max Connections and Max Concurrency cannot both be set."
+    },
+    "xdrive": {
+      "xmuxHint": "Connection reuse limits for XDrive. Set maxConnections or maxConcurrency, not both."
     },
     "transportSettings": "Transport Settings",
     "transportType": "Transport Type",
@@ -1493,6 +1660,10 @@
       "invalidJson": "Invalid JSON: {{error}}",
       "tcpLayers": "TCP Layers",
       "addTcpLayer": "Add TCP Layer",
+      "filterHint": "Inbound only. Place filter last so it is the outermost TCP layer. Blocked IPs take precedence over allowed IPs.",
+      "allowedSourceIPs": "Allowed source IPs",
+      "blockedSourceIPs": "Blocked source IPs",
+      "sourceIPsPlaceholder": "Add CIDR or geoip:cn",
       "noTcpLayers": "No TCP layers configured",
       "udpLayers": "UDP Layers",
       "addUdpLayer": "Add UDP Layer",
@@ -1595,7 +1766,17 @@
       "noiseRandPlaceholder": "e.g. 1-8192",
       "noiseRandRange": "Random range",
       "noiseRandRangePlaceholder": "e.g. 0-255",
-      "noiseExpPlaceholder": "e.g. <b 0d0a><t><r 24-48>"
+      "noiseExpPlaceholder": "e.g. <b 0d0a><t><r 24-48>",
+      "noiseExpSyntaxTitle": "Expression packet syntax",
+      "noiseExpSyntaxIntro": "Join these parts in order to build one packet. The expression is evaluated again for every send.",
+      "noiseExpBytes": "fixed hex bytes (optional 0x prefix)",
+      "noiseExpRandom": "N random bytes, or a random count from A to B",
+      "noiseExpLetters": "random letters (a-zA-Z)",
+      "noiseExpDigits": "random digits (0-9)",
+      "noiseExpTime": "current Unix time in seconds, 4 bytes, big endian",
+      "noiseExpCounter": "4-byte counter, incremented for each send",
+      "noiseExpNonce": "8 random bytes",
+      "noiseExpExample": "Example:"
     },
     "muxSettings": "Mux Settings",
     "enableMux": "Enable Mux",
@@ -1783,6 +1964,21 @@
       "reserved": "Reserved (e.g. 0,0,0)",
       "dns": "DNS servers",
       "dnsHint": "Leave empty to use system DNS"
+    },
+    "mtproto": {
+      "hint": "The subscription page and the dashboard show a Telegram proxy link for MTProto hosts; client apps never receive it.",
+      "linkType": "Link type",
+      "linkTypeHelp": "This only picks which links users get from this host. Every type uses the same user secret, so only the core's mode switches really turn a type off.",
+      "linkTypes": {
+        "auto": "Auto",
+        "tls": "Fake TLS",
+        "secure": "Secure",
+        "classic": "Classic",
+        "web": "WEB"
+      },
+      "fakeTlsDomain": "Fake TLS domain",
+      "fakeTlsDomainHelp": "Must be one of the core's fake TLS domains. Leave empty to use the core's main domain.",
+      "webAddressHelp": "Each address must be one of the core's WEB vhost domains. WEB links always use port 443, so the port is ignored."
     }
   },
   "inbound": "Inbound",
@@ -1837,6 +2033,8 @@
   "subscriptionModal.fetchError": "Failed to fetch configurations",
   "subscriptionModal.noConfigs": "No configurations found",
   "subscriptionModal.unknownConfig": "Unknown Config",
+  "subscriptionModal.telegramProxy": "Telegram proxy",
+  "subscriptionModal.telegramWebProxy": "Telegram WEB proxy",
   "subscriptionModal.qrFormat": "QR Code Format",
   "subscriptionModal.qrFormatConfig": "Config",
   "configActions.copyConfig": "Copy Config",
@@ -1998,6 +2196,12 @@
     "proxySettings.wireguardPublicKey": "WireGuard Public key",
     "proxySettings.generateWireGuardKeyPair": "WireGuard keypair",
     "proxySettings.wireguardGenerated": "WireGuard keypair generated",
+    "proxySettings.mtprotoSecret": "MTProto secret",
+    "proxySettings.mtprotoSecretPlaceholder": "32 hex characters, or empty to keep the current one",
+    "proxySettings.mtprotoSecretPlaceholderNew": "32 hex characters, or empty to generate one",
+    "proxySettings.generateMtprotoSecret": "Generate MTProto secret",
+    "proxySettings.mtprotoGenerated": "MTProto secret generated",
+    "proxySettings.mtprotoSecretInvalid": "Must be 32 hex characters",
     "proxySettings.desc": "Configure protocol-specific settings for this user.",
     "selectNode": "Select Node",
     "allNodes": "All Nodes",
@@ -2052,6 +2256,7 @@
     "refreshNow": "Refresh now"
   },
   "statistics.system": "System",
+  "statistics.periodTooFineForRange": "Too many points for this range. Pick a shorter range.",
   "statistics.totalTraffic": "Total Traffic",
   "statistics.ramUsage": "RAM Usage",
   "statistics.cpuUsage": "CPU Usage",
@@ -2070,7 +2275,7 @@
   "statistics.subscriptionDistribution": "Subscription Client Distribution",
   "statistics.subscriptionDistributionDetails": "Subscription Client Details",
   "statistics.subscriptionDistributionDescription": "Share of subscription updates across agents and applications.",
-  "statistics.subscriptionDistributionRetentionNote": "By default only the latest {{limit}} subscription updates are kept per user. Change this with {{env}} in your environment.",
+  "statistics.subscriptionDistributionRetentionNote": "By default only the latest {{limit}} subscription updates are kept per user. Change this in the subscription settings.",
   "statistics.totalSubscriptions": "Total subscription updates",
   "statistics.percentage": "Percentage",
   "statistics.adminFilterLabel": "Filter by admin",
@@ -2503,7 +2708,8 @@
     "shadowsocksPasswordGenerationFailed": "Failed to generate password",
     "discardChangesTitle": "Discard changes?",
     "discardChangesDescription": "Your unsaved kernel configuration changes will be lost if you close this editor.",
-    "scanRealityTarget": "Scan target"
+    "scanRealityTarget": "Scan target",
+    "mtprotoHint": "MTProto (telemt) core. Set censorship.tls_domain to a real domain before saving: changing it later breaks every ee link already shared. Give each MTProto core its own inbound_tag."
   },
   "coreEditor": {
     "nameRequired": "Name is required",
@@ -2555,7 +2761,8 @@
       "dns": "DNS",
       "bindings": "Bindings",
       "advanced": "Advanced",
-      "interface": "Interface"
+      "interface": "Interface",
+      "mtproto": "MTProto proxy"
     },
     "sectionDesc": {
       "wgInterface": "WireGuard interface and keys",
@@ -2566,7 +2773,53 @@
       "routing": "Traffic rules and routing",
       "balancers": "Outbound load balancing setup",
       "dns": "DNS resolver and server config",
-      "bindings": "Inbound tag fallbacks and exclusions"
+      "bindings": "Inbound tag fallbacks and exclusions",
+      "mtproto": "telemt settings for this core. The node manages users, the control API and metrics."
+    },
+    "mtproto": {
+      "inboundTag": "Inbound tag",
+      "inboundTagHint": "Unique across all cores. Hosts and groups refer to it.",
+      "port": "Port",
+      "tlsDomain": "TLS domain",
+      "tlsDomainHint": "The site fake TLS imitates. Changing it later breaks every ee link already shared.",
+      "modes": "Modes",
+      "modeTls": "Fake TLS (ee, recommended)",
+      "modeSecure": "Secure (dd)",
+      "modeClassic": "Classic",
+      "tlsDomains": "Extra fake TLS domains",
+      "tlsDomainsHint": "Optional. More sites fake TLS clients can present, next to the TLS domain above.",
+      "tlsDomainsAdd": "Add domain",
+      "remove": "Remove",
+      "webEnable": "WEB mode",
+      "webHint": "WEB carries MTProto over HTTPS. It needs an HTTPS front (Caddy or nginx) on the server that holds the certificate and forwards to the WEB listener.",
+      "webOneServer": "WEB settings are for one server; with several MTProto nodes, use one core per node.",
+      "webGuide": "How to set up WEB",
+      "webListenerPort": "WEB listener port",
+      "webListenerPortHint": "The local port the front forwards to. It must differ from the MTProto port.",
+      "webVhosts": "Domains",
+      "webVhostAdd": "Add domain",
+      "webHost": "Domain",
+      "webBasePath": "Path (optional)",
+      "webPublicAddr": "Public address",
+      "webPublicAddrHint": "The server's public IP and port 443.",
+      "webDecoyUpstream": "Decoy site URL",
+      "webDecoyUpstreamHint": "Other visitors see this site. Its address must be a loopback or private IP.",
+      "webSecretMode": "Secret mode",
+      "webSecretModeDd": "dd (recommended)",
+      "webSecretModePlain": "Plain",
+      "config": "Config (JSON)",
+      "invalidJson": "The config is not valid JSON.",
+      "issue": {
+        "inboundTag": "The inbound tag must not be empty or contain , or <=>.",
+        "port": "The port must be a whole number from 1 to 65535.",
+        "modes": "Enable at least one mode.",
+        "tlsDomain": "Fake TLS needs a TLS domain: a bare domain name, not the template placeholder.",
+        "listenerPort": "Every MTProxy listener port must equal the server port.",
+        "tlsDomains": "Each extra TLS domain must be a bare domain name, not the template placeholder.",
+        "webListener": "WEB needs web.enabled and one listener with transport \"web\" on a loopback or private IP, with its own port that differs from the server port.",
+        "webBasePath": "Each domain path must be empty or up to 128 characters of Latin letters, digits, \"-\" and \"_\" in parts separated by \"/\", each part starting with a letter or digit, with no \"/\" at the start or end (for example tg or my-app/web).",
+        "webVhost": "WEB needs at least one domain, each with a domain name and a decoy URL on a loopback or private IP."
+      }
     },
     "api": {
       "title": "API Services",
@@ -2828,12 +3081,24 @@
       "service": "Storage service",
       "serviceLocal": "Local folder (local)",
       "serviceTemplate": "Custom template (template)",
+      "serviceS3": "Amazon S3 / S3-compatible (s3)",
       "folderLocal": "Folder path",
       "folderLocalHint": "A directory both sides can reach, mostly for testing.",
       "folderGoogleDrive": "Folder ID",
       "folderGoogleDriveHint": "The ID of the Drive folder both sides share.",
       "folderTemplate": "Folder",
       "folderTemplateHint": "Optional. The template reads it as {folder}.",
+      "folderS3": "Bucket Path / Prefix",
+      "folderS3Hint": "Relative path or prefix inside the bucket.",
+      "s3Endpoint": "Endpoint URL",
+      "s3Region": "Region",
+      "s3Bucket": "Bucket Name",
+      "s3PathStyle": "Path-style addressing",
+      "s3PathStyleHint": "Use path-style URLs (endpoint/bucket) rather than virtual-hosted style.",
+      "s3AccessKeyId": "Access Key ID",
+      "s3SecretAccessKey": "Secret Access Key",
+      "s3SessionToken": "Session Token (optional)",
+      "s3Hint": "Provide credentials and bucket configuration for S3 storage.",
       "clientId": "Client ID",
       "clientSecret": "Client secret",
       "refreshToken": "Refresh token",
@@ -2843,6 +3108,9 @@
       "template": "Template (JSON object)",
       "templateHint": "Describes the storage API requests.",
       "templateInvalid": "The template must be a JSON object.",
+      "xmux": "XMUX (JSON object)",
+      "xmuxHint": "Optional connection reuse limits, as in XHTTP. Set maxConnections or maxConcurrency, not both.",
+      "xmuxInvalid": "XMUX must be a JSON object.",
       "tuning": "Tuning",
       "tuningHint": "Empty or 0 uses the Xray default shown in each field.",
       "segmentBytes": "Segment size (bytes)",
@@ -3019,8 +3287,8 @@
           },
           "errors": {
             "node_local": "This file exists only on the node. Its domain, expiry and key match cannot be verified from the panel. Import its PEM content to inspect it here.",
-            "certificate_file_unreadable": "Could not read the certificate file on the panel server. Check the path, permissions, and PEM file size (up to 1 MB).",
-            "key_file_unreadable": "Could not read the private key file on the panel server. Check the path, permissions, and file size (up to 64 KB).",
+            "certificate_file_unreadable": "Could not read the certificate. Use an absolute path under the panel certificates directory, Let's Encrypt, or the system TLS directories. Check permissions and the PEM size (up to 1 MB).",
+            "key_file_unreadable": "Could not read the private key. Use an absolute path under the panel certificates directory, Let's Encrypt, or the system TLS directories. Check permissions and file size (up to 64 KB).",
             "invalid_certificate": "The certificate is not valid PEM, uses an unsupported format, or exceeds the limit of 32 certificates / 1 MB.",
             "invalid_key": "The key is invalid, encrypted, or unsupported. Use an unencrypted PEM private key (up to 64 KB)."
           },
@@ -3142,6 +3410,41 @@
       "shadowsocks": {
         "network": "Network"
       },
+      "tun": {
+        "name": "Interface Name",
+        "mtu": "MTU",
+        "desc": "Adapter Description",
+        "userLevel": "User Level",
+        "gateway": "Gateway",
+        "gatewayHint": "One CIDR per line, e.g. 10.0.0.1/16",
+        "gatewayAddPlaceholder": "Add gateway CIDR",
+        "addItem": "Add",
+        "gatewayItems": "Gateway CIDRs",
+        "noGatewayItems": "No gateway CIDR added.",
+        "dns": "DNS",
+        "dnsHint": "One DNS server per line, e.g. 1.1.1.1",
+        "dnsAddPlaceholder": "Add DNS server",
+        "dnsItems": "DNS servers",
+        "noDnsItems": "No DNS server added.",
+        "autoSystemRoutingTable": "Auto System Routing Table",
+        "autoSystemRoutingTableHint": "One CIDR per line, e.g. 0.0.0.0/0",
+        "autoRouteAddPlaceholder": "Add route CIDR",
+        "autoRouteItems": "Route CIDRs",
+        "noAutoRouteItems": "No route CIDR added.",
+        "autoOutboundsInterface": "Auto Outbounds Interface",
+        "autoSystemDnsToGateway": "Auto System DNS to Gateway",
+        "autoSystemDnsToGatewayHint": "Point system DNS queries to the gateway address (Linux / FreeBSD).",
+        "autoSystemWfpBlockLeak": "WFP Leak Blocking Rules",
+        "autoSystemWfpBlockLeakHint": "Rules: dns, misconfigtun, windnsclient, tcp/853, udp/853, tcp/<port>, udp/<port>",
+        "autoSystemWfpBlockLeakAddPlaceholder": "Add rule (e.g. dns, tcp/853)",
+        "autoSystemWfpBlockLeakItems": "WFP Rules",
+        "noAutoSystemWfpBlockLeakItems": "No WFP rules added."
+      },
+      "xhttp": {
+        "h2Params": "HTTP/2 Parameters (h2Params)",
+        "h2ParamsHint": "Optional HTTP/2 server configuration JSON (e.g. maxConcurrentStreams, pingTimeout).",
+        "h2ParamsInvalid": "HTTP/2 parameters must be a valid JSON object."
+      },
       "sniffing": {
         "section": "Sniffing",
         "enabled": "Enabled",
@@ -3153,6 +3456,8 @@
         "protocolInvalid": "Select a valid protocol.",
         "portRange": "Port must be a port number or list like 443, 1000-2000,444.",
         "destinationPortRange": "Destination port must be a whole number from 0 to 65535.",
+        "tunMtuRange": "MTU must be a positive whole number.",
+        "tunUserLevelInvalid": "User level must be a non-negative whole number.",
         "realityServerNamesRequired": "REALITY requires at least one server name.",
         "realityServerNamesFormat": "REALITY server names must be a list of non-empty strings.",
         "realityServerNamesNoEmpty": "Each REALITY server name must be non-empty; remove blank lines or extra commas.",
@@ -3637,6 +3942,10 @@
   "usersTable.delete": "Delete",
   "usersTable.cancel": "Cancel",
   "statistics.trafficUsage": "Traffic Usage",
+  "statistics.outboundUsage": "Outbound Usage",
+  "statistics.outboundUsageDescription": "Traffic per outbound tag (direct, warp, block, ...)",
+  "statistics.outboundUsageEmpty": "No outbound usage in this period. It is recorded only while \"Record usage per outbound\" is on in Settings > General.",
+  "statistics.outboundUsageOther": "Other",
   "statistics.trafficUsageDescription": "Total traffic usage across all servers",
   "statistics.usageDuringPeriod": "Usage During Period",
   "statistics.users": "Users",
@@ -3660,6 +3969,10 @@
   "statistics.coreStats": "Core Statistics",
   "statistics.coreTrafficDistribution": "Core Traffic Distribution",
   "statistics.coreStatsDescription": "Detailed traffic statistics for each core at this time period. Click on bars in the chart to view more details.",
+  "statistics.outboundStats": "Outbound Statistics",
+  "statistics.outboundTrafficDistribution": "Outbound Traffic Distribution",
+  "statistics.outboundStatsDescription": "Detailed traffic statistics for each outbound tag at this time period. Click on bars in the chart to view more details.",
+  "statistics.outboundNodeSplitError": "Could not load the per-node split",
   "statistics.adminStats": "Admin Statistics",
   "statistics.adminTrafficDistribution": "Admin Traffic Distribution",
   "statistics.adminStatsDescription": "Detailed traffic statistics for each admin at this time period. Click on bars in the chart to view more details.",
