@@ -27,9 +27,10 @@ from app.node.sync import (
     remove_user_awaited as sync_remove_user_awaited,
     sync_users,
 )
+from app.notification.user_details import UserEventReason
 from app.operation import OperatorType
 from app.operation.user import UserOperation
-from app.settings import general_settings, webhook_settings
+from app.settings import general_settings, notification_enable, notification_settings, webhook_settings
 from app.utils.logger import get_logger
 from config import job_settings, runtime_settings
 
@@ -37,19 +38,25 @@ logger = get_logger("review-users")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
 
 
-async def _notify_status_change(db_user: User, status: UserStatus) -> None:
-    user = await user_operator.validate_user(db_user)
-    asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN))
-    logger.info(f'User "{user.username}" status changed to {status.value}')
+async def _notify_status_change(
+    db_users: list[User], status: UserStatus, reason: UserEventReason | None = None
+) -> None:
+    users = [await user_operator.validate_user(db_user) for db_user in db_users]
+    asyncio.create_task(notification.bulk_user_status_change(users, SYSTEM_ADMIN, reason))
+    for user in users:
+        logger.info(f'User "{user.username}" status changed to {status.value}')
 
 
-async def _notify_next_plan(db_user: User) -> None:
-    user = await user_operator.validate_user(db_user)
-    asyncio.create_task(notification.user_data_reset_by_next(user, SYSTEM_ADMIN))
-    logger.info(f'User "{db_user.username}" next plan activated')
+async def _notify_next_plan(db_users: list[User]) -> None:
+    users = [await user_operator.validate_user(db_user) for db_user in db_users]
+    asyncio.create_task(notification.bulk_user_data_reset_by_next(users, SYSTEM_ADMIN))
+    for user in users:
+        logger.info(f'User "{user.username}" next plan activated')
 
 
-async def apply_status_changes(db: AsyncSession, users: list[User], status: UserStatus) -> None:
+async def apply_status_changes(
+    db: AsyncSession, users: list[User], status: UserStatus, reason: UserEventReason | None = None
+) -> None:
     """Bulk-sync status changes, only walking next-plan users one by one."""
     if not users:
         return
@@ -66,8 +73,7 @@ async def apply_status_changes(db: AsyncSession, users: list[User], status: User
         if status in (UserStatus.expired, UserStatus.limited):
             await update_users_status(db, plain_users, status)
         await sync_users(plain_users)
-        for db_user in plain_users:
-            await _notify_status_change(db_user, status)
+        await _notify_status_change(plain_users, status, reason)
 
     if not next_plan_users:
         return
@@ -93,8 +99,7 @@ async def apply_status_changes(db: AsyncSession, users: list[User], status: User
             await db.rollback()
             await reload_review_users(db, reset_ids + user_ids[index + 1 :])
     await sync_users(reset_users)
-    for db_user in reset_users:
-        await _notify_next_plan(db_user)
+    await _notify_next_plan(reset_users)
 
 
 async def expire_users_job():
@@ -128,8 +133,8 @@ async def remove_on_hold_users(db: AsyncSession, db_users: list[User]):
         await sync_remove_user(user)
 
     # Notifications and logging run after successful removal, same as before.
+    asyncio.create_task(notification.bulk_remove_users(users, SYSTEM_ADMIN, UserEventReason.on_hold_timeout))
     for user in users:
-        asyncio.create_task(notification.remove_user(user, SYSTEM_ADMIN))
         logger.info(f'User "{user.username}" removed after on-hold timeout')
 
 
@@ -154,33 +159,49 @@ async def on_hold_to_active_users_job():
                 match settings.on_hold_timeout_action:
                     case OnHoldTimeoutAction.disable:
                         updated_users = await update_users_status(db, timed_out_users, UserStatus.disabled)
-                        await apply_status_changes(db, updated_users, UserStatus.disabled)
+                        await apply_status_changes(
+                            db, updated_users, UserStatus.disabled, UserEventReason.on_hold_timeout
+                        )
                     case OnHoldTimeoutAction.delete:
                         await remove_on_hold_users(db, timed_out_users)
 
 
+async def _reminder_targets(threshold_list: list[int], chat_enabled: bool) -> tuple[bool, bool]:
+    """Returns (send webhooks, send Telegram/Discord) for a reminder job; both False means skip the run."""
+    if not threshold_list:
+        return False, False
+    webhook_on = (await webhook_settings()).enable
+    if not chat_enabled:
+        return webhook_on, False
+    channels = await notification_settings()
+    return webhook_on, channels.notify_telegram or channels.notify_discord
+
+
 async def usage_percent_notification_job():
     settings: Webhook = await webhook_settings()
-    if not settings.enable:
+    send_webhook, send_chat = await _reminder_targets(
+        settings.usage_percent, (await notification_enable()).percentage_reached
+    )
+    if not (send_webhook or send_chat):
         return
     async with GetDB() as db:
         for percent in settings.usage_percent:
             users = await get_usage_percentage_reached_users(db, percent)
 
-            # Prepare webhook notifications first
             webhook_data = []
             reminder_data = []
+            chat_users = []
 
             for user in users:
                 usage_percentage = user.usage_percentage
                 user_model = UserNotificationResponse.model_validate(user)
 
-                # Queue webhook notification
                 webhook_data.append(
                     notification.wh.ReachedUsagePercent(
                         username=user_model.username, user=user_model, used_percent=usage_percentage
                     )
                 )
+                chat_users.append(user_model)
 
                 # Prepare reminder data for bulk insert
                 reminder_data.append(
@@ -196,30 +217,34 @@ async def usage_percent_notification_job():
             if reminder_data:
                 await bulk_create_notification_reminders(db, reminder_data)
 
-            if webhook_data:
+            if send_webhook and webhook_data:
                 await notification.wh.bulk_notify(webhook_data)
+            if send_chat:
+                for user_model in chat_users:
+                    asyncio.create_task(notification.user_usage_reached(user_model, percent))
 
 
 async def days_left_notification_job():
     settings: Webhook = await webhook_settings()
-    if not settings.enable:
+    send_webhook, send_chat = await _reminder_targets(settings.days_left, (await notification_enable()).days_left)
+    if not (send_webhook or send_chat):
         return
     async with GetDB() as db:
         for days in settings.days_left:
             users = await get_days_left_reached_users(db, days)
 
-            # Prepare webhook notifications first
             webhook_data = []
             reminder_data = []
+            chat_users = []
 
             for user in users:
                 days_left = user.days_left
                 user_model = UserNotificationResponse.model_validate(user)
 
-                # Queue webhook notification
                 webhook_data.append(
                     notification.wh.ReachedDaysLeft(username=user_model.username, user=user_model, days_left=days_left)
                 )
+                chat_users.append(user_model)
 
                 # Prepare reminder data for bulk insert
                 reminder_data.append(
@@ -234,8 +259,11 @@ async def days_left_notification_job():
             if reminder_data:
                 await bulk_create_notification_reminders(db, reminder_data)
 
-            if webhook_data:
+            if send_webhook and webhook_data:
                 await notification.wh.bulk_notify(webhook_data)
+            if send_chat:
+                for user_model in chat_users:
+                    asyncio.create_task(notification.user_days_left(user_model, days))
 
 
 if runtime_settings.role.runs_scheduler:

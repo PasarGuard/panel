@@ -81,6 +81,7 @@ from app.models.user import (
     CreateUserFromTemplate,
     ExpiredUsersQuery,
     ModifyUserByTemplate,
+    NextPlanModel,
     RemoveUsersResponse,
     UserCreate,
     UserListQuery,
@@ -430,6 +431,46 @@ class UserOperation(BaseOperation):
         if include_subscription_url:
             user.subscription_url = await self.generate_subscription_url(user)
         return user
+
+    @staticmethod
+    def notification_snapshot(db_user: User) -> UserNotificationResponse | None:
+        """The user's fields as a modify notification compares them, read before the modify.
+
+        Lifetime usage is left out (it needs a query). Returns None when groups or the next plan are not loaded,
+        so the notification shows the current state instead of a wrong diff.
+        """
+        if "groups" not in db_user.__dict__ or "next_plan" not in db_user.__dict__:
+            return None
+        next_plan = db_user.next_plan
+        return UserNotificationResponse(
+            id=db_user.id,
+            username=db_user.username,
+            status=db_user.status,
+            used_traffic=db_user.used_traffic,
+            data_limit=db_user.data_limit,
+            data_limit_reset_strategy=db_user.data_limit_reset_strategy,
+            expire=db_user.expire,
+            note=db_user.note,
+            on_hold_expire_duration=db_user.on_hold_expire_duration,
+            on_hold_timeout=db_user.on_hold_timeout,
+            created_at=db_user.created_at,
+            online_at=db_user.online_at,
+            group_names=list(db_user.group_names),
+            next_plan=NextPlanModel(
+                user_template_id=next_plan.user_template_id,
+                data_limit=next_plan.data_limit,
+                expire=next_plan.expire,
+                add_remaining_traffic=next_plan.add_remaining_traffic,
+            )
+            if next_plan
+            else None,
+        )
+
+    @classmethod
+    def _notification_snapshots(cls, db_users: list[User]) -> dict[int, UserNotificationResponse]:
+        """Snapshots by user id for a bulk modify; users whose relations are not loaded are left out."""
+        snapshots = {db_user.id: cls.notification_snapshot(db_user) for db_user in db_users}
+        return {user_id: snapshot for user_id, snapshot in snapshots.items() if snapshot is not None}
 
     async def update_user(self, db_user: User, include_subscription_url: bool = True) -> UserNotificationResponse:
         await sync_user(db_user)
@@ -862,6 +903,7 @@ class UserOperation(BaseOperation):
         before: tuple | None = None,
     ) -> UserNotificationResponse:
         old_status = db_user.status
+        previous = self.notification_snapshot(db_user)
         if before is None:
             before = await node_payload_signature(db_user)
 
@@ -879,7 +921,7 @@ class UserOperation(BaseOperation):
 
         logger.info(f'User "{user.username}" with id "{db_user.id}" modified by admin "{admin.username}"')
 
-        asyncio.create_task(notification.modify_user(user, admin))
+        asyncio.create_task(notification.modify_user(user, admin, previous))
 
         if user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
@@ -1075,8 +1117,8 @@ class UserOperation(BaseOperation):
 
         for user in users:
             await sync_remove_user(user)
-            asyncio.create_task(notification.remove_user(user, admin))
             logger.info(f'User "{user.username}" with id "{user.id}" deleted by admin "{admin.username}"')
+        asyncio.create_task(notification.bulk_remove_users(users, admin))
 
         return RemoveUsersResponse(users=[user.username for user in users], count=len(users))
 
@@ -1090,6 +1132,7 @@ class UserOperation(BaseOperation):
         emit_status_change_notification: bool = True,
     ):
         old_status = db_user.status
+        reset_traffic = db_user.used_traffic
 
         if clean_chart_data is None:
             clean_chart_data = (await general_settings()).usage.reset_usage_clean_chart_data
@@ -1100,7 +1143,7 @@ class UserOperation(BaseOperation):
         if emit_status_change_notification and user.status != old_status:
             asyncio.create_task(notification.user_status_change(user, admin))
 
-        asyncio.create_task(notification.reset_user_data_usage(user, admin))
+        asyncio.create_task(notification.reset_user_data_usage(user, admin, reset_traffic))
 
         logger.info(f'User "{db_user.username}" usage was reset by admin "{admin.username}"')
 
@@ -1128,6 +1171,7 @@ class UserOperation(BaseOperation):
             db, bulk_users.ids, admin, load_usage_logs=False, scope_action="reset_usage"
         )
         old_statuses = {user.id: user.status for user in db_users}
+        reset_traffic = {user.id: user.used_traffic for user in db_users}
 
         db_users = await bulk_reset_user_data_usage(
             db,
@@ -1137,10 +1181,10 @@ class UserOperation(BaseOperation):
         await sync_users(db_users)
 
         users = [await self.validate_user(db_user) for db_user in db_users]
+        changed = [user for user in users if user.status != old_statuses[user.id]]
+        asyncio.create_task(notification.bulk_user_status_change(changed, admin))
+        asyncio.create_task(notification.bulk_reset_user_data_usage(users, admin, reset_traffic))
         for user in users:
-            if user.status != old_statuses[user.id]:
-                asyncio.create_task(notification.user_status_change(user, admin))
-            asyncio.create_task(notification.reset_user_data_usage(user, admin))
             logger.info(f'User "{user.username}" usage was reset by admin "{admin.username}"')
 
         return self._build_bulk_action_response(users)
@@ -1198,6 +1242,7 @@ class UserOperation(BaseOperation):
             return []
 
         prepared_updates = []
+        previous = self._notification_snapshots(db_users)
         for db_user in db_users:
             original_status = db_user.status
             modified_user = UserModify(status=status)
@@ -1227,17 +1272,21 @@ class UserOperation(BaseOperation):
 
         users = [await self.validate_user(db_user) for db_user in modified_db_users]
         users_by_id = {user.id: user for user in users}
+        modified: list[UserNotificationResponse] = []
+        status_changed: list[UserNotificationResponse] = []
         for db_user, _, _, original_status in prepared_updates:
             user = users_by_id.get(db_user.id)
             if user is None:
                 continue
-            asyncio.create_task(notification.modify_user(user, admin))
+            modified.append(user)
             logger.info(f'User "{user.username}" with id "{user.id}" modified by admin "{admin.username}"')
             if user.status != original_status:
-                asyncio.create_task(notification.user_status_change(user, admin))
+                status_changed.append(user)
                 old_status_value = getattr(original_status, "value", original_status)
                 new_status_value = getattr(user.status, "value", user.status)
                 logger.info(f'User "{user.username}" status changed from "{old_status_value}" to "{new_status_value}"')
+        asyncio.create_task(notification.bulk_modify_users(modified, admin, previous))
+        asyncio.create_task(notification.bulk_user_status_change(status_changed, admin))
 
         return users
 
@@ -1278,14 +1327,16 @@ class UserOperation(BaseOperation):
         else:
             users = []
 
+        status_changed: list[UserNotificationResponse] = []
         for user in users:
             original_status = original_statuses.get(user.id)
             if original_status is None or user.status == original_status:
                 continue
-            asyncio.create_task(notification.user_status_change(user, admin))
+            status_changed.append(user)
             old_status_value = getattr(original_status, "value", original_status)
             new_status_value = getattr(user.status, "value", user.status)
             logger.info(f'User "{user.username}" status changed from "{old_status_value}" to "{new_status_value}"')
+        asyncio.create_task(notification.bulk_user_status_change(status_changed, admin))
 
         return users
 
@@ -1910,9 +1961,8 @@ class UserOperation(BaseOperation):
         created_users = await self._load_users_by_usernames(db, [user.username for user in users_to_create])
         await sync_users(created_users)
 
-        for db_user in created_users:
-            user = await self.validate_user(db_user)
-            asyncio.create_task(notification.create_user(user, admin))
+        users = [await self.validate_user(db_user) for db_user in created_users]
+        asyncio.create_task(notification.bulk_create_users(users, admin))
 
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
 
@@ -1931,6 +1981,8 @@ class UserOperation(BaseOperation):
             await self.raise_error("this template is disabled", 403)
 
         prepared_updates = []
+        previous = self._notification_snapshots(db_users)
+        reset_traffic = {db_user.id: db_user.used_traffic for db_user in db_users} if user_template.reset_usages else {}
         for db_user in db_users:
             original_status = db_user.status
             user_args = self.load_base_user_args(user_template)
@@ -1944,10 +1996,7 @@ class UserOperation(BaseOperation):
 
             modify_user = self.apply_settings(modify_user, user_template)
             validated_groups = await self._prepare_modified_user(db, db_user, modify_user, admin, skip_role_limits=True)
-            emit_reset_status_change = not (
-                user_template.status == UserStatus.on_hold and original_status != UserStatus.active
-            )
-            prepared_updates.append((db_user, modify_user, validated_groups, original_status, emit_reset_status_change))
+            prepared_updates.append((db_user, modify_user, validated_groups, original_status))
 
         modified_user_ids: list[int] = []
         try:
@@ -1963,7 +2012,7 @@ class UserOperation(BaseOperation):
                     commit=False,
                 )
 
-            for db_user, modified_user_model, validated_groups, _, _ in prepared_updates:
+            for db_user, modified_user_model, validated_groups, _ in prepared_updates:
                 self._apply_explicit_null_hwid_limit(db_user, modified_user_model)
                 await crud_modify_user(
                     db,
@@ -1985,25 +2034,26 @@ class UserOperation(BaseOperation):
 
         users = [await self.validate_user(db_user) for db_user in modified_db_users]
         users_by_id = {user.id: user for user in users}
-        for db_user, _, _, original_status, emit_reset_status_change in prepared_updates:
+        modified: list[UserNotificationResponse] = []
+        reset: list[UserNotificationResponse] = []
+        status_changed: list[UserNotificationResponse] = []
+        for db_user, _, _, original_status in prepared_updates:
             user = users_by_id.get(db_user.id)
             if user is None:
                 continue
-            status_notification_sent = False
             if user_template.reset_usages:
-                if emit_reset_status_change and user.status != original_status:
-                    asyncio.create_task(notification.user_status_change(user, admin))
-                    status_notification_sent = True
-                asyncio.create_task(notification.reset_user_data_usage(user, admin))
+                reset.append(user)
                 logger.info(f'User "{user.username}" usage was reset by admin "{admin.username}"')
-            asyncio.create_task(notification.modify_user(user, admin))
+            modified.append(user)
             logger.info(f'User "{user.username}" with id "{user.id}" modified by admin "{admin.username}"')
             if user.status != original_status:
-                if not status_notification_sent:
-                    asyncio.create_task(notification.user_status_change(user, admin))
+                status_changed.append(user)
                 old_status_value = getattr(original_status, "value", original_status)
                 new_status_value = getattr(user.status, "value", user.status)
                 logger.info(f'User "{user.username}" status changed from "{old_status_value}" to "{new_status_value}"')
+        asyncio.create_task(notification.bulk_user_status_change(status_changed, admin))
+        asyncio.create_task(notification.bulk_reset_user_data_usage(reset, admin, reset_traffic))
+        asyncio.create_task(notification.bulk_modify_users(modified, admin, previous))
 
         return self._build_bulk_action_response(users)
 
