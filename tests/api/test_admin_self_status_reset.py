@@ -58,7 +58,7 @@ def test_a_limited_admin_cannot_set_its_own_status_back_to_active(access_token):
     role, admin, headers = _reseller(access_token)
     try:
         _set_stored(admin["username"], status=AdminStatus.limited)
-        response = client.put(f"/api/admin/{admin['username']}", headers=headers, json={"status": "active"})
+        response = client.put(f"/api/admin/{admin['id']}", headers=headers, json={"status": "active"})
         assert response.status_code == status.HTTP_403_FORBIDDEN, response.text
         assert _stored(admin["username"]).status == AdminStatus.limited
     finally:
@@ -69,7 +69,7 @@ def test_a_non_owner_admin_cannot_reset_its_own_usage(access_token):
     role, admin, headers = _reseller(access_token)
     try:
         _set_stored(admin["username"], used_traffic=1024**3)
-        response = client.post(f"/api/admin/{admin['username']}/reset", headers=headers)
+        response = client.post(f"/api/admin/{admin['id']}/reset", headers=headers)
         assert response.status_code == status.HTTP_403_FORBIDDEN, response.text
         assert _stored(admin["username"]).used_traffic == 1024**3
     finally:
@@ -80,7 +80,7 @@ def test_an_owner_session_can_still_reset_and_reactivate_another_admin(access_to
     role, admin, _ = _reseller(access_token)
     try:
         _set_stored(admin["username"], status=AdminStatus.limited, used_traffic=1024**3)
-        reset = client.post(f"/api/admin/{admin['username']}/reset", headers=auth_headers(access_token))
+        reset = client.post(f"/api/admin/{admin['id']}/reset", headers=auth_headers(access_token))
         assert reset.status_code == status.HTTP_200_OK, reset.text
         assert _stored(admin["username"]).used_traffic == 0
     finally:

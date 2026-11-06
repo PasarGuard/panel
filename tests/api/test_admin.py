@@ -1262,7 +1262,7 @@ def test_custom_role_with_admin_update_can_modify_administrator(access_token):
         actor_token = _login(actor["username"], actor["password"])
 
         response = client.put(
-            f"/api/admin/{target['username']}",
+            f"/api/admin/{target['id']}",
             json={"note": "custom-role-update"},
             headers=auth_headers(actor_token),
         )

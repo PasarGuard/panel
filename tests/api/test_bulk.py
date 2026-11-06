@@ -158,7 +158,7 @@ def test_bulk_add_wireguard_group_allocates_existing_user_peer_ips(access_token)
         allocated_peer_ips = []
         for user in users:
             user_response = client.get(
-                f"/api/user/{user['username']}",
+                f"/api/user/{user['id']}",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             assert user_response.status_code == status.HTTP_200_OK
@@ -561,7 +561,7 @@ def test_bulk_revoke_users_subscription_regenerates_wireguard_keys(access_token)
         for user in users:
             assert get_user_sub_revoked_at(user["username"]) is not None
             user_response = client.get(
-                f"/api/user/{user['username']}",
+                f"/api/user/{user['id']}",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             assert user_response.status_code == status.HTTP_200_OK

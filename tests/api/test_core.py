@@ -94,7 +94,7 @@ def test_wireguard_core_create_skips_user_scan_and_allocates_on_group(access_tok
         assert any(row["subnet"] == "10.70.0.0/24" for row in usage.json())
 
         user_after_create = client.get(
-            f"/api/user/{user['username']}",
+            f"/api/user/{user['id']}",
             headers=auth_headers(access_token),
         )
         assert user_after_create.status_code == status.HTTP_200_OK
@@ -111,7 +111,7 @@ def test_wireguard_core_create_skips_user_scan_and_allocates_on_group(access_tok
             assert add.status_code == status.HTTP_200_OK
 
             allocated = client.get(
-                f"/api/user/{user['username']}",
+                f"/api/user/{user['id']}",
                 headers=auth_headers(access_token),
             )
             assert allocated.status_code == status.HTTP_200_OK
