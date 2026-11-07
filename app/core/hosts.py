@@ -620,6 +620,7 @@ class HostManager:
     def __init__(self):
         self._hosts = {}
         self._lock = Lock()
+        self._publish_lock = Lock()
         self._nats_enabled = is_nats_enabled()
         self._multi_worker = is_multi_worker()
         self._nc: nats.NATS | None = None
@@ -824,7 +825,9 @@ class HostManager:
         prepared_hosts: list[tuple[int, SubscriptionInboundData | dict]],
         stamp: int | None = None,
         removed_ids: list[int] | None = None,
-    ):
+    ) -> tuple[list[tuple[int, SubscriptionInboundData]], list[int]]:
+        applied_hosts = []
+        applied_removals = []
         async with self._lock:
             for host_id, host_data in prepared_hosts:
                 if not self._claim_host(host_id, stamp):
@@ -835,10 +838,13 @@ class HostManager:
                     self._hosts[host_id] = SubscriptionInboundData.model_validate(host_data)
                 else:
                     self._hosts[host_id] = host_data
+                applied_hosts.append((host_id, self._hosts[host_id]))
             for host_id in removed_ids or ():
                 if self._claim_host(host_id, stamp):
                     self._hosts.pop(host_id, None)
+                    applied_removals.append(host_id)
             await self._reset_cache()
+        return applied_hosts, applied_removals
 
     async def _prepare_hosts(
         self, db: AsyncSession, hosts: list[BaseHost], stamp: int | None
@@ -877,16 +883,19 @@ class HostManager:
     async def _add_hosts_nats(self, db: AsyncSession, hosts: list[BaseHost], stamp: int | None = None):
         prepared_hosts, hosts_to_remove, stamp = await self._prepare_hosts(db, hosts, stamp)
 
-        # Publish messages - all workers will process via listener
-        for host_id, host_data in prepared_hosts:
-            # Convert model to dict for JSON serialization
-            serialized_data = host_data.model_dump()
-            await self._publish({"action": "add", "host": {"id": host_id, "data": serialized_data}})
-        for host_id in hosts_to_remove:
-            await self._publish({"action": "remove", "host_id": host_id})
+        async with self._publish_lock:
+            # Keep local state in sync immediately, while still broadcasting via NATS.
+            applied_hosts, applied_removals = await self._add_prepared_hosts_local(
+                prepared_hosts, stamp, hosts_to_remove
+            )
 
-        # Keep local state in sync immediately, while still broadcasting via NATS.
-        await self._add_prepared_hosts_local(prepared_hosts, stamp, hosts_to_remove)
+            # Publish messages - all workers will process via listener
+            for host_id, host_data in applied_hosts:
+                # Convert model to dict for JSON serialization
+                serialized_data = host_data.model_dump()
+                await self._publish({"action": "add", "host": {"id": host_id, "data": serialized_data}})
+            for host_id in applied_removals:
+                await self._publish({"action": "remove", "host_id": host_id})
 
         # Persist state to NATS KV
         await self._persist_state()
@@ -903,8 +912,10 @@ class HostManager:
         await self._persist_state()
 
     async def _remove_host_nats(self, id: int):
-        await self._publish({"action": "remove", "host_id": id})
-        await self._remove_host_local(id)
+        async with self._publish_lock:
+            await self._add_prepared_hosts_local([], self._next_stamp(), [id])
+            await self._publish({"action": "remove", "host_id": id})
+        await self._persist_state()
 
     async def get_host(self, id: int) -> dict | None:
         async with self._lock:
