@@ -288,8 +288,8 @@
         "node": "Nodes",
         "user": "Users",
         "userTemplate": "Templates",
-        "daysLeft": "Expirations",
-        "percentageReached": "Usage Limits"
+        "daysLeft": "Expiry reminders",
+        "percentageReached": "Usage reminders"
       },
       "subPermissions": {
         "create": "Create",
@@ -331,6 +331,11 @@
         "title": "Channel Overrides",
         "description": "Override the default destinations for specific notification events. Leave fields empty to inherit the global configuration.",
         "hint": "Leave these fields empty to fall back to the main notification settings for this event."
+      },
+      "reminders": {
+        "expiryDescription": "Telegram and Discord summary when an active user has this many days left. Webhooks have their own list.",
+        "usageDescription": "Telegram and Discord summary when an active user reaches this usage. Webhooks have their own list.",
+        "days": "days"
       },
       "usageLimitWarnings": {
         "thresholds": "Warning Thresholds",

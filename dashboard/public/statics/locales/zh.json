@@ -217,8 +217,8 @@
         "node": "节点",
         "user": "用户",
         "userTemplate": "模板",
-        "daysLeft": "到期时间",
-        "percentageReached": "使用限制"
+        "daysLeft": "到期提醒",
+        "percentageReached": "用量提醒"
       },
       "subPermissions": {
         "create": "创建",
@@ -260,6 +260,11 @@
         "title": "频道覆盖",
         "description": "覆盖特定通知事件的默认目标。留空以继承全局配置。",
         "hint": "留空以恢复此事件的主要通知设置。"
+      },
+      "reminders": {
+        "expiryDescription": "当活跃用户剩余此天数时，在 Telegram 和 Discord 发送摘要。Webhook 使用单独的列表。",
+        "usageDescription": "当活跃用户达到此用量时，在 Telegram 和 Discord 发送摘要。Webhook 使用单独的列表。",
+        "days": "天"
       },
       "usageLimitWarnings": {
         "thresholds": "预警阈值",

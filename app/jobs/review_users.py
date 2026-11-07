@@ -166,23 +166,17 @@ async def on_hold_to_active_users_job():
                         await remove_on_hold_users(db, timed_out_users)
 
 
-async def _reminder_targets(threshold_list: list[int], chat_enabled: bool) -> tuple[bool, bool]:
-    """Returns (send webhooks, send Telegram/Discord) for a reminder job; both False means skip the run."""
-    if not threshold_list:
-        return False, False
-    webhook_on = (await webhook_settings()).enable
-    if not chat_enabled:
-        return webhook_on, False
+async def _chat_reminder_thresholds(enabled: bool, thresholds: list[int]) -> list[int]:
+    """Returns the thresholds a Telegram/Discord reminder job should check; empty means skip the run."""
+    if not (enabled and thresholds):
+        return []
     channels = await notification_settings()
-    return webhook_on, channels.notify_telegram or channels.notify_discord
+    return thresholds if channels.notify_telegram or channels.notify_discord else []
 
 
-async def usage_percent_notification_job():
+async def _usage_percent_webhooks():
     settings: Webhook = await webhook_settings()
-    send_webhook, send_chat = await _reminder_targets(
-        settings.usage_percent, (await notification_enable()).percentage_reached
-    )
-    if not (send_webhook or send_chat):
+    if not settings.enable:
         return
     async with GetDB() as db:
         for percent in settings.usage_percent:
@@ -190,7 +184,6 @@ async def usage_percent_notification_job():
 
             webhook_data = []
             reminder_data = []
-            chat_users = []
 
             for user in users:
                 usage_percentage = user.usage_percentage
@@ -201,7 +194,6 @@ async def usage_percent_notification_job():
                         username=user_model.username, user=user_model, used_percent=usage_percentage
                     )
                 )
-                chat_users.append(user_model)
 
                 # Prepare reminder data for bulk insert
                 reminder_data.append(
@@ -217,17 +209,45 @@ async def usage_percent_notification_job():
             if reminder_data:
                 await bulk_create_notification_reminders(db, reminder_data)
 
-            if send_webhook and webhook_data:
+            if webhook_data:
                 await notification.wh.bulk_notify(webhook_data)
-            if send_chat:
-                for user_model in chat_users:
-                    asyncio.create_task(notification.user_usage_reached(user_model, percent))
 
 
-async def days_left_notification_job():
+async def _usage_percent_chat_reminders():
+    enable = await notification_enable()
+    thresholds = await _chat_reminder_thresholds(enable.percentage_reached, enable.percentage_reached_thresholds)
+    if not thresholds:
+        return
+    users, extras, reminder_data = {}, {}, []
+    async with GetDB() as db:
+        # Ascending, so a user past several thresholds is listed once with the highest one.
+        for percent in sorted(thresholds):
+            for user in await get_usage_percentage_reached_users(db, percent, for_chat=True):
+                users[user.id] = UserNotificationResponse.model_validate(user)
+                extras[user.id] = {"threshold": percent}
+                reminder_data.append(
+                    {
+                        "user_id": user.id,
+                        "type": ReminderType.data_usage,
+                        "threshold": percent,
+                        "expires_at": user.expire if user.expire else None,
+                        "for_chat": True,
+                    }
+                )
+        if reminder_data:
+            await bulk_create_notification_reminders(db, reminder_data)
+    if users:
+        asyncio.create_task(notification.user_reminders(list(users.values()), "usage_reminder", extras))
+
+
+async def usage_percent_notification_job():
+    await _usage_percent_webhooks()
+    await _usage_percent_chat_reminders()
+
+
+async def _days_left_webhooks():
     settings: Webhook = await webhook_settings()
-    send_webhook, send_chat = await _reminder_targets(settings.days_left, (await notification_enable()).days_left)
-    if not (send_webhook or send_chat):
+    if not settings.enable:
         return
     async with GetDB() as db:
         for days in settings.days_left:
@@ -235,7 +255,6 @@ async def days_left_notification_job():
 
             webhook_data = []
             reminder_data = []
-            chat_users = []
 
             for user in users:
                 days_left = user.days_left
@@ -244,7 +263,6 @@ async def days_left_notification_job():
                 webhook_data.append(
                     notification.wh.ReachedDaysLeft(username=user_model.username, user=user_model, days_left=days_left)
                 )
-                chat_users.append(user_model)
 
                 # Prepare reminder data for bulk insert
                 reminder_data.append(
@@ -255,15 +273,43 @@ async def days_left_notification_job():
                         "expires_at": user.expire,
                     }
                 )
+
             # Bulk create notification reminders
             if reminder_data:
                 await bulk_create_notification_reminders(db, reminder_data)
 
-            if send_webhook and webhook_data:
+            if webhook_data:
                 await notification.wh.bulk_notify(webhook_data)
-            if send_chat:
-                for user_model in chat_users:
-                    asyncio.create_task(notification.user_days_left(user_model, days))
+
+
+async def _days_left_chat_reminders():
+    enable = await notification_enable()
+    thresholds = await _chat_reminder_thresholds(enable.days_left, enable.days_left_thresholds)
+    if not thresholds:
+        return
+    users, reminder_data = {}, []
+    async with GetDB() as db:
+        for days in thresholds:
+            for user in await get_days_left_reached_users(db, days, for_chat=True):
+                users[user.id] = UserNotificationResponse.model_validate(user)
+                reminder_data.append(
+                    {
+                        "user_id": user.id,
+                        "type": ReminderType.expiration_date,
+                        "threshold": days,
+                        "expires_at": user.expire,
+                        "for_chat": True,
+                    }
+                )
+        if reminder_data:
+            await bulk_create_notification_reminders(db, reminder_data)
+    if users:
+        asyncio.create_task(notification.user_reminders(list(users.values()), "expiry_reminder"))
+
+
+async def days_left_notification_job():
+    await _days_left_webhooks()
+    await _days_left_chat_reminders()
 
 
 if runtime_settings.role.runs_scheduler:

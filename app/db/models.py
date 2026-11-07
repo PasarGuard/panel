@@ -857,6 +857,8 @@ class NotificationReminder(Base, CreatedAtUTCMixin):
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
     threshold: Mapped[int | None] = mapped_column(default=None)
     expires_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    # Telegram/Discord reminders and webhooks have separate thresholds, so each keeps its own rows.
+    for_chat: Mapped[bool] = mapped_column(default=False, server_default="0")
 
 
 class AdminNotificationReminder(Base, CreatedAtUTCMixin):

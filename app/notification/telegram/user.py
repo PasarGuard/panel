@@ -80,16 +80,6 @@ async def user_subscription_revoked(user: UserNotificationResponse, by: str):
     await _send(user, data, "subscription_revoked")
 
 
-async def user_usage_reached(user: UserNotificationResponse, threshold: int):
-    data = _format(messages.USER_USAGE_REACHED, user, "system", user_details.REMINDER, threshold=threshold)
-    await _send(user, data, "percentage_reached")
-
-
-async def user_days_left(user: UserNotificationResponse, threshold: int):
-    data = _format(messages.USER_DAYS_LEFT, user, "system", user_details.REMINDER, threshold=threshold)
-    await _send(user, data, "days_left")
-
-
 # kind: (header, owner admin action); a status summary uses the status as its header.
 _DIGEST = {
     "create": ("🆕 #Create_User", "create"),
@@ -98,6 +88,8 @@ _DIGEST = {
     "status": (None, "status_change"),
     "reset_usage": ("🔁 #Reset_User_Data_Usage", "reset_data_usage"),
     "reset_by_next": ("🔁 #Reset_User_By_Next", "data_reset_by_next"),
+    "usage_reminder": ("⚠️ #Usage_Reminder", "percentage_reached"),
+    "expiry_reminder": ("⏳ #Expiry_Reminder", "days_left"),
 }
 
 

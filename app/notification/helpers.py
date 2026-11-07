@@ -66,6 +66,9 @@ def get_discord_webhook(settings: NotificationSettings, entity: str) -> str | No
         return settings.discord_webhook_url
 
 
+OPT_IN_ACTIONS = ("percentage_reached", "days_left")
+
+
 def should_send_admin_notification(admin: AdminContactInfo, action: str) -> bool:
     """
     Check if admin wants to receive this user notification type.
@@ -89,8 +92,8 @@ def should_send_admin_notification(admin: AdminContactInfo, action: str) -> bool
         False
     """
     if not admin.notification_enable:
-        # None means receive all notifications (backward compatible)
-        return True
+        # None means receive all notifications (backward compatible), except the opt-in reminders
+        return action not in OPT_IN_ACTIONS
 
     # Check if the specific action is enabled in admin preferences
     return getattr(admin.notification_enable, action, True)

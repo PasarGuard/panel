@@ -177,6 +177,8 @@ export default function AdminsPage() {
         reset_data_usage: false,
         data_reset_by_next: false,
         subscription_revoked: false,
+        percentage_reached: false,
+        days_left: false,
       },
     })
     setIsDialogOpen(true)

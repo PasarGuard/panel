@@ -133,7 +133,9 @@ const notificationSettingsSchema = z.object({
         })
         .optional(),
       days_left: z.boolean().optional(),
+      days_left_thresholds: z.array(z.number().min(1)).optional(),
       percentage_reached: z.boolean().optional(),
+      percentage_reached_thresholds: z.array(z.number().min(1).max(100)).optional(),
     })
     .optional(),
   notification_settings: z
@@ -164,6 +166,23 @@ const normalizePercentageThresholds = (values?: number[]) =>
     ),
   ).sort((a, b) => a - b)
 
+const normalizeDayThresholds = (values?: number[]) =>
+  Array.from(
+    new Set(
+      (values ?? [])
+        .map(value => Math.trunc(Number(value)))
+        .filter(value => Number.isFinite(value) && value >= 1),
+    ),
+  ).sort((a, b) => a - b)
+
+type ReminderConfig = {
+  field: 'days_left_thresholds' | 'percentage_reached_thresholds'
+  defaultThreshold: number
+  max?: number
+  unit: string
+  descriptionKey: string
+}
+
 // Define notification permission types with their sub-permissions
 type NotificationPermissionConfig = {
   key: keyof NonNullable<NotificationSettingsForm['notification_enable']>
@@ -173,6 +192,7 @@ type NotificationPermissionConfig = {
     key: string
     translationKey: string
   }>
+  reminder?: ReminderConfig
 }
 
 const notificationConfigs: NotificationPermissionConfig[] = [
@@ -273,11 +293,13 @@ const notificationConfigs: NotificationPermissionConfig[] = [
     key: 'days_left',
     translationKey: 'daysLeft',
     icon: Calendar,
+    reminder: { field: 'days_left_thresholds', defaultThreshold: 3, unit: 'days', descriptionKey: 'expiryDescription' },
   },
   {
     key: 'percentage_reached',
     translationKey: 'percentageReached',
     icon: ArrowUpDown,
+    reminder: { field: 'percentage_reached_thresholds', defaultThreshold: 80, max: 100, unit: '%', descriptionKey: 'usageDescription' },
   },
 ]
 
@@ -357,7 +379,9 @@ export default function NotificationSettings() {
         },
         user_template: { create: false, modify: false, delete: false },
         days_left: false,
+        days_left_thresholds: [],
         percentage_reached: false,
+        percentage_reached_thresholds: [],
       },
       notification_settings: {
         notify_telegram: false,
@@ -403,6 +427,22 @@ export default function NotificationSettings() {
     const currentThresholds = (form.getValues('notification_enable.admin.usage_limit_warning_percentages' as any) as number[] | undefined) ?? []
     if (currentThresholds.length === 0) {
       setAdminUsageThresholds([80])
+    }
+  }
+
+  const getReminderThresholds = (reminder: ReminderConfig) => (form.getValues(`notification_enable.${reminder.field}` as any) as number[] | undefined) ?? []
+  const setReminderThresholds = (reminder: ReminderConfig, thresholds: number[]) => {
+    form.setValue(`notification_enable.${reminder.field}` as any, thresholds, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    })
+  }
+  // A reminder without thresholds sends nothing, so turning one on starts it with a default threshold.
+  const setSimpleToggle = (config: NotificationPermissionConfig, checked: boolean) => {
+    form.setValue(`notification_enable.${config.key}` as any, checked, { shouldDirty: true })
+    if (checked && config.reminder && getReminderThresholds(config.reminder).length === 0) {
+      setReminderThresholds(config.reminder, [config.reminder.defaultThreshold])
     }
   }
 
@@ -465,7 +505,9 @@ export default function NotificationSettings() {
           },
           user_template: enableData.user_template || { create: false, modify: false, delete: false },
           days_left: enableData.days_left ?? false,
+          days_left_thresholds: enableData.days_left_thresholds ?? [],
           percentage_reached: enableData.percentage_reached ?? false,
+          percentage_reached_thresholds: enableData.percentage_reached_thresholds ?? [],
         },
         notification_settings: {
           notify_telegram: settings.notification_settings?.notify_telegram || false,
@@ -493,6 +535,8 @@ export default function NotificationSettings() {
             usage_limit_warning_percentages: normalizePercentageThresholds(data.notification_enable.admin.usage_limit_warning_percentages),
           }
         : undefined,
+      days_left_thresholds: normalizeDayThresholds(data.notification_enable?.days_left_thresholds),
+      percentage_reached_thresholds: normalizePercentageThresholds(data.notification_enable?.percentage_reached_thresholds),
     }
 
     const channelPayload: NotificationChannels = channelTargets.reduce((acc, target) => {
@@ -591,7 +635,9 @@ export default function NotificationSettings() {
           },
           user_template: enableData.user_template || { create: false, modify: false, delete: false },
           days_left: enableData.days_left ?? false,
+          days_left_thresholds: enableData.days_left_thresholds ?? [],
           percentage_reached: enableData.percentage_reached ?? false,
+          percentage_reached_thresholds: enableData.percentage_reached_thresholds ?? [],
         },
         notification_settings: {
           notify_telegram: settings.notification_settings?.notify_telegram || false,
@@ -724,8 +770,7 @@ export default function NotificationSettings() {
                                           setExpandedPermissions(newSet)
                                         } else {
                                           // For non-collapsible items, toggle the switch
-                                          const newChecked = !isMainEnabled
-                                          form.setValue(`notification_enable.${config.key}` as any, newChecked)
+                                          setSimpleToggle(config, !isMainEnabled)
                                         }
                                       }}
                                     >
@@ -746,7 +791,7 @@ export default function NotificationSettings() {
                                         // If toggling on, enable all. If toggling off, disable all.
                                         toggleAllSubPermissions(config, checked)
                                       } else {
-                                        form.setValue(`notification_enable.${config.key}` as any, checked)
+                                        setSimpleToggle(config, checked)
                                       }
                                     }}
                                     onClick={e => e.stopPropagation()}
@@ -758,6 +803,58 @@ export default function NotificationSettings() {
                           )
                         }}
                       />
+
+                      {config.reminder && watchedEnableFields?.[config.key] === true && (
+                        <div className="space-y-2 border-t px-3 py-2">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-muted-foreground text-xs">{t(`settings.notifications.reminders.${config.reminder.descriptionKey}`)}</p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setReminderThresholds(config.reminder!, [...getReminderThresholds(config.reminder!), config.reminder!.defaultThreshold])}
+                              className="h-8 shrink-0 gap-1.5 text-xs"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              {t('settings.notifications.usageLimitWarnings.addThreshold')}
+                            </Button>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {((watchedEnableFields?.[config.reminder.field] as number[] | undefined) ?? []).map((threshold, index) => (
+                              <div key={index} className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  max={config.reminder!.max}
+                                  value={threshold}
+                                  onChange={e => {
+                                    const parsed = parseInt(e.target.value, 10)
+                                    const value = Number.isFinite(parsed) ? Math.min(config.reminder!.max ?? parsed, Math.max(1, parsed)) : 1
+                                    setReminderThresholds(
+                                      config.reminder!,
+                                      getReminderThresholds(config.reminder!).map((current, currentIndex) => (currentIndex === index ? value : current)),
+                                    )
+                                  }}
+                                  className="h-8 w-16 text-xs"
+                                />
+                                <span className="text-muted-foreground text-xs">{config.reminder!.unit === '%' ? '%' : t('settings.notifications.reminders.days')}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setReminderThresholds(config.reminder!, getReminderThresholds(config.reminder!).filter((_, currentIndex) => currentIndex !== index))}
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            ))}
+                            {((watchedEnableFields?.[config.reminder.field] as number[] | undefined) ?? []).length === 0 && (
+                              <span className="text-muted-foreground rounded-md border border-dashed px-2 py-1 text-xs">{t('settings.notifications.usageLimitWarnings.empty')}</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       {hasSubPermissions && (
                         <CollapsibleContent className="data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down overflow-hidden transition-all duration-200 ease-in-out">

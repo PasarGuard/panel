@@ -64,22 +64,6 @@ USER_SUBSCRIPTION_REVOKED = """
 <i>By: #{by}</i>
 """
 
-USER_USAGE_REACHED = """
-⚠️ #User_Usage_Reached <b>{threshold}%</b>
-➖➖➖➖➖➖➖➖➖
-<b>Username:</b> <code>{username}</code>{details}
-➖➖➖➖➖➖➖➖➖
-<i>Belongs To</i>: <code>{admin_username}</code>
-"""
-
-USER_DAYS_LEFT = """
-⏳ #User_Expiring <b>{threshold} days left</b>
-➖➖➖➖➖➖➖➖➖
-<b>Username:</b> <code>{username}</code>{details}
-➖➖➖➖➖➖➖➖➖
-<i>Belongs To</i>: <code>{admin_username}</code>
-"""
-
 USERS_DIGEST = """
 {header} <b>{count} users</b>
 ➖➖➖➖➖➖➖➖➖

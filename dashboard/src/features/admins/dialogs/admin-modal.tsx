@@ -161,7 +161,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
   // Watch notification enable fields
   const watchedNotificationEnable = useWatch({ control: form.control, name: 'notification_enable' })
   const watchedPermissionOverrides = useWatch({ control: form.control, name: 'permission_overrides' })
-  const NOTIFICATION_KEYS = ['create', 'modify', 'delete', 'status_change', 'reset_data_usage', 'data_reset_by_next', 'subscription_revoked'] as const
+  const NOTIFICATION_KEYS = ['create', 'modify', 'delete', 'status_change', 'reset_data_usage', 'data_reset_by_next', 'subscription_revoked', 'percentage_reached', 'days_left'] as const
   const notificationEnabledCount = useMemo(() => NOTIFICATION_KEYS.reduce((sum, key) => sum + ((watchedNotificationEnable as any)?.[key] ? 1 : 0), 0), [watchedNotificationEnable])
   const allNotificationsEnabled = notificationEnabledCount === NOTIFICATION_KEYS.length
   const permissionOverridesCount = useMemo(
@@ -732,7 +732,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                     <div className="flex items-center gap-2">
                       <Bell className="h-4 w-4" />
                       <span>{t('settings.notifications.filterTitle')}</span>
-                      <span className="text-muted-foreground text-xs">{notificationEnabledCount}/7</span>
+                      <span className="text-muted-foreground text-xs">{notificationEnabledCount}/{NOTIFICATION_KEYS.length}</span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-1 pt-1">
@@ -751,6 +751,8 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                               reset_data_usage: checked,
                               data_reset_by_next: checked,
                               subscription_revoked: checked,
+                              percentage_reached: checked,
+                              days_left: checked,
                             },
                             { shouldDirty: true },
                           )
@@ -840,6 +842,30 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                               <Checkbox checked={field.value || false} onCheckedChange={field.onChange} className="h-4 w-4" />
                             </FormControl>
                             <FormLabel className="cursor-pointer text-xs leading-none font-normal">{t('settings.notifications.subPermissions.subscriptionRevoked')}</FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="notification_enable.percentage_reached"
+                        render={({ field }) => (
+                          <FormItem className="hover:bg-muted/40 flex items-center space-y-0 gap-x-2 rounded-sm px-2 py-1.5 transition-colors">
+                            <FormControl>
+                              <Checkbox checked={field.value || false} onCheckedChange={field.onChange} className="h-4 w-4" />
+                            </FormControl>
+                            <FormLabel className="cursor-pointer text-xs leading-none font-normal">{t('settings.notifications.types.percentageReached')}</FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="notification_enable.days_left"
+                        render={({ field }) => (
+                          <FormItem className="hover:bg-muted/40 flex items-center space-y-0 gap-x-2 rounded-sm px-2 py-1.5 transition-colors">
+                            <FormControl>
+                              <Checkbox checked={field.value || false} onCheckedChange={field.onChange} className="h-4 w-4" />
+                            </FormControl>
+                            <FormLabel className="cursor-pointer text-xs leading-none font-normal">{t('settings.notifications.types.daysLeft')}</FormLabel>
                           </FormItem>
                         )}
                       />

@@ -24,10 +24,8 @@ from .user import (
     remove_user,
     reset_user_data_usage,
     user_data_reset_by_next,
-    user_days_left,
     user_status_change,
     user_subscription_revoked,
-    user_usage_reached,
     users_digest,
 )
 from .user_template import create_user_template, modify_user_template, remove_user_template
@@ -71,9 +69,7 @@ __all__ = [
     "reset_node_usage",
     "reset_user_data_usage",
     "user_data_reset_by_next",
-    "user_days_left",
     "user_status_change",
     "user_subscription_revoked",
-    "user_usage_reached",
     "users_digest",
 ]
