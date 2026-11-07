@@ -1,9 +1,12 @@
 import io
+import re
 import unicodedata
 import zipfile
 
 from app.models.subscription import SubscriptionInboundData, TCPTransportConfig, TLSConfig
 from app.subscription.wireguard import WireGuardConfiguration
+
+TUNNEL_NAME = re.compile(r"[a-zA-Z0-9_=+.-]{1,15}")
 
 
 def _inbound() -> SubscriptionInboundData:
@@ -39,7 +42,13 @@ def test_wireguard_add_path_keeps_android_sized_names_within_fifteen_characters(
     stems = _archive_stems(*["Berlin-Server1"] * 12)
     assert len(set(stems)) == 12, stems
     assert len({unicodedata.normalize("NFC", stem).casefold() for stem in stems}) == 12, stems
-    assert all(len(stem) <= 15 for stem in stems), stems
+    assert all(TUNNEL_NAME.fullmatch(stem) for stem in stems), stems
+
+
+def test_wireguard_add_path_gives_short_duplicate_remarks_a_tunnel_name_the_clients_accept():
+    stems = _archive_stems("Berlin", "Berlin", "Berlin")
+    assert all(TUNNEL_NAME.fullmatch(stem) for stem in stems), stems
+    assert stems == ["Berlin", "Berlin-2", "Berlin-3"], stems
 
 
 def test_wireguard_add_path_keeps_mixed_duplicate_remarks_unique_and_android_sized():
