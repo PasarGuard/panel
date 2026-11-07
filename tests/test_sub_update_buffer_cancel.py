@@ -70,7 +70,7 @@ async def test_a_size_triggered_flush_is_held_until_it_finishes_and_its_failure_
     await asyncio.sleep(0)
 
     running = set(sub_update_buffer._background_flushes)
-    assert len(running) == 1, "the size-triggered flush task is not referenced and can be garbage-collected mid-write"
+    assert len(running) == 1, "the size-triggered flush task is not held, so nothing retrieves its failure"
 
     release.set()
     await asyncio.wait(running, timeout=2.0)
