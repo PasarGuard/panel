@@ -63,6 +63,11 @@ async def _authorize_target_admin(target_id: int, current_admin: AdminDetails, d
     if target is None:
         raise HTTPException(status_code=404, detail="Admin not found")
 
+    # The owner's credentials follow the same rule as every other admin operation: only the owner
+    # may touch them, regardless of admins.passkeys.
+    if target.role_id == 1 and not current_admin.is_owner:
+        raise HTTPException(status_code=403, detail="Owner credentials are not accessible")
+
     # Every admin may manage their own passkeys. Managing another admin's
     # credentials requires the dedicated admins.passkeys permission.
     if current_admin.id != target_id:
