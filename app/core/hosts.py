@@ -612,7 +612,7 @@ class HostManager:
     # v4: a disabled, deleted or unserved xHTTP download host is no longer embedded in its parent.
     # v5: a disabled xHTTP download host can still supply settings to its parent.
     # v6: rebuild shared inbound metadata using stable core ID precedence.
-    STATE_CACHE_KEY = "state_v6"
+    STATE_CACHE_KEY = "state_v7"
     KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):

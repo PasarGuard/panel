@@ -1,9 +1,11 @@
 import asyncio
+import json
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
 
-from app.core.hosts import host_manager
+from app.core.hosts import HostManager, host_manager
 from app.db.models import ProxyHost
 from app.models.host import BaseHost
 from app.models.subscription import SubscriptionInboundData, TCPTransportConfig, TLSConfig
@@ -50,8 +52,8 @@ def test_host_api_refuses_a_keepalive_wireguard_cannot_take(access_token):
         delete_core(access_token, core["id"])
 
 
-def _persistent_keepalive_lines(keepalive) -> list[str]:
-    inbound = SubscriptionInboundData(
+def _wireguard_inbound(keepalive) -> SubscriptionInboundData:
+    return SubscriptionInboundData(
         remark="wg",
         inbound_tag="wg-in",
         protocol="wireguard",
@@ -65,6 +67,10 @@ def _persistent_keepalive_lines(keepalive) -> list[str]:
         wireguard_allowed_ips=["0.0.0.0/0"],
         wireguard_keepalive=keepalive,
     )
+
+
+def _persistent_keepalive_lines(keepalive) -> list[str]:
+    inbound = _wireguard_inbound(keepalive)
     conf = WireGuardConfiguration()
     conf.add("wg", inbound.address, inbound, {"private_key": "cHJpdi1rZXk=", "peer_ips": ["10.0.0.2/32"]})
     rendered = "\n".join(content for _, content in conf.configs)
@@ -162,3 +168,21 @@ def test_a_host_stored_with_a_keepalive_above_the_wireguard_maximum_still_loads(
     finally:
         client.delete(f"/api/host/{host['id']}", headers=auth_headers(access_token))
         delete_core(access_token, core["id"])
+
+
+class _SnapshotKV:
+    def __init__(self, entries: dict[str, bytes]):
+        self.entries = entries
+
+    async def get(self, key: str):
+        value = self.entries.get(key)
+        return SimpleNamespace(value=value) if value is not None else None
+
+
+def test_a_host_snapshot_prepared_before_the_keepalive_bound_is_not_loaded():
+    snapshot = json.dumps({"1": _wireguard_inbound(86400).model_dump()}).encode()
+    manager = HostManager()
+    manager._kv = _SnapshotKV({"state_v6": snapshot})
+
+    assert asyncio.run(manager._load_state_from_cache()) is False
+    assert manager._hosts == {}
