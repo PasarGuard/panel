@@ -27,5 +27,8 @@ async def test_a_job_without_its_own_max_instances_never_overlaps_itself():
         await asyncio.sleep(1.2)
     finally:
         probe.shutdown(wait=False)
+        async with asyncio.timeout(5):
+            while probe.running or running:
+                await asyncio.sleep(0.01)
 
     assert peak == 1, f"{peak} runs of the same job were in flight at once"
