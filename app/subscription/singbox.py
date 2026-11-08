@@ -331,6 +331,10 @@ class SingBoxConfiguration(BaseSubscription):
             "password": password,
         }
 
+        if (obfs_host := self._shadowsocks_http_obfs_host(inbound)) is not None:
+            config["plugin"] = "obfs-local"
+            config["plugin_opts"] = f"obfs=http;obfs-host={obfs_host}" if obfs_host else "obfs=http"
+
         return self._normalize_and_remove_none_values(config)
 
     def _build_hysteria(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:

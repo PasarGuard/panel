@@ -315,7 +315,14 @@ class StandardLinks(BaseSubscription):
         )
 
         encoded = base64.b64encode(f"{method}:{password}".encode()).decode()
-        return f"ss://{encoded}@{address}:{inbound.port}#{urlparse.quote(remark)}"
+        link = f"ss://{encoded}@{address}:{inbound.port}"
+        if (obfs_host := self._shadowsocks_http_obfs_host(inbound)) is not None:
+            plugin_options = ["obfs=http"]
+            if obfs_host:
+                plugin_options.append(f"obfs-host={obfs_host}")
+            plugin = ";".join(["obfs-local", *plugin_options])
+            link += "?" + urlparse.urlencode({"plugin": plugin}, quote_via=urlparse.quote)
+        return f"{link}#{urlparse.quote(remark)}"
 
     def _build_hysteria(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build Hysteria link"""
