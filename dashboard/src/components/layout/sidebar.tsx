@@ -66,6 +66,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { admin } = useAdmin()
   const canReadSystem = hasPermission(admin, 'system', 'read')
   const canReadHosts = canReadResourcePage(admin, 'hosts')
+  const canCustomizeHosts = admin?.role?.name === 'operator'
   const canReadGroups = canReadResourcePage(admin, 'groups')
   const canReadAdmins = canReadResourcePage(admin, 'admins')
   const canReadApiKeys = canReadResourcePage(admin, 'api_keys')
@@ -228,6 +229,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               icon: ListTodo,
             },
           ]
+        : []),
+      ...(canCustomizeHosts
+        ? [{ title: 'hostPreferences.title', url: '/host-preferences', icon: ListTodo }]
         : []),
       ...(canReadGroups
         ? [

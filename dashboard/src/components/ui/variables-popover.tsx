@@ -162,7 +162,7 @@ export function VariablesPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="icon" className="h-auto w-auto p-0 hover:bg-transparent">
+        <Button type="button" variant="ghost" size="icon" className="h-auto w-auto p-0 hover:bg-transparent" aria-label={t('hostsDialog.variables.title')} title={t('hostsDialog.variables.title')}>
           <Info className="text-muted-foreground h-3.5 w-3.5" />
         </Button>
       </PopoverTrigger>

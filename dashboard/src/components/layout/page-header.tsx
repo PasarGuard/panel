@@ -5,6 +5,7 @@ import { getDocsUrl } from '@/utils/docs-url'
 import Snowfall from '@/components/common/snowfall'
 import { cn } from '@/lib/utils'
 import { HelpCircle, LucideIcon, Plus } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
 
@@ -16,10 +17,11 @@ interface PageHeaderProps {
   buttonIcon?: LucideIcon
   buttonTooltip?: string
   tutorialUrl?: string
+  titleAction?: ReactNode
   className?: string
 }
 
-export default function PageHeader({ title, description, buttonText, onButtonClick, buttonIcon: Icon = Plus, buttonTooltip, tutorialUrl, className }: PageHeaderProps) {
+export default function PageHeader({ title, description, buttonText, onButtonClick, buttonIcon: Icon = Plus, buttonTooltip, tutorialUrl, titleAction, className }: PageHeaderProps) {
   const { t } = useTranslation()
   const dir = useDirDetection()
   const location = useLocation()
@@ -33,24 +35,26 @@ export default function PageHeader({ title, description, buttonText, onButtonCli
       <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-y-1">
         <div className="flex min-w-0 items-center gap-2.5">
           <h1 className="truncate text-xl sm:text-2xl font-semibold tracking-tight">{t(title)}</h1>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <a
-                  href={docsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:ring-ring inline-flex h-7 w-7 items-center justify-center rounded-md border-0 transition-colors hover:border-2 focus-visible:ring-2 focus-visible:outline-none"
-                  aria-label={t('tutorial', { defaultValue: 'View tutorial' })}
-                >
-                  <HelpCircle className="h-4 w-4" />
-                </a>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{t('tutorial', { defaultValue: 'View tutorial' })}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          {titleAction ?? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a
+                    href={docsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:ring-ring inline-flex h-7 w-7 items-center justify-center rounded-md border-0 transition-colors hover:border-2 focus-visible:ring-2 focus-visible:outline-none"
+                    aria-label={t('tutorial', { defaultValue: 'View tutorial' })}
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{t('tutorial', { defaultValue: 'View tutorial' })}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
         {description && <span className="text-muted-foreground text-sm leading-relaxed whitespace-normal">{t(description)}</span>}
       </div>

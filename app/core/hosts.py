@@ -212,6 +212,7 @@ async def _prepare_subscription_inbound_data(
         dns = list(wg_over.dns) if wg_over.dns else None
 
         return SubscriptionInboundData(
+            id=host.id,
             remark=host.remark,
             inbound_tag=host.inbound_tag,
             protocol=protocol,
@@ -575,6 +576,7 @@ async def _prepare_subscription_inbound_data(
         )
 
     return SubscriptionInboundData(
+        id=host.id,
         remark=host.remark,
         inbound_tag=host.inbound_tag,
         protocol=protocol,
@@ -673,6 +675,8 @@ class HostManager:
                 try:
                     host_id = int(host_id_str)
                     if isinstance(host_data, dict):
+                        # Older cached entries predate host IDs in subscription data.
+                        host_data.setdefault("id", host_id)
                         converted_state[host_id] = SubscriptionInboundData.model_validate(host_data)
                     else:
                         converted_state[host_id] = host_data

@@ -4304,5 +4304,31 @@
     "updateCommandLabel": "通过 SSH 连接并运行:",
     "closeBanner": "关闭更新通知",
     "needsUpdate": "需要更新"
+  },
+  "hostPreferences": {
+    "title": "我的主机",
+    "description": "更改向您显示的服务器名称和顺序。这些更改仅影响您的账户。",
+    "subscriptionNote": "名称、顺序和已启用的主机会同步到您的用户的订阅链接和复制的配置中。",
+    "save": "保存更改",
+    "saved": "主机偏好已保存",
+    "saveFailed": "无法保存主机偏好",
+    "remarkRequired": "服务器名称不能为空",
+    "custom": "自定义",
+    "originalName": "原名称：{{name}}",
+    "hostName": "主机名称",
+    "enabled": "主机已启用",
+    "resetName": "重置名称",
+    "resetOrder": "重置顺序",
+    "resetAll": "全部重置",
+    "resetOrderTitle": "重置主机顺序？",
+    "resetOrderConfirm": "恢复默认主机顺序？自定义名称和启用状态将保持不变。",
+    "resetAllTitle": "重置所有主机偏好？",
+    "resetAllConfirm": "重置所有自定义主机名称、顺序和启用状态？",
+    "confirm": "确定",
+    "cancel": "取消",
+    "search": "搜索主机",
+    "noResults": "没有匹配的主机",
+    "moveUp": "上移",
+    "moveDown": "下移"
   }
 }

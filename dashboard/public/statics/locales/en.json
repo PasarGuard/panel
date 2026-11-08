@@ -4301,5 +4301,31 @@
     "updateCommandLabel": "Connect via SSH and run:",
     "closeBanner": "Close update notification",
     "needsUpdate": "Needs update"
+  },
+  "hostPreferences": {
+    "title": "My Hosts",
+    "description": "Change the server names and order shown to you. These changes only affect your account.",
+    "subscriptionNote": "Names, order, and enabled hosts are reflected in your users’ subscription links and copied configurations.",
+    "save": "Save changes",
+    "saved": "Host preferences saved",
+    "saveFailed": "Could not save host preferences",
+    "remarkRequired": "A server name cannot be empty",
+    "custom": "Custom",
+    "originalName": "Original: {{name}}",
+    "hostName": "Host name",
+    "enabled": "Host enabled",
+    "resetName": "Reset name",
+    "resetOrder": "Reset order",
+    "resetAll": "Reset all",
+    "resetOrderTitle": "Reset host order?",
+    "resetOrderConfirm": "Restore the default host order? Custom names and enabled states will stay unchanged.",
+    "resetAllTitle": "Reset all host preferences?",
+    "resetAllConfirm": "Reset all custom host names, order, and enabled states?",
+    "confirm": "OK",
+    "cancel": "Cancel",
+    "search": "Search hosts",
+    "noResults": "No hosts match your search",
+    "moveUp": "Move up",
+    "moveDown": "Move down"
   }
 }

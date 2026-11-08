@@ -283,6 +283,7 @@ class SubscriptionInboundData(BaseModel):
     """
 
     # Basic info
+    id: int | None = None
     remark: str
     inbound_tag: str
     protocol: str
