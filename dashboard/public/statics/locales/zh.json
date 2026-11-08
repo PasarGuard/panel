@@ -264,7 +264,8 @@
       "reminders": {
         "expiryDescription": "当活跃用户剩余此天数时，在 Telegram 和 Discord 发送摘要。Webhook 使用单独的列表。",
         "usageDescription": "当活跃用户达到此用量时，在 Telegram 和 Discord 发送摘要。Webhook 使用单独的列表。",
-        "days": "天"
+        "days": "天",
+        "remove": "移除"
       },
       "usageLimitWarnings": {
         "thresholds": "预警阈值",

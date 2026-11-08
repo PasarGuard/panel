@@ -305,7 +305,8 @@
       "reminders": {
         "expiryDescription": "Сводка в Telegram и Discord, когда активному пользователю осталось столько дней. У вебхуков свой список.",
         "usageDescription": "Сводка в Telegram и Discord, когда активный пользователь достигает этого расхода. У вебхуков свой список.",
-        "days": "дн."
+        "days": "дн.",
+        "remove": "Удалить"
       },
       "usageLimitWarnings": {
         "thresholds": "Пороги предупреждений",

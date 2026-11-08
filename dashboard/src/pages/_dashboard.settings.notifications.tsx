@@ -827,6 +827,7 @@ export default function NotificationSettings() {
                                   min="1"
                                   max={config.reminder!.max}
                                   value={threshold}
+                                  aria-label={t('settings.notifications.usageLimitWarnings.thresholds')}
                                   onChange={e => {
                                     const parsed = parseInt(e.target.value, 10)
                                     const value = Number.isFinite(parsed) ? Math.min(config.reminder!.max ?? parsed, Math.max(1, parsed)) : 1
@@ -842,6 +843,7 @@ export default function NotificationSettings() {
                                   type="button"
                                   variant="ghost"
                                   size="sm"
+                                  aria-label={t('settings.notifications.reminders.remove')}
                                   onClick={() => setReminderThresholds(config.reminder!, getReminderThresholds(config.reminder!).filter((_, currentIndex) => currentIndex !== index))}
                                   className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
                                 >
