@@ -307,15 +307,12 @@ async def user_subscription_revoked(user: UserNotificationResponse, by: AdminDet
 
 # The reminder jobs run once on the scheduler and send one per threshold, so these skip the per-event dedup:
 # its key would merge two thresholds a user crosses in the same run.
-async def user_usage_reached(user: UserNotificationResponse, threshold: int):
+async def user_reminders(users: list[UserNotificationResponse], kind: str, extras: dict[int, dict] | None = None):
+    """One summary per channel and per opted-in owner for a run of a Telegram/Discord reminder job."""
     await _gather_notifications(
-        "user_usage_reached", ds.user_usage_reached(user, threshold), tg.user_usage_reached(user, threshold)
-    )
-
-
-async def user_days_left(user: UserNotificationResponse, threshold: int):
-    await _gather_notifications(
-        "user_days_left", ds.user_days_left(user, threshold), tg.user_days_left(user, threshold)
+        "user_reminders",
+        ds.users_digest(users, kind, "system", None, extras),
+        tg.users_digest(users, kind, "system", None, extras),
     )
 
 
@@ -517,8 +514,7 @@ for _task_name in (
 
 # One request or one scheduler run produces each of these, so they skip the per-event dedup.
 for _task_name in (
-    "user_usage_reached",
-    "user_days_left",
+    "user_reminders",
     "bulk_create_users",
     "bulk_modify_users",
     "bulk_remove_users",

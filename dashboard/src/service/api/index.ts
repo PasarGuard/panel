@@ -331,6 +331,21 @@ export interface UserNotificationEnable {
 }
 
 /**
+ * An admin's own preferences. Reminders about their users are opt-in.
+ */
+export interface OwnerNotificationEnable {
+  create?: boolean;
+  modify?: boolean;
+  delete?: boolean;
+  status_change?: boolean;
+  reset_data_usage?: boolean;
+  data_reset_by_next?: boolean;
+  subscription_revoked?: boolean;
+  percentage_reached?: boolean;
+  days_left?: boolean;
+}
+
+/**
  * Base model containing the core admin identification fields.
  */
 export interface AdminContactInfo {
@@ -342,7 +357,7 @@ export interface AdminContactInfo {
   profile_title?: string | null;
   support_url?: string | null;
   custom_variables?: CustomVariable[];
-  notification_enable?: UserNotificationEnable | null;
+  notification_enable?: OwnerNotificationEnable | null;
 }
 
 export type AdminCreateStatus = typeof AdminCreateStatus[keyof typeof AdminCreateStatus] | null;
@@ -380,7 +395,7 @@ export interface AdminCreate {
   support_url?: string | null;
   custom_variables?: CustomVariable[] | null;
   note?: string | null;
-  notification_enable?: UserNotificationEnable | null;
+  notification_enable?: OwnerNotificationEnable | null;
   role_id: number;
   permission_overrides?: RoleLimits | null;
   username: string;
@@ -454,7 +469,7 @@ export interface AdminDetails {
   profile_title?: string | null;
   support_url?: string | null;
   custom_variables?: CustomVariable[];
-  notification_enable?: UserNotificationEnable | null;
+  notification_enable?: OwnerNotificationEnable | null;
   total_users?: number;
   used_traffic?: number;
   data_limit?: number | null;
@@ -488,7 +503,7 @@ export interface AdminModify {
   support_url?: string | null;
   custom_variables?: CustomVariable[] | null;
   note?: string | null;
-  notification_enable?: UserNotificationEnable | null;
+  notification_enable?: OwnerNotificationEnable | null;
   role_id?: number | null;
   permission_overrides?: RoleLimits | null;
 }
@@ -2106,7 +2121,9 @@ export interface NotificationEnable {
   user_template?: BaseNotificationEnable;
   api_key?: BaseNotificationEnable;
   days_left?: boolean;
+  days_left_thresholds?: number[];
   percentage_reached?: boolean;
+  percentage_reached_thresholds?: number[];
 }
 
 export interface NotificationSettings {

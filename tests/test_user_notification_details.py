@@ -269,47 +269,89 @@ async def test_bulk_dispatch_uses_singles_below_threshold_and_digest_above(monke
     assert sorted(calls) == [("digest", len(many)), ("digest", len(many)), ("webhooks", len(many))]
 
 
-async def test_reminders_reach_telegram(sent):
-    await tg_user.user_usage_reached(_user(status=UserStatus.active), 80)
-    await tg_user.user_days_left(_user(status=UserStatus.active, expire=NOW + td(days=3)), 3)
-
-    usage, days = sent
-    assert "#User_Usage_Reached <b>80%</b>" in usage
-    assert "<b>Usage:</b> <code>3.0 GB / 10.0 GB (30.0%)</code>" in usage
-    assert "#User_Expiring <b>3 days left</b>" in days
+def _reminder_owner(telegram_id: int = 55, **preferences):
+    return {
+        "username": "reseller",
+        "telegram_id": telegram_id,
+        "notification_enable": preferences or None,
+    }
 
 
-async def test_reminder_job_sends_chat_without_webhooks(monkeypatch):
+async def test_usage_reminder_is_one_summary_with_each_users_threshold(sent):
+    users = [_owned(1, None, status=UserStatus.active), _owned(2, None, status=UserStatus.active)]
+
+    await tg_user.users_digest(users, "usage_reminder", "system", None, {1: {"threshold": 80}, 2: {"threshold": 90}})
+
+    assert len(sent) == 1
+    assert "#Usage_Reminder" in sent[0]
+    assert "<b>2 users</b>" in sent[0]
+    assert "Reached 80%" in sent[0]
+    assert "Reached 90%" in sent[0]
+
+
+async def test_expiry_reminder_reaches_discord(sent):
+    users = [_owned(1, None, status=UserStatus.active, expire=NOW + td(days=3))]
+
+    await ds_user.users_digest(users, "expiry_reminder", "system")
+
+    assert "Expiry Reminder" in sent[0]["embeds"][0]["title"]
+
+
+@pytest.mark.parametrize(
+    ("preferences", "owner_messages"),
+    [({}, 0), ({"create": True}, 0), ({"percentage_reached": False}, 0), ({"percentage_reached": True}, 1)],
+)
+async def test_owner_dm_for_reminders_is_opt_in(sent, preferences, owner_messages):
+    user = _user(status=UserStatus.active, admin=_reminder_owner(**preferences))
+
+    await tg_user.users_digest([user], "usage_reminder", "system", None, {user.id: {"threshold": 80}})
+
+    assert len(sent) == 1 + owner_messages
+
+
+def test_reminder_preferences_do_not_change_other_owner_notifications():
+    from app.notification.helpers import should_send_admin_notification
+
+    admin = SimpleNamespace(notification_enable=None)
+
+    assert should_send_admin_notification(admin, "create") is True
+    assert should_send_admin_notification(admin, "percentage_reached") is False
+    assert should_send_admin_notification(admin, "days_left") is False
+
+
+def _reminder_job(monkeypatch, *, webhook_enable=False, enable=None, channels=None, users=None):
+    """Runs the usage job against fakes; `users` maps (threshold, for_chat) to db users."""
     from app.jobs import review_users
+    from app.models.notification_enable import NotificationEnable
+
+    summaries, webhooks, recorded, lookups = [], [], [], []
+    users = users or {}
 
     async def webhook_settings():
-        return SimpleNamespace(enable=False, usage_percent=[80], days_left=[])
+        return SimpleNamespace(enable=webhook_enable, usage_percent=[50], days_left=[])
 
     async def notification_settings():
-        return SimpleNamespace(notify_telegram=True, notify_discord=False)
+        return channels or SimpleNamespace(notify_telegram=True, notify_discord=False)
 
     async def notification_enable():
-        return SimpleNamespace(percentage_reached=True, days_left=True)
+        return enable or NotificationEnable()
 
-    db_user = SimpleNamespace(id=7, usage_percentage=81.0, expire=None)
-    user_model = _user(status=UserStatus.active)
-    reached, webhooks = [], []
-
-    async def usage_reached(user, threshold):
-        reached.append((user.username, threshold))
+    async def user_reminders(models, kind, extras=None):
+        summaries.append(([model.id for model in models], kind, extras))
 
     async def bulk_notify(messages):
         webhooks.extend(messages)
 
-    async def users_at(db, percent):
-        return [db_user]
+    async def users_at(db, percent, for_chat=False):
+        lookups.append((percent, for_chat))
+        return users.get((percent, for_chat), [])
 
     @asynccontextmanager_db
     async def get_db():
         yield None
 
     async def create_reminders(db, data):
-        pass
+        recorded.extend(data)
 
     monkeypatch.setattr(review_users, "webhook_settings", webhook_settings)
     monkeypatch.setattr(review_users, "notification_settings", notification_settings)
@@ -317,15 +359,93 @@ async def test_reminder_job_sends_chat_without_webhooks(monkeypatch):
     monkeypatch.setattr(review_users, "get_usage_percentage_reached_users", users_at)
     monkeypatch.setattr(review_users, "bulk_create_notification_reminders", create_reminders)
     monkeypatch.setattr(review_users, "GetDB", get_db)
-    monkeypatch.setattr(review_users.UserNotificationResponse, "model_validate", lambda user: user_model)
-    monkeypatch.setattr(review_users.notification, "user_usage_reached", usage_reached)
+    monkeypatch.setattr(
+        review_users.UserNotificationResponse,
+        "model_validate",
+        lambda user: _user(id=user.id, status=UserStatus.active),
+    )
+    monkeypatch.setattr(review_users.notification, "user_reminders", user_reminders)
     monkeypatch.setattr(review_users.notification.wh, "bulk_notify", bulk_notify)
+    return review_users, SimpleNamespace(summaries=summaries, webhooks=webhooks, recorded=recorded, lookups=lookups)
 
-    await review_users.usage_percent_notification_job()
+
+def _db_user(user_id: int):
+    return SimpleNamespace(id=user_id, usage_percentage=95.0, expire=None)
+
+
+async def test_chat_reminders_are_off_by_default(monkeypatch):
+    from app.models.notification_enable import NotificationEnable
+
+    defaults = NotificationEnable()
+    assert (defaults.days_left, defaults.percentage_reached) == (False, False)
+    assert (defaults.days_left_thresholds, defaults.percentage_reached_thresholds) == ([], [])
+
+    job, seen = _reminder_job(monkeypatch)
+    await job.usage_percent_notification_job()
+
+    assert seen.lookups == []
+
+
+async def test_chat_reminder_lists_user_once_at_highest_threshold(monkeypatch):
+    from app.models.notification_enable import NotificationEnable
+
+    enable = NotificationEnable(percentage_reached=True, percentage_reached_thresholds=[90, 80])
+    job, seen = _reminder_job(
+        monkeypatch,
+        enable=enable,
+        users={(80, True): [_db_user(1), _db_user(2)], (90, True): [_db_user(1)]},
+    )
+
+    await job.usage_percent_notification_job()
     await asyncio.sleep(0)
 
-    assert reached == [("alice", 80)]
-    assert webhooks == []
+    assert seen.summaries == [([1, 2], "usage_reminder", {1: {"threshold": 90}, 2: {"threshold": 80}})]
+    # Every crossed threshold is recorded, so the lower one does not send later.
+    assert sorted((row["user_id"], row["threshold"], row["for_chat"]) for row in seen.recorded) == [
+        (1, 80, True),
+        (1, 90, True),
+        (2, 80, True),
+    ]
+
+
+async def test_webhook_thresholds_do_not_reach_chat(monkeypatch):
+    from app.models.notification_enable import NotificationEnable
+
+    enable = NotificationEnable(percentage_reached=True, percentage_reached_thresholds=[80])
+    job, seen = _reminder_job(monkeypatch, webhook_enable=True, enable=enable, users={(50, False): [_db_user(1)]})
+    monkeypatch.setattr(job.notification.wh, "ReachedUsagePercent", lambda **kwargs: kwargs)
+
+    await job.usage_percent_notification_job()
+    await asyncio.sleep(0)
+
+    assert seen.lookups == [(50, False), (80, True)]
+    assert len(seen.webhooks) == 1
+    assert seen.summaries == []
+
+
+async def test_chat_reminders_need_a_chat_channel(monkeypatch):
+    from app.models.notification_enable import NotificationEnable
+
+    job, seen = _reminder_job(
+        monkeypatch,
+        enable=NotificationEnable(percentage_reached=True, percentage_reached_thresholds=[80]),
+        channels=SimpleNamespace(notify_telegram=False, notify_discord=False),
+    )
+
+    await job.usage_percent_notification_job()
+
+    assert seen.lookups == []
+
+
+@pytest.mark.parametrize("field", ["days_left_thresholds", "percentage_reached_thresholds"])
+def test_reminder_thresholds_are_sorted_and_validated(field):
+    from pydantic import ValidationError
+
+    from app.models.notification_enable import NotificationEnable
+
+    assert getattr(NotificationEnable(**{field: [9, 3, 9]}), field) == [3, 9]
+    with pytest.raises(ValidationError):
+        NotificationEnable(**{field: [0]})
 
 
 @pytest.mark.parametrize(

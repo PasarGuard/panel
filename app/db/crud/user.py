@@ -860,7 +860,7 @@ async def get_users_to_reset_data_usage(db: AsyncSession) -> list[User]:
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
-async def get_usage_percentage_reached_users(db: AsyncSession, percentage: int) -> list[User]:
+async def get_usage_percentage_reached_users(db: AsyncSession, percentage: int, for_chat: bool = False) -> list[User]:
     """
     Get active users who have reached or exceeded the specified usage percentage threshold
     and don't have an existing notification reminder for this threshold.
@@ -872,6 +872,7 @@ async def get_usage_percentage_reached_users(db: AsyncSession, percentage: int) 
             NotificationReminder.user_id == User.id,
             NotificationReminder.type == ReminderType.data_usage,
             NotificationReminder.threshold == percentage,
+            NotificationReminder.for_chat == for_chat,
         )
         .exists()
     )
@@ -887,7 +888,7 @@ async def get_usage_percentage_reached_users(db: AsyncSession, percentage: int) 
     return list((await db.execute(stmt)).unique().scalars().all())
 
 
-async def get_days_left_reached_users(db: AsyncSession, days: int) -> list[User]:
+async def get_days_left_reached_users(db: AsyncSession, days: int, for_chat: bool = False) -> list[User]:
     """
     Get active users who have reached or exceeded the specified days left threshold
     and don't have an existing notification reminder for this threshold.
@@ -899,6 +900,7 @@ async def get_days_left_reached_users(db: AsyncSession, days: int) -> list[User]
             NotificationReminder.user_id == User.id,
             NotificationReminder.type == ReminderType.expiration_date,
             NotificationReminder.threshold == days,
+            NotificationReminder.for_chat == for_chat,
         )
         .exists()
     )
@@ -2334,7 +2336,8 @@ async def bulk_create_notification_reminders(db: AsyncSession, reminder_data: li
 
     Args:
         db (AsyncSession): The database session.
-        reminder_data (List[dict]): List of reminder data dicts with keys: user_id, type, threshold, expires_at
+        reminder_data (List[dict]): List of reminder data dicts with keys: user_id, type, threshold, expires_at,
+            and optionally for_chat
     """
     if not reminder_data:
         return
@@ -2342,7 +2345,11 @@ async def bulk_create_notification_reminders(db: AsyncSession, reminder_data: li
     reminders = []
     for data in reminder_data:
         reminder = NotificationReminder(
-            type=data["type"], expires_at=data["expires_at"], user_id=data["user_id"], threshold=data.get("threshold")
+            type=data["type"],
+            expires_at=data["expires_at"],
+            user_id=data["user_id"],
+            threshold=data.get("threshold"),
+            for_chat=data.get("for_chat", False),
         )
         reminders.append(reminder)
 

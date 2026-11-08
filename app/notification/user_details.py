@@ -124,6 +124,10 @@ def _note(user, now, extra):
     return ("Note", user.note) if user.note else None
 
 
+def _reached(user, now, extra):
+    return "Reached", f"{extra['threshold']}%"
+
+
 def _reason(user, now, extra):
     reason = extra.get("reason")
     return ("Reason", REASON_LABELS.get(reason, str(reason))) if reason else None
@@ -131,6 +135,7 @@ def _reason(user, now, extra):
 
 _FIELDS: dict[str, Callable[[UserNotificationResponse, dt, dict], Row | None]] = {
     "reason": _reason,
+    "reached": _reached,
     "status": _status,
     "data_limit": _data_limit,
     "usage": _usage,
@@ -153,7 +158,6 @@ REMOVE = ("reason", "status", "usage", "lifetime", "expire", "created", "online"
 RESET_USAGE = ("cleared", "data_limit", "lifetime", "expire")
 RESET_BY_NEXT = ("usage", "expire", "next_plan")
 REVOKE = ("status", "usage", "expire")
-REMINDER = ("usage", "expire", "online")
 
 
 # Fields compared between the user before and after a modify, and the current state shown next to the changes.
@@ -199,6 +203,8 @@ DIGEST_FIELDS = {
     "status": ("usage", "expire"),
     "reset_usage": ("cleared", "data_limit"),
     "reset_by_next": ("usage", "expire"),
+    "usage_reminder": ("reached", "usage", "expire"),
+    "expiry_reminder": ("expire", "usage"),
 }
 
 

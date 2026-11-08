@@ -101,18 +101,6 @@ async def user_subscription_revoked(user: UserNotificationResponse, by: str):
     await _send(user, data, "subscription_revoked")
 
 
-async def user_usage_reached(user: UserNotificationResponse, threshold: int):
-    data = _build(
-        messages.USER_USAGE_REACHED, user, "system", colors.YELLOW, user_details.REMINDER, threshold=threshold
-    )
-    await _send(user, data, "percentage_reached")
-
-
-async def user_days_left(user: UserNotificationResponse, threshold: int):
-    data = _build(messages.USER_DAYS_LEFT, user, "system", colors.YELLOW, user_details.REMINDER, threshold=threshold)
-    await _send(user, data, "days_left")
-
-
 # kind: (title, owner admin action, color); a status summary uses the status as its title and color.
 _DIGEST = {
     "create": ("🆕 Create User", "create", colors.GREEN),
@@ -121,6 +109,8 @@ _DIGEST = {
     "status": (None, "status_change", None),
     "reset_usage": ("🔁 Reset User Data Usage", "reset_data_usage", colors.CYAN),
     "reset_by_next": ("🔁 Reset User", "data_reset_by_next", colors.CYAN),
+    "usage_reminder": ("⚠️ Usage Reminder", "percentage_reached", colors.YELLOW),
+    "expiry_reminder": ("⏳ Expiry Reminder", "days_left", colors.YELLOW),
 }
 
 
