@@ -11,6 +11,7 @@ import { OutboundUsageChart } from '@/components/charts/outbound-usage-chart'
 import { AreaCostumeChart } from '@/components/charts/area-costume-chart'
 import { BarChart3 } from 'lucide-react'
 import { UserCountsChart } from '@/components/charts/user-counts-chart'
+import { UsersTrafficCard } from './users-traffic-card'
 
 interface StatisticsChartsProps {
   data?: SystemResourceStats
@@ -20,11 +21,23 @@ interface StatisticsChartsProps {
   selectedServer: string
   canViewNodeStats: boolean
   canViewSystemStats: boolean
+  canViewUsers: boolean
   nodesData?: NodeSimple[]
   isLoadingNodes?: boolean
 }
 
-export default function StatisticsCharts({ data, usersData, isLoading, error, selectedServer, canViewNodeStats, canViewSystemStats, nodesData = [], isLoadingNodes = false }: StatisticsChartsProps) {
+export default function StatisticsCharts({
+  data,
+  usersData,
+  isLoading,
+  error,
+  selectedServer,
+  canViewNodeStats,
+  canViewSystemStats,
+  canViewUsers,
+  nodesData = [],
+  isLoadingNodes = false,
+}: StatisticsChartsProps) {
   const { t } = useTranslation()
 
   // Add state for chart refresh
@@ -140,6 +153,11 @@ export default function StatisticsCharts({ data, usersData, isLoading, error, se
         {canViewNodeStats && (
           <div className="transform-gpu">
             <OutboundUsageChart nodeId={selectedNodeId} />
+          </div>
+        )}
+        {canViewUsers && (
+          <div className="transform-gpu">
+            <UsersTrafficCard nodeId={selectedNodeId} nodesData={nodesData} />
           </div>
         )}
         <div className="transform-gpu">
