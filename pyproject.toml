@@ -13,7 +13,7 @@ dependencies = [
     "alembic>=1.20.1",
     "bcrypt==5.0.0",
     "certifi>=2026.10.23",
-    "click>=8.5.0",
+    "click>=8.5.1",
     "commentjson==0.9.0",
     "cryptography==50.0.2",
     "fastapi>=0.162.2",
