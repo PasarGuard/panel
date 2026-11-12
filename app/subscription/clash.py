@@ -509,7 +509,7 @@ class ClashConfiguration(BaseSubscription):
 
     def _build_shadowsocks(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build Shadowsocks node"""
-        return {
+        node = {
             "name": remark,
             "type": "ss",
             "server": address,
@@ -519,6 +519,10 @@ class ClashConfiguration(BaseSubscription):
             "password": settings["password"],
             "cipher": settings["method"],
         }
+        if (obfs_host := self._shadowsocks_http_obfs_host(inbound)) is not None:
+            node["plugin"] = "obfs"
+            node["plugin-opts"] = {"mode": "http", "host": obfs_host} if obfs_host else {"mode": "http"}
+        return node
 
     def _build_wireguard(
         self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
@@ -670,7 +674,7 @@ class ClashMetaConfiguration(ClashConfiguration):
             settings["password"],
         )
 
-        return {
+        node = {
             "name": remark,
             "type": "ss",
             "server": address,
@@ -681,6 +685,10 @@ class ClashMetaConfiguration(ClashConfiguration):
             "cipher": method,
             "password": password,
         }
+        if (obfs_host := self._shadowsocks_http_obfs_host(inbound)) is not None:
+            node["plugin"] = "obfs"
+            node["plugin-opts"] = {"mode": "http", "host": obfs_host} if obfs_host else {"mode": "http"}
+        return node
 
     def _build_hysteria(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build Hysteria node with Clash Meta support"""

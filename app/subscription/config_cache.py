@@ -34,7 +34,10 @@ def make_sub_config_key(
     status_key = status.value if hasattr(status, "value") else status
     inbounds = getattr(user, "inbounds", None) or ()
     proxy_settings = getattr(user, "proxy_settings", None)
-    if config_format == "wireguard" and proxy_settings is not None and hasattr(proxy_settings, "model_dump_json"):
+    # Every protocol builder reads per-user proxy settings. In particular, a
+    # cached links subscription otherwise keeps old Shadowsocks credentials
+    # after the user is updated (WireGuard was the only format keyed on these).
+    if proxy_settings is not None and hasattr(proxy_settings, "model_dump_json"):
         proxy_key = proxy_settings.model_dump_json()
     else:
         proxy_key = ""
