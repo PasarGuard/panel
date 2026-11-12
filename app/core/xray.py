@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from copy import deepcopy
 from ipaddress import ip_interface
 from pathlib import PosixPath
 
 import commentjson
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 from app.models.core import CoreType
 from app.models.protocol import ProxyProtocol
@@ -18,6 +20,72 @@ from app.utils.crypto import (
     validate_mldsa65_verify,
     validate_wireguard_key,
 )
+from config import server_settings
+
+# TLS certificates are small text files. Reading a device or a special file would hang the event loop
+# or exhaust memory, and /proc, /sys expose process state rather than certificates.
+MAX_TLS_FILE_SIZE = 1024 * 1024
+BLOCKED_TLS_FILE_PREFIXES = ("/proc", "/sys", "/dev")
+
+
+def _allowed_tls_dirs() -> list[str]:
+    return [os.path.realpath(d.strip()) for d in server_settings.tls_files_allowed_dirs.split(",") if d.strip()]
+
+
+def _is_within(path: str, directory: str) -> bool:
+    try:
+        return os.path.commonpath([path, directory]) == directory
+    except ValueError:
+        # Different drives (Windows) or a mix of absolute and relative paths.
+        return False
+
+
+def _is_outside_allowed_tls_dirs(path: str) -> bool:
+    """True when TLS_FILES_ALLOWED_DIRS is set and the resolved path is not inside any of its directories.
+
+    Only resolves the path and never opens or stats the file, so a missing and an existing file get the
+    same answer.
+    """
+    allowed_dirs = _allowed_tls_dirs()
+    if not allowed_dirs:
+        return False
+    if os.path.splitdrive(path)[0][:2] in ("\\\\", "//"):
+        # UNC path (Windows): resolving it would already connect to the remote host.
+        return True
+    real_path = os.path.realpath(path)
+    return not any(_is_within(real_path, directory) for directory in allowed_dirs)
+
+
+def _read_tls_file(path: str, *, private_key: bool = False, strict: bool = True) -> bytes:
+    """Read a certificate/key file referenced by a core config.
+
+    The content of keyFile is copied into the config sent to nodes, so it must come from a directory meant
+    for TLS material rather than from anywhere the panel process can read. With strict=True (a config sent
+    through the API) only files inside TLS_FILES_ALLOWED_DIRS are read, and that is checked before the file
+    system is touched. strict=False is for configs already saved
+    in the database (startup, NATS, migration): the directory is not enforced there, so an upgrade does not
+    drop working cores. Both modes read only regular files outside /proc, /sys, /dev, up to
+    MAX_TLS_FILE_SIZE, and a key file must parse as an unencrypted PEM private key.
+    Errors never echo the file content.
+    """
+    if strict and _is_outside_allowed_tls_dirs(path):
+        raise ValueError(
+            f"{path} is outside the directories allowed for TLS files ({server_settings.tls_files_allowed_dirs}). "
+            "Move the file into one of them or add its directory to TLS_FILES_ALLOWED_DIRS in the panel .env"
+        )
+    real_path = os.path.realpath(path)
+    if any(_is_within(real_path, prefix) for prefix in BLOCKED_TLS_FILE_PREFIXES) or not os.path.isfile(real_path):
+        raise ValueError(f"{path} is not a regular certificate file")
+    if os.path.getsize(real_path) > MAX_TLS_FILE_SIZE:
+        raise ValueError(f"{path} is too large for a certificate file")
+    with open(real_path, "rb") as file:
+        content = file.read(MAX_TLS_FILE_SIZE + 1)
+    if private_key:
+        try:
+            load_pem_private_key(content, password=None)
+        except ValueError, TypeError:
+            raise ValueError(f"{path} is not an unencrypted PEM private key") from None
+    return content
 
 
 def _protocols_from_inbounds_by_tag(inbounds_by_tag: dict[str, dict]) -> frozenset[ProxyProtocol]:
@@ -64,8 +132,15 @@ class XRayConfig(dict):
         exclude_inbound_tags: set[str] | None = None,
         fallbacks_inbound_tags: set[str] | None = None,
         skip_validation: bool = False,
+        *,
+        strict_tls_paths: bool = True,
     ):
-        """Initialize the XRay config."""
+        """Initialize the XRay config.
+
+        strict_tls_paths=True (the default, for configs sent through the API) refuses certificateFile/keyFile
+        outside TLS_FILES_ALLOWED_DIRS. Callers loading a config already saved in the database pass False:
+        such files are read anyway and listed in tls_files_outside_allowed_dirs for a warning.
+        """
         if config is None:
             config = {}
         if isinstance(config, str):
@@ -91,6 +166,8 @@ class XRayConfig(dict):
         self._inbounds_by_tag = {}
         self._fallbacks_inbound = []
         self._processed_tls_sans: dict[int, list[str]] = {}
+        self._strict_tls_paths = strict_tls_paths
+        self.tls_files_outside_allowed_dirs: list[str] = []
         self._protocols: frozenset[ProxyProtocol] = frozenset()
 
         # Registery pattern for network handlers, making it easy to add support for new network types in the future
@@ -215,6 +292,11 @@ class XRayConfig(dict):
         if not port_found and not is_unix_socket:
             raise ValueError(f"{settings['tag']} inbound doesn't have port")
 
+    def _read_tls_file(self, path: str, *, private_key: bool = False) -> bytes:
+        if not self._strict_tls_paths and _is_outside_allowed_tls_dirs(path):
+            self.tls_files_outside_allowed_dirs.append(path)
+        return _read_tls_file(path, private_key=private_key, strict=self._strict_tls_paths)
+
     def _handle_tls_settings(self, tls_settings: dict, settings: dict, inbound_tag: str):
         """Handle TLS security settings."""
         settings["tls"] = "tls"
@@ -235,15 +317,13 @@ class XRayConfig(dict):
                 # prevent error on parse by xray core
                 continue
             if certificate.get("certificateFile", None):
-                with open(certificate["certificateFile"], "rb") as file:
-                    cert = file.read()
-                    cert_sans = get_cert_SANs(cert)
-                    settings["sni"].extend(cert_sans)
-                    processed_sans.extend(cert_sans)
+                cert = self._read_tls_file(certificate["certificateFile"])
+                cert_sans = get_cert_SANs(cert)
+                settings["sni"].extend(cert_sans)
+                processed_sans.extend(cert_sans)
 
                 if certificate.get("keyFile", None):
-                    with open(certificate["keyFile"], "rb") as file:
-                        key = file.read()
+                    key = self._read_tls_file(certificate["keyFile"], private_key=True)
                 else:
                     raise ValueError(f"{inbound_tag} inbound doesn't keyFile in tlsSettings")
 
