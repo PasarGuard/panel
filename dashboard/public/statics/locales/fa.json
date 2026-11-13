@@ -3858,6 +3858,8 @@
   "statistics.waitingForDataDescription": "آمار لحظه‌ای در اینجا نمایش داده می‌شود پس از شروع جریان داده‌ها.",
   "statistics.noDataInRange": "داده‌ای در بازه انتخابی وجود ندارد",
   "statistics.noDataInRangeDescription": "هیچ داده ترافیکی برای دوره زمانی انتخابی یافت نشد. بازه زمانی متفاوتی را انتخاب کنید.",
+  "statistics.perNodeBreakdownUnavailable": "تفکیک بر اساس نود در دسترس نیست",
+  "statistics.perNodeBreakdownUnavailableDescription": "API مصرف برای این بازه فقط یک مجموع ترکیبی برگرداند، بنابراین این ترافیک قابل انتساب به نودهای جداگانه نیست. مجموع نمایش‌داده‌شده در بالا اندازه‌گیری‌شده است.",
   "statistics.selectNodeToView": "یک گره را انتخاب کنید تا آمار دقیق را مشاهده کنید",
   "statistics.userStatisticsDescription": "نمای کلی از وضعیت و فعالیت حساب‌های کاربری",
   "errors.connectionFailed": "اتصال با خطا مواجه شد. لطفاً شبکه خود را بررسی کنید و دوباره تلاش کنید.",
