@@ -194,8 +194,7 @@ def has_oversized_format_spec(value: str) -> bool:
     try:
         specs = [spec for _, field, spec, _ in Formatter().parse(value) if field is not None and spec]
     except ValueError:
-        # Unbalanced braces: str.format_map rejects the value before it formats anything
-        return False
+        return True
     for spec in specs:
         if "{" in spec:
             return True
