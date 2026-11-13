@@ -18,6 +18,7 @@ def build_engine_options(settings: DatabaseSettings) -> dict[str, Any]:
     options: dict[str, Any] = {
         "connect_args": connect_args,
         "echo": settings.echo_queries,
+        "hide_parameters": True,
     }
     if not settings.is_sqlite:
         options.update(
