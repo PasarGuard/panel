@@ -55,8 +55,6 @@ class WireGuardConfiguration(BaseSubscription):
         # Optional Interface settings
         if mtu := payload.get("mtu"):
             config_data["Interface"]["MTU"] = str(mtu)
-        if reserved := payload.get("reserved"):
-            config_data["Interface"]["Reserved"] = str(reserved)
         if dns_servers := payload.get("dns"):
             if isinstance(dns_servers, str):
                 config_data["Interface"]["DNS"] = dns_servers.replace(",", ", ")
@@ -70,7 +68,7 @@ class WireGuardConfiguration(BaseSubscription):
             config_data["Peer"]["PersistentKeepalive"] = str(keepalive)
 
         config_content = self._render_config(config_data)
-        self.configs.append((components["remark"], config_content))
+        self.configs.append((remark, config_content))
 
     def render(self) -> bytes:
         zip_buffer = io.BytesIO()
