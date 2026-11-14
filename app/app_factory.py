@@ -223,12 +223,14 @@ def _register_nats_handlers(
 
 
 def _register_scheduler_hooks():
+    from app.notification.dedup import close_notification_dedup
     from app.notification.queue_manager import initialize_queues
 
     on_startup(initialize_queues)
 
     # APScheduler is needed by node and scheduler roles to run their jobs
     if not (runtime_settings.role.runs_node or runtime_settings.role.runs_scheduler):
+        on_shutdown(close_notification_dedup)
         return
 
     import asyncio
@@ -330,6 +332,7 @@ def _register_scheduler_hooks():
         await stop_job_leader()
 
     on_shutdown(_stop_scheduler_and_leader)
+    on_shutdown(close_notification_dedup)
 
 
 def _register_jobs():
