@@ -206,7 +206,7 @@ def _assert_builders_read_quic_only_hop(inbound: SubscriptionInboundData):
     assert query["mports"] == ["20000-20010"]
     assert "obfs" not in query
     assert node["ports"] == "20000-20010"
-    assert node["hop-interval"] == "30s"
+    assert node["hop-interval"] == 30
     assert not node.get("obfs")
     assert outbound["server_ports"] == ["20000-20010"]
     assert outbound["hop_interval"] == "30s"
