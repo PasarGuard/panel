@@ -183,7 +183,7 @@ class StandardLinks(BaseSubscription):
             "uplinkChunkSize": config.uplink_chunk_size,
             "noGRPCHeader": config.no_grpc_header,
             "xmux": config.xmux,
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers) if config.http_headers else {},
             "downloadSettings": config.download_settings,
         }
 
