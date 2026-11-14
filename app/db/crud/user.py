@@ -1623,9 +1623,16 @@ async def bulk_revoke_user_sub(
         )
 
     await db.commit()
-    for user in users:
-        await refresh_and_load_user(db, user, load_admin_role=True)
-    return users
+    # One reload for all users (with the node-sync relations), without materializing their reset history
+    return await get_users_by_ids(
+        db,
+        [user.id for user in users],
+        load_admin_role=True,
+        load_group_inbounds=True,
+        load_usage_logs=False,
+        load_lifetime_used_traffic=True,
+        populate_existing=True,
+    )
 
 
 @asynccontextmanager
@@ -1838,7 +1845,14 @@ async def autodelete_expired_users(
         locked_query = (
             select(User)
             .where(User.id.in_(candidate_ids), *eligibility_conditions)
-            .options(joinedload(User.admin))
+            # Load what the notifications read in a few batched statements, not per user. Separate statements keep
+            # the locking read at one row per user (no collection joins)
+            .options(
+                joinedload(User.admin),
+                selectinload(User.next_plan),
+                selectinload(User.usage_logs),
+                selectinload(User.groups),
+            )
             .order_by(User.id)
             .with_for_update(of=User, skip_locked=True)
         )
@@ -1854,7 +1868,6 @@ async def autodelete_expired_users(
             continue
 
         for user in expired_users:
-            await load_user_attrs(user)
             result.append(UserNotificationResponse.model_validate(user))
 
         await remove_users(db, expired_users)
