@@ -18,7 +18,9 @@ DEDUP_WINDOW_SECONDS = 15.0
 _local_claims: dict[str, float] = {}
 _local_lock = asyncio.Lock()
 _kv = None
+_nc = None
 _kv_lock = asyncio.Lock()
+_closed = False
 
 
 def notification_fingerprint(event_name: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
@@ -80,19 +82,54 @@ def _prune_local(now: float) -> None:
         del _local_claims[key]
 
 
+def _kv_ready() -> bool:
+    # Rebuild only after the client is closed for good; a reconnecting client is not connected but still usable.
+    return _kv is not None and _nc is not None and not _nc.is_closed
+
+
 async def _get_kv():
-    global _kv
-    if _kv is not None:
+    global _kv, _nc
+    if _closed:
+        return None
+    if _kv_ready():
         return _kv
     async with _kv_lock:
-        if _kv is not None:
+        if _closed:
+            return None
+        if _kv_ready():
             return _kv
-        from app.nats.client import setup_nats_kv
+        from app.nats.client import create_nats_client, get_jetstream_context, get_or_create_kv_bucket
         from config import nats_settings
 
-        _, _, kv = await setup_nats_kv(nats_settings.scheduler_leader_kv_bucket)
-        _kv = kv
+        _kv = _nc = None
+        nc = await create_nats_client()
+        if nc is None:
+            return None
+        try:
+            js = await get_jetstream_context(nc)
+            kv = await get_or_create_kv_bucket(js, nats_settings.scheduler_leader_kv_bucket)
+        except BaseException:
+            await nc.close()
+            raise
+        # Shutdown may have run while connect() was retrying; nobody would close this client later.
+        if kv is None or _closed:
+            await nc.close()
+            return None
+        _nc, _kv = nc, kv
         return _kv
+
+
+async def close_notification_dedup() -> None:
+    global _kv, _nc, _closed
+    # Skip _kv_lock: a notification may hold it while connect() retries an unreachable server for minutes.
+    _closed = True
+    nc, _nc, _kv = _nc, None, None
+    if nc is None:
+        return
+    try:
+        await asyncio.wait_for(nc.close(), timeout=3)
+    except Exception as exc:
+        logger.debug("Failed to close notification dedup NATS connection: %s", exc)
 
 
 async def _claim_shared(key: str, now: float) -> bool:
