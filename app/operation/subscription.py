@@ -547,16 +547,9 @@ class SubscriptionOperation(BaseOperation):
                 extra_headers={},
             )
             try:
-                response_headers.update(
-                    self._format_subscription_response_headers(
-                        sub_settings, await self._get_rule_response_header_variables(user, client_type)
-                    )
-                )
-                response_headers.update(
-                    self._format_rule_response_headers(
-                        matched_rule, await self._get_rule_response_header_variables(user, client_type)
-                    )
-                )
+                rule_header_variables = await self._get_rule_response_header_variables(user, client_type)
+                response_headers.update(self._format_subscription_response_headers(sub_settings, rule_header_variables))
+                response_headers.update(self._format_rule_response_headers(matched_rule, rule_header_variables))
                 response_headers = self.sanitize_response_headers(response_headers)
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=400)
@@ -575,8 +568,11 @@ class SubscriptionOperation(BaseOperation):
         # Create response with appropriate headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
 
-    async def get_format_variables(self, user: UsersResponseWithInbounds) -> dict:
-        """Get format variables for URL formatting."""
+    async def _build_format_variables(
+        self,
+        user: UsersResponseWithInbounds,
+        extra_variables: dict[str, str | int | float] | None = None,
+    ) -> dict:
         sub_settings: SubSettings = await subscription_settings()
         custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
         format_variables = setup_format_variables(user, sub_settings.custom_variables)
@@ -585,20 +581,20 @@ class SubscriptionOperation(BaseOperation):
         formatted_title = SubscriptionOperation._format_profile_title(user, format_variables, sub_settings)
 
         format_variables.update({"PROFILE_TITLE": formatted_title})
+        if extra_variables:
+            format_variables.update(extra_variables)
         apply_custom_format_variables(format_variables, custom_variables)
 
         return format_variables
 
+    async def get_format_variables(self, user: UsersResponseWithInbounds) -> dict:
+        """Get format variables for URL formatting."""
+        return await self._build_format_variables(user)
+
     async def _get_rule_response_header_variables(
         self, user: UsersResponseWithInbounds, client_format: ConfigFormat
     ) -> dict[str, str | int | float]:
-        format_variables = await self.get_format_variables(user)
-        format_variables.update({"format": client_format.value})
-        sub_settings: SubSettings = await subscription_settings()
-        apply_custom_format_variables(
-            format_variables, get_effective_custom_variables(user, sub_settings.custom_variables)
-        )
-        return format_variables
+        return await self._build_format_variables(user, extra_variables={"format": client_format.value})
 
     async def user_subscription_with_client_type(
         self,
@@ -875,16 +871,9 @@ class SubscriptionOperation(BaseOperation):
                 extra_headers={},
             )
             try:
-                response_headers.update(
-                    self._format_subscription_response_headers(
-                        sub_settings, await self._get_rule_response_header_variables(user, client_type)
-                    )
-                )
-                response_headers.update(
-                    self._format_rule_response_headers(
-                        matched_rule, await self._get_rule_response_header_variables(user, client_type)
-                    )
-                )
+                rule_header_variables = await self._get_rule_response_header_variables(user, client_type)
+                response_headers.update(self._format_subscription_response_headers(sub_settings, rule_header_variables))
+                response_headers.update(self._format_rule_response_headers(matched_rule, rule_header_variables))
                 response_headers = self.sanitize_response_headers(response_headers)
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=400)
