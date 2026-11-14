@@ -216,6 +216,18 @@ class BaseSubscription:
 
         return obfs_password, quic_params
 
+    @staticmethod
+    def _shadowsocks_http_obfs_host(inbound: SubscriptionInboundData) -> str | None:
+        """Return the HTTP obfuscation host for Shadowsocks TCP inbounds."""
+        transport = inbound.transport_config
+        if inbound.network not in ("tcp", "raw") or getattr(transport, "header_type", "none") != "http":
+            return None
+
+        host = transport.host
+        if isinstance(host, list):
+            host = host[0] if host else ""
+        return host or ""
+
     def _build_wireguard_components(
         self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
     ) -> dict | None:

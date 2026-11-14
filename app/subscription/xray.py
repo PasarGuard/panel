@@ -515,9 +515,26 @@ class XrayConfiguration(BaseSubscription):
                 extra_outbounds.append(dialer_outbound)
                 sockopt = {"dialerProxy": "dialer"}
 
-        if sockopt or inbound.finalmask:
+        network_setting = None
+        has_http_obfs = self._shadowsocks_http_obfs_host(inbound) is not None
+        if has_http_obfs:
+            host = inbound.transport_config.host
+            if isinstance(host, list):
+                host = host[0] if host else ""
+            request = dict(inbound.transport_config.request or {})
+            if inbound.transport_config.path:
+                request["path"] = [inbound.transport_config.path]
+            if host:
+                headers = dict(request.get("headers") or {})
+                headers["Host"] = [host]
+                request["headers"] = headers
+            request = self._normalize_and_remove_none_values(request)
+            network_setting = {"header": {"type": "http", "request": request}}
+
+        if sockopt or inbound.finalmask or has_http_obfs:
             outbound["streamSettings"] = self._stream_setting_config(
                 network=inbound.network,
+                network_setting=network_setting,
                 sockopt=sockopt,
                 finalmask=inbound.finalmask,
             )
