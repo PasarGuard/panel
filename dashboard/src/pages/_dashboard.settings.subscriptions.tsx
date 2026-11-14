@@ -15,6 +15,7 @@ import {
   type SubscriptionFormInput,
   defaultSubscriptionRules,
   normalizeCustomVariablesForPayload,
+  normalizeRuleTemplateId,
 } from '@/features/subscriptions/components/subscription-settings-schema'
 import { Form } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
@@ -140,6 +141,7 @@ export default function SubscriptionSettings() {
             pattern: rule.pattern,
             target: rule.target,
             response_headers: Object.fromEntries(Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+            template_id: rule.template_id ?? null,
           })) || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {
@@ -166,6 +168,7 @@ export default function SubscriptionSettings() {
             .map(([key, value]) => [key.trim(), value.trim()] as const)
             .filter(([key, value]) => key && value),
         ),
+        template_id: normalizeRuleTemplateId(rule.target, rule.template_id),
       }))
 
       const processedResponseHeaders = Object.fromEntries(
@@ -301,6 +304,7 @@ export default function SubscriptionSettings() {
             pattern: rule.pattern,
             target: rule.target,
             response_headers: Object.fromEntries(Object.entries(rule.response_headers || {}).map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])),
+            template_id: rule.template_id ?? null,
           })) || [],
         applications: subscriptionData.applications || [],
         manual_sub_request: {

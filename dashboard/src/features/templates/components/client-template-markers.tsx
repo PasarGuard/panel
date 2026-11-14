@@ -1,12 +1,30 @@
+import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { hasServerGroupDirective } from '@/features/templates/forms/template-directives'
 import { cn } from '@/lib/utils'
-import { Merge } from 'lucide-react'
+import { Layers, Merge } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface ClientTemplateMarkersProps {
   isDefault?: boolean
   isSystem?: boolean
   className?: string
+}
+
+// Shown when the template places the user's servers into groups with a `pasarguard` directive.
+export function ServerGroupsBadge({ content, className }: { content?: string | null; className?: string }) {
+  const { t } = useTranslation()
+
+  if (!hasServerGroupDirective(content)) {
+    return null
+  }
+
+  return (
+    <Badge variant="outline" className={cn('h-5 shrink-0 gap-1 px-1.5 text-[10px] leading-none font-normal', className)}>
+      <Layers className="h-3 w-3" />
+      {t('clientTemplates.serverGroups.badge')}
+    </Badge>
+  )
 }
 
 const baseMarkerClassName = 'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm'
