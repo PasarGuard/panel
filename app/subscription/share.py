@@ -16,9 +16,7 @@ from app.settings import subscription_settings
 from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
 from app.subscription.config_cache import (
     get_or_create_sub_config,
-    get_sub_config,
     make_sub_config_key,
-    put_sub_config,
 )
 from app.utils.helpers import has_markup_unsafe_chars, has_oversized_format_spec
 from app.utils.system import readable_size
@@ -100,6 +98,7 @@ async def generate_subscription(
     randomize_order: bool = False,
 ) -> str | bytes:
     cache_key = make_sub_config_key(user, config_format, as_base64, randomize_order)
+
     async def render() -> str | bytes:
         client_templates = await subscription_client_templates()
         xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
@@ -123,14 +122,6 @@ async def generate_subscription(
             config = base64.b64encode(config.encode()).decode()
         return config
 
-    if config_format != "wireguard":
-        cached = get_sub_config(cache_key)
-        if cached is not None:
-            return cached
-        config = await render()
-        put_sub_config(cache_key, config)
-        return config
-
     return await get_or_create_sub_config(cache_key, render)
 
 
@@ -142,7 +133,7 @@ def inject_body_placement(conf: str | bytes, lines: list[str], placement: str, a
     if as_base64:
         try:
             decoded = base64.b64decode(conf).decode()
-        except (ValueError, UnicodeDecodeError):
+        except ValueError, UnicodeDecodeError:
             return conf
         merged = f"{block}\n{decoded}" if placement == "body_start" else f"{decoded}\n{block}"
         return base64.b64encode(merged.encode()).decode()

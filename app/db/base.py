@@ -14,6 +14,8 @@ def build_engine_options(settings: DatabaseSettings) -> dict[str, Any]:
         connect_args["check_same_thread"] = False
     elif settings.is_mysql:
         connect_args["connect_timeout"] = settings.connect_timeout
+    elif settings.is_postgresql and settings.url.startswith("postgresql+asyncpg"):
+        connect_args["timeout"] = settings.connect_timeout
 
     options: dict[str, Any] = {
         "connect_args": connect_args,

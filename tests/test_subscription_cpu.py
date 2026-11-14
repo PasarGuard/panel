@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from collections import defaultdict
@@ -103,6 +104,52 @@ async def test_generate_subscription_returns_cached_payload(monkeypatch: pytest.
     key = config_cache.make_sub_config_key(user, "links", False, False)
     config_cache.put_sub_config(key, "cached-links")
     assert await generate_subscription(user, "links", False) == "cached-links"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_generate_subscription_clash_meta_coalesces_to_single_render(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    render_calls = 0
+    user = SimpleNamespace(
+        id=9,
+        username="u9",
+        status=UserStatus.active,
+        inbounds=["in1"],
+        data_limit=None,
+        used_traffic=0,
+        expire=None,
+        on_hold_expire_duration=None,
+        admin=None,
+        proxy_settings=SimpleNamespace(dict=lambda: {"vless": {"id": "11111111-1111-1111-1111-111111111111"}}),
+    )
+
+    async def fake_templates():
+        return {
+            "CLASH_SUBSCRIPTION_TEMPLATE": "proxies: []",
+            "USER_AGENT_TEMPLATE": "{}",
+            "GRPC_USER_AGENT_TEMPLATE": "{}",
+        }
+
+    async def fake_process_inbounds(*_args, **_kwargs):
+        nonlocal render_calls
+        render_calls += 1
+        await asyncio.sleep(0.01)
+        return "proxies:\n  - name: node-1\n"
+
+    monkeypatch.setattr("app.subscription.share.subscription_client_templates", fake_templates)
+    monkeypatch.setattr(
+        "app.subscription.share.subscription_settings",
+        AsyncMock(return_value=SimpleNamespace(custom_variables=[])),
+    )
+    monkeypatch.setattr("app.subscription.share.process_inbounds_and_tags", fake_process_inbounds)
+
+    results = await asyncio.gather(*(generate_subscription(user, "clash_meta", False) for _ in range(10)))
+
+    assert render_calls == 1
+    assert results == ["proxies:\n  - name: node-1\n"] * 10
+    key = config_cache.make_sub_config_key(user, "clash_meta", False, False)
+    assert config_cache.get_sub_config(key) == "proxies:\n  - name: node-1\n"
 
 
 @pytest.mark.asyncio

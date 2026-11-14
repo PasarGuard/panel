@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
+import inspect
 import time
+from collections import OrderedDict
 from typing import Any
 
 from app.nats import is_nats_enabled
@@ -15,8 +18,15 @@ from config import server_settings
 logger = get_logger("Notification")
 
 DEDUP_WINDOW_SECONDS = 15.0
+MAX_LOCAL_CLAIMS = 4096
+MAX_SHARED_CLAIMS = 4096
+SHARED_PRUNE_BATCH = 16
 _local_claims: dict[str, float] = {}
 _local_lock = asyncio.Lock()
+_shared_claims: OrderedDict[str, float] = OrderedDict()
+_shared_claims_kv: Any = None
+_shared_claims_lock = asyncio.Lock()
+_nc = None
 _kv = None
 _kv_lock = asyncio.Lock()
 
@@ -78,28 +88,132 @@ def _prune_local(now: float) -> None:
     expired = [key for key, expires_at in _local_claims.items() if expires_at <= now]
     for key in expired:
         del _local_claims[key]
+    while len(_local_claims) >= MAX_LOCAL_CLAIMS:
+        _local_claims.pop(next(iter(_local_claims)))
+
+
+def _is_nc_usable(nc: Any) -> bool:
+    is_closed = getattr(nc, "is_closed", False)
+    if isinstance(is_closed, bool) and is_closed:
+        return False
+    is_connected = getattr(nc, "is_connected", True)
+    return not (isinstance(is_connected, bool) and not is_connected)
+
+
+async def _close_nc_quietly(nc: Any) -> None:
+    is_closed = getattr(nc, "is_closed", False)
+    if isinstance(is_closed, bool) and is_closed:
+        return
+    close = getattr(nc, "close", None)
+    if callable(close):
+        with contextlib.suppress(Exception):
+            result = close()
+            if inspect.isawaitable(result):
+                await result
+
+
+async def close_notification_dedup() -> None:
+    """Close the NATS connection used by notification deduplication and reset state."""
+    global _nc, _kv, _shared_claims_kv
+    async with _kv_lock:
+        nc = _nc
+        _nc = None
+        _kv = None
+        async with _shared_claims_lock:
+            _shared_claims.clear()
+            _shared_claims_kv = None
+        if nc is not None:
+            await _close_nc_quietly(nc)
 
 
 async def _get_kv():
-    global _kv
-    if _kv is not None:
+    global _nc, _kv
+    if _kv is not None and (_nc is None or _is_nc_usable(_nc)):
         return _kv
     async with _kv_lock:
-        if _kv is not None:
+        if _kv is not None and (_nc is None or _is_nc_usable(_nc)):
             return _kv
+        if _nc is not None:
+            await _close_nc_quietly(_nc)
+            _nc = None
+        _kv = None
         from app.nats.client import setup_nats_kv
         from config import nats_settings
 
-        _, _, kv = await setup_nats_kv(nats_settings.scheduler_leader_kv_bucket)
+        nc, _, kv = await setup_nats_kv(nats_settings.scheduler_leader_kv_bucket)
+        if kv is None:
+            if nc is not None:
+                await _close_nc_quietly(nc)
+            return None
+        _nc = nc
         _kv = kv
         return _kv
 
 
+def _record_shared_claim_unlocked(key: str, expires_at: float) -> None:
+    _shared_claims[key] = expires_at
+    _shared_claims.move_to_end(key)
+    while len(_shared_claims) > MAX_SHARED_CLAIMS:
+        _shared_claims.popitem(last=False)
+
+
+async def _prune_shared(kv: Any, now: float, *, exclude_key: str) -> None:
+    global _shared_claims_kv
+    expired_keys: list[str] = []
+    async with _shared_claims_lock:
+        if _shared_claims_kv is not kv:
+            _shared_claims.clear()
+            _shared_claims_kv = kv
+            return
+        for candidate, expires_at in list(_shared_claims.items()):
+            if expires_at > now:
+                continue
+            if candidate == exclude_key:
+                _shared_claims.pop(candidate, None)
+                continue
+            _shared_claims.pop(candidate, None)
+            expired_keys.append(candidate)
+            if len(expired_keys) >= SHARED_PRUNE_BATCH:
+                break
+
+    if not expired_keys:
+        return
+    if not (callable(getattr(kv, "get", None)) and callable(getattr(kv, "delete", None))):
+        return
+
+    for stale_key in expired_keys:
+        if not stale_key.startswith("nd."):
+            continue
+        try:
+            stale_doc, stale_rev = await kv_get_json(kv, stale_key)
+            if stale_doc is None or stale_rev <= 0:
+                continue
+            stale_expires = float(stale_doc.get("expires_at", 0))
+            if stale_expires <= now:
+                await kv.delete(stale_key, last=stale_rev)
+            else:
+                async with _shared_claims_lock:
+                    if _shared_claims_kv is kv and stale_key not in _shared_claims:
+                        _record_shared_claim_unlocked(stale_key, stale_expires)
+        except Exception as exc:
+            logger.debug("Notification dedup shared prune skipped for %s: %s", stale_key, exc)
+
+
 async def _claim_shared(key: str, now: float) -> bool:
+    global _shared_claims_kv
     kv = await _get_kv()
     if kv is None:
         return True
+    await _prune_shared(kv, now, exclude_key=key)
     doc, rev = await kv_get_json(kv, key)
     if doc is not None and float(doc.get("expires_at", 0)) > now:
         return False
-    return await kv_cas_json(kv, key, {"expires_at": now + DEDUP_WINDOW_SECONDS}, rev)
+    expires_at = now + DEDUP_WINDOW_SECONDS
+    claimed = await kv_cas_json(kv, key, {"expires_at": expires_at}, rev)
+    if claimed:
+        async with _shared_claims_lock:
+            if _shared_claims_kv is not kv:
+                _shared_claims.clear()
+                _shared_claims_kv = kv
+            _record_shared_claim_unlocked(key, expires_at)
+    return claimed

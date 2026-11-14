@@ -126,3 +126,71 @@ async def test_cleanup_is_off_when_the_clients_limit_is_not_positive(cleanup_db,
 
     assert await _updates_by_user(cleanup_db, list(before)) == before
     job.flush_user_sub_updates.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_leaves_users_within_limit_untouched(cleanup_db):
+    before = await _seed(cleanup_db, [LIMIT, LIMIT - 1, 1, 0], "within_")
+
+    await job.cleanup_user_subscription_updates()
+
+    assert await _updates_by_user(cleanup_db, list(before)) == before
+
+
+@pytest.mark.asyncio
+async def test_cleanup_orders_equal_timestamps_by_id_desc(cleanup_db):
+    same_ts = datetime.now(UTC).replace(microsecond=0)
+    async with cleanup_db() as db:
+        over_user = User(username="tie_over", proxy_settings=ProxyTable().dict(no_obj=True))
+        exact_user = User(username="tie_exact", proxy_settings=ProxyTable().dict(no_obj=True))
+        db.add_all([over_user, exact_user])
+        await db.flush()
+
+        over_ids: list[int] = []
+        for _ in range(LIMIT + 3):
+            row = UserSubscriptionUpdate(user_id=over_user.id, user_agent="ClashMeta/1.19")
+            row.created_at = same_ts
+            db.add(row)
+            await db.flush()
+            over_ids.append(row.id)
+
+        exact_ids: list[int] = []
+        for _ in range(LIMIT):
+            row = UserSubscriptionUpdate(user_id=exact_user.id, user_agent="ClashMeta/1.19")
+            row.created_at = same_ts
+            db.add(row)
+            await db.flush()
+            exact_ids.append(row.id)
+
+        await db.commit()
+        over_user_id = over_user.id
+        exact_user_id = exact_user.id
+
+    await job.cleanup_user_subscription_updates()
+
+    async with cleanup_db() as db:
+        remaining_over = (
+            (
+                await db.execute(
+                    select(UserSubscriptionUpdate.id)
+                    .where(UserSubscriptionUpdate.user_id == over_user_id)
+                    .order_by(UserSubscriptionUpdate.id.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        remaining_exact = (
+            (
+                await db.execute(
+                    select(UserSubscriptionUpdate.id)
+                    .where(UserSubscriptionUpdate.user_id == exact_user_id)
+                    .order_by(UserSubscriptionUpdate.id.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    assert remaining_over == list(reversed(over_ids))[:LIMIT]
+    assert remaining_exact == list(reversed(exact_ids))
