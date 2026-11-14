@@ -134,3 +134,37 @@ def test_cleanup_settings_reject_rollup_out_of_order(access_token):
         json={"cleanup": {"usage_rollup_hourly_after_days": 30, "usage_rollup_daily_after_days": 7}},
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_subscription_external_links_round_trip(access_token):
+    original_subscription = client.get("/api/settings", headers=auth_headers(access_token)).json()["subscription"]
+    links = [
+        "vless://c90cff8e-d651-414e-8e83-1a187622d957@203.0.113.10:443?security=tls#Ext",
+        "ss://YWVzLTEyOC1nY206cA@203.0.113.10:8388",
+    ]
+
+    try:
+        response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={"subscription": {**original_subscription, "external_links": [f"  {links[0]}  ", "", links[1]]}},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["subscription"]["external_links"] == links
+
+        persisted = client.get("/api/settings", headers=auth_headers(access_token)).json()["subscription"]
+        assert persisted["external_links"] == links
+
+        response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={"subscription": {**original_subscription, "external_links": [" ".join(links)]}},
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    finally:
+        restore_response = client.put(
+            "/api/settings",
+            headers=auth_headers(access_token),
+            json={"subscription": original_subscription},
+        )
+        assert restore_response.status_code == status.HTTP_200_OK

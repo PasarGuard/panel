@@ -108,6 +108,7 @@ export const subscriptionSchema = z.object({
   allow_browser_config: z.boolean().optional(),
   disable_sub_template: z.boolean().optional(),
   randomize_order: z.boolean().optional(),
+  external_links: z.array(z.string()).optional(),
   custom_variables: customVariablesSchema,
   response_headers: z.record(z.string()).optional(),
   header_placement: z.enum(['header', 'body_start', 'body_end']).optional(),
