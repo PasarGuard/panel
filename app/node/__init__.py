@@ -1,4 +1,5 @@
 import asyncio
+import time
 from collections.abc import Awaitable, Callable, Coroutine
 from itertools import count, islice
 from typing import Any
@@ -9,7 +10,7 @@ from PasarGuardNodeBridge import Health, NodeType, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 
 from app.db.models import Node, NodeConnectionType
-from app.node.bridge import create_node, get_refresh_handler
+from app.node.bridge import FullSyncConflictError, create_node, get_refresh_handler
 from app.node.nats_memory import UserSyncValueTooLargeError, ensure_bridge_memory, get_bridge_memory
 from app.node.user import core_users
 from app.utils.logger import get_logger
@@ -28,6 +29,28 @@ class UserSyncPreemptedError(RuntimeError):
 # Building or storing one user's payload failed in a way that repeats on every attempt.
 # Anything else (NATS unreachable or slow, CAS conflicts, the database) is retried.
 _PERMANENT_USER_SYNC_ERRORS = (ValueError, TypeError, EncodeError, UserSyncValueTooLargeError)
+
+
+class UserReconcileError(RuntimeError):
+    """A reconciliation chunk did not reach the node (transport error or time limit).
+
+    Says nothing about the node's health; the node status is left alone.
+    """
+
+
+# How long a cancelled reconciliation chunk may take to give the queue back and lift its fence.
+FENCED_CHUNK_STOP_LIMIT = 10.0
+# How long the node removal or the panel stop then waits for such a chunk once more.
+LINGERING_CHUNK_STOP_LIMIT = 2.0
+
+
+class _FencedChunk:
+    """Progress of one reconciliation chunk, shared with the task that holds its fence."""
+
+    def __init__(self) -> None:
+        self.settled = False  # deliveries in flight settled; the chunk may read and send
+        self.sending = False  # between taking and lifting the fence: may be cancelled
+        self.stop = False  # cancelled: send nothing more
 
 
 def _describe_users(emails) -> str:
@@ -59,6 +82,12 @@ class NodeManager:
         self._user_sync_retry_tasks: dict[int, asyncio.Task] = {}
         # Nodes that ran out of retry pauses; they are retried at each health check.
         self._parked_user_syncs: set[int] = set()
+        # Background reconciliation of node users (app/jobs/node_user_reconcile.py): the
+        # pass running per node, and when each node was last attached or started.
+        self._user_reconcile_tasks: dict[int, asyncio.Task] = {}
+        self._user_reconcile_requests: dict[int, float] = {}
+        # A fenced chunk whose fence could not be lifted in time after a cancellation.
+        self._lingering_reconcile_chunks: dict[int, set[asyncio.Task]] = {}
         self._background_tasks: set[asyncio.Task] = set()
         # Set while stopping: a batch cancelled by the stop is still remembered, but no retry starts.
         self._stopping_user_syncs = False
@@ -218,6 +247,8 @@ class NodeManager:
         # again, so users still waiting to be queued for it are no longer needed.
         await self._drop_pending_user_syncs(id)
         await self._cancel_user_syncs(id)
+        await self.stop_lingering_reconcile_chunks(id)
+        self._user_reconcile_requests.pop(id, None)
 
         # Keep the per-node lock identity stable for the lifetime of the manager so a
         # waiter cannot overlap a later operation through a newly-created lock.
@@ -362,17 +393,24 @@ class NodeManager:
         if failed_count:
             raise RuntimeError(f"failed to sync {failed_count}/{len(users)} users to node {node_id}")
 
-    async def _run_preemptible_sync(
-        self, node_id: int, sync: Coroutine[Any, Any, PasarGuardNode | None]
-    ) -> PasarGuardNode | None:
+    async def _run_preemptible_sync[T](
+        self,
+        node_id: int,
+        sync: Coroutine[Any, Any, T],
+        *,
+        registry: dict[int, asyncio.Task] | None = None,
+    ) -> T:
         """Run a user sync in its own tracked task so lifecycle operations can preempt it.
 
         A connection change or removal of the node cancels only that task, never the
         caller (for example the admin's HTTP request); the caller gets
         ``UserSyncPreemptedError`` instead. Cancelling the caller still cancels the sync.
+        ``registry`` also keeps the task per node while it runs.
         """
         task = asyncio.create_task(sync)
         self._track_user_sync(node_id, task)
+        if registry is not None:
+            registry[node_id] = task
         try:
             return await task
         except asyncio.CancelledError:
@@ -384,6 +422,8 @@ class NodeManager:
             raise
         finally:
             self._untrack_user_sync(node_id, task)
+            if registry is not None and registry.get(node_id) is task:
+                del registry[node_id]
 
     async def sync_users_batched(
         self, node_id: int, node: PasarGuardNode, users: list[ProtoUser], *, batch_size: int | None = None
@@ -455,6 +495,8 @@ class NodeManager:
         *,
         flush_pending: bool,
     ) -> PasarGuardNode | None:
+        # A reconciliation pass holds the fence while it sends a chunk; the admin's sync wins.
+        await self.cancel_user_reconcile(node_id)
         lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
         async with lock:
             node = await self.get_node(node_id)
@@ -489,6 +531,215 @@ class NodeManager:
                 else:
                     await node.release_queued_work(captured)
             return node
+
+    # ------------------------------------------------------- user reconciliation
+    def request_user_reconcile(self, node_id: int) -> None:
+        """Note that a node was just attached or started, so its users are reconciled soon."""
+        self._user_reconcile_requests[node_id] = time.monotonic()
+
+    def take_user_reconcile_requests(self) -> dict[int, float]:
+        """Attach/start times noted since the last call, per node (monotonic clock)."""
+        requests, self._user_reconcile_requests = self._user_reconcile_requests, {}
+        return requests
+
+    def user_reconcile_running(self, node_id: int) -> bool:
+        task = self._user_reconcile_tasks.get(node_id)
+        return task is not None and not task.done()
+
+    async def run_user_reconcile[T](self, node_id: int, reconcile: Coroutine[Any, Any, T]) -> T | None:
+        """Run one reconciliation pass of a node; ``None`` without running it if one is already running.
+
+        The pass is a preemptible user sync: a connection change or removal of the node,
+        a Start and a full sync cancel it (the caller gets ``UserSyncPreemptedError``).
+        """
+        if self.user_reconcile_running(node_id):
+            reconcile.close()
+            return None
+        return await self._run_preemptible_sync(node_id, reconcile, registry=self._user_reconcile_tasks)
+
+    async def cancel_user_reconcile(self, node_id: int, *, limit: float = 15.0) -> None:
+        """Stop a node's reconciliation pass, so it does not hold the fence a Start or full sync needs.
+
+        A cancellation that lands in an await which suppresses it (a fence being lifted)
+        is lost, so it is repeated until the pass ends, for at most ``limit`` seconds.
+        """
+        task = self._user_reconcile_tasks.get(node_id)
+        if task is None or task.done() or task is asyncio.current_task():
+            return
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + limit
+        while not task.done():
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                self.logger.warning("User reconciliation of node %s did not stop within %gs", node_id, limit)
+                return
+            task.cancel()
+            await asyncio.wait({task}, timeout=min(remaining, 0.1))
+
+    async def reconcile_user_chunk(
+        self,
+        node_id: int,
+        node: PasarGuardNode,
+        emails: list[str],
+        read: Callable[[list[str]], Awaitable[list[ProtoUser]]],
+        *,
+        batch_size: int = 100,
+        pause: float = 0.2,
+        timeout: float = 30.0,
+        abort: Callable[[], str | None] | None = None,
+    ) -> list[tuple[list[str], str]]:
+        """Send the current state of ``emails`` to a node through delta batches, never a full snapshot.
+
+        Runs under the node's lock and full-sync fence: queued deliveries wait, ``read``
+        returns the state committed after they settled, and the queue is given back
+        (never retired) afterwards, so an edit committed after the read still reaches
+        the node after this chunk. A failed batch is not retried user by user.
+
+        Returns ``(emails, node error)`` per batch the node rejected; the rest of the
+        chunk is still sent. Raises ``FullSyncConflictError`` when the fence is taken
+        (409) or the lock and deliveries in flight do not settle (503, also when
+        ``timeout`` runs out first) before anything is read or sent,
+        ``UserReconcileError`` on a transport failure or after ``timeout``, and
+        ``UserSyncPreemptedError`` when the node was replaced or ``abort`` gives a reason.
+        """
+        lock = self._user_sync_locks.setdefault(node_id, asyncio.Lock())
+        rejected: list[tuple[list[str], str]] = []
+        chunk = _FencedChunk()
+        try:
+            async with asyncio.timeout(timeout) as limit, lock:
+                if await self.get_node(node_id) is not node:
+                    raise UserSyncPreemptedError(f"node {node_id} was replaced")
+                if abort is not None and (reason := abort()):
+                    raise UserSyncPreemptedError(reason)
+                # The fence is taken and lifted in a task of its own, so a cancellation (a
+                # Start, a full sync, shutdown, the time limit) cannot cut its begin or end
+                # on the store short and leave it up until its lease runs out.
+                fenced = asyncio.create_task(
+                    self._send_fenced_chunk(node_id, node, emails, read, batch_size, pause, chunk, rejected),
+                    name=f"node-{node_id}-user-reconcile-chunk",
+                )
+                try:
+                    # Not shield(): its result would be lost (and logged as an error) on a cancellation.
+                    await asyncio.wait({fenced})
+                except asyncio.CancelledError:
+                    await self._stop_fenced_chunk(node_id, fenced, chunk)
+                    raise
+                fenced.result()
+        except TimeoutError:
+            if not limit.expired():
+                raise  # not this chunk's limit (a database read, for example)
+            if not chunk.settled:
+                # Still waiting for the lock or for deliveries in flight: nothing was read or sent.
+                raise FullSyncConflictError(
+                    503, f"node {node_id} user sync did not settle within {timeout:g}s; nothing was sent"
+                ) from None
+            raise UserReconcileError(
+                f"chunk of {len(emails)} user(s) to node {node_id} took over {timeout:g}s"
+            ) from None
+        return rejected
+
+    async def _send_fenced_chunk(
+        self,
+        node_id: int,
+        node: PasarGuardNode,
+        emails: list[str],
+        read: Callable[[list[str]], Awaitable[list[ProtoUser]]],
+        batch_size: int,
+        pause: float,
+        chunk: _FencedChunk,
+        rejected: list[tuple[list[str], str]],
+    ) -> None:
+        async with node.full_sync_fence() as held:
+            if chunk.stop:
+                return  # cancelled while the fence was being taken: send nothing
+            chunk.sending = True
+            captured = None
+            try:
+                captured = await node.capture_queued_work()
+                chunk.settled = True
+                users = await read(emails)
+                for index, batch in enumerate(self._chunk_users(users, max(1, batch_size))):
+                    if index:
+                        await asyncio.sleep(pause)
+                    if chunk.stop:
+                        raise asyncio.CancelledError  # cancelled, and the cancellation was swallowed
+                    # A fence this worker no longer owns must not send.
+                    held.check()
+                    failed = await node.sync_users_chunked(batch, chunk_size=len(batch), flush_pending=False)
+                    if not failed:
+                        continue
+                    detail = getattr(failed, "detail", "") or ""
+                    if not getattr(failed, "rejected", False):
+                        raise UserReconcileError(
+                            f"{len(failed)}/{len(batch)} user(s) did not reach node {node_id}: {detail}"
+                        )
+                    rejected.append(([user.email for user in failed], detail))
+            finally:
+                # From here on only the queue is given back and the fence lifted: not cancelled any more.
+                chunk.sending = False
+                if chunk.settled:
+                    await node.release_queued_work(captured)
+
+    async def _stop_fenced_chunk(self, node_id: int, fenced: asyncio.Task, chunk: _FencedChunk) -> None:
+        """Cancel the sending part of a fenced chunk and wait until its fence is lifted."""
+        chunk.stop = True
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + FENCED_CHUNK_STOP_LIMIT
+        while not fenced.done():
+            if chunk.sending:
+                fenced.cancel()
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                self.logger.warning(
+                    "The full-sync fence of node %s was not lifted within %gs after a reconciliation chunk "
+                    "was cancelled; it stays up while that chunk's task runs (it sends nothing more), "
+                    "which is cancelled again when the node is removed or the panel stops",
+                    node_id,
+                    FENCED_CHUNK_STOP_LIMIT,
+                )
+                self._lingering_reconcile_chunks.setdefault(node_id, set()).add(fenced)
+                fenced.add_done_callback(lambda task: self._lingering_reconcile_chunk_done(node_id, task))
+                return
+            try:
+                await asyncio.wait({fenced}, timeout=min(remaining, 0.1))
+            except asyncio.CancelledError:
+                pass  # already stopping; the cancellation is raised once the fence is lifted
+        self._note_stopped_chunk(fenced)
+
+    def _note_stopped_chunk(self, task: asyncio.Task) -> None:
+        if not task.cancelled() and (exc := task.exception()) is not None:
+            self.logger.debug("Cancelled reconciliation chunk ended with %s: %s", type(exc).__name__, exc)
+
+    def _lingering_reconcile_chunk_done(self, node_id: int, task: asyncio.Task) -> None:
+        tasks = self._lingering_reconcile_chunks.get(node_id)
+        if tasks is not None:
+            tasks.discard(task)
+            if not tasks:
+                del self._lingering_reconcile_chunks[node_id]
+        self._note_stopped_chunk(task)
+
+    async def stop_lingering_reconcile_chunks(
+        self, node_id: int | None = None, *, limit: float = LINGERING_CHUNK_STOP_LIMIT
+    ) -> None:
+        """Cancel the reconciliation chunks whose fence outlived their cancellation, and wait for them.
+
+        For one node (it is being removed) or for all of them (the panel stops). A cancel
+        that is swallowed again is repeated, for at most ``limit`` seconds.
+        """
+        if node_id is None:
+            tasks = {task for node_tasks in self._lingering_reconcile_chunks.values() for task in node_tasks}
+        else:
+            tasks = set(self._lingering_reconcile_chunks.get(node_id, ()))
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + limit
+        while pending := {task for task in tasks if not task.done()}:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                self.logger.warning("%d cancelled reconciliation chunk(s) did not stop within %gs", len(pending), limit)
+                return
+            for task in pending:
+                task.cancel()
+            await asyncio.wait(pending, timeout=min(remaining, 0.1))
 
     async def _update_users(self, users: list[ProtoUser]):
         nodes = await self._snapshot_node_items()
