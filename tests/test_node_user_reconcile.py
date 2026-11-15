@@ -5,6 +5,7 @@ import contextlib
 import gc
 import logging
 import math
+import random
 import time
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -640,23 +641,79 @@ async def test_sweep_stops_a_bounded_distance_above_the_highest_existing_id(env,
     assert f"{counter - ceiling} id(s) above {ceiling}" in warning and "node 1" in warning
 
 
-async def test_sweep_of_ids_no_user_has_is_bounded_and_goes_on_next_time(env, monkeypatch):
-    # Many deleted users below the highest id: each sweep removes a bounded share of them.
-    monkeypatch.setattr(reconcile, "MAX_SWEEP_GAP_IDS", 2)
-    deleted = [await env.add_user() for _ in range(5)]
+async def deleted_users_on_the_node(env, count: int = 5) -> list[int]:
+    """``count`` deleted users still on the node, below one that exists."""
+    deleted = [await env.add_user() for _ in range(count)]
     await env.add_user()
     for user_id in deleted:
         await env.remove_user(user_id)
     env.state.users.update({str(user_id): [INBOUND] for user_id in deleted})
+    return deleted
+
+
+def still_on_the_node(env, ids: list[int]) -> list[int]:
+    return sorted(user_id for user_id in ids if str(user_id) in env.state.users)
+
+
+def make_sweep_due() -> None:
+    node_state().last_sweep_at = time.monotonic() - 86400
+    reconcile._last_sweep_start = -math.inf
+    make_due()
+
+
+async def test_sweep_of_ids_no_user_has_is_bounded_and_goes_on_next_time(env, monkeypatch):
+    # Many deleted users below the highest id: each sweep removes a bounded share of them.
+    monkeypatch.setattr(reconcile, "MAX_SWEEP_GAP_IDS", 2)
+    deleted = await deleted_users_on_the_node(env)
     reconcile._states[1] = settled_state(swept=False)
+    node_state().sweep_gap_from = deleted[0]
     left = []
     for _ in range(3):
         await run_pass(env)
-        left.append(sorted(user_id for user_id in deleted if str(user_id) in env.state.users))
-        node_state().last_sweep_at = time.monotonic() - 86400
+        left.append(still_on_the_node(env, deleted))
+        make_sweep_due()
+    assert left == [deleted[2:], deleted[4:], []]
+
+
+async def test_interrupted_sweep_keeps_its_start_and_a_sweep_wraps_around(env, monkeypatch):
+    monkeypatch.setattr(reconcile, "MAX_SWEEP_GAP_IDS", 3)
+    monkeypatch.setattr(reconcile, "CHUNK_SIZE", 1)
+    deleted = await deleted_users_on_the_node(env)
+    reconcile._states[1] = settled_state(swept=False)
+    node_state().sweep_gap_from = deleted[3]  # covers deleted[3], deleted[4], then deleted[0]
+    pause, pauses = reconcile._pause_between_chunks, []
+
+    async def stop_after_the_first_removal(node):
+        pauses.append(node)
+        if len(pauses) == 2:  # chunks: the existing user, deleted[0], deleted[3], deleted[4]
+            raise reconcile._PassStopped("stopped for the test")
+        await pause(node)
+
+    monkeypatch.setattr(reconcile, "_pause_between_chunks", stop_after_the_first_removal)
+    await run_pass(env)
+    assert still_on_the_node(env, deleted) == deleted[1:]
+    assert node_state().sweep_gap_from == deleted[3]  # the next sweep sends the same ids again
+
+    monkeypatch.setattr(reconcile, "_pause_between_chunks", pause)
+    make_sweep_due()
+    await run_pass(env)
+    assert still_on_the_node(env, deleted) == deleted[1:3]
+    assert node_state().sweep_gap_from == deleted[1]
+
+
+async def test_sweeps_reach_every_id_no_user_has_though_the_panel_restarts_before_each(env, monkeypatch):
+    # A restart forgets where the last sweep stopped; a fixed start would sweep the same ids every time.
+    monkeypatch.setattr(reconcile, "MAX_SWEEP_GAP_IDS", 2)
+    monkeypatch.setattr(reconcile, "random", random.Random(0))
+    deleted = await deleted_users_on_the_node(env)
+    for _ in range(20):
+        reconcile._states[1] = settled_state(swept=False)
         reconcile._last_sweep_start = -math.inf
         make_due()
-    assert left == [deleted[2:], deleted[4:], []]
+        await run_pass(env)
+        if not still_on_the_node(env, deleted):
+            break
+    assert still_on_the_node(env, deleted) == []
 
 
 async def test_state_changed_between_chunks_is_read_fresh(env, monkeypatch):

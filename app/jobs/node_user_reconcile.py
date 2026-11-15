@@ -12,7 +12,8 @@ it out of step until that user is edited again. This job re-sends, node by node:
 * once per ``JOB_NODE_USER_REMOVAL_SWEEP_INTERVAL`` (a day by default): a removal for
   every inactive user and for every id no user has any more (deleted users), up to
   ``MAX_SWEEP_IDS_ABOVE_EXISTING`` ids above the highest existing one; at most
-  ``MAX_SWEEP_GAP_IDS`` of those ids per sweep, the next sweep going on from there.
+  ``MAX_SWEEP_GAP_IDS`` of those ids per sweep, the next sweep going on from there (from a
+  random id once the panel restarted, so restarts cannot keep it from reaching the rest).
 
 Everything goes through the delta endpoint (``SyncUsersChunked``), never the full
 snapshot ``SyncUsers``, which restarts the core and drops every client connection. A
@@ -24,6 +25,7 @@ never changes a node's status.
 
 import asyncio
 import math
+import random
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -94,7 +96,7 @@ class _NodeState:
     # if that pass had to skip users it could not read, the start of the window it covered.
     last_success_at: datetime | None = None
     last_sweep_at: float | None = None
-    sweep_gap_from: int = 1  # the next sweep's removals of ids no user has start at this id
+    sweep_gap_from: int | None = None  # the next sweep's removals of ids no user has start here (None: anywhere)
     deferrals: int = 0
     failed: bool = False  # the last pass was interrupted with a warning
     skips: int = 0  # passes skipped in a row since the last one that ran to an end
@@ -203,12 +205,16 @@ async def _last_issued_user_id() -> int | None:
     return int(value) if value is not None else None
 
 
-async def _removal_sweep_ids(exclude: set[int], node_id: int | None = None, gap_from: int = 1) -> tuple[list[int], int]:
+async def _removal_sweep_ids(
+    exclude: set[int], node_id: int | None = None, gap_from: int | None = None
+) -> tuple[list[int], int]:
     """Ids of every inactive user and of ids up to the last one issued that no user has.
 
     Ids above the highest existing one are covered only up to ``MAX_SWEEP_IDS_ABOVE_EXISTING``.
     Ids no user has are taken from ``gap_from`` on, wrapping around, at most ``MAX_SWEEP_GAP_IDS``
-    of them; returns the ids and the ``gap_from`` of the next sweep.
+    of them; returns the ids and the ``gap_from`` of the next sweep. Without a valid ``gap_from``
+    (a node state just created, e.g. after a panel restart, or none at all) they start at a random
+    id, so sweeps that never get to go on from a previous one still reach every id in time.
     """
     global _highest_user_id_seen
     async with GetDB() as db:
@@ -232,7 +238,8 @@ async def _removal_sweep_ids(exclude: set[int], node_id: int | None = None, gap_
         )
         upper = ceiling
     removals = {row.id for row in rows if row.status not in _ACTIVE_STATUSES}
-    gap_from = gap_from if 1 <= gap_from <= upper else 1
+    if gap_from is None or not 1 <= gap_from <= upper:
+        gap_from = random.randint(1, max(upper, 1))
     candidates = chain(range(gap_from, upper + 1), range(1, gap_from))
     gaps = list(islice((user_id for user_id in candidates if user_id not in existing), MAX_SWEEP_GAP_IDS))
     removals.update(gaps)
@@ -240,10 +247,12 @@ async def _removal_sweep_ids(exclude: set[int], node_id: int | None = None, gap_
     if len(gaps) == MAX_SWEEP_GAP_IDS:
         next_from = gaps[-1] + 1 if gaps[-1] < upper else 1
         logger.info(
-            "User removal sweep of node %s covers %d id(s) no user has from id %d; the next sweep goes on from id %d",
+            "User removal sweep of node %s covers %d id(s) no user has from id %d; %d more are left to "
+            "the next sweep, which goes on from id %d",
             node_id,
             len(gaps),
             gap_from,
+            upper - len(existing) - len(gaps),
             next_from,
         )
     return sorted(removals - exclude), next_from
@@ -437,7 +446,7 @@ async def _reconcile_node(
     ids = await _ids_to_reconcile(since)
     removals: list[int] = []
     if sweep:
-        gap_from = state.sweep_gap_from if state is not None else 1
+        gap_from = state.sweep_gap_from if state is not None else None
         removals, gap_next = await _removal_sweep_ids(set(ids), node_id=node_id, gap_from=gap_from)
     chunks = _chunks(ids) + _chunks(removals)
     skipped: list[str] = []
