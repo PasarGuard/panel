@@ -420,10 +420,12 @@ async def test_mysql_history_retries_only_the_batches_a_failed_flush_did_not_wri
 
 
 @pytest.mark.asyncio
-async def test_shutdown_flushes_pending_mysql_history(monkeypatch: pytest.MonkeyPatch):
+async def test_shutdown_flushes_pending_mysql_history(monkeypatch: pytest.MonkeyPatch, caplog):
     bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
     write_params = AsyncMock()
-    monotonic_values = iter([100.0, 110.0])
+    # Two recorder cycles, then the clock the shutdown flush reads
+    monotonic_values = iter([100.0, 110.0, 120.0])
+    caplog.set_level(logging.ERROR)
 
     monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="mysql"))
     monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
@@ -443,6 +445,7 @@ async def test_shutdown_flushes_pending_mysql_history(monkeypatch: pytest.Monkey
         [{"uid": 11, "value": 7, "node_id": 7, "created_at": bucket}],
     )
     assert not record_usages._pending_user_usage_history
+    assert not caplog.records
 
 
 def test_postgres_user_traffic_update_uses_one_unnest_statement():
@@ -1026,14 +1029,14 @@ async def test_buffered_history_matches_immediate_writes_after_one_minute(
             )
             for index in range(2)
         ]
-        users = [User(username=f"user{index}", proxy_settings=ProxyTable().dict(no_obj=True)) for index in range(450)]
+        users = [User(username=f"user{index}", proxy_settings=ProxyTable().dict(no_obj=True)) for index in range(501)]
         session.add_all([*nodes, *users])
         await session.flush()
         node_ids = [node.id for node in nodes]
         user_ids = [user.id for user in users]
         await session.commit()
 
-    # Six 10-second cycles; 900 user-node rows per cycle span several batches on every dialect
+    # Six 10-second cycles; 1,002 user-node rows per cycle span several batches on every dialect, two on MySQL
     rnd = random.Random(7)
     cycles = [
         {node_id: [{"uid": str(uid), "value": rnd.randint(1, 10**12)} for uid in user_ids] for node_id in node_ids}
@@ -1072,7 +1075,7 @@ async def test_buffered_history_matches_immediate_writes_after_one_minute(
     await record_usages._flush_user_usage_history_on_shutdown()
 
     assert not record_usages._pending_user_usage_history
-    assert len(immediate) == 900
+    assert len(immediate) == 1002
     assert await history_rows() == immediate
 
 
