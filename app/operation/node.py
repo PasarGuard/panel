@@ -71,7 +71,7 @@ from app.models.stats import (
 from app.nats import needs_shared_bridge_memory
 from app.nats.leader import needs_job_leader
 from app.nats.node_rpc import node_nats_client
-from app.node import UserSyncPreemptedError, core_users, node_manager
+from app.node import UserReconcileError, UserSyncPreemptedError, core_users, node_manager
 from app.node.bridge import FullSyncConflictError
 from app.node.heartbeat import heartbeat_interval, keep_alive_too_short, shortest_safe_keep_alive
 from app.node.manager_sync import publish_node_sync
@@ -993,8 +993,16 @@ class NodeOperation(BaseOperation):
                 logger.error(f"Error getting IP list for user {email} on node {node_id}: {e}")
             return None
 
-    async def sync_node_users(self, db: AsyncSession, node_id: int, flush_users: bool = False) -> NodeResponse:
-        return await self._sync_node_users_impl(db, node_id, flush_users)
+    async def sync_node_users(
+        self, db: AsyncSession, node_id: int, flush_users: bool = False, *, full: bool = False
+    ) -> NodeResponse:
+        """Bring the node's users in line with the database.
+
+        By default through deltas, which leave the core and its connections alone; ``full``
+        (and a node that cannot take deltas) sends the full snapshot instead, which restarts
+        the core. ``flush_users`` applies to the full snapshot only.
+        """
+        return await self._sync_node_users_impl(db, node_id, flush_users, full=full)
 
     async def clear_usage_data(self, db: AsyncSession, table: UsageTable, query: NodeClearUsageQuery):
         if query.start and query.end and query.start >= query.end:
@@ -1459,7 +1467,11 @@ class NodeOperation(BaseOperation):
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
 
-    async def _sync_node_users_local(self, db: AsyncSession, node_id: int, flush_users: bool) -> NodeResponse:
+    async def _sync_node_users_local(
+        self, db: AsyncSession, node_id: int, flush_users: bool, *, full: bool = False
+    ) -> NodeResponse:
+        from app.jobs import node_user_reconcile
+
         db_node = await self.get_validated_node(db, node_id=node_id)
 
         if db_node.status != NodeStatus.connected:
@@ -1470,25 +1482,46 @@ class NodeOperation(BaseOperation):
             await self.raise_error(message="Node is not connected", code=409)
 
         core_id = db_node.core_config_id or 1
+        deltas = False
         try:
-            # Defer the snapshot read: sync_full takes it inside the node's
-            # fence, after any queued deltas were drained, so nothing created
-            # between the read and the flush can be lost.
-            _, users_by_core = await self._get_core_users_map(db, {core_id}, lazy=True)
-            users = users_by_core.get(core_id, [])
-            if await node_manager.sync_full(node_id, users, flush_pending=flush_users) is None:
-                await self.raise_error(message="Node is not connected", code=409)
+            deltas = not full and await node_user_reconcile.can_reconcile_now(pg_node, db_node.core_config_id)
+            if deltas:
+                # Deltas only: the core keeps running and no client connection is dropped.
+                response = NodeResponse.model_validate(db_node)
+                # The pass reads users on its own sessions and can take a while: hand the
+                # request's connection back to the pool (loaded objects stay readable).
+                await db.close()
+                await node_user_reconcile.reconcile_node_now(node_id, pg_node)
+                return response
+            else:
+                # Defer the snapshot read: sync_full takes it inside the node's
+                # fence, after any queued deltas were drained, so nothing created
+                # between the read and the flush can be lost.
+                _, users_by_core = await self._get_core_users_map(db, {core_id}, lazy=True)
+                users = users_by_core.get(core_id, [])
+                if await node_manager.sync_full(node_id, users, flush_pending=flush_users) is None:
+                    await self.raise_error(message="Node is not connected", code=409)
         except UserSyncPreemptedError:
-            # An edit of the node's connection or its removal won; this is not a node fault,
+            # An edit of the node's connection or its removal (or a Start, for deltas) won; not a node fault,
             # so the node status is left alone and the admin can simply retry.
-            await self.raise_error(
-                message="User sync was interrupted by a change to the node's connection or its removal, retry",
-                code=409,
-            )
+            if deltas:
+                message = (
+                    "User sync was interrupted by a Start, a change to the node's connection or its removal, retry"
+                )
+            else:
+                message = "User sync was interrupted by a change to the node's connection or its removal, retry"
+            await self.raise_error(message=message, code=409)
         except FullSyncConflictError as e:
             # Another snapshot (a Start, a repair) holds the node's fence (409), or deliveries are
             # still in flight past their lease (503); nothing reached the node.
             await self.raise_error(message=e.detail, code=e.code)
+        except node_user_reconcile.UserSyncIncompleteError as e:
+            # The node is reachable and got the other users; its status is left alone.
+            await self.raise_error(message=str(e), code=502 if e.rejected else 500)
+        except UserReconcileError as e:
+            # A delta chunk did not reach the node (transport error or time limit). The health
+            # check owns the node status, as for the background reconciliation.
+            await self.raise_error(message=str(e), code=502)
         except NodeAPIError as e:
             core = await core_manager.get_core(core_id)
             if core is not None and core.type == CoreType.mtproto and is_mtproto_retry_later_error(e):
@@ -1506,10 +1539,12 @@ class NodeOperation(BaseOperation):
 
         return NodeResponse.model_validate(db_node)
 
-    async def _sync_node_users_remote(self, db: AsyncSession, node_id: int, flush_users: bool) -> NodeResponse:
+    async def _sync_node_users_remote(
+        self, db: AsyncSession, node_id: int, flush_users: bool, *, full: bool = False
+    ) -> NodeResponse:
         await node_nats_client.publish(
             "sync_node_users",
-            {"node_id": node_id, "flush_users": flush_users},
+            {"node_id": node_id, "flush_users": flush_users, "full": full},
         )
         return NodeResponse.model_validate(await self.get_validated_node(db, node_id))
 

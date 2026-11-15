@@ -21,6 +21,8 @@ node at v0.5.5 or later leaves users whose state did not change untouched. Chunk
 500 users are read fresh from the database under the node's full-sync fence, so queued
 updates wait and land after the chunk; the queue is given back, never cleared. The job
 never changes a node's status.
+
+The Sync button runs the same pass with a removal sweep at once (``reconcile_node_now``).
 """
 
 import asyncio
@@ -66,6 +68,8 @@ BATCH_PAUSE = 0.2
 CHUNK_TIMEOUT = 30.0
 CHUNK_GAP_MIN = 1.0
 CHUNK_GAP_MAX = 5.0
+# A manual pass waits between chunks only while updates are queued, and at most this long.
+MANUAL_CHUNK_GAP_MAX = 1.5
 FAILURE_RETRY = 300.0
 MAX_PENDING_DEFERRALS = 3
 MIN_NODE_VERSION = "0.5.5"
@@ -109,8 +113,27 @@ class _PassStopped(Exception):
     """The pass stopped between chunks; it starts over at a later tick."""
 
 
+class UserSyncIncompleteError(RuntimeError):
+    """A manual pass sent the users, but the node rejected some of them or some could not be read."""
+
+    def __init__(self, node_id: int, rejected: int, unreadable: int):
+        self.rejected = rejected
+        self.unreadable = unreadable
+        parts = []
+        if rejected:
+            parts.append(f"node {node_id} rejected {rejected} user(s)")
+        if unreadable:
+            parts.append(f"{unreadable} user(s) could not be read")
+        super().__init__(
+            f"{' and '.join(parts).capitalize()}; the other users were sent. Retry, or run a full sync "
+            "(full=true), which restarts the node's core and drops its connections"
+        )
+
+
 _states: dict[int, _NodeState] = {}
 _running: dict[int, asyncio.Task] = {}
+# Nodes with a manual pass (the Sync button) in progress on this process.
+_manual: set[int] = set()
 _sweep_node: int | None = None
 _last_regular_start = -math.inf
 _last_sweep_start = -math.inf
@@ -355,10 +378,10 @@ async def _lifecycle_busy(node_id: int, node: PasarGuardNode) -> bool:
     return state is not None and state.operation is not None
 
 
-async def _stop_reason(node_id: int, node: PasarGuardNode) -> str | None:
+async def _stop_reason(node_id: int, node: PasarGuardNode, *, leader_only: bool = True) -> str | None:
     if _stopping:
         return "the panel is shutting down"
-    if not is_job_leader():
+    if leader_only and not is_job_leader():
         return "this worker is no longer the job leader"
     if await node_manager.get_node(node_id) is not node:
         return "the node connection changed"
@@ -369,12 +392,17 @@ async def _stop_reason(node_id: int, node: PasarGuardNode) -> str | None:
     return None
 
 
-async def _pause_between_chunks(node: PasarGuardNode) -> None:
+async def _pause_between_chunks(
+    node: PasarGuardNode, *, min_gap: float | None = None, max_gap: float | None = None
+) -> None:
     """Let deliveries queued behind the last chunk go out before the next one takes the fence."""
     loop = asyncio.get_running_loop()
     started = loop.time()
-    await asyncio.sleep(CHUNK_GAP_MIN)
-    while loop.time() - started < CHUNK_GAP_MAX and await node.has_queued_users():
+    min_gap = CHUNK_GAP_MIN if min_gap is None else min_gap
+    max_gap = CHUNK_GAP_MAX if max_gap is None else max_gap
+    if min_gap > 0:
+        await asyncio.sleep(min_gap)
+    while loop.time() - started < max_gap and await node.has_queued_users():
         await asyncio.sleep(0.2)
 
 
@@ -440,8 +468,15 @@ def _sweep_due(state: _NodeState, now: float, node_count: int) -> bool:
 
 # --------------------------------------------------------------------------- pass
 async def _reconcile_node(
-    node_id: int, node: PasarGuardNode, since: datetime, sweep: bool, state: _NodeState | None = None
+    node_id: int,
+    node: PasarGuardNode,
+    since: datetime,
+    sweep: bool,
+    state: _NodeState | None = None,
+    *,
+    manual: bool = False,
 ) -> dict:
+    """One pass over the node; a ``manual`` one (the Sync button) runs without pauses on any worker."""
     started = time.monotonic()
     ids = await _ids_to_reconcile(since)
     removals: list[int] = []
@@ -461,9 +496,12 @@ async def _reconcile_node(
 
     rejected_total = 0
     for index, chunk in enumerate(chunks):
-        if index:
+        if index and manual:
+            # No fixed gap, but edits queued meanwhile (a purchase, a renewal) go out first.
+            await _pause_between_chunks(node, min_gap=0.0, max_gap=MANUAL_CHUNK_GAP_MAX)
+        elif index:
             await _pause_between_chunks(node)
-        if reason := await _stop_reason(node_id, node):
+        if reason := await _stop_reason(node_id, node, leader_only=not manual):
             raise _PassStopped(reason)
         rejected = await node_manager.reconcile_user_chunk(
             node_id,
@@ -471,7 +509,7 @@ async def _reconcile_node(
             [str(user_id) for user_id in chunk],
             read,
             batch_size=BATCH_SIZE,
-            pause=BATCH_PAUSE,
+            pause=0.0 if manual else BATCH_PAUSE,
             timeout=CHUNK_TIMEOUT,
             abort=lambda: _connect_in_flight(node_id),
         )
@@ -539,11 +577,17 @@ async def _run_pass(node_id: int, node: PasarGuardNode, state: _NodeState, sweep
             _sweep_node = None
     if summary is None:
         return  # a pass of this node was already running
-    state.next_due = time.monotonic() + max(TICK_SECONDS, job_settings.node_user_reconcile_interval)
     # A user that could not be read, or that the node rejected, is taken again by the next
     # pass: the window stays where it was instead of moving past the change that was missed.
     missed = summary.get("unreadable") or summary.get("rejected")
-    state.last_success_at = since + RECENT_MARGIN if missed else started_wall
+    _note_pass_done(node_id, state, since + RECENT_MARGIN if missed else started_wall, started, connected_at, sweep)
+
+
+def _note_pass_done(
+    node_id: int, state: _NodeState, covered_from: datetime, started: float, connected_at: float, sweep: bool
+) -> None:
+    state.next_due = time.monotonic() + max(TICK_SECONDS, job_settings.node_user_reconcile_interval)
+    state.last_success_at = covered_from
     state.skips = 0
     if state.connected_at == connected_at:
         state.after_connect = False
@@ -607,6 +651,53 @@ async def reconcile_node_users() -> asyncio.Task | None:
         if await _ready(node_id, node, db_nodes.get(node_id), state, now, interval):
             return _start_pass(node_id, node, state, now, len(nodes))
     return None
+
+
+# ------------------------------------------------------------------ manual pass
+async def can_reconcile_now(node: PasarGuardNode, core_config_id: int | None) -> bool:
+    """The node can be brought in line through deltas; otherwise only a full snapshot does it."""
+    if not node_manager._supports_shared_sync(node) or await node.get_health() is not Health.HEALTHY:
+        return False
+    if not node._is_version_at_least(await node.node_version(), MIN_NODE_VERSION):
+        return False
+    return not await _is_mtproto(core_config_id)
+
+
+async def reconcile_node_now(node_id: int, node: PasarGuardNode) -> dict:
+    """One pass for the Sync button: every active user, the last day's changes and a removal sweep.
+
+    Runs without the background pauses and on any worker; the background pass of the node
+    gives way. Raises ``FullSyncConflictError`` (409) when another manual pass of the node
+    runs or the pass had to stop, and ``UserSyncIncompleteError`` when the node rejected
+    users or some could not be read; the other users are sent either way.
+    """
+    if node_id in _manual:
+        raise FullSyncConflictError(409, f"A user sync of node {node_id} is already in progress")
+    _manual.add(node_id)
+    try:
+        await node_manager.cancel_user_reconcile(node_id)
+        state = _states.get(node_id)
+        connected_at = state.connected_at if state is not None else 0.0
+        started_wall = datetime.now(UTC)
+        started = time.monotonic()
+        try:
+            summary = await node_manager.run_user_reconcile(
+                node_id,
+                _reconcile_node(node_id, node, started_wall - FIRST_PASS_WINDOW, True, state, manual=True),
+            )
+        except _PassStopped as exc:
+            raise FullSyncConflictError(409, f"User sync of node {node_id} stopped: {exc}; retry") from None
+    finally:
+        _manual.discard(node_id)
+    if summary is None:
+        raise FullSyncConflictError(409, f"A user reconciliation of node {node_id} is still running; retry")
+    if summary["rejected"] or summary["unreadable"]:
+        # The window of the background pass stays where it was, so it takes the missed users again.
+        raise UserSyncIncompleteError(node_id, summary["rejected"], summary["unreadable"])
+    # Only a node the background job already tracks: a new entry would skip its pass after connect.
+    if (state := _states.get(node_id)) is not None:
+        _note_pass_done(node_id, state, started_wall, started, connected_at, sweep=True)
+    return summary
 
 
 async def stop_node_user_reconcile() -> None:

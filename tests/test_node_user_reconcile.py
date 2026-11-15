@@ -103,6 +103,7 @@ async def env(request, monkeypatch):
     for name, value in {
         "_states": {},
         "_running": {},
+        "_manual": set(),
         "_sweep_node": None,
         "_last_regular_start": -math.inf,
         "_last_sweep_start": -math.inf,
