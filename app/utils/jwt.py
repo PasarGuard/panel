@@ -6,14 +6,14 @@ from hashlib import sha256
 from math import ceil
 
 import jwt
-from aiocache import cached
 
 from app.db import GetDB
 from app.db.crud.general import get_jwt_secret_key
+from app.utils.single_flight_cache import single_flight_cached
 from config import jwt_settings
 
 
-@cached()
+@single_flight_cached
 async def get_secret_key():
     async with GetDB() as db:
         key = await get_jwt_secret_key(db=db)
