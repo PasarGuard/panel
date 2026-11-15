@@ -209,7 +209,7 @@ async def test_ack_reports_unconfirmed_only_when_entry_vanished():
 
 
 @pytest.mark.asyncio
-async def test_refresh_request_redelivers_a_claimed_entry_and_writes_nothing_else():
+async def test_refresh_request_redelivers_a_claimed_entry_and_keeps_every_payload():
     kv = MemoryCasKv()
     store = NatsUserSyncStore(kv)
     await store.enqueue_users("1", [_user("a")])
@@ -222,8 +222,8 @@ async def test_refresh_request_redelivers_a_claimed_entry_and_writes_nothing_els
     # The delivery of "a" may carry a state read before this request.
     await store.request_refresh("1", ["a", "b", "c"])
     after = {email: await kv_get_json(kv, key) for email, key in keys.items()}
-    assert after["b"] == before["b"] and after["c"] == before["c"]  # unclaimed entry and marker: no write
-    assert after["a"][0] == before["a"][0] and after["a"][1] != before["a"][1]  # same payload and claim
+    for email in "abc":  # same payload (and claim), new revision
+        assert after[email][0] == before[email][0] and after[email][1] != before[email][1]
 
     # Its acknowledgement fails and releases the claim, so it is delivered again.
     assert await store.ack_users("1", [claimed.token]) == []
@@ -242,6 +242,25 @@ async def test_refresh_request_redelivers_an_entry_whose_claim_expired():
     assert await store.ack_users("1", [claimed.token]) == []
     again = await store.claim_users("1", "worker-b", 10, 30)
     assert [item.user.email for item in again] == ["a"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("queued", ["payload", "marker"])
+async def test_refresh_request_after_a_snapshot_read_survives_its_retirement(queued):
+    # A full snapshot captured the queued entry of "u" and read "u" as active; "u" is then
+    # deleted, its removal fails to queue and the retry asks for a refresh before the
+    # snapshot retires what it captured. The request must outlive that retirement.
+    store = NatsUserSyncStore(MemoryCasKv())
+    if queued == "payload":
+        await store.enqueue_users("1", [_user("u")])
+    else:
+        await store.request_refresh("1", ["u"])
+    captured, _ = await store.capture_queued("1")
+    await store.request_refresh("1", ["u"])
+    assert await store.retire_captured("1", captured) == 0
+    store.refresh_resolver = AsyncMock(return_value=[User(email="u", inbounds=[])])
+    again = await store.claim_users("1", "worker", 10, 30)
+    assert [item.user.email for item in again] == ["u"]
 
 
 @pytest.mark.asyncio

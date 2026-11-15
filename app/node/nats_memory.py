@@ -315,13 +315,15 @@ class NatsUserSyncStore:
         )
 
     async def _request_refresh_one(self, node_id: str, email: str) -> bool:
-        """Mark a user for re-derivation; leave an unclaimed entry alone; re-revision a claimed one.
+        """Mark a user for re-derivation; give an existing entry a new revision.
 
-        An unclaimed entry is a newer payload (or marker) that will be delivered
-        anyway, so nothing is written. A claimed entry is rewritten unchanged, its
-        claim kept visible: its delivery may carry a state read before
-        this request, and the new revision fails that delivery's acknowledgement,
-        which releases the claim, so the entry is delivered again from a fresh read.
+        An existing entry is rewritten unchanged (a claim stays visible), so
+        nothing that read the state before this request can settle it:
+        a delivery under a claim may carry an older state, and the new revision
+        fails its acknowledgement, which releases the claim, so the entry is
+        delivered again from a fresh read; a full snapshot may have captured an
+        unclaimed entry before reading users, and the new revision survives its
+        retirement. Only the retry of a failed enqueue calls this.
         """
         key = self._pending_key(node_id, email)
         for attempt in range(8):
@@ -331,8 +333,7 @@ class NatsUserSyncStore:
             if doc is None:
                 continue  # settled meanwhile: create the marker
             claim = doc.get("claim")
-            if not isinstance(claim, dict):
-                return False
+            until = float(claim.get("until", 0)) if isinstance(claim, dict) else 0.0
             try:
                 revision = await self._kv.update(key, self._encode(doc), last=rev)
             except nats_js_errors.KeyWrongLastSequenceError:
@@ -340,7 +341,7 @@ class NatsUserSyncStore:
                     await cas_retry_backoff()
                 continue
             self._key_index.observe_put(key, revision)
-            self._claims_seen[key] = (revision, float(claim.get("until", 0)))
+            self._claims_seen[key] = (revision, until)
             return False
         raise RuntimeError(f"failed to request a refresh of NATS KV key={key} after CAS retries")
 
