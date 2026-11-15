@@ -11,7 +11,7 @@ from nats.js.errors import KeyWrongLastSequenceError
 from PasarGuardNodeBridge.common.service_pb2 import User
 from PasarGuardNodeBridge.storage import LifecycleOperation, LifecycleStatus, NodeLifecycleState
 
-from app.nats.kv_cas import MemoryCasKv
+from app.nats.kv_cas import MemoryCasKv, kv_get_json
 from app.node.nats_memory import (
     NatsNodeLifecycleCoordinator,
     NatsUserSyncStore,
@@ -206,6 +206,42 @@ async def test_ack_reports_unconfirmed_only_when_entry_vanished():
     assert await store.ack_users("1", [claimed["a"].token, claimed["b"].token]) == ["b"]
     remaining = await store.claim_users("1", "a", 10, 30)
     assert [(item.user.email, list(item.user.inbounds)) for item in remaining] == [("a", ["newer"])]
+
+
+@pytest.mark.asyncio
+async def test_refresh_request_redelivers_a_claimed_entry_and_writes_nothing_else():
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    await store.enqueue_users("1", [_user("a")])
+    [claimed] = await store.claim_users("1", "worker-a", 10, 30)
+    await store.enqueue_users("1", [_user("b")])
+    await store.request_refresh("1", ["c"])
+    keys = {email: store._pending_key("1", email) for email in "abc"}
+    before = {email: await kv_get_json(kv, key) for email, key in keys.items()}
+
+    # The delivery of "a" may carry a state read before this request.
+    await store.request_refresh("1", ["a", "b", "c"])
+    after = {email: await kv_get_json(kv, key) for email, key in keys.items()}
+    assert after["b"] == before["b"] and after["c"] == before["c"]  # unclaimed entry and marker: no write
+    assert after["a"][0] == before["a"][0] and after["a"][1] != before["a"][1]  # same payload and claim
+
+    # Its acknowledgement fails and releases the claim, so it is delivered again.
+    assert await store.ack_users("1", [claimed.token]) == []
+    again = await store.claim_users("1", "worker-b", 10, 30)
+    assert "a" in [item.user.email for item in again]
+
+
+@pytest.mark.asyncio
+async def test_refresh_request_redelivers_an_entry_whose_claim_expired():
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    await store.enqueue_users("1", [_user("a")])
+    [claimed] = await store.claim_users("1", "worker-a", 10, 0)
+    await asyncio.sleep(0.01)
+    await store.request_refresh("1", ["a"])
+    assert await store.ack_users("1", [claimed.token]) == []
+    again = await store.claim_users("1", "worker-b", 10, 30)
+    assert [item.user.email for item in again] == ["a"]
 
 
 @pytest.mark.asyncio
