@@ -1,4 +1,5 @@
 import warnings
+from functools import partial
 
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
@@ -205,12 +206,16 @@ def _register_nats_handlers(
     if enable_router:
         on_startup(router.start)
         on_shutdown(router.stop)
+    # A NATS reconnect replays the same refresh: messages sent during the outage are lost
     if enable_settings:
         router.register_handler(MessageTopic.SETTING, handle_settings_message)
+        router.register_resync_handler(MessageTopic.SETTING, partial(handle_settings_message, {}))
     elif enable_settings_refresh:
         router.register_handler(MessageTopic.SETTING, _refresh_settings_message)
+        router.register_resync_handler(MessageTopic.SETTING, refresh_caches)
     if enable_client_templates:
         router.register_handler(MessageTopic.CLIENT_TEMPLATE, handle_client_template_message)
+        router.register_resync_handler(MessageTopic.CLIENT_TEMPLATE, partial(handle_client_template_message, {}))
     if ignore_host_messages:
         router.register_handler(MessageTopic.HOST, _ignore_worker_sync_message)
     if enable_node_sync:

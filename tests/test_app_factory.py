@@ -35,9 +35,13 @@ async def test_database_operational_error_handler_handles_dbapi_errors():
 class _RecordingRouter:
     def __init__(self):
         self.handlers = {}
+        self.resync_handlers = {}
 
     def register_handler(self, topic, handler):
         self.handlers[topic] = handler
+
+    def register_resync_handler(self, topic, handler):
+        self.resync_handlers[topic] = handler
 
 
 @pytest.mark.parametrize(
@@ -63,6 +67,10 @@ def test_settings_messages_reach_node_workers_without_the_bot(monkeypatch, enabl
 
     handler = fake_router.handlers.get(app_factory.MessageTopic.SETTING)
     assert (handler.__name__ if handler else None) == expected
+    # A reconnect refreshes settings the same way, so node workers never start the bot then either
+    resync = fake_router.resync_handlers.get(app_factory.MessageTopic.SETTING)
+    resync_name = getattr(resync, "func", resync).__name__ if resync else None
+    assert resync_name == {"_refresh_settings_message": "refresh_caches"}.get(expected, expected)
 
 
 @pytest.mark.parametrize("role", list(Role))

@@ -199,6 +199,7 @@ class CoreManager:
     async def initialize(self, db):
         # Register handler with global router
         router.register_handler(MessageTopic.CORE, self._handle_core_message)
+        router.register_resync_handler(MessageTopic.CORE, self.resync_from_db)
 
         # Initialize NATS if enabled
         if self._nats_enabled:
@@ -208,6 +209,15 @@ class CoreManager:
         if cached_loaded:
             return
 
+        await self._replace_cores(await self._read_cores(db))
+
+    async def resync_from_db(self):
+        """Replace every core with the database state, without broadcasting it."""
+        async with GetDB() as db:
+            cores = await self._read_cores(db)
+        await self._replace_cores(cores)
+
+    async def _read_cores(self, db) -> dict[int, AbstractCore]:
         core_configs, _ = await get_core_configs(db, CoreListQuery())
         cores: dict[int, AbstractCore] = {}
         for config in core_configs:
@@ -229,7 +239,9 @@ class CoreManager:
                 )
                 continue
             cores[config.id] = core_config
+        return cores
 
+    async def _replace_cores(self, cores: dict[int, AbstractCore]):
         async with self._lock:
             self._cores = cores
 

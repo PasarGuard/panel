@@ -614,9 +614,12 @@ class HostManager:
     # v6: rebuild shared inbound metadata using stable core ID precedence.
     STATE_CACHE_KEY = "state_v7"
     KV_BUCKET_NAME = "host_manager_state"
+    RESYNC_ATTEMPTS = 3
 
     def __init__(self):
         self._hosts = {}
+        # Bumped on every change of _hosts, so a rebuild can tell a change landed while it read the database
+        self._generation = 0
         self._lock = Lock()
         self._nats_enabled = is_nats_enabled()
         self._multi_worker = is_multi_worker()
@@ -635,20 +638,48 @@ class HostManager:
         async with self._lock:
             return dict(self._hosts)
 
-    async def _persist_state(self):
-        if not self._kv:
-            return
-        state = await self._snapshot_state()
+    @staticmethod
+    def _serialize_state(state: dict) -> bytes:
         # Serialize state to JSON using Pydantic model_dump
         serializable_state = {
             str(host_id): (host_data.model_dump() if isinstance(host_data, SubscriptionInboundData) else host_data)
             for host_id, host_data in state.items()
         }
-        state_bytes = json.dumps(serializable_state).encode("utf-8")
+        return json.dumps(serializable_state).encode("utf-8")
+
+    async def _persist_state(self):
+        if not self._kv:
+            return
+        state_bytes = self._serialize_state(await self._snapshot_state())
         try:
             await self._kv.put(self.STATE_CACHE_KEY, state_bytes)
         except Exception as exc:
             self._logger.warning(f"Failed to persist host state to NATS KV: {exc}")
+
+    async def _state_revision(self) -> int | None:
+        """Revision of the KV snapshot (0 when there is none); None without KV or when it cannot be read."""
+        if not self._kv:
+            return None
+        try:
+            entry = await self._kv.get(self.STATE_CACHE_KEY)
+            return entry.revision or 0
+        except Exception as exc:
+            if is_kv_miss(exc):
+                return 0
+            self._logger.warning(f"Failed to read host state revision from NATS KV: {exc}")
+            return None
+
+    async def _persist_state_if_unchanged(self, state: dict, revision: int) -> bool:
+        """Write the snapshot only if nobody wrote one after ``revision`` was read."""
+        try:
+            if revision == 0:
+                await self._kv.create(self.STATE_CACHE_KEY, self._serialize_state(state))
+            else:
+                await self._kv.update(self.STATE_CACHE_KEY, self._serialize_state(state), last=revision)
+            return True
+        except nats.errors.Error as exc:
+            self._logger.debug(f"Host state snapshot changed meanwhile, not overwriting it: {exc!r}")
+            return False
 
     async def _load_state_from_cache(self) -> bool:
         if not self._kv:
@@ -682,6 +713,7 @@ class HostManager:
 
             async with self._lock:
                 self._hosts = converted_state
+                self._generation += 1
             await self._reset_cache()
             return True
         except Exception as exc:
@@ -718,9 +750,44 @@ class HostManager:
         """Publish host update message via global router."""
         await router.publish(MessageTopic.HOST, message)
 
+    async def _read_hosts_from_db(self) -> dict:
+        async with GetDB() as db:
+            db_hosts = await get_hosts(db)
+            inbounds_list = await core_manager.get_inbounds()
+            hosts = {}
+            for host in db_hosts:
+                result = await self._prepare_host_entry(db, BaseHost.model_validate(host), inbounds_list)
+                if result:
+                    hosts[result[0]] = result[1]
+        return hosts
+
+    async def resync_from_db(self):
+        """Replace every host with the database state, without broadcasting it."""
+        for attempt in range(self.RESYNC_ATTEMPTS):
+            # Both are taken before the database is read: a change committed after the read shows up
+            # as a newer generation (made on this worker) or a newer KV revision (made on any worker)
+            revision = await self._state_revision()
+            generation = self._generation
+            hosts = await self._read_hosts_from_db()
+
+            async with self._lock:
+                raced = self._generation != generation
+                # The last attempt applies the read anyway: the change it may miss comes back as a message
+                if not raced or attempt == self.RESYNC_ATTEMPTS - 1:
+                    self._hosts = hosts
+                    await self._reset_cache()
+            if raced:
+                continue
+            # A snapshot write made during the outage may be lost too; a starting worker loads it.
+            # Not written over a newer snapshot, which may hold a change this read missed.
+            if revision is None or await self._persist_state_if_unchanged(hosts, revision):
+                return
+        self._logger.warning("Hosts kept changing while they were reloaded, the KV snapshot was left as is")
+
     async def setup(self, db: AsyncSession):
         # Register handler with global router
         router.register_handler(MessageTopic.HOST, self._handle_host_message)
+        router.register_resync_handler(MessageTopic.HOST, self.resync_from_db)
 
         # Initialize NATS if enabled
         if self._nats_enabled:
@@ -799,6 +866,7 @@ class HostManager:
                     self._hosts[host_id] = SubscriptionInboundData.model_validate(host_data)
                 else:
                     self._hosts[host_id] = host_data
+            self._generation += 1
             await self._reset_cache()
 
     async def _add_hosts_local(self, db: AsyncSession, hosts: list[BaseHost]):
@@ -863,6 +931,7 @@ class HostManager:
     async def _remove_host_local(self, id: int):
         async with self._lock:
             self._hosts.pop(id, None)
+            self._generation += 1
             await self._reset_cache()
         await self._persist_state()
 
