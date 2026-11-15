@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Activity, CircleFadingArrowUp, Loader2, Map as MapIcon, MoreVertical, Package, Pencil, Power, PowerOff, RefreshCcw, RotateCcw, Trash2, WifiSync } from 'lucide-react'
+import { Activity, CircleFadingArrowUp, ListRestart, Loader2, Map as MapIcon, MoreVertical, Package, Pencil, Power, PowerOff, RefreshCcw, RotateCcw, Trash2, WifiSync } from 'lucide-react'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import { CoresSimpleResponse, NodeResponse, useHardResetNode, useReconnectNode, useRemoveNode, useResetNodeUsage, useSyncNode, useUpdateNode } from '@/service/api'
@@ -33,6 +33,7 @@ type NodeActionsMenuState = {
   isDeleteDialogOpen: boolean
   isHardResetDialogOpen: boolean
   isResetUsageDialogOpen: boolean
+  isFullSyncDialogOpen: boolean
   showOnlineStats: boolean
   showUpdateCoreDialog: boolean
   showUpdateGeofilesDialog: boolean
@@ -51,6 +52,7 @@ const createDefaultNodeActionsMenuState = (): NodeActionsMenuState => ({
   isDeleteDialogOpen: false,
   isHardResetDialogOpen: false,
   isResetUsageDialogOpen: false,
+  isFullSyncDialogOpen: false,
   showOnlineStats: false,
   showUpdateCoreDialog: false,
   showUpdateGeofilesDialog: false,
@@ -69,7 +71,13 @@ const ensureNodeActionsMenuState = (node: NodeResponse): NodeActionsMenuState =>
 }
 
 const hasOpenNodeDialog = (state: NodeActionsMenuState) =>
-  state.isHardResetDialogOpen || state.isDeleteDialogOpen || state.isResetUsageDialogOpen || state.showOnlineStats || state.showUpdateCoreDialog || state.showUpdateGeofilesDialog
+  state.isHardResetDialogOpen ||
+  state.isDeleteDialogOpen ||
+  state.isResetUsageDialogOpen ||
+  state.isFullSyncDialogOpen ||
+  state.showOnlineStats ||
+  state.showUpdateCoreDialog ||
+  state.showUpdateGeofilesDialog
 
 const notifyNodeActionsGlobalListeners = () => {
   nodeActionsGlobalStateVersion += 1
@@ -215,6 +223,51 @@ const ResetUsageAlertDialog = ({ node, isOpen, onClose, onConfirm, isLoading }: 
   )
 }
 
+const FullSyncAlertDialog = ({ node, isOpen, onClose, onConfirm, isLoading }: { node: NodeResponse; isOpen: boolean; onClose: () => void; onConfirm: () => void; isLoading: boolean }) => {
+  const { t } = useTranslation()
+  const dir = useDirDetection()
+
+  return (
+    // Stays open while the request runs, so Escape cannot hide a sync in progress
+    <AlertDialog open={isOpen} onOpenChange={open => !open && !isLoading && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t('nodeModal.fullSync', { defaultValue: 'Full sync' })}</AlertDialogTitle>
+          <AlertDialogDescription>
+            <span
+              dir={dir}
+              dangerouslySetInnerHTML={{
+                __html: translateHtml(t, 'nodeModal.fullSyncPrompt', {
+                  name: node.name,
+                  defaultValue:
+                    'All users will be sent to node «{{name}}» again and its core will be restarted. Clients of this node will lose their connections for a moment. A regular sync is usually enough.',
+                }),
+              }}
+            />
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onClose} disabled={isLoading}>
+            {t('cancel')}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={event => {
+              event.preventDefault()
+              onConfirm()
+            }}
+            disabled={isLoading}
+            className="gap-2"
+          >
+            {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {t('nodeModal.fullSyncConfirm', { defaultValue: 'Sync and restart' })}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
 export default function NodeActionsMenu({
   node,
   onEdit,
@@ -256,11 +309,12 @@ export default function NodeActionsMenu({
     [node, node.id],
   )
 
-  const { isHardResetDialogOpen, isDeleteDialogOpen, isResetUsageDialogOpen, showOnlineStats, showUpdateCoreDialog, showUpdateGeofilesDialog } = menuState
+  const { isHardResetDialogOpen, isDeleteDialogOpen, isResetUsageDialogOpen, isFullSyncDialogOpen, showOnlineStats, showUpdateCoreDialog, showUpdateGeofilesDialog } = menuState
 
   const setHardResetDialogOpen = useCallback((value: boolean) => setMenuState({ isHardResetDialogOpen: value }), [setMenuState])
   const setDeleteDialogOpen = useCallback((value: boolean) => setMenuState({ isDeleteDialogOpen: value }), [setMenuState])
   const setResetUsageDialogOpen = useCallback((value: boolean) => setMenuState({ isResetUsageDialogOpen: value }), [setMenuState])
+  const setFullSyncDialogOpen = useCallback((value: boolean) => setMenuState({ isFullSyncDialogOpen: value }), [setMenuState])
   const setShowOnlineStats = useCallback((value: boolean) => setMenuState({ showOnlineStats: value }), [setMenuState])
   const setShowUpdateCoreDialog = useCallback((value: boolean) => setMenuState({ showUpdateCoreDialog: value }), [setMenuState])
   const setShowUpdateGeofilesDialog = useCallback((value: boolean) => setMenuState({ showUpdateGeofilesDialog: value }), [setMenuState])
@@ -274,7 +328,7 @@ export default function NodeActionsMenu({
   const isXrayCore = isXrayCoreType(coresData?.cores?.find(core => core.id === node.core_config_id)?.type)
   const hasRowActions = canUpdate || canDelete || canReconnect || canUpdateCore || canReadStats
   const primaryActionCount = canUpdate ? 2 : 0
-  const secondaryActionCount = (canReadStats ? 1 : 0) + (canUpdate ? 2 : 0) + (canReconnect ? 2 : 0)
+  const secondaryActionCount = (canReadStats ? 1 : 0) + (canUpdate ? 3 : 0) + (canReconnect ? 2 : 0)
   const coreActionCount = (canUpdateCore && isXrayCore ? 2 : 0) + (canUpdateCore ? 1 : 0)
   const destructiveActionCount = canDelete ? 1 : 0
 
@@ -311,16 +365,18 @@ export default function NodeActionsMenu({
     }
   }
 
-  const handleSync = async () => {
+  // A full sync sends the whole user snapshot and restarts the node core, dropping its client connections.
+  const handleSync = async (full = false) => {
     if (!canUpdate) return
 
     setSyncing(true)
     try {
       await syncNodeMutation.mutateAsync({
         nodeId: node.id,
-        params: { flush_users: true },
+        params: full ? { flush_users: true, full: true } : { flush_users: true },
       })
       toast.success(t('nodeModal.syncSuccess'))
+      if (full) setFullSyncDialogOpen(false)
       queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
       queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
     } catch (error: any) {
@@ -488,6 +544,16 @@ export default function NodeActionsMenu({
                   <DropdownMenuItem
                     onSelect={e => {
                       e.stopPropagation()
+                      setFullSyncDialogOpen(true)
+                    }}
+                    disabled={syncing || reconnecting || resettingUsage || updatingNode}
+                  >
+                    <ListRestart className="mr-2 h-4 w-4 shrink-0" />
+                    <span className="min-w-0 truncate">{t('nodeModal.fullSync', { defaultValue: 'Full sync' })}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={e => {
+                      e.stopPropagation()
                       handleResetUsage()
                     }}
                     disabled={hardResetting || resettingUsage || syncing || reconnecting}
@@ -600,6 +666,7 @@ export default function NodeActionsMenu({
           )}
           {canDelete && <DeleteAlertDialog node={node} isOpen={isDeleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />}
           {canUpdate && <ResetUsageAlertDialog node={node} isOpen={isResetUsageDialogOpen} onClose={() => setResetUsageDialogOpen(false)} onConfirm={confirmResetUsage} isLoading={resettingUsage} />}
+          {canUpdate && <FullSyncAlertDialog node={node} isOpen={isFullSyncDialogOpen} onClose={() => setFullSyncDialogOpen(false)} onConfirm={() => handleSync(true)} isLoading={syncing} />}
           {canReadStats && <UserOnlineStatsDialog isOpen={showOnlineStats} onOpenChange={setShowOnlineStats} nodeId={node.id} nodeName={node.name} />}
           {canUpdateCore && <UpdateCoreDialog node={node} isOpen={showUpdateCoreDialog} onOpenChange={setShowUpdateCoreDialog} />}
           {canUpdateCore && <UpdateGeofilesDialog node={node} isOpen={showUpdateGeofilesDialog} onOpenChange={setShowUpdateGeofilesDialog} />}
