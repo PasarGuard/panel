@@ -46,6 +46,8 @@ _user_usage_history_lock = asyncio.Lock()
 _user_usage_history_last_flush: float | None = None
 # Failed flushes keep at most this many older 10-minute buckets (one hour) next to the current one
 USER_USAGE_HISTORY_MAX_PENDING_BUCKETS = 6
+# Dialects whose node user history is coalesced in memory; SQLite still writes every cycle
+BUFFERED_USER_USAGE_HISTORY_DIALECTS = ("postgresql", "mysql")
 ONLINE_AT_WRITE_INTERVAL = td(minutes=1)
 DEADLOCK_MAX_RETRIES = 5
 
@@ -612,7 +614,7 @@ def _drop_stale_pending_user_usage_history() -> None:
 
 
 async def _flush_pending_user_usage_history_locked(now_monotonic: float | None = None) -> int:
-    """Flush PostgreSQL history while the caller holds the history buffer lock."""
+    """Flush buffered history while the caller holds the history buffer lock."""
     global _user_usage_history_last_flush
 
     if not _pending_user_usage_history:
@@ -629,18 +631,25 @@ async def _flush_pending_user_usage_history_locked(now_monotonic: float | None =
         if value
     ]
     if upsert_params:
-        try:
-            await _write_node_user_usage_params("postgresql", upsert_params)
-        except Exception:
-            _drop_stale_pending_user_usage_history()
-            raise
+        dialect = await get_dialect()
+        upsert_params.sort(key=lambda item: (item["uid"], item["node_id"]))
+        batch_size = NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT.get(dialect, len(upsert_params))
+        for batch in _chunked(upsert_params, batch_size):
+            try:
+                await _write_node_user_usage_params(dialect, batch)
+            except Exception:
+                _drop_stale_pending_user_usage_history()
+                raise
+            # Each batch commits on its own, so a later failed batch must not retry this one
+            for param in batch:
+                del _pending_user_usage_history[(param["created_at"], param["uid"], param["node_id"])]
     _pending_user_usage_history.clear()
     _user_usage_history_last_flush = now_monotonic if now_monotonic is not None else _monotonic_now()
     return len(upsert_params)
 
 
 async def flush_user_usage_history_if_due(now_monotonic: float | None = None) -> int:
-    """Flush buffered PostgreSQL history once its configured deadline passes."""
+    """Flush buffered history once its configured deadline passes."""
     global _user_usage_history_last_flush
 
     if not _pending_user_usage_history:
@@ -658,12 +667,12 @@ async def flush_user_usage_history_if_due(now_monotonic: float | None = None) ->
 
 
 async def record_user_stats(all_node_params: dict, usage_coefficients: dict) -> None:
-    """Coalesce PostgreSQL history writes while preserving immediate fallback paths."""
+    """Coalesce PostgreSQL and MySQL history writes while preserving the immediate SQLite path."""
     if not all_node_params:
         return
 
     dialect = await get_dialect()
-    if dialect != "postgresql":
+    if dialect not in BUFFERED_USER_USAGE_HISTORY_DIALECTS:
         await record_user_stats_batched(all_node_params, usage_coefficients)
         return
 
@@ -704,7 +713,7 @@ async def record_user_stats(all_node_params: dict, usage_coefficients: dict) -> 
 
 @on_shutdown
 async def _flush_user_usage_history_on_shutdown() -> None:
-    """Best-effort flush of PostgreSQL analytical history during graceful shutdown."""
+    """Best-effort flush of buffered analytical history during graceful shutdown."""
     async with _user_usage_history_lock:
         if not _pending_user_usage_history:
             return
