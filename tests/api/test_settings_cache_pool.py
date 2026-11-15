@@ -10,6 +10,10 @@ from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db.models import Settings
+from app.models.settings import SettingsSchema
+from app.operation import OperatorType
+from app.operation.client_template import ClientTemplateOperation
+from app.operation.settings import SettingsOperation
 from app.routers import subscription as subscription_router
 from app.routers.dependencies.subscription import warm_subscription_caches
 from app.settings import (
@@ -185,6 +189,87 @@ async def test_load_started_before_refresh_does_not_store_stale_value(cold_cache
     assert (await stale_read).fallback_limit == 3
 
     assert (await hwid_settings()).fallback_limit == 9
+
+
+async def test_settings_save_releases_its_connection_before_reloading_caches(cold_caches, small_pool, monkeypatch):
+    session_factory, reads, row = small_pool
+
+    async def fake_modify_settings(db, _db_settings, _modify):
+        await db.execute(text("SELECT 1"))  # db.refresh() after the commit opens a new transaction
+        return row["settings"]
+
+    async def published(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr("app.operation.settings.get_settings", lambda db: _read_row(db, row))
+    monkeypatch.setattr("app.operation.settings.modify_settings", fake_modify_settings)
+    monkeypatch.setattr("app.operation.settings.router.publish", published)
+    monkeypatch.setattr(SettingsOperation, "reset_services", staticmethod(published))
+
+    async with session_factory() as other, session_factory() as db:
+        await other.execute(text("SELECT 1"))  # another request holds the other pooled connection
+        await SettingsOperation(OperatorType.API).modify_settings(db, SettingsSchema())
+
+    assert reads["settings"] == 8  # every reload got a connection instead of timing out
+
+
+async def _read_row(db, row):
+    await db.execute(text("SELECT 1"))
+    return row["settings"]
+
+
+async def test_failed_template_read_is_not_cached_as_empty(cold_caches, monkeypatch):
+    class UnavailableDB:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc):
+            return False
+
+        async def execute(self, _statement):
+            raise PoolTimeoutError("QueuePool limit of size 1 overflow 0 reached")
+
+    monkeypatch.setattr("app.subscription.client_templates.GetDB", UnavailableDB)
+
+    await subscription_client_templates.refresh()
+
+    with pytest.raises(PoolTimeoutError):  # retried, not served as an empty template map
+        await subscription_client_templates()
+
+
+async def test_cancelled_template_save_still_reloads_and_publishes(cold_caches, small_pool, monkeypatch):
+    session_factory, reads, _ = small_pool
+    started = asyncio.Event()
+    gate = asyncio.Event()
+    cleared = []
+    published = []
+
+    async def gated_client_template_values(db):
+        started.set()
+        await gate.wait()
+        return {}
+
+    async def publish(topic, message):
+        published.append(topic)
+
+    monkeypatch.setattr("app.subscription.client_templates.get_client_template_values", gated_client_template_values)
+    monkeypatch.setattr("app.subscription.client_templates.clear_sub_config_cache", lambda: cleared.append(True))
+    monkeypatch.setattr("app.operation.client_template.router.publish", publish)
+
+    async with session_factory() as db:
+        save = asyncio.create_task(ClientTemplateOperation._sync_client_template_cache(db))
+        await started.wait()
+        save.cancel()  # e.g. shutdown while the save waits for the first reload
+        gate.set()
+        with pytest.raises(asyncio.CancelledError):
+            await save
+        async with asyncio.timeout(1):
+            while not published:
+                await asyncio.sleep(0.01)
+
+    assert reads["xray_templates"] == 1
+    assert cleared == [True]
+    assert len(published) == 1
 
 
 def test_pool_exhaustion_returns_503(monkeypatch):

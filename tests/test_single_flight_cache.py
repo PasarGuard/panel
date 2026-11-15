@@ -98,3 +98,42 @@ async def test_overlapping_refresh_returns_after_latest_value_is_stored():
     gates[2].set()
     await asyncio.gather(local, nats)
     assert await cache() == "saved"
+
+
+async def _loads_started(gates, n):
+    async with asyncio.timeout(1):
+        while len(gates) < n:
+            await asyncio.sleep(0)
+
+
+async def test_superseded_refresh_that_fails_waits_for_the_newer_one():
+    gates = []
+    results = iter(["old", RuntimeError("pool timeout"), "saved"])
+
+    async def loader():
+        result = next(results)
+        gate = asyncio.Event()
+        gates.append(gate)
+        await gate.wait()
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    cache = SingleFlightCache(loader)
+    first_load = asyncio.create_task(cache())
+    await _loads_started(gates, 1)
+    gates[0].set()
+    assert await first_load == "old"
+
+    local = asyncio.create_task(cache.refresh())
+    await _loads_started(gates, 2)
+    nats = asyncio.create_task(cache.refresh())
+    await _loads_started(gates, 3)
+    gates[1].set()  # the superseded load fails while the newer one is still running
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert not local.done()
+
+    gates[2].set()
+    await asyncio.gather(local, nats)
+    assert await cache() == "saved"

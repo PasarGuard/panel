@@ -1,10 +1,8 @@
-import asyncio
-
 from app.db import GetDB
 from app.db.crud.settings import get_settings
 from app.models import settings
 from app.subscription.config_cache import clear_sub_config_cache
-from app.utils.single_flight_cache import single_flight_cached
+from app.utils.single_flight_cache import run_shielded, single_flight_cached
 
 
 @single_flight_cached
@@ -80,15 +78,9 @@ async def cleanup_settings() -> settings.CleanupSettings:
     return validated_settings
 
 
-_refresh_tasks: set[asyncio.Task[None]] = set()
-
-
 async def refresh_caches() -> None:
     # Shielded: a caller cancelled half-way must not leave some settings reloaded and others stale.
-    task = asyncio.create_task(_refresh_caches())
-    _refresh_tasks.add(task)
-    task.add_done_callback(_refresh_tasks.discard)
-    await asyncio.shield(task)
+    await run_shielded(_refresh_caches())
 
 
 async def _refresh_caches() -> None:

@@ -11,6 +11,7 @@ from app.nats.router import router
 from app.notification.client import define_client
 from app.settings import refresh_caches
 from app.telegram import startup_telegram_bot
+from app.utils.single_flight_cache import run_shielded
 
 from . import BaseOperation
 
@@ -24,6 +25,12 @@ class SettingsOperation(BaseOperation):
         # Pending webhook notifications will be processed when webhooks are re-enabled
         if old_settings.notification_settings.proxy_url != new_settings.notification_settings.proxy_url:
             await define_client()
+
+    @staticmethod
+    async def _sync_settings_cache() -> None:
+        await refresh_caches()
+        # Publish settings update via NATS (all workers will refresh their caches)
+        await router.publish(MessageTopic.SETTING, {"action": "refresh"})
 
     async def get_settings(self, db: AsyncSession) -> Settings:
         return await get_settings(db)
@@ -48,9 +55,10 @@ class SettingsOperation(BaseOperation):
         if new_settings.general and new_settings.subscription:
             new_settings.general.custom_variables = new_settings.subscription.custom_variables
 
-        await refresh_caches()
-        # Publish settings update via NATS (all workers will refresh their caches)
-        await router.publish(MessageTopic.SETTING, {"action": "refresh"})
+        # The save is committed; end the transaction db.refresh() opened so the reloads below
+        # do not wait for a second pooled connection while this request holds one.
+        await db.commit()
+        await run_shielded(self._sync_settings_cache())
         asyncio.create_task(self.reset_services(old_settings, new_settings))
 
         return new_settings

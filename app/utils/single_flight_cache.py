@@ -13,7 +13,8 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
+from typing import Any
 
 from app.utils.logger import get_logger
 
@@ -75,19 +76,35 @@ class SingleFlightCache[T]:
         self._generation += 1
         self._inflight = None
         generation = self._generation
-        try:
-            await asyncio.shield(self._load_task())
-            # A newer refresh replaced this load (e.g. the NATS message right after a local save):
-            # wait for it too, so the caller returns only once the latest value is stored.
-            while self._generation != generation and (task := self._inflight) is not None:
-                generation = self._generation
+        task = self._load_task()
+        while True:
+            try:
                 await asyncio.shield(task)
-        except Exception as exc:
-            # Never keep serving the old value after a failed reload: the next read loads lazily.
-            if self._generation == generation:
-                self._value = _MISSING
-            logger.warning(f"Reloading {self.__qualname__} failed, next read will retry: {type(exc).__name__}: {exc}")
+            except Exception as exc:
+                if self._generation == generation:
+                    # Never keep serving the old value after a failed reload: the next read loads lazily.
+                    self._value = _MISSING
+                    logger.warning(
+                        f"Reloading {self.__qualname__} failed, next read will retry: {type(exc).__name__}: {exc}"
+                    )
+                    return
+            # A newer refresh replaced this load (e.g. the NATS message right after a local save):
+            # wait for it too, even if this one failed, so the caller returns only once the latest value is stored.
+            if self._generation == generation or (task := self._inflight) is None:
+                return
+            generation = self._generation
 
 
 def single_flight_cached[T](loader: Callable[[], Awaitable[T]]) -> SingleFlightCache[T]:
     return SingleFlightCache(loader)
+
+
+_shielded_tasks: set[asyncio.Task] = set()
+
+
+async def run_shielded[T](coro: Coroutine[Any, Any, T]) -> T:
+    """Run ``coro`` to the end even if the caller is cancelled (post-commit cache sync must not stop half-way)."""
+    task = asyncio.create_task(coro)
+    _shielded_tasks.add(task)
+    task.add_done_callback(_shielded_tasks.discard)
+    return await asyncio.shield(task)

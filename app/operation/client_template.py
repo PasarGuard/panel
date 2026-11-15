@@ -35,17 +35,25 @@ from app.nats.router import router
 from app.subscription.client_templates import refresh_client_templates_cache
 from app.templates import render_template_string
 from app.utils.logger import get_logger
+from app.utils.single_flight_cache import run_shielded
 
 from . import BaseOperation
 
 logger = get_logger("client-template-operation")
 
 
+async def _reload_and_publish_client_templates() -> None:
+    await refresh_client_templates_cache()
+    await router.publish(MessageTopic.CLIENT_TEMPLATE, {"action": "refresh"})
+
+
 class ClientTemplateOperation(BaseOperation):
     @staticmethod
-    async def _sync_client_template_cache() -> None:
-        await refresh_client_templates_cache()
-        await router.publish(MessageTopic.CLIENT_TEMPLATE, {"action": "refresh"})
+    async def _sync_client_template_cache(db: AsyncSession) -> None:
+        # The change is committed; end the transaction db.refresh() opened so the reloads
+        # do not wait for a second pooled connection while this request holds one.
+        await db.commit()
+        await run_shielded(_reload_and_publish_client_templates())
 
     async def _validate_template_content(self, template_type: ClientTemplateType, content: str) -> None:
         try:
@@ -103,7 +111,7 @@ class ClientTemplateOperation(BaseOperation):
         logger.info(
             f'Client template "{db_template.name}" ({db_template.template_type}) created by admin "{admin.username}"'
         )
-        await self._sync_client_template_cache()
+        await self._sync_client_template_cache(db)
         return ClientTemplateResponse.model_validate(db_template)
 
     async def get_client_templates(
@@ -152,7 +160,7 @@ class ClientTemplateOperation(BaseOperation):
         logger.info(
             f'Client template "{db_template.name}" ({db_template.template_type}) modified by admin "{admin.username}"'
         )
-        await self._sync_client_template_cache()
+        await self._sync_client_template_cache(db)
         return ClientTemplateResponse.model_validate(db_template)
 
     async def remove_client_template(self, db: AsyncSession, template_id: int, admin: AdminDetails) -> None:
@@ -180,7 +188,7 @@ class ClientTemplateOperation(BaseOperation):
             f'Client template "{db_template.name}" ({template_type.value}) deleted by admin "{admin.username}"'
             f" and cleared from {cleared_hosts} host(s)"
         )
-        await self._sync_client_template_cache()
+        await self._sync_client_template_cache(db)
 
     async def bulk_remove_client_templates(
         self, db: AsyncSession, bulk_templates: BulkClientTemplateSelection, admin: AdminDetails
@@ -236,7 +244,7 @@ class ClientTemplateOperation(BaseOperation):
         await remove_client_templates(db, template_ids)
 
         # Sync cache and log
-        await self._sync_client_template_cache()
+        await self._sync_client_template_cache(db)
         for db_template in db_templates:
             template_type = ClientTemplateType(db_template.template_type)
             logger.info(
