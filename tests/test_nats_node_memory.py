@@ -245,6 +245,24 @@ async def test_refresh_request_redelivers_an_entry_whose_claim_expired():
 
 
 @pytest.mark.asyncio
+async def test_refresh_request_never_writes_back_an_entry_replaced_after_its_read():
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    await store.enqueue_users("1", [_user("u", "old")])
+    update = kv.update
+
+    async def enqueue_newer_state_first(*args, **kwargs):
+        kv.update = update  # type: ignore[method-assign]
+        await store.enqueue_users("1", [_user("u", "new")])  # lands between the refresh's read and write
+        return await update(*args, **kwargs)
+
+    kv.update = enqueue_newer_state_first  # type: ignore[method-assign]
+    await store.request_refresh("1", ["u"])
+    [item] = await store.claim_users("1", "worker", 10, 30)
+    assert list(item.user.inbounds) == ["new"]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("queued", ["payload", "marker"])
 async def test_refresh_request_after_a_snapshot_read_survives_its_retirement(queued):
     # A full snapshot captured the queued entry of "u" and read "u" as active; "u" is then
