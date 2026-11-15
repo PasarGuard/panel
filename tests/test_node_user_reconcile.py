@@ -287,11 +287,11 @@ async def test_long_inactive_and_deleted_users_are_removed_by_the_sweep_only(env
 async def test_sweep_reaches_the_last_id_the_counter_issued(env, monkeypatch):
     user_id = await env.add_user()
     monkeypatch.setattr(reconcile, "_last_issued_user_id", AsyncMock(return_value=user_id + 2))
-    assert await reconcile._removal_sweep_ids(set()) == [user_id + 1, user_id + 2]
+    assert (await reconcile._removal_sweep_ids(set()))[0] == [user_id + 1, user_id + 2]
 
     monkeypatch.setattr(reconcile, "_last_issued_user_id", AsyncMock(return_value=None))
     reconcile._highest_user_id_seen = user_id + 3  # counter unreadable: the highest id seen still counts
-    assert await reconcile._removal_sweep_ids(set()) == [user_id + 1, user_id + 2, user_id + 3]
+    assert (await reconcile._removal_sweep_ids(set()))[0] == [user_id + 1, user_id + 2, user_id + 3]
 
 
 # 4 ---------------------------------------------------------------------------------------------------
@@ -323,10 +323,10 @@ async def test_user_activated_after_the_removal_list_was_built_stays_on_the_node
     collect = reconcile._removal_sweep_ids
 
     async def collect_then_activate(exclude, **kwargs):
-        ids = await collect(exclude, **kwargs)
+        ids, gap_next = await collect(exclude, **kwargs)
         assert user_id in ids
         await env.set_status(user_id, UserStatus.active)
-        return ids
+        return ids, gap_next
 
     monkeypatch.setattr(reconcile, "_removal_sweep_ids", collect_then_activate)
     await run_pass(env)
@@ -627,17 +627,36 @@ async def test_sweep_stops_a_bounded_distance_above_the_highest_existing_id(env,
     user_id = await env.add_user()
     caplog.set_level(logging.WARNING)
     monkeypatch.setattr(reconcile, "_last_issued_user_id", AsyncMock(return_value=user_id + 5))
-    assert await reconcile._removal_sweep_ids(set(), node_id=1) == [user_id + offset for offset in range(1, 6)]
+    assert (await reconcile._removal_sweep_ids(set(), node_id=1))[0] == [user_id + offset for offset in range(1, 6)]
     assert warnings_with(caplog, "stops at id") == []
 
     counter = user_id + 1_000_000  # the id counter was pushed far ahead
     monkeypatch.setattr(reconcile, "_last_issued_user_id", AsyncMock(return_value=counter))
-    ids = await reconcile._removal_sweep_ids(set(), node_id=1)
+    ids, _ = await reconcile._removal_sweep_ids(set(), node_id=1)
     ceiling = user_id + reconcile.MAX_SWEEP_IDS_ABOVE_EXISTING
     assert len(ids) == reconcile.MAX_SWEEP_IDS_ABOVE_EXISTING and ids[-1] == ceiling
     [warning] = warnings_with(caplog, "stops at id")
     assert f"counter is at {counter}" in warning and f"highest existing user id is {user_id};" in warning
     assert f"{counter - ceiling} id(s) above {ceiling}" in warning and "node 1" in warning
+
+
+async def test_sweep_of_ids_no_user_has_is_bounded_and_goes_on_next_time(env, monkeypatch):
+    # Many deleted users below the highest id: each sweep removes a bounded share of them.
+    monkeypatch.setattr(reconcile, "MAX_SWEEP_GAP_IDS", 2)
+    deleted = [await env.add_user() for _ in range(5)]
+    await env.add_user()
+    for user_id in deleted:
+        await env.remove_user(user_id)
+    env.state.users.update({str(user_id): [INBOUND] for user_id in deleted})
+    reconcile._states[1] = settled_state(swept=False)
+    left = []
+    for _ in range(3):
+        await run_pass(env)
+        left.append(sorted(user_id for user_id in deleted if str(user_id) in env.state.users))
+        node_state().last_sweep_at = time.monotonic() - 86400
+        reconcile._last_sweep_start = -math.inf
+        make_due()
+    assert left == [deleted[2:], deleted[4:], []]
 
 
 async def test_state_changed_between_chunks_is_read_fresh(env, monkeypatch):
