@@ -102,7 +102,7 @@ async def get_api_keys(
     return rows, total
 
 
-async def increment_api_key_usage(db: AsyncSession, key_id: int) -> int | None:
+async def increment_api_key_usage(db: AsyncSession, key_id: int, carry: int = 0) -> int | None:
     """Atomically increment request_count only when below max_requests.
 
     The UPDATE is conditioned on the key still being under its limit, so
@@ -110,10 +110,17 @@ async def increment_api_key_usage(db: AsyncSession, key_id: int) -> int | None:
     read back inside the same transaction (with FOR UPDATE) before committing,
     keeping the result consistent with what was actually written.
 
+    ``carry`` is requests served earlier while the key had no limit (buffered
+    in memory); they are added unconditionally before the limit check and are
+    kept even when the limit then rejects this request.
+
     Returns the new request_count, or None when no row was matched (key does
     not exist or was already at/above max_requests and the limit has been
     reached — callers should treat None as "key exhausted / missing").
     """
+    if carry > 0:
+        await db.execute(update(APIKey).where(APIKey.id == key_id).values(request_count=APIKey.request_count + carry))
+
     # Conditional increment: only touch the row when it is still below the
     # limit (or has no limit at all).
     stmt = (
@@ -130,7 +137,10 @@ async def increment_api_key_usage(db: AsyncSession, key_id: int) -> int | None:
     result = await db.execute(stmt)
     if result.rowcount == 0:
         # Either the key doesn't exist or it has already hit its limit.
-        await db.rollback()
+        if carry > 0:
+            await db.commit()
+        else:
+            await db.rollback()
         return None
 
     # Read the committed value back inside the same transaction so we see
