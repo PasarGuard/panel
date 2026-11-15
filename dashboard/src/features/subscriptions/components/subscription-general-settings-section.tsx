@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { CustomVariablesPopover, VariablesPopover } from '@/components/ui/variables-popover'
-import { Clock, ExternalLink, FileCode2, Globe, HelpCircle, History, Link, Megaphone, Shuffle, User } from 'lucide-react'
+import { Clock, ExternalLink, FileCode2, Globe, HelpCircle, History, Link, Link2, Megaphone, Shuffle, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 export interface SubscriptionGeneralSettingsSectionProps {
@@ -168,6 +168,32 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
                 <Input placeholder={t('settings.subscriptions.general.announceUrlPlaceholder')} {...field} className="font-mono text-xs sm:text-sm" />
               </FormControl>
               <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.general.announceUrlDescription')}</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="external_links"
+          render={({ field }) => (
+            <FormItem className="space-y-2 lg:col-span-2">
+              <FormLabel className="flex items-center gap-2 text-xs font-medium sm:text-sm">
+                <Link2 className="h-4 w-4 shrink-0" />
+                {t('settings.subscriptions.general.externalLinks')}
+              </FormLabel>
+              <FormControl>
+                <Textarea
+                  dir="ltr"
+                  rows={4}
+                  placeholder="vless://...&#10;ss://..."
+                  value={(field.value || []).join('\n')}
+                  onChange={e => field.onChange(e.target.value.split('\n'))}
+                  onBlur={field.onBlur}
+                  className="font-mono text-xs sm:text-sm"
+                />
+              </FormControl>
+              <FormDescription className="text-muted-foreground text-xs sm:text-sm">{t('settings.subscriptions.general.externalLinksDescription')}</FormDescription>
               <FormMessage />
             </FormItem>
           )}
