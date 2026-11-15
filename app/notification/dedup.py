@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import time
 from typing import Any
 
+from nats.js.errors import KeyWrongLastSequenceError
+
 from app.nats import is_nats_enabled
-from app.nats.kv_cas import kv_cas_json, kv_get_json
+from app.nats.kv_cas import kv_get_json
 from app.utils.logger import get_logger
 from config import server_settings
 
@@ -17,6 +20,8 @@ logger = get_logger("Notification")
 DEDUP_WINDOW_SECONDS = 15.0
 # A notification must not wait for dedup: nats-py applies the connect timeout to TCP, INFO and PONG each.
 _CONNECT_TIMEOUT_SECONDS = 1
+# For ws:// nats-py hands connect_timeout to aiohttp as the close timeout; the HTTP upgrade waits up to 300s.
+_CONNECT_TOTAL_TIMEOUT_SECONDS = 3
 _KV_TIMEOUT_SECONDS = 1.5
 # After a failure, send without the shared check for a while instead of waiting on NATS every time.
 _RETRY_AFTER_SECONDS = 20.0
@@ -137,11 +142,11 @@ async def _get_kv():
             )
         except BaseException:
             _back_off()
-            await nc.close()
+            await _close_nats(nc)
             raise
         # Shutdown may have run while connect() was retrying; nobody would close this client later.
         if kv is None or _closed:
-            await nc.close()
+            await _close_nats(nc)
             return None
         _nc, _kv = nc, kv
         return _kv
@@ -157,22 +162,30 @@ async def _connect_nats():
         # Bounded connect: without allow_reconnect nats-py still tries TCP max_reconnect_attempts + 1 times
         # (0 would mean forever); a failure after TCP (INFO, PONG, auth, TLS) is raised at once.
         # Without reconnects a lost client closes and is rebuilt by _get_kv().
-        await nc.connect(
-            get_nats_config()["url"],
-            allow_reconnect=False,
-            max_reconnect_attempts=1,
-            reconnect_time_wait=0,
-            connect_timeout=_CONNECT_TIMEOUT_SECONDS,
-            error_cb=_log_nats_error,
+        await asyncio.wait_for(
+            nc.connect(
+                get_nats_config()["url"],
+                allow_reconnect=False,
+                max_reconnect_attempts=1,
+                reconnect_time_wait=0,
+                connect_timeout=_CONNECT_TIMEOUT_SECONDS,
+                error_cb=_log_nats_error,
+            ),
+            timeout=_CONNECT_TOTAL_TIMEOUT_SECONDS,
         )
     except BaseException:
         # nats-py leaves the socket of a failed handshake open.
-        try:
-            await asyncio.wait_for(nc.close(), timeout=_CONNECT_TIMEOUT_SECONDS)
-        except Exception as exc:
-            logger.debug("Failed to close notification dedup NATS connection: %s", exc)
+        await _close_nats(nc)
         raise
     return nc
+
+
+async def _close_nats(nc) -> None:
+    # Bounded: the callers hold _kv_lock, and every notification would queue behind a stuck close.
+    try:
+        await asyncio.wait_for(nc.close(), timeout=_CONNECT_TIMEOUT_SECONDS)
+    except Exception as exc:
+        logger.debug("Failed to close notification dedup NATS connection: %s", exc)
 
 
 async def close_notification_dedup() -> None:
@@ -200,12 +213,30 @@ async def _claim_shared(key: str, now: float) -> bool:
 
 
 async def _claim_in_kv(kv, key: str, now: float) -> bool:
-    # A failed CAS is not proof of a duplicate: the expired key may have been removed under us, or the
-    # write failed. Only a live claim by another worker drops the notification.
+    # A lost CAS is not proof of a duplicate: the expired key may have been removed under us.
+    # Only a live claim by another worker that we have read drops the notification.
     for _ in range(2):
         doc, rev = await kv_get_json(kv, key)
-        if doc is not None and float(doc.get("expires_at", 0)) > now:
+        if _is_live(doc, now):
             return False
-        if await kv_cas_json(kv, key, {"expires_at": now + DEDUP_WINDOW_SECONDS}, rev):
+        if await _write_claim(kv, key, now, rev):
             return True
+    doc, _ = await kv_get_json(kv, key)
+    return not _is_live(doc, now)
+
+
+def _is_live(doc: dict[str, Any] | None, now: float) -> bool:
+    return doc is not None and float(doc.get("expires_at", 0)) > now
+
+
+async def _write_claim(kv, key: str, now: float, revision: int) -> bool:
+    # Unlike kv_cas_json, only a lost race returns False: a failed write raises so _claim_shared backs off.
+    payload = json.dumps({"expires_at": now + DEDUP_WINDOW_SECONDS}, separators=(",", ":")).encode()
+    try:
+        if revision == 0:
+            await kv.create(key, payload)
+        else:
+            await kv.update(key, payload, last=revision)
+    except KeyWrongLastSequenceError:
+        return False
     return True

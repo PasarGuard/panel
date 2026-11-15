@@ -29,7 +29,9 @@ def _reset_notification_dedup(monkeypatch: pytest.MonkeyPatch):
 @pytest.mark.asyncio
 async def test_single_worker_does_not_dedup(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(notification_dedup.server_settings, "workers", 1)
-    monkeypatch.setattr(notification_dedup, "_claim_shared", AsyncMock(side_effect=AssertionError("dedup must not run")))
+    monkeypatch.setattr(
+        notification_dedup, "_claim_shared", AsyncMock(side_effect=AssertionError("dedup must not run"))
+    )
     node = NodeNotification(id=3, name="Hetz Tunnel", node_version="0.5.4", xray_version="26.3.27")
     assert await notification_dedup.claim_notification_slot("connect_node", (node,), {}) is True
     assert await notification_dedup.claim_notification_slot("connect_node", (node,), {}) is True
@@ -391,6 +393,131 @@ async def test_failed_kv_write_is_not_a_duplicate(monkeypatch: pytest.MonkeyPatc
     _use_kv(_BrokenWriteKv())
 
     assert await notification_dedup.claim_notification_slot("connect_node", (_node(1),), {}) is True
+    # A failed write is an outage, not a lost race: the next events skip the store for a while.
+    assert notification_dedup._backing_off()
+
+
+class _RacedKv:
+    """Both CAS attempts lose: the expired key is removed, then another worker creates a live claim."""
+
+    def __init__(self, key: str, expired_at: float, live_until: float):
+        import json
+
+        self._key = key
+        self._live = json.dumps({"expires_at": live_until}).encode()
+        self._docs = [(json.dumps({"expires_at": expired_at}).encode(), 5), None]
+        self.final_get = None
+
+    async def get(self, key):
+        import nats.js.errors as nats_js_errors
+        from nats.js.kv import KeyValue
+
+        if self._docs:
+            doc = self._docs.pop(0)
+        elif self.final_get is not None:
+            return await self.final_get()
+        else:
+            doc = (self._live, 6)
+        if doc is None:
+            raise nats_js_errors.KeyNotFoundError
+        return KeyValue.Entry(bucket="", key=key, value=doc[0], revision=doc[1], delta=0, created=None, operation=None)
+
+    async def create(self, key, value, **kwargs):
+        import nats.js.errors as nats_js_errors
+
+        raise nats_js_errors.KeyWrongLastSequenceError("wrong last sequence")
+
+    update = create
+
+
+@pytest.mark.asyncio
+async def test_live_claim_created_after_the_last_lost_cas_is_a_duplicate(monkeypatch: pytest.MonkeyPatch):
+    import time
+
+    monkeypatch.setattr(notification_dedup, "is_nats_enabled", lambda: True)
+    key = notification_dedup.notification_fingerprint("connect_node", (_node(1),), {})
+    _use_kv(_RacedKv(key, time.time() - 1, time.time() + 10))
+
+    assert await notification_dedup.claim_notification_slot("connect_node", (_node(1),), {}) is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["error", "hang"])
+async def test_failed_recheck_after_lost_cas_still_sends(monkeypatch: pytest.MonkeyPatch, failure: str):
+    import time
+
+    import nats.errors as nats_errors
+
+    monkeypatch.setattr(notification_dedup, "is_nats_enabled", lambda: True)
+    monkeypatch.setattr(notification_dedup, "_KV_TIMEOUT_SECONDS", 0.2)
+    key = notification_dedup.notification_fingerprint("connect_node", (_node(1),), {})
+    kv = _RacedKv(key, time.time() - 1, time.time() + 10)
+
+    async def _final_get():
+        if failure == "error":
+            raise nats_errors.NoRespondersError
+        await asyncio.sleep(10)
+
+    kv.final_get = _final_get
+    _use_kv(kv)
+
+    assert await notification_dedup.claim_notification_slot("connect_node", (_node(1),), {}) is True
+    assert notification_dedup._backing_off()
+
+
+@pytest.mark.asyncio
+async def test_stuck_close_does_not_hold_the_connect_lock(monkeypatch: pytest.MonkeyPatch):
+    clients: list[_FakeNats] = []
+    _patch_nats_client(monkeypatch, clients, kv_error=RuntimeError("no jetstream"))
+    monkeypatch.setattr(notification_dedup, "is_nats_enabled", lambda: True)
+    monkeypatch.setattr(notification_dedup, "_CONNECT_TIMEOUT_SECONDS", 0.1)
+
+    async def _stuck_close():
+        await asyncio.sleep(10)
+
+    original = notification_dedup._connect_nats
+
+    async def _create():
+        nc = await original()
+        nc.close = _stuck_close
+        return nc
+
+    monkeypatch.setattr(notification_dedup, "_connect_nats", _create)
+
+    claim = notification_dedup.claim_notification_slot("connect_node", (_node(1),), {})
+    assert await asyncio.wait_for(claim, timeout=2) is True
+    assert not notification_dedup._kv_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_hanging_connect_is_bounded_as_a_whole(monkeypatch: pytest.MonkeyPatch):
+    import nats
+
+    import app.nats
+
+    created: list = []
+
+    class _UpgradeHangsNats:
+        def __init__(self):
+            self.close = AsyncMock()
+            created.append(self)
+
+        async def connect(self, url, **options):
+            # ws://: aiohttp waits for the HTTP upgrade with its 300s session timeout.
+            await asyncio.sleep(10)
+
+    monkeypatch.setattr(nats, "NATS", _UpgradeHangsNats)
+    monkeypatch.setattr(app.nats, "get_nats_config", lambda: {"url": "ws://example:8080"})
+    monkeypatch.setattr(notification_dedup, "_CONNECT_TOTAL_TIMEOUT_SECONDS", 0.2)
+
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    with pytest.raises(TimeoutError):
+        await asyncio.wait_for(notification_dedup._get_kv(), timeout=2)
+    assert loop.time() - started < 1
+
+    created[0].close.assert_awaited_once()
+    assert notification_dedup._backing_off()
 
 
 @pytest.mark.asyncio
