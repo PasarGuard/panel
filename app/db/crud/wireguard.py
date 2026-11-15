@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import heapq
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -240,14 +241,32 @@ def _usable_capacity(ns: WgNamespace) -> int:
     return max(0, last_host - 1 - in_range_reserved)
 
 
-def _take_offset(ns: WgNamespace, row: WireGuardSubnet) -> int:
-    """Pop the lowest valid free offset, or advance the high-water mark. Mutates the row."""
-    free = list(row.free_offsets or [])
-    valid = [offset for offset in free if offset_valid(ns, offset)]
-    if valid:
-        offset = min(valid)
+def _take_offset(
+    ns: WgNamespace,
+    row: WireGuardSubnet,
+    valid_heaps: dict[str, tuple[list, list[int]]] | None = None,
+) -> int:
+    """Pop the lowest valid free offset, or advance the high-water mark. Mutates the row.
+
+    A batch passes one valid_heaps dict for all its takes: it keeps a min-heap of the valid free
+    offsets, so each take does not rescan the whole free-list. The heap belongs to the exact
+    free_offsets list object it was built from; any other write replaces that list (they all
+    assign a new one), and the heap is then rebuilt.
+    """
+    free = row.free_offsets or []
+    cached = valid_heaps.get(ns.key) if valid_heaps is not None else None
+    if cached is not None and cached[0] is free:
+        heap = cached[1]
+    else:
+        heap = [offset for offset in free if offset_valid(ns, offset)]
+        heapq.heapify(heap)
+    if heap:
+        offset = heapq.heappop(heap)
+        free = list(free)
         free.remove(offset)
         row.free_offsets = free
+        if valid_heaps is not None:
+            valid_heaps[ns.key] = (free, heap)
         return offset
     offset = row.next_offset
     while offset in ns.reserved:
@@ -547,6 +566,7 @@ async def sync_users_allocations(
     rows = await _lock_subnet_rows(db, touched_keys)
 
     changed: list[User] = []
+    valid_heaps: dict[str, tuple[list, list[int]]] = {}
     for user in users:
         targets = targets_by_user[user.id]
         old_ips = _user_peer_ips(user.proxy_settings)
@@ -566,7 +586,7 @@ async def sync_users_allocations(
                 _give_back(rows[ns.key], [offset])
 
         for key in sorted(targets - set(kept)):
-            kept[key] = _take_offset(namespaces[key], rows[key])
+            kept[key] = _take_offset(namespaces[key], rows[key], valid_heaps)
 
         new_ips = sorted(
             (render_peer_ip(namespaces[key].subnet, offset) for key, offset in kept.items()),

@@ -121,7 +121,11 @@ from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
 from app.utils.mtproto import prepare_mtproto_secret
 from app.utils.system import readable_duration, readable_size
-from app.utils.wireguard import ensure_unique_wireguard_public_key, prepare_wireguard_keys
+from app.utils.wireguard import (
+    ensure_unique_wireguard_public_keys,
+    prepare_wireguard_keys,
+    user_has_wireguard_access,
+)
 from config import subscription_env_settings
 
 
@@ -379,6 +383,8 @@ class UserOperation(BaseOperation):
                     next_plan=user_to_create.next_plan,
                 )
 
+        # every user here gets the same groups, so WireGuard access is the same for all of them
+        wireguard_access = await user_has_wireguard_access(db, groups)
         for user_to_create in users_to_create:
             # peer IPs are never taken from input; the subnet pool assigns them at creation
             user_to_create.proxy_settings.wireguard.peer_ips = []
@@ -386,6 +392,7 @@ class UserOperation(BaseOperation):
                 db,
                 groups,
                 user_to_create.proxy_settings,
+                wireguard_access=wireguard_access,
             )
 
         duplicate_key = _duplicate_wireguard_public_key_usernames(users_to_create)
@@ -398,11 +405,10 @@ class UserOperation(BaseOperation):
                 code=400,
                 db=db,
             )
-        for user_to_create in users_to_create:
-            try:
-                await ensure_unique_wireguard_public_key(db, user_to_create.proxy_settings)
-            except ValueError as exc:
-                await self.raise_error(message=str(exc), code=400, db=db)
+        try:
+            await ensure_unique_wireguard_public_keys(db, [user.proxy_settings for user in users_to_create])
+        except ValueError as exc:
+            await self.raise_error(message=str(exc), code=400, db=db)
 
         try:
             db_users = await create_users_bulk(db, users_to_create, groups, db_admin, commit=commit)
@@ -489,6 +495,7 @@ class UserOperation(BaseOperation):
         *,
         exclude_user_id: int | None = None,
         current_mtproto_secret: str | None = None,
+        wireguard_access: bool | None = None,
     ) -> ProxyTable:
         try:
             proxy_settings = await prepare_wireguard_keys(
@@ -496,6 +503,7 @@ class UserOperation(BaseOperation):
                 proxy_settings,
                 groups,
                 exclude_user_id=exclude_user_id,
+                wireguard_access=wireguard_access,
             )
             return await prepare_mtproto_secret(
                 db,

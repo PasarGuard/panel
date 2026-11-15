@@ -1,8 +1,10 @@
+import random
 from ipaddress import ip_network
 from types import SimpleNamespace
 
 import pytest
 
+import app.db.crud.wireguard as wireguard_crud
 from app.db.crud.wireguard import (
     _ensure_wireguard_keys,
     _give_back,
@@ -10,6 +12,7 @@ from app.db.crud.wireguard import (
     _take_offset,
     _usable_capacity,
     match_namespace,
+    offset_valid,
     peer_host,
     pick_peer_ip_for_inbound,
     render_peer_ip,
@@ -163,6 +166,93 @@ def test_give_back_dedupes_and_bounds():
     row = pool_row(next_offset=10, free_offsets=[3])
     _give_back(row, [3, 4, 0, 42])  # dup, valid, never-valid, beyond high-water
     assert row.free_offsets == [3, 4]
+
+
+def _take_offset_rescan(ns, row):
+    """The allocator before the batch heap: rescans the whole free-list on every take."""
+    free = list(row.free_offsets or [])
+    valid = [offset for offset in free if offset_valid(ns, offset)]
+    if valid:
+        offset = min(valid)
+        free.remove(offset)
+        row.free_offsets = free
+        return offset
+    offset = row.next_offset
+    while offset in ns.reserved:
+        offset += 1
+    if offset >= ns.subnet.num_addresses - 1:
+        raise ValueError(f"WireGuard subnet {ns.subnet} has no free addresses")
+    row.next_offset = offset + 1
+    return offset
+
+
+def _replay(namespaces, rows, steps, take):
+    results = []
+    for step in steps:
+        if step[0] == "give":
+            _give_back(rows[step[1]], step[2])
+            continue
+        try:
+            results.append(take(namespaces[step[1]], rows[step[1]]))
+        except ValueError as exc:
+            results.append(str(exc))
+    return results, {key: (row.next_offset, row.free_offsets) for key, row in rows.items()}
+
+
+def _assert_batch_heap_matches_rescan(namespaces, make_rows, steps):
+    valid_heaps = {}
+    expected = _replay(namespaces, make_rows(), steps, _take_offset_rescan)
+    actual = _replay(namespaces, make_rows(), steps, lambda ns, row: _take_offset(ns, row, valid_heaps))
+    assert actual == expected
+    return actual
+
+
+@pytest.mark.parametrize(
+    ("next_offset", "free_offsets"),
+    [
+        (1, []),
+        (1, None),
+        (40, [9, 4, 1, 4, 0, -3, 255, 300, 9, 2, 4]),  # server, network, broadcast, out of range, duplicates
+        (250, [1, 0, 255]),  # only invalid entries: the high-water mark is used and the list stays as it is
+        (253, [7, 7, 3]),  # runs out: the free-list, then the last hosts, then exhaustion
+    ],
+)
+def test_take_offset_batch_heap_matches_rescan(next_offset, free_offsets):
+    ns = wg_namespaces([core("WG_1", ["10.0.0.1/24"])])["10.0.0.0/24"]
+    results, _rows = _assert_batch_heap_matches_rescan(
+        {ns.key: ns},
+        lambda: {
+            ns.key: SimpleNamespace(
+                next_offset=next_offset, free_offsets=None if free_offsets is None else list(free_offsets)
+            )
+        },
+        [("take", ns.key)] * 12,
+    )
+    assert len(results) == 12
+
+
+def test_take_offset_batch_heap_matches_rescan_with_give_backs_and_trim(monkeypatch):
+    monkeypatch.setattr(wireguard_crud, "FREE_OFFSETS_CAP", 12)  # make _trim_free reorder and drop entries
+    namespaces = wg_namespaces([core("WG_A", ["10.0.0.1/24"]), core("WG_B", ["10.1.0.1/26"])])
+    keys = sorted(namespaces)
+    rng = random.Random(1234)
+    for _ in range(200):
+        free = {key: [rng.randint(-2, 70) for _ in range(rng.randint(0, 15))] for key in keys}
+        high = {key: rng.randint(1, 70) for key in keys}
+        steps = []
+        for _ in range(rng.randint(1, 40)):
+            key = rng.choice(keys)
+            if rng.random() < 0.3:
+                steps.append(("give", key, [rng.randint(-1, 75) for _ in range(rng.randint(1, 3))]))
+            else:
+                steps.append(("take", key))
+        _assert_batch_heap_matches_rescan(
+            namespaces,
+            lambda free=free, high=high: {
+                key: pool_row(next_offset=high[key], free_offsets=list(free[key])) for key in keys
+            },
+            steps,
+        )
 
 
 def test_pick_peer_ip_for_inbound():

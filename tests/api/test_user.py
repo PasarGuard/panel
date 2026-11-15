@@ -22,6 +22,7 @@ from app.db import base
 from app.db.crud.hwid import register_user_hwid
 from app.db.crud.user import get_user as get_db_user, get_users as get_db_users, update_users_status
 from app.db.models import NodeUserUsage, User, UserStatus, UserUsageResetLogs
+from app.models.proxy import ProxyTable
 from app.models.settings import ConfigFormat, General, HeaderPlacement, SubRule, Subscription, UsageSettings
 from app.models.stats import Period, UserCountMetric, UserCountMetricStat, UserCountMetricStatsList
 from app.models.user import UserListQuery
@@ -3035,6 +3036,106 @@ def test_bulk_create_users_from_template_sequence(access_token):
             delete_user(access_token, username)
         delete_user_template(access_token, template["id"])
         cleanup_groups(access_token, core, groups)
+
+
+def _create_wireguard_core_and_group(access_token: str, address: str) -> tuple[dict, dict]:
+    interface_private_key, _ = generate_wireguard_keypair()
+    interface_name = unique_name("wg_bulk_template")
+    core = create_core(
+        access_token,
+        name=unique_name("wg_bulk_template_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": [address],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    group = create_group(access_token, name=unique_name("wg_bulk_template_group"), inbound_tags=[interface_name])
+    return core, group
+
+
+def test_bulk_create_wireguard_users_checks_keys_and_access_once_per_batch(access_token):
+    core, group = _create_wireguard_core_and_group(access_token, "10.187.0.1/24")
+    template = create_user_template(access_token, group_ids=[group["id"]])
+    base_username = unique_name("bulk_wg_queries")
+    count = 8
+    statements: list[tuple[str, str]] = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append((statement, str(parameters)))
+
+    event.listen(engine.sync_engine, "before_cursor_execute", record)
+    try:
+        response = client.post(
+            "/api/users/bulk/from_template",
+            headers=auth_headers(access_token),
+            json={
+                "user_template_id": template["id"],
+                "strategy": "sequence",
+                "username": base_username,
+                "count": count,
+                "start_number": 1,
+            },
+        )
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", record)
+    usernames = [f"{base_username}{idx}" for idx in range(1, count + 1)]
+    try:
+        assert response.status_code == status.HTTP_201_CREATED
+        key_lookups = [s for s, params in statements if "FROM users" in s and "public_key" in s + params]
+        core_reads = [s for s, _ in statements if "FROM core_configs" in s]
+        # one batched lookup before the insert and one in the allocator, not one per user
+        assert len(key_lookups) <= 2
+        assert len(core_reads) < count
+
+        peer_ips, public_keys = [], []
+        for username in usernames:
+            wireguard = client.get(f"/api/user/{username}", headers=auth_headers(access_token)).json()[
+                "proxy_settings"
+            ]["wireguard"]
+            assert wireguard["public_key"] == get_wireguard_public_key(wireguard["private_key"])
+            peer_ips.extend(wireguard["peer_ips"])
+            public_keys.append(wireguard["public_key"])
+        assert sorted(peer_ips) == sorted(f"10.187.0.{host}/32" for host in range(2, count + 2))
+        assert len(set(public_keys)) == count
+    finally:
+        for username in usernames:
+            delete_user(access_token, username)
+        delete_user_template(access_token, template["id"])
+        delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
+
+
+def test_batch_wireguard_key_check_rejects_only_keys_already_stored(access_token):
+    from app.utils.wireguard import ensure_unique_wireguard_public_keys
+
+    core, group = _create_wireguard_core_and_group(access_token, "10.188.0.1/24")
+    user = create_user(access_token, payload={"username": unique_name("wg_key_owner"), "group_ids": [group["id"]]})
+    try:
+        stored_key = client.get(f"/api/user/{user['username']}", headers=auth_headers(access_token)).json()[
+            "proxy_settings"
+        ]["wireguard"]["public_key"]
+        assert stored_key
+        _, fresh_key = generate_wireguard_keypair()
+
+        def settings(public_key):
+            return ProxyTable(wireguard={"public_key": public_key})
+
+        async def check(*keys):
+            async with TestSession() as db:
+                await ensure_unique_wireguard_public_keys(db, [settings(key) for key in keys])
+
+        asyncio.run(check(fresh_key, None))
+        asyncio.run(check())
+        with pytest.raises(ValueError, match="wireguard public_key is already assigned to another user"):
+            asyncio.run(check(fresh_key, stored_key))
+    finally:
+        delete_user(access_token, user["username"])
+        delete_group(access_token, group["id"])
+        delete_core(access_token, core["id"])
 
 
 def test_bulk_create_users_from_template_sequence_with_template_affixes(access_token):
