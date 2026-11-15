@@ -1,3 +1,5 @@
+import ssl
+import time
 from collections.abc import Awaitable, Callable
 
 import nats
@@ -11,6 +13,8 @@ from . import get_nats_config, is_nats_enabled
 
 logger = get_logger("nats-client")
 
+REPEATED_WARNING_INTERVAL = 60.0
+
 
 async def create_nats_client(*, reconnected_cb: Callable[[], Awaitable[None]] | None = None) -> nats.NATS | None:
     """Create a new NATS connection."""
@@ -19,16 +23,30 @@ async def create_nats_client(*, reconnected_cb: Callable[[], Awaitable[None]] | 
     cfg = get_nats_config()
     nc = nats.NATS()
     connected = False
+    last_warning = ""
+    last_warning_at = 0.0
+    suppressed = 0
 
     async def _error_cb(exc: Exception) -> None:
         # While the server is down every reconnect attempt of every connection fails;
         # one traceback per attempt flooded the log, so those attempts are logged at debug.
         # A refused login or handshake and a failing first connect stay visible.
-        is_network_error = isinstance(exc, OSError | TimeoutError) and not isinstance(exc, NatsError)
+        # A TLS failure is an OSError too, but it does not go away on its own: keep it visible.
+        is_network_error = isinstance(exc, OSError | TimeoutError) and not isinstance(exc, NatsError | ssl.SSLError)
         if connected and is_network_error and (nc.is_reconnecting or nc.is_connecting):
             logger.debug(f"NATS reconnect attempt failed: {exc!r}")
-        else:
-            logger.warning(f"NATS error: {exc!r}")
+            return
+        # Reconnecting never gives up, so an error that repeats on every attempt (a changed
+        # password, an expired certificate) is repeated at most once per interval.
+        nonlocal last_warning, last_warning_at, suppressed
+        text = repr(exc)
+        now = time.monotonic()
+        if text == last_warning and now - last_warning_at < REPEATED_WARNING_INTERVAL:
+            suppressed += 1
+            return
+        repeats = f" (repeated {suppressed} more times)" if suppressed and text == last_warning else ""
+        last_warning, last_warning_at, suppressed = text, now, 0
+        logger.warning(f"NATS error: {text}{repeats}")
 
     async def _disconnected_cb() -> None:
         if not nc.is_closed:

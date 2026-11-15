@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import ssl
 
 import nats
 import pytest
@@ -76,7 +77,8 @@ async def test_failed_reconnect_attempts_are_logged_at_debug(fake_connect, caplo
     assert not [r for r in caplog.records if r.exc_info]
 
 
-async def test_refused_login_is_a_warning_even_while_reconnecting(fake_connect, caplog):
+async def test_refused_login_is_a_warning_even_while_reconnecting(fake_connect, caplog, monkeypatch):
+    monkeypatch.setattr(nats_client, "REPEATED_WARNING_INTERVAL", 0)
     nc = await nats_client.create_nats_client()
 
     for status in (nats.NATS.RECONNECTING, nats.NATS.CONNECTING, nats.NATS.CONNECTED):
@@ -107,3 +109,33 @@ async def test_errors_on_a_live_connection_are_warnings(fake_connect, caplog):
     with caplog.at_level(logging.DEBUG):
         await fake_connect["error_cb"](nats_errors.SlowConsumerError(subject="s", reply="", sid=1, sub=None))
     assert len(_warnings(caplog)) == 1
+
+
+async def test_tls_failure_while_reconnecting_is_a_warning(fake_connect, caplog):
+    nc = await nats_client.create_nats_client()
+    nc._status = nats.NATS.RECONNECTING
+
+    with caplog.at_level(logging.DEBUG):
+        await fake_connect["error_cb"](ssl.SSLCertVerificationError("certificate has expired"))
+    assert len(_warnings(caplog)) == 1
+
+
+async def test_error_repeated_on_every_attempt_is_warned_once_per_interval(fake_connect, caplog, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(nats_client.time, "monotonic", lambda: clock[0])
+    nc = await nats_client.create_nats_client()
+    nc._status = nats.NATS.RECONNECTING
+
+    with caplog.at_level(logging.DEBUG):
+        for _ in range(20):
+            await fake_connect["error_cb"](nats_errors.AuthorizationError())
+            clock[0] += 2
+        assert len(_warnings(caplog)) == 1
+
+        await fake_connect["error_cb"](nats_errors.NoRespondersError())
+        assert len(_warnings(caplog)) == 2
+
+        clock[0] += nats_client.REPEATED_WARNING_INTERVAL
+        await fake_connect["error_cb"](nats_errors.NoRespondersError())
+    warnings = _warnings(caplog)
+    assert len(warnings) == 3
