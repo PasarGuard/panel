@@ -96,9 +96,10 @@ class Message:
     v2ray_links_unavailable = "❌ No V2Ray links available for this user."
 
     @staticmethod
-    def start(stats: SystemStats):
+    def start(stats: SystemStats, data_limit: int | None):
         memory_percentage = int(stats.mem_used / stats.mem_total * 100) if stats.mem_total else 0
         disk_percentage = int(stats.disk_used / stats.disk_total * 100) if stats.disk_total else 0
+        data_limit_text = c(readable_size(data_limit)) if data_limit else "∞"
         return f"""\
 ⚙ {b("PasarGuard Version")}: {c(stats.version)}
 
@@ -106,7 +107,7 @@ class Message:
 🎛 {b("CPU Cores")}: {c(stats.cpu_cores)}
 📈 {b("Memory")}: {c(readable_size(stats.mem_used))} / {c(readable_size(stats.mem_total))} ({c(memory_percentage)} %)
 💽 {b("Disk")}: {c(readable_size(stats.disk_used))} / {c(readable_size(stats.disk_total))} ({c(disk_percentage)} %)
-🌐 {b("Total Data Usage")}: {c(readable_size(stats.outgoing_bandwidth + stats.incoming_bandwidth))}
+🌐 {b("Total Data Usage")}: {c(readable_size(stats.outgoing_bandwidth + stats.incoming_bandwidth))} / {data_limit_text}
 
 👥 {b("Total Users")}: {c(stats.total_user)}
 🟢 {b("Online Users")}: {c(stats.online_users)}

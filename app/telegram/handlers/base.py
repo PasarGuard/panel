@@ -44,7 +44,7 @@ async def command_start_handler(
         if isinstance(event, types.CallbackQuery):
             try:
                 return await message.edit_text(
-                    text=Texts.start(stats),
+                    text=Texts.start(stats, admin.data_limit),
                     reply_markup=AdminPanel(
                         admin=admin,
                         panel_url=settings.mini_app_web_url if settings.mini_app_login else None,
@@ -53,7 +53,7 @@ async def command_start_handler(
             except TelegramBadRequest:
                 pass
         await message.answer(
-            text=Texts.start(stats),
+            text=Texts.start(stats, admin.data_limit),
             reply_markup=AdminPanel(
                 admin=admin, panel_url=settings.mini_app_web_url if settings.mini_app_login else None
             ).as_markup(),
