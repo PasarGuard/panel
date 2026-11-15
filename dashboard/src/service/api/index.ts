@@ -320,16 +320,6 @@ export interface CustomVariable {
   value?: string;
 }
 
-export interface UserNotificationEnable {
-  create?: boolean;
-  modify?: boolean;
-  delete?: boolean;
-  status_change?: boolean;
-  reset_data_usage?: boolean;
-  data_reset_by_next?: boolean;
-  subscription_revoked?: boolean;
-}
-
 /**
  * An admin's own preferences. Reminders about their users are opt-in.
  */
@@ -2108,6 +2098,16 @@ export interface NotificationChannels {
   user?: NotificationChannel;
   user_template?: NotificationChannel;
   api_key?: NotificationChannel;
+}
+
+export interface UserNotificationEnable {
+  create?: boolean;
+  modify?: boolean;
+  delete?: boolean;
+  status_change?: boolean;
+  reset_data_usage?: boolean;
+  data_reset_by_next?: boolean;
+  subscription_revoked?: boolean;
 }
 
 export interface NotificationEnable {
@@ -21084,7 +21084,7 @@ export const getListPasskeysQueryKey = () => {
     }
 
 
-export const getListPasskeysQueryOptions = <TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+export const getListPasskeysQueryOptions = <TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<Unauthorized | Forbidden>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -21103,10 +21103,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListPasskeysQueryResult = NonNullable<Awaited<ReturnType<typeof listPasskeys>>>
-export type ListPasskeysQueryError = ErrorType<unknown>
+export type ListPasskeysQueryError = ErrorType<Unauthorized | Forbidden>
 
 
-export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>(
+export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<Unauthorized | Forbidden>>(
   options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listPasskeys>>,
@@ -21116,7 +21116,7 @@ export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>
       >, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>(
+export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<Unauthorized | Forbidden>>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listPasskeys>>,
@@ -21126,7 +21126,7 @@ export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>
       >, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>(
+export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<Unauthorized | Forbidden>>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -21134,7 +21134,7 @@ export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>
  * @summary List Passkeys
  */
 
-export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>(
+export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<Unauthorized | Forbidden>>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -21185,7 +21185,7 @@ export const getListAdminPasskeysQueryKey = (adminId: number,) => {
     }
 
 
-export const getListAdminPasskeysQueryOptions = <TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+export const getListAdminPasskeysQueryOptions = <TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -21204,10 +21204,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListAdminPasskeysQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminPasskeys>>>
-export type ListAdminPasskeysQueryError = ErrorType<HTTPValidationError>
+export type ListAdminPasskeysQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
 
-export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(
+export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
  adminId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listAdminPasskeys>>,
@@ -21217,7 +21217,7 @@ export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdmin
       >, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(
+export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
  adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listAdminPasskeys>>,
@@ -21227,7 +21227,7 @@ export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdmin
       >, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(
+export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
  adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -21235,7 +21235,7 @@ export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdmin
  * @summary List Admin Passkeys
  */
 
-export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(
+export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
  adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -21281,7 +21281,7 @@ export const deleteAdminPasskey = async (adminId: number,
 
 
 
-export const getDeleteAdminPasskeyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getDeleteAdminPasskeyMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminPasskey>>, TError,{adminId: number;passkeyId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminPasskey>>, TError,{adminId: number;passkeyId: number}, TContext> => {
 
@@ -21310,12 +21310,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteAdminPasskeyMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminPasskey>>>
 
-    export type DeleteAdminPasskeyMutationError = ErrorType<HTTPValidationError>
+    export type DeleteAdminPasskeyMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Delete Admin Passkey
  */
-export const useDeleteAdminPasskey = <TError = ErrorType<HTTPValidationError>,
+export const useDeleteAdminPasskey = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminPasskey>>, TError,{adminId: number;passkeyId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof deleteAdminPasskey>>,
@@ -21352,7 +21352,7 @@ export const deletePasskey = async (passkeyId: number, options?: RequestInit): P
 
 
 
-export const getDeletePasskeyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getDeletePasskeyMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePasskey>>, TError,{passkeyId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deletePasskey>>, TError,{passkeyId: number}, TContext> => {
 
@@ -21381,12 +21381,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeletePasskeyMutationResult = NonNullable<Awaited<ReturnType<typeof deletePasskey>>>
 
-    export type DeletePasskeyMutationError = ErrorType<HTTPValidationError>
+    export type DeletePasskeyMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Delete Passkey
  */
-export const useDeletePasskey = <TError = ErrorType<HTTPValidationError>,
+export const useDeletePasskey = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePasskey>>, TError,{passkeyId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof deletePasskey>>,
@@ -21423,7 +21423,7 @@ export const passkeyLoginOptions = async (passkeyOptionsRequest: PasskeyOptionsR
 
 
 
-export const getPasskeyLoginOptionsMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getPasskeyLoginOptionsMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginOptions>>, TError,{data: BodyType<PasskeyOptionsRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginOptions>>, TError,{data: BodyType<PasskeyOptionsRequest>}, TContext> => {
 
@@ -21452,12 +21452,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type PasskeyLoginOptionsMutationResult = NonNullable<Awaited<ReturnType<typeof passkeyLoginOptions>>>
     export type PasskeyLoginOptionsMutationBody = BodyType<PasskeyOptionsRequest>
-    export type PasskeyLoginOptionsMutationError = ErrorType<HTTPValidationError>
+    export type PasskeyLoginOptionsMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Passkey Login Options
  */
-export const usePasskeyLoginOptions = <TError = ErrorType<HTTPValidationError>,
+export const usePasskeyLoginOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginOptions>>, TError,{data: BodyType<PasskeyOptionsRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof passkeyLoginOptions>>,
@@ -21494,7 +21494,7 @@ export const passkeyLoginVerify = async (passkeyAuthenticationRequest: PasskeyAu
 
 
 
-export const getPasskeyLoginVerifyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getPasskeyLoginVerifyMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginVerify>>, TError,{data: BodyType<PasskeyAuthenticationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginVerify>>, TError,{data: BodyType<PasskeyAuthenticationRequest>}, TContext> => {
 
@@ -21523,12 +21523,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type PasskeyLoginVerifyMutationResult = NonNullable<Awaited<ReturnType<typeof passkeyLoginVerify>>>
     export type PasskeyLoginVerifyMutationBody = BodyType<PasskeyAuthenticationRequest>
-    export type PasskeyLoginVerifyMutationError = ErrorType<HTTPValidationError>
+    export type PasskeyLoginVerifyMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Passkey Login Verify
  */
-export const usePasskeyLoginVerify = <TError = ErrorType<HTTPValidationError>,
+export const usePasskeyLoginVerify = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginVerify>>, TError,{data: BodyType<PasskeyAuthenticationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof passkeyLoginVerify>>,
@@ -21565,7 +21565,7 @@ export const passkeyRegisterOptions = async ( options?: RequestInit): Promise<un
 
 
 
-export const getPasskeyRegisterOptionsMutationOptions = <TError = ErrorType<unknown>,
+export const getPasskeyRegisterOptionsMutationOptions = <TError = ErrorType<Unauthorized | Forbidden>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterOptions>>, TError,void, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterOptions>>, TError,void, TContext> => {
 
@@ -21594,12 +21594,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type PasskeyRegisterOptionsMutationResult = NonNullable<Awaited<ReturnType<typeof passkeyRegisterOptions>>>
 
-    export type PasskeyRegisterOptionsMutationError = ErrorType<unknown>
+    export type PasskeyRegisterOptionsMutationError = ErrorType<Unauthorized | Forbidden>
 
     /**
  * @summary Passkey Register Options
  */
-export const usePasskeyRegisterOptions = <TError = ErrorType<unknown>,
+export const usePasskeyRegisterOptions = <TError = ErrorType<Unauthorized | Forbidden>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterOptions>>, TError,void, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof passkeyRegisterOptions>>,
@@ -21636,7 +21636,7 @@ export const passkeyRegisterVerify = async (passkeyRegistrationRequest: PasskeyR
 
 
 
-export const getPasskeyRegisterVerifyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getPasskeyRegisterVerifyMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterVerify>>, TError,{data: BodyType<PasskeyRegistrationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterVerify>>, TError,{data: BodyType<PasskeyRegistrationRequest>}, TContext> => {
 
@@ -21665,12 +21665,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type PasskeyRegisterVerifyMutationResult = NonNullable<Awaited<ReturnType<typeof passkeyRegisterVerify>>>
     export type PasskeyRegisterVerifyMutationBody = BodyType<PasskeyRegistrationRequest>
-    export type PasskeyRegisterVerifyMutationError = ErrorType<HTTPValidationError>
+    export type PasskeyRegisterVerifyMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Passkey Register Verify
  */
-export const usePasskeyRegisterVerify = <TError = ErrorType<HTTPValidationError>,
+export const usePasskeyRegisterVerify = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterVerify>>, TError,{data: BodyType<PasskeyRegistrationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof passkeyRegisterVerify>>,
@@ -21707,7 +21707,7 @@ export const adminPasskeyRegisterOptions = async (adminId: number, options?: Req
 
 
 
-export const getAdminPasskeyRegisterOptionsMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getAdminPasskeyRegisterOptionsMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>, TError,{adminId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>, TError,{adminId: number}, TContext> => {
 
@@ -21736,12 +21736,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AdminPasskeyRegisterOptionsMutationResult = NonNullable<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>>
 
-    export type AdminPasskeyRegisterOptionsMutationError = ErrorType<HTTPValidationError>
+    export type AdminPasskeyRegisterOptionsMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Admin Passkey Register Options
  */
-export const useAdminPasskeyRegisterOptions = <TError = ErrorType<HTTPValidationError>,
+export const useAdminPasskeyRegisterOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>, TError,{adminId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>,
@@ -21779,7 +21779,7 @@ export const adminPasskeyRegisterVerify = async (adminId: number,
 
 
 
-export const getAdminPasskeyRegisterVerifyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getAdminPasskeyRegisterVerifyMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>, TError,{adminId: number;data: BodyType<PasskeyRegistrationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>, TError,{adminId: number;data: BodyType<PasskeyRegistrationRequest>}, TContext> => {
 
@@ -21808,12 +21808,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AdminPasskeyRegisterVerifyMutationResult = NonNullable<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>>
     export type AdminPasskeyRegisterVerifyMutationBody = BodyType<PasskeyRegistrationRequest>
-    export type AdminPasskeyRegisterVerifyMutationError = ErrorType<HTTPValidationError>
+    export type AdminPasskeyRegisterVerifyMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Admin Passkey Register Verify
  */
-export const useAdminPasskeyRegisterVerify = <TError = ErrorType<HTTPValidationError>,
+export const useAdminPasskeyRegisterVerify = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>, TError,{adminId: number;data: BodyType<PasskeyRegistrationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>,
