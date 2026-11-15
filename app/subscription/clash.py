@@ -823,7 +823,8 @@ class ClashMetaConfiguration(ClashConfiguration):
             "udp": True,
         }
 
-        if inbound.wireguard_keepalive and inbound.wireguard_keepalive > 0:
+        # WireGuard reads the keepalive as an unsigned 16-bit number
+        if inbound.wireguard_keepalive and 0 < inbound.wireguard_keepalive <= 65535:
             node["persistent-keepalive"] = inbound.wireguard_keepalive
 
         # Mihomo uses "dns" only with remote-dns-resolve, and one bad entry fails the whole profile
