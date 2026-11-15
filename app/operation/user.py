@@ -409,8 +409,8 @@ class UserOperation(BaseOperation):
         except ValueError as exc:  # WireGuard subnet exhausted
             await self.raise_error(message=str(exc), code=400, db=db)
         if not commit:
-            for user in db_users:
-                await load_user_attrs(user, load_admin_role=True)
+            # One batched load for the whole batch instead of a few lazy loads per user
+            db_users = await get_users_by_ids(db, [user.id for user in db_users], load_admin_role=True)
         if sync:
             await sync_users(db_users)
 
