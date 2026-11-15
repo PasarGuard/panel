@@ -371,6 +371,8 @@ class StandardLinks(BaseSubscription):
             getattr(inbound, "password", None),
             settings["password"],
         )
+        payload = {}
+        self._apply_finalmask(payload, "shadowsocks", inbound)
 
         encoded = base64.b64encode(f"{method}:{password}".encode()).decode()
         link = f"ss://{encoded}@{address}:{inbound.port}"
@@ -379,7 +381,8 @@ class StandardLinks(BaseSubscription):
             if obfs_host:
                 plugin_options.append(f"obfs-host={obfs_host}")
             plugin = ";".join(["obfs-local", *plugin_options])
-            link += "?" + urlparse.urlencode({"plugin": plugin}, quote_via=urlparse.quote)
+            payload["plugin"] = plugin
+            link += "?" + urlparse.urlencode(payload, quote_via=urlparse.quote)
         return f"{link}#{urlparse.quote(remark)}"
 
     def _build_hysteria(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
