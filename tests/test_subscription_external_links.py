@@ -11,6 +11,7 @@ from app.db.models import UserStatus
 from app.models.settings import Subscription
 from app.models.subscription import (
     GRPCTransportConfig,
+    KCPTransportConfig,
     SubscriptionInboundData,
     TCPTransportConfig,
     TLSConfig,
@@ -43,6 +44,8 @@ def _host(protocol: str, network: str, transport, tls: TLSConfig | None = None, 
         **kwargs,
     )
 
+
+FINALMASK = {"tcp": [{"type": "fragment", "settings": {"packets": "tlshello", "maxSplit": "3-6"}}]}
 
 HOSTS = {
     "vless-reality-tcp": (
@@ -132,6 +135,69 @@ HOSTS = {
             "tcp",
             TCPTransportConfig(),
             TLSConfig(tls="tls", sni="cdn.example.com", verify_peer_cert_by_name=["a.example.com", "b.example.com"]),
+        ),
+        {"id": UUID},
+    ),
+    # Every value the link builder writes is read back: KCP MTU and TTI, the WebSocket heartbeat,
+    # cipher suites, the ECH query mode, the Xray fragment and finalmask.
+    "vless-kcp": (
+        _host("vless", "kcp", KCPTransportConfig(mtu=1200, tti=10)),
+        {"id": UUID},
+    ),
+    "vmess-kcp": (
+        _host("vmess", "kcp", KCPTransportConfig(mtu=1200, tti=10)),
+        {"id": UUID},
+    ),
+    "vless-ws-heartbeat": (
+        _host(
+            "vless",
+            "ws",
+            WebSocketTransportConfig(path="/ws", host="cdn.example.com", heartbeat_period=30),
+            TLSConfig(tls="tls", sni="cdn.example.com"),
+        ),
+        {"id": UUID},
+    ),
+    "vless-tls-cipher-suites": (
+        _host(
+            "vless",
+            "tcp",
+            TCPTransportConfig(),
+            TLSConfig(
+                tls="tls",
+                sni="cdn.example.com",
+                fingerprint="unsafe",
+                cipher_suites="TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256",
+            ),
+        ),
+        {"id": UUID},
+    ),
+    "vless-tls-ech": (
+        _host(
+            "vless",
+            "tcp",
+            TCPTransportConfig(),
+            TLSConfig(tls="tls", sni="cdn.example.com", ech_config_list="AEX+DQBBAAAgACB", ech_query_strategy="half"),
+        ),
+        {"id": UUID},
+    ),
+    "vless-tls-fragment": (
+        _host(
+            "vless",
+            "tcp",
+            TCPTransportConfig(),
+            TLSConfig(tls="tls", sni="cdn.example.com"),
+            fragment_settings={"xray": {"packets": "tlshello", "length": "100-200", "interval": "10-20"}},
+        ),
+        {"id": UUID},
+    ),
+    "vless-finalmask": (
+        _host(
+            "vless",
+            "tcp",
+            TCPTransportConfig(),
+            TLSConfig(tls="tls", sni="cdn.example.com"),
+            finalmask=FINALMASK,
+            finalmask_link=json.dumps(FINALMASK, separators=(",", ":")),
         ),
         {"id": UUID},
     ),
@@ -284,6 +350,23 @@ def test_xray_external_link_matches_multi_mode_grpc_host_with_custom_path():
     assert configs == expected.config
     grpc_settings = configs[0]["outbounds"][0]["streamSettings"]["grpcSettings"]
     assert (grpc_settings["serviceName"], grpc_settings["multiMode"]) == ("/svc/TunMulti", True)
+
+
+@pytest.mark.parametrize("port", ["-1", "0", "65536", "abc"])
+def test_external_link_with_port_outside_1_to_65535_is_skipped(port):
+    vmess = (
+        "vmess://"
+        + base64.b64encode(
+            json.dumps({"add": "203.0.113.10", "port": port, "id": UUID, "net": "tcp", "ps": "V"}).encode()
+        ).decode()
+    )
+    links = [f"vless://{UUID}@203.0.113.10:{port}?type=tcp#L", f"trojan://secret@203.0.113.10:{port}#T", vmess]
+
+    assert _render_xray(links) == []
+    for builder in (ClashMetaConfiguration, SingBoxConfiguration):
+        conf = builder()
+        conf.add_share_links(links)
+        assert _proxies(conf) == []
 
 
 @pytest.mark.parametrize("extra", ["[1]", '"x"', "1", "0", "true"])
