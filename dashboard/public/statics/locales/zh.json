@@ -2307,6 +2307,11 @@
   },
   "name": "名称",
   "nodeModal": {
+    "hardReset": "硬重置",
+    "hardResetPrompt": "确定硬重置节点“{{name}}”吗？这将重启节点容器并暂时中断连接。",
+    "hardResetting": "正在重启节点...",
+    "hardResetSuccess": "节点重启成功。正在重新连接...",
+    "hardResetFailed": "重启节点失败：{{message}}",
     "title": "添加节点",
     "description": "添加新节点到您的网络",
     "name": "节点名称",

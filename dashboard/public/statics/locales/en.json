@@ -2362,6 +2362,11 @@
   "searchInbounds": "Search inbounds...",
   "noInboundsFound": "No inbounds found",
   "nodeModal": {
+    "hardReset": "Hard Reset",
+    "hardResetPrompt": "Hard reset node «{{name}}»? This restarts the node container and temporarily interrupts connections.",
+    "hardResetting": "Restarting node...",
+    "hardResetSuccess": "Node restarted successfully. Reconnecting...",
+    "hardResetFailed": "Failed to restart node: {{message}}",
     "title": "Create Node",
     "description": "Create a new node to your network",
     "name": "Node Name",

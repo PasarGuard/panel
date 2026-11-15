@@ -704,6 +704,7 @@ def node_operator_mock(monkeypatch: pytest.MonkeyPatch):
         "bulk_update_nodes",
         "reset_node_usage",
         "restart_node",
+        "hard_reset_node",
         "sync_node_users",
         "remove_node",
         "get_node_stats_periodic",
@@ -913,6 +914,14 @@ def test_reconnect_node(access_token, node_operator_mock):
     assert response.json() == {}
     await_args = node_operator_mock.restart_node.await_args.args
     assert await_args[1] == 9
+
+
+def test_hard_reset_node(access_token, node_operator_mock):
+    node_operator_mock.hard_reset_node.return_value = {"detail": "node restarted"}
+    response = client.post("/api/node/9/hard_reset", headers=auth_headers(access_token))
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {"detail": "node restarted"}
+    assert node_operator_mock.hard_reset_node.await_args.kwargs["node_id"] == 9
 
 
 def test_sync_node_users(access_token, node_operator_mock):

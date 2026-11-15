@@ -16,10 +16,11 @@ async def test_maintenance_rpcs_wait_longer_than_node_serviced(monkeypatch):
     monkeypatch.setattr(node_operation_module.node_nats_client, "request", fake_request)
     operation = NodeOperation(OperatorType.API)
 
+    await operation._hard_reset_node_remote(None, 1)
     await operation._update_node_api_remote(None, 1)
     await operation._update_core_remote(None, 1, NodeCoreUpdate(core_version="v1.2.3"))
     await operation._update_geofiles_remote(None, 1, NodeGeoFilesUpdate())
 
-    assert set(seen_timeouts) == {"update_node_api", "update_core", "update_geofiles"}
+    assert set(seen_timeouts) == {"hard_reset_node", "update_node_api", "update_core", "update_geofiles"}
     for action, timeout in seen_timeouts.items():
         assert timeout is not None and timeout > NODE_SERVICED_DEADLINE_SECONDS, (action, timeout)

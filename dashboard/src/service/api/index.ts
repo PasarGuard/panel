@@ -13084,6 +13084,78 @@ export const useResetNodeUsage = <TError = ErrorType<Unauthorized | Forbidden | 
       return useMutation(getResetNodeUsageMutationOptions(options), queryClient);
     }
 
+export const getHardResetNodeUrl = (nodeId: number,) => {
+
+
+
+
+  return `/api/node/${nodeId}/hard_reset`
+}
+
+/**
+ * Restart the remote node container and reconnect once it is available.
+ * @summary Hard Reset Node
+ */
+export const hardResetNode = async (nodeId: number, options?: RequestInit): Promise<unknown> => {
+
+  return orvalFetcher<unknown>(getHardResetNodeUrl(nodeId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getHardResetNodeMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof hardResetNode>>, TError,{nodeId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof hardResetNode>>, TError,{nodeId: number}, TContext> => {
+
+const mutationKey = ['hardResetNode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof hardResetNode>>, {nodeId: number}> = (props) => {
+          const {nodeId} = props ?? {};
+
+          return  hardResetNode(nodeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type HardResetNodeMutationResult = NonNullable<Awaited<ReturnType<typeof hardResetNode>>>
+
+    export type HardResetNodeMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+    /**
+ * @summary Hard Reset Node
+ */
+export const useHardResetNode = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof hardResetNode>>, TError,{nodeId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof hardResetNode>>,
+        TError,
+        {nodeId: number},
+        TContext
+      > => {
+      return useMutation(getHardResetNodeMutationOptions(options), queryClient);
+    }
+
 export const getReconnectNodeUrl = (nodeId: number,) => {
 
 

@@ -156,6 +156,7 @@ class NodeOperation(BaseOperation):
             self._get_user_online_stats_impl = self._get_user_online_stats_local
             self._get_user_ip_list_impl = self._get_user_ip_list_local
             self._get_user_ip_list_all_impl = self._get_user_ip_list_all_local
+            self._hard_reset_node_impl = self._hard_reset_node_local
             self._update_node_api_impl = self._update_node_api_local
             self._update_core_impl = self._update_core_local
             self._update_geofiles_impl = self._update_geofiles_local
@@ -174,6 +175,7 @@ class NodeOperation(BaseOperation):
             self._get_user_online_stats_impl = self._get_user_online_stats_remote
             self._get_user_ip_list_impl = self._get_user_ip_list_remote
             self._get_user_ip_list_all_impl = self._get_user_ip_list_all_remote
+            self._hard_reset_node_impl = self._hard_reset_node_remote
             self._update_node_api_impl = self._update_node_api_remote
             self._update_core_impl = self._update_core_remote
             self._update_geofiles_impl = self._update_geofiles_remote
@@ -948,6 +950,10 @@ class NodeOperation(BaseOperation):
         except Exception as e:
             await self.raise_error(code=400, message=f"Deletion failed due to server error: {e!s}")
 
+    async def hard_reset_node(self, db: AsyncSession, node_id: int) -> dict:
+        await self.get_validated_node(db, node_id, load_usage_logs=False)
+        return await self._hard_reset_node_impl(db, node_id)
+
     async def update_node(self, db: AsyncSession, node_id: int) -> dict:
         await self.get_validated_node(db, node_id, load_usage_logs=False)
         return await self._update_node_api_impl(db, node_id)
@@ -1496,6 +1502,25 @@ class NodeOperation(BaseOperation):
             node_version="",
         )
         await node.set_health(Health.NOT_CONNECTED)
+
+    async def _hard_reset_node_local(self, db: AsyncSession, node_id: int) -> dict:
+        node = await node_manager.get_node(node_id)
+        if node is None:
+            await self.raise_error(message="Node not found", code=404)
+        try:
+            response = await node.hard_reset()
+        except NodeAPIError as e:
+            await self.raise_error(message=e.detail, code=e.code)
+        await self._mark_node_reconnecting_after_update(db, node_id, node)
+        return response.json()
+
+    async def _hard_reset_node_remote(self, db: AsyncSession, node_id: int) -> dict:
+        try:
+            return await node_nats_client.request(
+                "hard_reset_node", {"node_id": node_id}, timeout=_MAINTENANCE_RPC_TIMEOUT
+            )
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
 
     async def _update_node_api_local(self, db: AsyncSession, node_id: int) -> dict:
         node = await node_manager.get_node(node_id)

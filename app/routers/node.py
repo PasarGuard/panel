@@ -305,6 +305,16 @@ async def reset_node_usage(
     return await node_operator.reset_node_usage(db, node_id=node_id, admin=admin)
 
 
+@router.post("/{node_id}/hard_reset")
+async def hard_reset_node(
+    node_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminDetails = Depends(require_permission("nodes", "reconnect")),
+):
+    """Restart the remote node container and reconnect once it is available."""
+    return await node_operator.hard_reset_node(db=db, node_id=node_id)
+
+
 @router.post("/{node_id}/reconnect")
 async def reconnect_node(
     node_id: int,
