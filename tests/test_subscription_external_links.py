@@ -107,6 +107,34 @@ HOSTS = {
         _host("vmess", "grpc", GRPCTransportConfig(path="/svc/Stream", multi_mode=False)),
         {"id": UUID},
     ),
+    # VLESS and Trojan links percent-encode the encoded custom stream name a second time.
+    "vless-grpc-path": (
+        _host(
+            "vless",
+            "grpc",
+            GRPCTransportConfig(path="/svc/Stream", multi_mode=False),
+            TLSConfig(tls="tls", sni="grpc.example.com"),
+        ),
+        {"id": UUID},
+    ),
+    "trojan-grpc-path": (
+        _host(
+            "trojan",
+            "grpc",
+            GRPCTransportConfig(path="/svc/Stream", multi_mode=False),
+            TLSConfig(tls="tls", sni="grpc.example.com"),
+        ),
+        {"password": "secret"},
+    ),
+    "vless-tls-peer-names": (
+        _host(
+            "vless",
+            "tcp",
+            TCPTransportConfig(),
+            TLSConfig(tls="tls", sni="cdn.example.com", verify_peer_cert_by_name=["a.example.com", "b.example.com"]),
+        ),
+        {"id": UUID},
+    ),
     "shadowsocks": (
         _host("shadowsocks", "tcp", TCPTransportConfig()),
         {"method": "chacha20-ietf-poly1305", "password": "secret"},
@@ -223,6 +251,25 @@ def test_xray_external_links_skip_shadowsocks_link_with_transport(query):
     configs = _render_xray([f"ss://{userinfo}@203.0.113.10:8388?{query}#Transport", vless])
 
     assert [config["outbounds"][0]["protocol"] for config in configs] == ["vless"]
+
+
+def test_xray_external_links_skip_shadowsocks_link_with_plugin():
+    # SIP002: the client needs the plugin to connect; plain Shadowsocks without it would not work.
+    userinfo = base64.b64encode(b"aes-128-gcm:secret").decode()
+    vless = _share_link(*HOSTS["vless-reality-tcp"])
+    plugin = quote("v2ray-plugin;mode=websocket;host=cdn.example.com", safe="")
+
+    configs = _render_xray([f"ss://{userinfo}@203.0.113.10:8388/?plugin={plugin}#Plugin", vless])
+
+    assert [config["outbounds"][0]["protocol"] for config in configs] == ["vless"]
+
+
+@pytest.mark.parametrize(("query", "security"), [("type=tcp&sni=t.example.com", "tls"), ("security=none", "none")])
+def test_xray_external_trojan_link_without_security_uses_tls(query, security):
+    # Trojan servers expect TLS; only an explicit security=none keeps a plain connection.
+    (config,) = _render_xray([f"trojan://secret@203.0.113.10:443?{query}#T"])
+
+    assert config["outbounds"][0]["streamSettings"].get("security", "none") == security
 
 
 def test_xray_external_link_matches_multi_mode_grpc_host_with_custom_path():

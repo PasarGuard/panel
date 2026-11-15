@@ -55,10 +55,7 @@ def parse_share_link(link: str) -> tuple[str, SubscriptionInboundData, dict, dic
         # VMess links keep the TLS mode in "tls" and the header type, gRPC or xHTTP mode in "type".
         params.update(type=network, security=params.get("tls") or "none")
         if network in ("grpc", "gun"):
-            # The link builder percent-encodes a gRPC path, like the query of the other schemes.
-            params.update(
-                mode=header_type, serviceName=unquote(params.get("path", "")), authority=params.get("host", "")
-            )
+            params.update(mode=header_type, serviceName=params.get("path", ""), authority=params.get("host", ""))
         elif network in ("xhttp", "splithttp"):
             params["mode"] = header_type
         else:
@@ -91,17 +88,22 @@ def parse_share_link(link: str) -> tuple[str, SubscriptionInboundData, dict, dic
         return None
 
     network = params.get("type") or "tcp"
-    security = params.get("security") or "none"
+    # Trojan runs over TLS; only an explicit security=none keeps a plain connection.
+    security = params.get("security") or ("tls" if protocol == "trojan" else "none")
     transport_class = _SHARE_LINK_TRANSPORTS.get(network)
     if transport_class is None or security not in ("none", "tls", "reality"):
         return None
     if protocol == "shadowsocks" and transport_class is not TCPTransportConfig:
         # The Shadowsocks builder has no transport; another one would be dropped silently.
         return None
+    if protocol == "shadowsocks" and params.get("plugin"):
+        # SIP002: the client needs the plugin to connect, and the builders carry no plugin.
+        return None
 
     if transport_class is GRPCTransportConfig:
         transport = GRPCTransportConfig(
-            path=params.get("serviceName", ""),
+            # The link builder percent-encodes a custom stream name before the query encodes it again.
+            path=unquote(params.get("serviceName", "")),
             host=params.get("authority", ""),
             multi_mode=params.get("mode") == "multi",
         )
@@ -134,6 +136,7 @@ def parse_share_link(link: str) -> tuple[str, SubscriptionInboundData, dict, dic
             alpn_list=[alpn for alpn in params.get("alpn", "").split(",") if alpn],
             ech_config_list=params.get("ech") or None,
             pinned_peer_cert_sha256=params.get("pcs") or None,
+            verify_peer_cert_by_name=[name for name in params.get("vcn", "").split(",") if name],
             reality_public_key=params.get("pbk", ""),
             reality_short_id=params.get("sid", ""),
             reality_spx=params.get("spx", ""),
