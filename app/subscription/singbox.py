@@ -327,7 +327,7 @@ class SingBoxConfiguration(BaseSubscription):
             "tag": remark,
             "server": address,
             "server_port": self._select_port(inbound.port),
-            "method": method,
+            "method": self._singbox_shadowsocks_method(method),
             "password": password,
         }
 
@@ -336,6 +336,14 @@ class SingBoxConfiguration(BaseSubscription):
             config["plugin_opts"] = f"obfs=http;obfs-host={obfs_host}" if obfs_host else "obfs=http"
 
         return self._normalize_and_remove_none_values(config)
+
+    @staticmethod
+    def _singbox_shadowsocks_method(method: str) -> str:
+        """Xray accepts short chacha names; sing-box knows only the -ietf- ones and refuses the config otherwise."""
+        return {
+            "chacha20-poly1305": "chacha20-ietf-poly1305",
+            "xchacha20-poly1305": "xchacha20-ietf-poly1305",
+        }.get(method, method)
 
     def _build_hysteria(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build Hysteria outbound"""
