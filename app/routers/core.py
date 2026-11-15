@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
+from starlette.concurrency import run_in_threadpool
 
 from app.db import AsyncSession, get_db
 from app.db.crud.node import get_nodes
 from app.db.models import Node, NodeStatus
 from app.models.admin import AdminDetails
+from app.models.certificate import CertificateInspectRequest, CertificateInspectResult
 from app.models.core import (
     BulkCoreSelection,
     CoreCreate,
@@ -19,14 +21,37 @@ from app.models.reality_scan import RealityScanRequest, RealityScanResult
 from app.operation import OperatorType
 from app.operation.core import CoreOperation
 from app.operation.node import NodeOperation
+from app.operation.permissions import PermissionDenied, enforce_permission
 from app.utils import responses
+from app.utils.certificate import inspect_certificate
 
-from .authentication import require_permission
+from .authentication import get_current, require_permission
 from .dependencies import get_core_list_query, get_core_simple_list_query
 
 core_operator = CoreOperation(operator_type=OperatorType.API)
 node_operator = NodeOperation(operator_type=OperatorType.API)
 router = APIRouter(tags=["Core"], prefix="/api/core", responses={401: responses._401, 403: responses._403})
+
+
+async def _certificate_editor(admin: AdminDetails = Depends(get_current)) -> AdminDetails:
+    for action in ("create", "update"):
+        try:
+            enforce_permission(admin, "cores", action)
+            return admin
+        except PermissionDenied:
+            continue
+    raise HTTPException(status_code=403, detail="Core create or update permission is required.")
+
+
+@router.post("/certificate-info", response_model=CertificateInspectResult)
+async def get_certificate_info(
+    request: CertificateInspectRequest,
+    response: Response,
+    _: AdminDetails = Depends(_certificate_editor),
+):
+    """Inspect PEM material without persisting it or returning private keys."""
+    response.headers["Cache-Control"] = "no-store"
+    return await run_in_threadpool(inspect_certificate, request)
 
 
 async def _core_node_ids(db: AsyncSession, core_ids: list[int]) -> list[int]:
