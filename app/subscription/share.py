@@ -29,6 +29,7 @@ from . import (
     OutlineConfiguration,
     SingBoxConfiguration,
     StandardLinks,
+    TelegramLinks,
     WireGuardConfiguration,
     XrayConfiguration,
 )
@@ -65,7 +66,7 @@ def _build_subscription_config(
     if config_format == "links":
         return StandardLinks(**common_kwargs)
     if config_format == TELEGRAM_PAGE_LINKS_FORMAT:
-        return StandardLinks(include_telegram_proxy_links=True, **common_kwargs)
+        return TelegramLinks(**common_kwargs)
     if config_format == "clash":
         return ClashConfiguration(
             clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],

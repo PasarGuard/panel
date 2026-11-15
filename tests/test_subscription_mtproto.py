@@ -7,7 +7,8 @@ import pytest
 from app.core.hosts import _prepare_subscription_inbound_data
 from app.db.models import DataLimitResetStrategy, UserStatus
 from app.models.subscription import SubscriptionInboundData, TCPTransportConfig, TLSConfig
-from app.subscription.links import StandardLinks, _mtproto_client_secret, _telegram_web_link
+from app.subscription.links import StandardLinks
+from app.subscription.telegram import TelegramLinks
 from app.templates import render_template
 
 SECRET = "00112233445566778899aabbccddeeff"
@@ -30,27 +31,27 @@ def _inbound(*, modes: dict[str, bool] | None = None, tls_domain: str = "") -> S
 
 
 def _telegram_links(address: str, inbound: SubscriptionInboundData, settings: dict) -> list[str]:
-    links = StandardLinks(include_telegram_proxy_links=True)
+    links = TelegramLinks()
     links.add("EU", address, inbound, settings)
     return links.links
 
 
 def test_mtproto_client_secret_classic():
-    assert _mtproto_client_secret(SECRET, _inbound(modes={"classic": True})) == SECRET
+    assert TelegramLinks._mtproto_client_secret(SECRET, _inbound(modes={"classic": True})) == SECRET
 
 
 def test_mtproto_client_secret_secure():
-    assert _mtproto_client_secret(SECRET, _inbound(modes={"secure": True})) == "dd" + SECRET
+    assert TelegramLinks._mtproto_client_secret(SECRET, _inbound(modes={"secure": True})) == "dd" + SECRET
 
 
 def test_mtproto_client_secret_tls_prefers_fake_tls():
     inbound = _inbound(modes={"classic": True, "secure": True, "tls": True}, tls_domain="cloudflare.com")
-    assert _mtproto_client_secret(SECRET, inbound) == "ee" + SECRET + b"cloudflare.com".hex()
+    assert TelegramLinks._mtproto_client_secret(SECRET, inbound) == "ee" + SECRET + b"cloudflare.com".hex()
 
 
 def test_mtproto_client_secret_tls_without_domain_falls_back():
     inbound = _inbound(modes={"classic": True, "secure": True, "tls": True})
-    assert _mtproto_client_secret(SECRET, inbound) == "dd" + SECRET
+    assert TelegramLinks._mtproto_client_secret(SECRET, inbound) == "dd" + SECRET
 
 
 def test_mtproto_link_uses_telemt_form():
@@ -194,14 +195,19 @@ def test_tls_type_without_domain_gives_no_link():
 @pytest.mark.parametrize("secret", [WEB_SECRET, WEB_SECRET.upper()])
 def test_web_link_vectors(secret):
     host = "proxy.example.com"
-    assert _telegram_web_link(host, "", "plain", secret) == f"tg://webproxy?server={host}&secret={WEB_SECRET}"
-    assert _telegram_web_link(host, "", "dd", secret) == f"tg://webproxy?server={host}&secret=dd{WEB_SECRET}"
     assert (
-        _telegram_web_link(host, "dobry-cola/super_app", "plain", secret)
+        TelegramLinks._telegram_web_link(host, "", "plain", secret)
+        == f"tg://webproxy?server={host}&secret={WEB_SECRET}"
+    )
+    assert (
+        TelegramLinks._telegram_web_link(host, "", "dd", secret) == f"tg://webproxy?server={host}&secret=dd{WEB_SECRET}"
+    )
+    assert (
+        TelegramLinks._telegram_web_link(host, "dobry-cola/super_app", "plain", secret)
         == "tg://webproxy?server=proxy.example.com%2Fdobry-cola%2Fsuper_app&secret=cAABAgMEBQYHCAkKCwwNDg8"
     )
     assert (
-        _telegram_web_link(host, "dobry-cola/super_app", "dd", secret)
+        TelegramLinks._telegram_web_link(host, "dobry-cola/super_app", "dd", secret)
         == "tg://webproxy?server=proxy.example.com%2Fdobry-cola%2Fsuper_app&secret=cN0AAQIDBAUGBwgJCgsMDQ4P"
     )
 
