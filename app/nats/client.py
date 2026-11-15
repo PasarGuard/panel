@@ -1,16 +1,57 @@
+from collections.abc import Awaitable, Callable
+
 import nats
+from nats.errors import Error as NatsError
 from nats.js.client import JetStreamContext
 from nats.js.kv import KeyValue
 
+from app.utils.logger import get_logger
+
 from . import get_nats_config, is_nats_enabled
 
+logger = get_logger("nats-client")
 
-async def create_nats_client() -> nats.NATS | None:
+
+async def create_nats_client(*, reconnected_cb: Callable[[], Awaitable[None]] | None = None) -> nats.NATS | None:
     """Create a new NATS connection."""
     if not is_nats_enabled():
         return None
     cfg = get_nats_config()
-    return await nats.connect(cfg["url"])
+    nc = nats.NATS()
+    connected = False
+
+    async def _error_cb(exc: Exception) -> None:
+        # While the server is down every reconnect attempt of every connection fails;
+        # one traceback per attempt flooded the log, so those attempts are logged at debug.
+        # A refused login or handshake and a failing first connect stay visible.
+        is_network_error = isinstance(exc, OSError | TimeoutError) and not isinstance(exc, NatsError)
+        if connected and is_network_error and (nc.is_reconnecting or nc.is_connecting):
+            logger.debug(f"NATS reconnect attempt failed: {exc!r}")
+        else:
+            logger.warning(f"NATS error: {exc!r}")
+
+    async def _disconnected_cb() -> None:
+        if not nc.is_closed:
+            logger.warning("NATS connection lost, reconnecting")
+
+    async def _reconnected_cb() -> None:
+        logger.info("NATS connection restored")
+        if reconnected_cb is not None:
+            await reconnected_cb()
+
+    # The first connect keeps the default budget: nats-py applies max_reconnect_attempts to it
+    # too, and -1 would make an unreachable server or a refused login hang the caller forever.
+    await nc.connect(
+        cfg["url"],
+        error_cb=_error_cb,
+        disconnected_cb=_disconnected_cb,
+        reconnected_cb=_reconnected_cb,
+    )
+    connected = True
+    # Once connected, reconnect without a limit (nats-py reads the option on every attempt):
+    # after the default budget ran out the client closed for good until a restart.
+    nc.options["max_reconnect_attempts"] = -1
+    return nc
 
 
 async def get_jetstream_context(nc: nats.NATS) -> JetStreamContext:
