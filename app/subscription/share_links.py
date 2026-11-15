@@ -38,6 +38,23 @@ def _b64decode_text(value: str) -> str:
     return base64.b64decode(value + "=" * (-len(value) % 4), validate=True).decode()
 
 
+def _fragment_settings(value: str) -> dict | None:
+    """Read the Xray fragment the link builder writes as "length,interval,packets"."""
+    if not value:
+        return None
+    length, interval, packets = value.split(",")
+    return {"xray": {"length": length, "interval": interval, "packets": packets}}
+
+
+def _finalmask(value: str) -> dict | None:
+    """Read the finalmask the link builder writes as JSON; another value stays only in the link."""
+    try:
+        finalmask = json.loads(value) if value else None
+    except ValueError:
+        return None
+    return finalmask if isinstance(finalmask, dict) else None
+
+
 def parse_share_link(link: str) -> tuple[str, SubscriptionInboundData, dict, dict | None] | None:
     """Read a vmess, vless, trojan or shadowsocks share link as the host data the JSON builder takes.
 
@@ -86,6 +103,8 @@ def parse_share_link(link: str) -> tuple[str, SubscriptionInboundData, dict, dic
             settings = {"id" if scheme == "vless" else "password": unquote(userinfo)}
     else:
         return None
+    if not 1 <= port <= 65535:
+        raise ValueError("share link port outside 1-65535")
 
     network = params.get("type") or "tcp"
     # Trojan runs over TLS; only an explicit security=none keeps a plain connection.
@@ -116,9 +135,13 @@ def parse_share_link(link: str) -> tuple[str, SubscriptionInboundData, dict, dic
             path=params.get("path", ""), host=params.get("host", ""), header_type=params.get("headerType") or "none"
         )
     elif transport_class is KCPTransportConfig:
-        transport = KCPTransportConfig()
+        transport = KCPTransportConfig(mtu=params.get("mtu") or None, tti=params.get("tti") or None)
     else:
-        transport = transport_class(path=params.get("path", ""), host=params.get("host", ""))
+        transport = transport_class(
+            path=params.get("path", ""),
+            host=params.get("host", ""),
+            heartbeat_period=params.get("heartbeatPeriod") or None,
+        )
 
     inbound = SubscriptionInboundData(
         remark=remark,
@@ -135,8 +158,10 @@ def parse_share_link(link: str) -> tuple[str, SubscriptionInboundData, dict, dic
             allowinsecure=params.get("allowInsecure", params.get("insecure", "")).lower() in ("1", "true"),
             alpn_list=[alpn for alpn in params.get("alpn", "").split(",") if alpn],
             ech_config_list=params.get("ech") or None,
+            ech_query_strategy=params.get("echForceQuery") or None,
             pinned_peer_cert_sha256=params.get("pcs") or None,
             verify_peer_cert_by_name=[name for name in params.get("vcn", "").split(",") if name],
+            cipher_suites=params.get("cs") or None,
             reality_public_key=params.get("pbk", ""),
             reality_short_id=params.get("sid", ""),
             reality_spx=params.get("spx", ""),
@@ -145,6 +170,9 @@ def parse_share_link(link: str) -> tuple[str, SubscriptionInboundData, dict, dic
         transport_config=transport,
         encryption=params.get("encryption") or "none",
         inbound_flow=params.get("flow", ""),
+        fragment_settings=_fragment_settings(params.get("fragment", "")),
+        finalmask=_finalmask(params.get("fm", "")),
+        finalmask_link=params.get("fm") or None,
     )
     xhttp_extra = None
     if transport_class is XHTTPTransportConfig and params.get("extra"):
