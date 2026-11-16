@@ -1,5 +1,6 @@
-"""Exercise the panel adapter against bridge 0.11 on real local TLS sockets."""
+"""Exercise the panel adapter against the bridge on real local TLS sockets."""
 
+import asyncio
 import ssl
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -20,6 +21,8 @@ from PasarGuardNodeBridge.common.service_pb2 import BaseInfoResponse, Empty
 from app.node.bridge import create_node
 
 API_KEY = "123e4567-e89b-12d3-a456-426614174000"
+# Synthetic server response, independent of the installed bridge release.
+TEST_NODE_VERSION = "1.2.3"
 
 
 @asynccontextmanager
@@ -57,7 +60,7 @@ async def tls_node(tmp_path, transport, *, identity="127.0.0.1", expired=False):
 
     async def rest_info(request):
         received.append(("main", request.headers.get("x-api-key")))
-        return web.Response(body=BaseInfoResponse(node_version="0.11.0").SerializeToString())
+        return web.Response(body=BaseInfoResponse(node_version=TEST_NODE_VERSION).SerializeToString())
 
     async def maintenance(request):
         received.append(("maintenance", request.headers.get("x-api-key")))
@@ -67,7 +70,7 @@ async def tls_node(tmp_path, transport, *, identity="127.0.0.1", expired=False):
         async def info(self, stream):
             await stream.recv_message()
             received.append(("main", stream.metadata.get("x-api-key")))
-            await stream.send_message(BaseInfoResponse(node_version="0.11.0"))
+            await stream.send_message(BaseInfoResponse(node_version=TEST_NODE_VERSION))
 
         def __mapping__(self):
             return {
@@ -113,6 +116,36 @@ async def tls_node(tmp_path, transport, *, identity="127.0.0.1", expired=False):
         await runner.cleanup()
 
 
+@pytest.mark.parametrize("transport", [NodeType.rest, NodeType.grpc])
+@pytest.mark.parametrize("with_pem", [False, True])
+def test_certificate_sha256_connects_on_uvloop(tmp_path, transport, with_pem):
+    """uvloop SSL transports cannot be weak-referenced by the bridge expiry guard."""
+    uvloop = pytest.importorskip("uvloop")
+
+    async def connect():
+        async with tls_node(tmp_path, transport) as (kwargs, _, pin, _, received):
+            node = create_node(
+                transport,
+                **kwargs,
+                certificate_sha256=pin,
+                # The pin must also take precedence over unrelated PEM roots.
+                server_ca=certifi.contents() if with_pem else "",
+            )
+            try:
+                for _ in range(2):
+                    assert (await node.info()).node_version == TEST_NODE_VERSION
+                    assert await node.check_connectivity()
+                assert received == [("main", API_KEY), ("maintenance", API_KEY)] * 2
+                await node.aclose()
+                assert (await node.info()).node_version == TEST_NODE_VERSION
+            finally:
+                await node.aclose()
+
+    # Use a real uvloop rather than pytest-asyncio's default asyncio loop.
+    with asyncio.Runner(loop_factory=uvloop.new_event_loop) as runner:
+        runner.run(connect())
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("transport", [NodeType.rest, NodeType.grpc])
 @pytest.mark.parametrize("policy", ["pin", "both", "pem", "system"])
@@ -131,12 +164,12 @@ async def test_tls_policies_allow_main_and_maintenance(tmp_path, monkeypatch, tr
         )
         try:
             for _ in range(2):  # Include pooled connection reuse.
-                assert (await node.info()).node_version == "0.11.0"
+                assert (await node.info()).node_version == TEST_NODE_VERSION
                 assert await node.check_connectivity()
             assert received == [("main", API_KEY), ("maintenance", API_KEY)] * 2
             # Reconnect using the same verified policy after closing local pools.
             await node.aclose()
-            assert (await node.info()).node_version == "0.11.0"
+            assert (await node.info()).node_version == TEST_NODE_VERSION
         finally:
             await node.aclose()
 

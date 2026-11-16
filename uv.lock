@@ -1177,7 +1177,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "nats-py", specifier = ">=2.16.0" },
     { name = "packaging", specifier = ">=26.3" },
-    { name = "pasarguard-node-bridge", specifier = ">=0.11.0" },
+    { name = "pasarguard-node-bridge", specifier = ">=0.11.1" },
     { name = "psutil", specifier = ">=7.2.2" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pydantic-settings", specifier = ">=2.16.2" },
@@ -1211,7 +1211,7 @@ dev = [
 
 [[package]]
 name = "pasarguard-node-bridge"
-version = "0.11.0"
+version = "0.11.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1222,9 +1222,9 @@ dependencies = [
     { name = "protobuf" },
     { name = "python-socks" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4f/c1/9da306703eef32b24105b32d516d8a30ebad9d312cea118b6e354f336919/pasarguard_node_bridge-0.11.0.tar.gz", hash = "sha256:310a6efcbeadefebb7c0c35f88290d7c9602d0e88ab848747e052fc3fc655976", size = 172965, upload-time = "2026-11-16T15:24:36.039Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/02/3c/e01bbb85824c10a4760c11362f1ce3ac629196873b03ee71b14c47b0ff7c/pasarguard_node_bridge-0.11.1.tar.gz", hash = "sha256:e437f59611262e2942569541f644e806b4e423dd9ca2d86d64c77a1a31363ed1", size = 173910, upload-time = "2026-11-16T17:40:48.788Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d5/34/bce92d9ec4c31677f99c188a339746d8407934bc3eb8e31175f17915a965/pasarguard_node_bridge-0.11.0-py3-none-any.whl", hash = "sha256:4ff19d86b79e00a3d8be17468c7c1c7270a040b154bfda8be36c7e92104f1b9f", size = 73511, upload-time = "2026-11-16T15:24:34.826Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/e7/153c2e2810c69b6099d2ce5550096d67c5108d8040188c0f3fd7eb6168a8/pasarguard_node_bridge-0.11.1-py3-none-any.whl", hash = "sha256:ac81acbff886ed1d5a8b2a06870535462b0d391202dd30036733c565530d59a5", size = 73787, upload-time = "2026-11-16T17:40:47.424Z" },
 ]
 
 [[package]]
