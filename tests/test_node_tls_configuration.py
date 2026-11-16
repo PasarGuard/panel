@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 import certifi
 import pytest
 from PasarGuardNodeBridge import NodeAPIError, NodeType
@@ -70,32 +68,27 @@ def test_connection_signature_tracks_both_verification_fields():
     assert NodeManager()._create_node_kwargs(pinned)["certificate_sha256"] == "ab" * 32
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize("transport", [NodeType.grpc, NodeType.rest])
-@pytest.mark.parametrize("pem,pin", [("pem", "ab" * 32), ("", None)])
-def test_old_bridge_fails_before_transport_construction(transport, pem, pin):
-    with patch("app.node.bridge.inspect.signature") as signature:
-        signature.return_value.parameters = {}
-        with patch("app.node.bridge.QueuedGrpcNode") as grpc, patch("app.node.bridge.QueuedRestNode") as rest:
-            with pytest.raises(NodeAPIError, match="upgrade the bridge"):
-                create_node(transport, server_ca=pem, certificate_sha256=pin)
-            grpc.assert_not_called()
-            rest.assert_not_called()
-
-
-def test_old_bridge_legacy_constructor_is_unchanged():
-    with patch("app.node.bridge.inspect.signature") as signature:
-        signature.return_value.parameters = {}
-        with patch("app.node.bridge.QueuedRestNode") as constructor:
-            create_node(NodeType.rest, server_ca="legacy pem", certificate_sha256=None)
-            constructor.assert_called_once_with(server_ca="legacy pem")
-
-
-def test_capable_bridge_receives_both_fields_without_policy_fallback():
-    with patch("app.node.bridge.inspect.signature") as signature:
-        signature.return_value.parameters = {"certificate_sha256": object()}
-        with patch("app.node.bridge.QueuedRestNode") as constructor:
-            create_node(NodeType.rest, server_ca="legacy pem", certificate_sha256="ab" * 32)
-            constructor.assert_called_once_with(server_ca="legacy pem", certificate_sha256="ab" * 32)
+@pytest.mark.parametrize("policy", ["system", "pem", "pin", "both"])
+async def test_bridge_011_constructs_all_verification_policies(transport, policy):
+    pem = certifi.contents() if policy in ("pem", "both") else ""
+    pin = "ab" * 32 if policy in ("pin", "both") else None
+    node = create_node(
+        transport,
+        address="localhost",
+        port=1,
+        api_port=1,
+        api_key=create_payload()["api_key"],
+        server_ca=pem,
+        certificate_sha256=pin,
+    )
+    try:
+        assert node._tls_policy.server_ca == pem
+        assert node._tls_policy.certificate_sha256 == pin
+        assert node._json_client._base_url.startswith("https://")
+    finally:
+        await node.aclose()
 
 
 @pytest.mark.asyncio
