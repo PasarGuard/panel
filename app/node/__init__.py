@@ -157,17 +157,24 @@ class NodeManager:
                 if existing.name == node.name and existing_extra.get("usage_coefficient") == node.usage_coefficient:
                     return existing
 
+            creation_error: Exception | None = None
             async with self._lock.writer_lock:
                 old_node: PasarGuardNode | None = self._nodes.pop(node.id, None)
                 self._node_signatures.pop(node.id, None)
                 try:
                     new_node = create_node(**self._create_node_kwargs(node))
-                except Exception:
-                    await self._shutdown_node(old_node, remote_stop=False)
-                    raise
+                except Exception as exc:
+                    creation_error = exc
+                else:
+                    self._nodes[node.id] = new_node
+                    self._node_signatures[node.id] = signature
 
-                self._nodes[node.id] = new_node
-                self._node_signatures[node.id] = signature
+            if creation_error is not None:
+                try:
+                    await self._shutdown_node(old_node, remote_stop=False)
+                except Exception:
+                    self.logger.exception("Failed to shut down old node after creation failure")
+                raise creation_error
 
             # Metadata-only changes require a fresh bridge object, but must not stop a
             # healthy remote backend. The reconnect path will attach the replacement.

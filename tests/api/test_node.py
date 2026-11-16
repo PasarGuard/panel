@@ -860,6 +860,7 @@ def test_create_node_returns_created_node(access_token, node_operator_mock):
         **payload,
         "connection_type": NodeConnectionType(payload["connection_type"]),
         "data_limit_reset_strategy": DataLimitResetStrategy(payload["data_limit_reset_strategy"]),
+        "certificate_sha256": None,
     }
     assert await_args[1].model_dump() == expected_payload
     UUID(await_args[1].api_key)
