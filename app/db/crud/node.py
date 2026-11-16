@@ -542,8 +542,16 @@ async def modify_node(db: AsyncSession, db_node: Node, modify: NodeModify) -> No
     """
 
     node_data = modify.model_dump(exclude_none=True)
+    if "certificate_sha256" in modify.model_fields_set:
+        node_data["certificate_sha256"] = modify.certificate_sha256
     if "proxy_url" in modify.model_fields_set and modify.proxy_url is None:
         node_data["proxy_url"] = None
+
+    # Validate the effective configuration, retaining the legacy null-PEM no-op.
+    NodeModify(
+        server_ca=node_data.get("server_ca", db_node.server_ca),
+        certificate_sha256=node_data.get("certificate_sha256", db_node.certificate_sha256),
+    )
 
     for key, value in node_data.items():
         setattr(db_node, key, value)

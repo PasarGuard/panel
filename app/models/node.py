@@ -44,7 +44,11 @@ class Node(BaseModel):
     api_port: int = 62051
     usage_coefficient: float = Field(ge=0, default=1.0)
     connection_type: NodeConnectionType
-    server_ca: str
+    server_ca: str = Field(default="", description="PEM trust certificate. Inactive when certificate_sha256 is set.")
+    certificate_sha256: str | None = Field(
+        default=None,
+        description="SHA-256 of the leaf certificate DER. Takes precedence over PEM; neither field uses system trust.",
+    )
     keep_alive: int
     core_config_id: int
     api_key: str
@@ -105,6 +109,8 @@ class NodeCreate(Node):
             return None
 
         v = v.strip()
+        if not v:
+            return ""
 
         # Check for PEM certificate format
         if not re.search(CERT_PATTERN, v, re.DOTALL):
@@ -123,6 +129,15 @@ class NodeCreate(Node):
             raise ValueError("Invalid certificate structure")
 
         return v
+
+    @field_validator("certificate_sha256")
+    @classmethod
+    def validate_certificate_sha256(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        if not re.fullmatch(r"(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){31})", value):
+            raise ValueError("Certificate SHA-256 must be 64 hexadecimal characters or 32 colon-separated byte pairs")
+        return value.replace(":", "").lower()
 
     @field_validator("api_key", mode="before")
     @classmethod
@@ -203,6 +218,7 @@ class NodeModify(NodeCreate):
 
 
 class NodeResponse(Node):
+    server_ca: str
     id: int
     sort_order: int = 0
     api_key: str | None

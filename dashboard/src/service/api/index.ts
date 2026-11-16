@@ -1863,7 +1863,10 @@ export interface NodeCreate {
   /** @minimum 0 */
   usage_coefficient?: number;
   connection_type: NodeConnectionType;
-  server_ca: string;
+  /** PEM trust certificate. Inactive when certificate_sha256 is set. */
+  server_ca?: string;
+  /** SHA-256 of the leaf certificate DER. Takes precedence over PEM; neither field uses system trust. */
+  certificate_sha256?: string | null;
   keep_alive: number;
   core_config_id: number;
   api_key: string;
@@ -1903,6 +1906,8 @@ export interface NodeModify {
   usage_coefficient?: number | null;
   connection_type?: NodeConnectionType | null;
   server_ca?: string | null;
+  /** SHA-256 of the leaf certificate DER. Takes precedence over PEM; neither field uses system trust. */
+  certificate_sha256?: string | null;
   keep_alive?: number | null;
   core_config_id?: number | null;
   api_key?: string | null;
@@ -1988,6 +1993,8 @@ export interface NodeResponse {
   usage_coefficient?: number;
   connection_type: NodeConnectionType;
   server_ca: string;
+  /** SHA-256 of the leaf certificate DER. Takes precedence over PEM; neither field uses system trust. */
+  certificate_sha256?: string | null;
   keep_alive: number;
   core_config_id: number | null;
   api_key: string | null;

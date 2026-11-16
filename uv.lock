@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.14"
 
 [[package]]
@@ -1177,7 +1177,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "nats-py", specifier = ">=2.16.0" },
     { name = "packaging", specifier = ">=26.3" },
-    { name = "pasarguard-node-bridge", specifier = ">=0.10.0" },
+    { name = "pasarguard-node-bridge", specifier = ">=0.11.0" },
     { name = "psutil", specifier = ">=7.2.2" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pydantic-settings", specifier = ">=2.16.2" },
@@ -1211,19 +1211,20 @@ dev = [
 
 [[package]]
 name = "pasarguard-node-bridge"
-version = "0.10.0"
+version = "0.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "aiohttp-socks" },
+    { name = "cryptography" },
     { name = "grpclib" },
     { name = "packaging" },
     { name = "protobuf" },
     { name = "python-socks" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b3/03/8f099540a2039a423675973562ffdd92ba4b898bd3c90cb3175e9ea1a9c2/pasarguard_node_bridge-0.10.0.tar.gz", hash = "sha256:1f06411de2a0faa344888b4eeedd0ebc75de363e58f9b5aeb1819c57907d9b47", size = 145379, upload-time = "2026-11-05T06:27:52.433Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4f/c1/9da306703eef32b24105b32d516d8a30ebad9d312cea118b6e354f336919/pasarguard_node_bridge-0.11.0.tar.gz", hash = "sha256:310a6efcbeadefebb7c0c35f88290d7c9602d0e88ab848747e052fc3fc655976", size = 172965, upload-time = "2026-11-16T15:24:36.039Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6b/a0/4bdf1a89e2a27006134fc4197a54a8f504ed43d982a25a4bb383fbae74dc/pasarguard_node_bridge-0.10.0-py3-none-any.whl", hash = "sha256:e603cc3ae027400bfc8a790dc996568538ef922157cca2fd438d30f1ba3ae007", size = 67239, upload-time = "2026-11-05T06:27:51.394Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/34/bce92d9ec4c31677f99c188a339746d8407934bc3eb8e31175f17915a965/pasarguard_node_bridge-0.11.0-py3-none-any.whl", hash = "sha256:4ff19d86b79e00a3d8be17468c7c1c7270a040b154bfda8be36c7e92104f1b9f", size = 73511, upload-time = "2026-11-16T15:24:34.826Z" },
 ]
 
 [[package]]

@@ -111,6 +111,21 @@ class FenceHold:
 
 
 class _QueuedBatchSync:
+    async def aclose(self) -> None:
+        """Retire local tasks and every transport pool without a remote RPC."""
+        try:
+            await self.disconnect()
+        finally:
+            close_channel = getattr(self, "_close_chan", None)
+            if close_channel is not None:
+                close_channel()
+            for name in ("_client", "_json_client"):
+                client = getattr(self, name, None)
+                # gRPC's _client is a service stub; HTTP clients own sessions.
+                close = getattr(client, "close", None)
+                if close is not None:
+                    await close()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Full snapshots in progress on this process for this node object, and

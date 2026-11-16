@@ -1637,6 +1637,7 @@ class NodeOperation(BaseOperation):
             usage_coefficient=node.usage_coefficient,
             connection_type=node.connection_type,
             server_ca=node.server_ca,
+            certificate_sha256=node.certificate_sha256,
             keep_alive=node.keep_alive,
             core_config_id=node.core_config_id,
             api_key=node.api_key,

@@ -860,6 +860,7 @@ def test_create_node_returns_created_node(access_token, node_operator_mock):
         **payload,
         "connection_type": NodeConnectionType(payload["connection_type"]),
         "data_limit_reset_strategy": DataLimitResetStrategy(payload["data_limit_reset_strategy"]),
+        "certificate_sha256": None,
     }
     assert await_args[1].model_dump() == expected_payload
     UUID(await_args[1].api_key)
@@ -1487,3 +1488,60 @@ def test_get_outbound_usage_passes_filters(access_token, node_operator_mock):
     assert query.period == Period.day
     assert query.start == start
     assert query.end == end
+
+
+@pytest.mark.asyncio
+async def test_node_tls_policy_partial_updates_round_trip():
+    from app.db.crud.node import modify_node as db_modify_node
+
+    core_id, node_ids = await setup_nodes_simple([unique_name("tls_policy")])
+    try:
+        async with TestSession() as session:
+            node = await session.get(Node, node_ids[0])
+            original_pem = node.server_ca
+            assert node.certificate_sha256 is None
+
+            node = await db_modify_node(session, node, NodeModify(certificate_sha256="AB" * 32))
+            assert node.certificate_sha256 == "ab" * 32
+            assert node.server_ca == original_pem
+            assert NodeResponse.model_validate(node).certificate_sha256 == "ab" * 32
+
+            node = await db_modify_node(session, node, NodeModify(name=unique_name("tls_renamed"), server_ca=None))
+            assert node.certificate_sha256 == "ab" * 32
+            assert node.server_ca == original_pem
+
+            # Backend bulk actions must preserve the complete verification configuration.
+            payload = NodeOperation._build_node_modify_payload(node)
+            assert payload.certificate_sha256 == "ab" * 32
+            assert payload.server_ca == original_pem
+
+            # Explicit null restores the retained legacy PEM.
+            node = await db_modify_node(session, node, NodeModify(certificate_sha256=None))
+            assert node.certificate_sha256 is None
+            assert node.server_ca == original_pem
+
+            node = await db_modify_node(session, node, NodeModify(certificate_sha256="cd" * 32))
+            node = await db_modify_node(session, node, NodeModify(certificate_sha256="", server_ca=" \n"))
+            assert node.certificate_sha256 is None
+            assert node.server_ca == ""
+            await session.refresh(node)
+            assert node.certificate_sha256 is None
+            assert node.server_ca == ""
+    finally:
+        await cleanup_nodes_simple(core_id, node_ids)
+
+
+@pytest.mark.asyncio
+async def test_create_node_with_system_trust_round_trip():
+    core_id, node_ids = await setup_nodes_simple([])
+    try:
+        async with TestSession() as session:
+            payload = node_create_payload(name=unique_name("system_trust"), core_config_id=core_id)
+            payload.pop("server_ca")
+            node = await db_create_node(session, NodeCreate(**payload))
+            node_ids.append(node.id)
+            response = NodeResponse.model_validate(node)
+            assert response.server_ca == ""
+            assert response.certificate_sha256 is None
+    finally:
+        await cleanup_nodes_simple(core_id, node_ids)
