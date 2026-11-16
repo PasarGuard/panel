@@ -1,4 +1,5 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { DecimalInput } from '@/components/common/decimal-input'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -13,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { CoresSimpleResponse, DataLimitResetStrategy, getNode, NodeConnectionType, NodeResponse, useCreateNode, useGetNode, useModifyNode } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client'
-import { Loader2, RefreshCw, Settings, Server, Pencil } from 'lucide-react'
+import { AlertTriangle, Loader2, RefreshCw, Settings, Server, Pencil } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -380,7 +381,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="h-full max-w-full focus:outline-none sm:max-w-[90vw] lg:h-auto lg:max-w-[1000px]" onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="h-full max-w-full focus:outline-none sm:h-auto sm:max-w-[640px]" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {editingNode ? <Pencil className="h-5 w-5" /> : <Server className="h-5 w-5" />}
@@ -457,8 +458,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                 isFetchingNodeData && 'pointer-events-none blur-sm',
               )}
             >
-              <div className="flex h-full flex-col items-start gap-4 lg:flex-row">
-                <div className="w-full flex-1 space-y-4">
+              <div className="flex flex-col gap-4 pb-4">
+                <div className="w-full space-y-4">
                   <FormField
                     control={form.control}
                     name="name"
@@ -574,6 +575,77 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                       )
                     }}
                   />
+                  {form.watch('verification') === 'pem' && (
+                    <Alert className="border-amber-500/50 bg-amber-500/10">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>{t('nodeModal.legacyPemWarningTitle')}</AlertTitle>
+                      <AlertDescription>{t('nodeModal.legacyPemWarning')}</AlertDescription>
+                    </Alert>
+                  )}
+                  <FormField
+                    control={form.control}
+                    name="verification"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('nodeModal.verification')}</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="trusted">{t('nodeModal.verificationTrusted')}</SelectItem>
+                            <SelectItem value="fingerprint">{t('nodeModal.verificationFingerprint')}</SelectItem>
+                            <SelectItem value="pem">{t('nodeModal.verificationPem')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <p className="text-muted-foreground text-sm">{t('nodeModal.tlsFrontend')}</p>
+                  {form.watch('verification') === 'trusted' && <p className="text-muted-foreground text-sm">{t('nodeModal.systemTrust')}</p>}
+                  {form.watch('verification') === 'fingerprint' && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="certificate_sha256"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('nodeModal.verificationFingerprint')}</FormLabel>
+                            <FormControl>
+                              <Input dir="ltr" className="font-mono text-xs" {...field} value={field.value ?? ''} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <p className="text-muted-foreground text-sm">{t('nodeModal.fingerprintCertificateHelp')}</p>
+                      <p className="text-muted-foreground text-sm">{t('nodeModal.fingerprintHelp')}</p>
+                      {!!form.watch('server_ca') && <p className="text-muted-foreground text-sm">{t('nodeModal.inactivePem')}</p>}
+                    </>
+                  )}
+                  {form.watch('verification') === 'pem' && (
+                    <FormField
+                      control={form.control}
+                      name="server_ca"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('nodeModal.certificate')}</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              dir="ltr"
+                              placeholder={t('nodeModal.certificatePlaceholder')}
+                              className={cn('h-[200px] font-mono text-xs', !!form.formState.errors.server_ca && 'border-destructive')}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                   <Accordion type="single" collapsible className="!mt-0 mb-2 w-full pb-2">
                     <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="advanced-settings">
                       <AccordionTrigger>
@@ -1134,85 +1206,6 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>
-                </div>
-                <div className="h-full w-full flex-1 space-y-4 pb-4">
-                  <FormField
-                    control={form.control}
-                    name="verification"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('nodeModal.verification', { defaultValue: 'Certificate verification' })}</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="trusted">{t('nodeModal.verificationTrusted', { defaultValue: 'Trusted certificate' })}</SelectItem>
-                            <SelectItem value="fingerprint">{t('nodeModal.verificationFingerprint', { defaultValue: 'SHA-256 fingerprint' })}</SelectItem>
-                            <SelectItem value="pem">{t('nodeModal.verificationPem', { defaultValue: 'Legacy PEM certificate' })}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <p className="text-muted-foreground text-sm">
-                    {t('nodeModal.tlsFrontend', { defaultValue: 'The address and both ports must identify TLS endpoints. With a reverse proxy, use its frontend address and ports.' })}
-                  </p>
-                  {form.watch('verification') === 'trusted' && (
-                    <p className="text-muted-foreground text-sm">
-                      {t('nodeModal.systemTrust', { defaultValue: 'Verify the certificate and address using system trust. Saving clears any saved PEM and fingerprint.' })}
-                    </p>
-                  )}
-                  {form.watch('verification') === 'fingerprint' && (
-                    <>
-                      <FormField
-                        control={form.control}
-                        name="certificate_sha256"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t('nodeModal.verificationFingerprint', { defaultValue: 'SHA-256 fingerprint' })}</FormLabel>
-                            <FormControl>
-                              <Input dir="ltr" className="font-mono text-xs" {...field} value={field.value ?? ''} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <p className="text-muted-foreground text-sm">
-                        {t('nodeModal.fingerprintHelp', {
-                          defaultValue: 'Use the SHA-256 of the complete leaf certificate DER. Both ports must present the same certificate, with valid dates and matching SANs.',
-                        })}
-                      </p>
-                      {!!form.watch('server_ca') && (
-                        <p className="text-muted-foreground text-sm">
-                          {t('nodeModal.inactivePem', { defaultValue: 'The saved PEM is inactive while a fingerprint is set. Saving this selection clears the PEM.' })}
-                        </p>
-                      )}
-                    </>
-                  )}
-                  {form.watch('verification') === 'pem' && (
-                    <FormField
-                      control={form.control}
-                      name="server_ca"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('nodeModal.certificate')}</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              dir="ltr"
-                              placeholder={t('nodeModal.certificatePlaceholder')}
-                              className={cn('h-[200px] font-mono text-xs', !!form.formState.errors.server_ca && 'border-destructive')}
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
                 </div>
               </div>
             </div>
