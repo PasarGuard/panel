@@ -288,6 +288,7 @@ async def test_due_history_flushes_without_a_new_usage_sample(monkeypatch: pytes
     record_usages._pending_user_usage_history[(bucket, 11, 7)] = 5
     record_usages._user_usage_history_last_flush = 100.0
 
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
     monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
     monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
 
@@ -346,6 +347,7 @@ async def test_shutdown_flushes_pending_postgres_history(monkeypatch: pytest.Mon
     write_params = AsyncMock()
     record_usages._pending_user_usage_history[(bucket, 11, 7)] = 5
 
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="postgresql"))
     monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
     monkeypatch.setattr(record_usages, "_monotonic_now", lambda: 120.0)
 
@@ -356,6 +358,94 @@ async def test_shutdown_flushes_pending_postgres_history(monkeypatch: pytest.Mon
         [{"uid": 11, "value": 5, "node_id": 7, "created_at": bucket}],
     )
     assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_mysql_history_coalesces_until_flush_interval(monkeypatch: pytest.MonkeyPatch):
+    # Steady state: the first sample was already written, so later samples are coalesced
+    record_usages._user_usage_history_last_flush = 100.0
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+    monotonic_values = iter([110.0, 120.0, 130.0, 140.0, 150.0, 160.0])
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="mysql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+
+    # Six 10-second recorder cycles make one history write instead of six
+    for value in range(1, 7):
+        await record_usages.record_user_stats({7: [{"uid": "11", "value": value}]}, {7: 1})
+
+    write_params.assert_awaited_once_with(
+        "mysql",
+        [{"uid": 11, "value": 21, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_mysql_history_retries_only_the_batches_a_failed_flush_did_not_write(monkeypatch: pytest.MonkeyPatch):
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    written: defaultdict[int, int] = defaultdict(int)
+    calls = []
+
+    async def flaky_safe_execute(stmt, params=None, max_retries=5):
+        calls.append(len(params))
+        if len(calls) == 2:
+            raise OperationalError("INSERT INTO node_user_usages", {}, Exception("connection lost"))
+        for param in params:
+            written[param["uid"]] += param["value"]
+
+    for uid in range(1, 2_501):
+        record_usages._pending_user_usage_history[(bucket, uid, 7)] = uid
+    record_usages._user_usage_history_last_flush = 100.0
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="mysql"))
+    monkeypatch.setattr(record_usages, "safe_execute", flaky_safe_execute)
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+
+    # The first 1000-row batch commits, the second one fails
+    with pytest.raises(OperationalError):
+        await record_usages.flush_user_usage_history_if_due(160.0)
+
+    # The committed batch leaves the buffer, so the retry cannot count it twice
+    assert len(record_usages._pending_user_usage_history) == 1_500
+    assert min(key[1] for key in record_usages._pending_user_usage_history) == 1_001
+
+    assert await record_usages.flush_user_usage_history_if_due(161.0) == 1_500
+    assert calls == [1_000, 1_000, 1_000, 500]
+    assert written == {uid: uid for uid in range(1, 2_501)}
+    assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_shutdown_flushes_pending_mysql_history(monkeypatch: pytest.MonkeyPatch, caplog):
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    write_params = AsyncMock()
+    # Two recorder cycles, then the clock the shutdown flush reads
+    monotonic_values = iter([100.0, 110.0, 120.0])
+    caplog.set_level(logging.ERROR)
+
+    monkeypatch.setattr(record_usages, "get_dialect", AsyncMock(return_value="mysql"))
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+    monkeypatch.setattr(record_usages, "_write_node_user_usage_params", write_params)
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: next(monotonic_values))
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 5}]}, {7: 1})
+    await record_usages.record_user_stats({7: [{"uid": "11", "value": 7}]}, {7: 1})
+    # The second sample waits in the buffer until the app stops
+    assert record_usages._pending_user_usage_history == {(bucket, 11, 7): 7}
+
+    await record_usages._flush_user_usage_history_on_shutdown()
+
+    assert write_params.await_args_list[-1].args == (
+        "mysql",
+        [{"uid": 11, "value": 7, "node_id": 7, "created_at": bucket}],
+    )
+    assert not record_usages._pending_user_usage_history
+    assert not caplog.records
 
 
 def test_postgres_user_traffic_update_uses_one_unnest_statement():
@@ -858,11 +948,11 @@ async def test_node_user_usage_history_skips_deleted_nodes(session_factory):
 
 
 @pytest.mark.skipif(
-    os.getenv("TEST_FROM", "local").lower() == "local" or not database_settings.url.startswith("postgresql"),
-    reason="only PostgreSQL buffers node user usage history",
+    os.getenv("TEST_FROM", "local").lower() == "local" or not database_settings.url.startswith(("postgresql", "mysql")),
+    reason="only PostgreSQL and MySQL buffer node user usage history",
 )
 @pytest.mark.asyncio
-async def test_postgres_history_keeps_flushing_after_a_node_is_deleted(
+async def test_buffered_history_keeps_flushing_after_a_node_is_deleted(
     monkeypatch: pytest.MonkeyPatch, session_factory
 ):
     async with session_factory() as session:
@@ -920,6 +1010,73 @@ async def test_postgres_history_keeps_flushing_after_a_node_is_deleted(
         )
         assert dict(totals.all()) == {node_b_id: 200}
     assert not record_usages._pending_user_usage_history
+
+
+@pytest.mark.asyncio
+async def test_buffered_history_matches_immediate_writes_after_one_minute(
+    monkeypatch: pytest.MonkeyPatch, session_factory
+):
+    async with session_factory() as session:
+        nodes = [
+            Node(
+                name=f"node-{index}",
+                address=f"10.0.0.{index}",
+                port=1000 + index,
+                api_port=2000 + index,
+                server_ca=f"ca{index}",
+                api_key=f"key{index}",
+                core_config_id=None,
+            )
+            for index in range(2)
+        ]
+        users = [User(username=f"user{index}", proxy_settings=ProxyTable().dict(no_obj=True)) for index in range(501)]
+        session.add_all([*nodes, *users])
+        await session.flush()
+        node_ids = [node.id for node in nodes]
+        user_ids = [user.id for user in users]
+        await session.commit()
+
+    # Six 10-second cycles; 1,002 user-node rows per cycle span several batches on every dialect, two on MySQL
+    rnd = random.Random(7)
+    cycles = [
+        {node_id: [{"uid": str(uid), "value": rnd.randint(1, 10**12)} for uid in user_ids] for node_id in node_ids}
+        for _ in range(6)
+    ]
+    coefficients = {node_ids[0]: 1.0, node_ids[1]: 1.5}
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    monkeypatch.setattr(record_usages, "_get_time_bucket", lambda: bucket)
+
+    async def history_rows():
+        async with session_factory() as session:
+            rows = await session.execute(
+                select(NodeUserUsage.user_id, NodeUserUsage.node_id, NodeUserUsage.used_traffic).order_by(
+                    NodeUserUsage.user_id, NodeUserUsage.node_id
+                )
+            )
+            return rows.all()
+
+    for cycle in cycles:
+        await record_usages.record_user_stats_batched(cycle, coefficients)
+    immediate = await history_rows()
+    async with session_factory() as session:
+        await session.execute(NodeUserUsage.__table__.delete())
+        await session.commit()
+
+    # The same cycles through the in-memory buffer, the last part written by the shutdown flush
+    dialect = await record_usages.get_dialect()
+    monkeypatch.setattr(record_usages, "BUFFERED_USER_USAGE_HISTORY_DIALECTS", (dialect,))
+    monkeypatch.setattr(record_usages.usage_settings, "user_usage_history_flush_interval", 60)
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(record_usages, "_monotonic_now", lambda: clock["t"])
+    for cycle in cycles:
+        await record_usages.record_user_stats(cycle, coefficients)
+        clock["t"] += 10
+    assert record_usages._pending_user_usage_history
+    await record_usages._flush_user_usage_history_on_shutdown()
+
+    assert not record_usages._pending_user_usage_history
+    assert len(immediate) == 1002
+    assert await history_rows() == immediate
 
 
 @pytest.mark.asyncio
