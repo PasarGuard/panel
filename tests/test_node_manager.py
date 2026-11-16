@@ -195,7 +195,7 @@ async def test_update_node_construction_failure_releases_lock_and_preserves_erro
 
     node = _make_node(1)
     monkeypatch.setattr("app.node.create_node", lambda **kwargs: _FakePGNode(**kwargs))
-    first = await manager.update_node(node)
+    await manager.update_node(node)
 
     lock_held_during_shutdown = None
 
