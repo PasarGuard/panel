@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { v4 as uuidv4 } from 'uuid'
 import { LoaderButton } from '@/components/ui/loader-button'
-import type { NodeFormValues } from '@/features/nodes/forms/node-form'
+import { inferNodeVerification, nodeVerificationPayload, type NodeFormValues } from '@/features/nodes/forms/node-form'
 import type { CoreSimple } from '@/service/api'
 
 // A node without a core runs the default core (id 1, which cannot be deleted).
@@ -102,7 +102,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
       lastSynced.downlink === node.downlink &&
       lastSynced.name === node.name &&
       lastSynced.address === node.address &&
-      lastSynced.port === node.port
+      lastSynced.port === node.port &&
+      lastSynced.server_ca === node.server_ca &&
+      lastSynced.certificate_sha256 === node.certificate_sha256
     ) {
       return
     }
@@ -120,6 +122,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         usage_coefficient: node.usage_coefficient,
         connection_type: node.connection_type,
         server_ca: node.server_ca,
+        certificate_sha256: node.certificate_sha256 ?? null,
+        verification: inferNodeVerification(node),
         keep_alive: node.keep_alive,
         keep_alive_unit: 'seconds',
         api_key: (node.api_key as string) || '',
@@ -176,6 +180,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           usage_coefficient: nodeData.usage_coefficient,
           connection_type: nodeData.connection_type,
           server_ca: nodeData.server_ca,
+          certificate_sha256: nodeData.certificate_sha256 ?? null,
+          verification: inferNodeVerification(nodeData),
           keep_alive: nodeData.keep_alive,
           keep_alive_unit: 'seconds',
           api_key: (nodeData.api_key as string) || '',
@@ -206,6 +212,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               usage_coefficient: nodeData.usage_coefficient,
               connection_type: nodeData.connection_type,
               server_ca: nodeData.server_ca,
+              certificate_sha256: nodeData.certificate_sha256 ?? null,
+              verification: inferNodeVerification(nodeData),
               keep_alive: nodeData.keep_alive,
               keep_alive_unit: 'seconds',
               api_key: (nodeData.api_key as string) || '',
@@ -237,6 +245,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         usage_coefficient: 1,
         connection_type: NodeConnectionType.grpc,
         server_ca: '',
+        certificate_sha256: null,
+        verification: 'trusted',
         keep_alive: 60,
         keep_alive_unit: 'seconds',
         api_key: '',
@@ -307,6 +317,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
       const baseData = {
         ...values,
+        ...nodeVerificationPayload(values),
+        verification: undefined,
         keep_alive: keepAliveInSeconds,
         keep_alive_unit: undefined,
         data_limit: gbToBytes(values.data_limit),
@@ -361,7 +373,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
-      const fields = ['name', 'address', 'port', 'core_config_id', 'api_key', 'keep_alive_unit', 'keep_alive', 'server_ca', 'connection_type', 'proxy_url', '']
+      const fields = ['name', 'address', 'port', 'core_config_id', 'api_key', 'keep_alive_unit', 'keep_alive', 'server_ca', 'certificate_sha256', 'connection_type', 'proxy_url', '']
       handleError({ error, fields, form, contextKey: 'nodes' })
     }
   }
@@ -1123,24 +1135,85 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                     </AccordionItem>
                   </Accordion>
                 </div>
-                <FormField
-                  control={form.control}
-                  name="server_ca"
-                  render={({ field }) => (
-                    <FormItem className="h-full w-full flex-1 pb-4 lg:mb-0">
-                      <FormLabel>{t('nodeModal.certificate')}</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          dir="ltr"
-                          placeholder={t('nodeModal.certificatePlaceholder')}
-                          className={cn('h-[200px] font-mono text-xs lg:h-[92%]', !!form.formState.errors.server_ca && 'border-destructive')}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                <div className="h-full w-full flex-1 space-y-4 pb-4">
+                  <FormField
+                    control={form.control}
+                    name="verification"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('nodeModal.verification', { defaultValue: 'Certificate verification' })}</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="trusted">{t('nodeModal.verificationTrusted', { defaultValue: 'Trusted certificate' })}</SelectItem>
+                            <SelectItem value="fingerprint">{t('nodeModal.verificationFingerprint', { defaultValue: 'SHA-256 fingerprint' })}</SelectItem>
+                            <SelectItem value="pem">{t('nodeModal.verificationPem', { defaultValue: 'Legacy PEM certificate' })}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <p className="text-muted-foreground text-sm">
+                    {t('nodeModal.tlsFrontend', { defaultValue: 'The address and both ports must identify TLS endpoints. With a reverse proxy, use its frontend address and ports.' })}
+                  </p>
+                  {form.watch('verification') === 'trusted' && (
+                    <p className="text-muted-foreground text-sm">
+                      {t('nodeModal.systemTrust', { defaultValue: 'Verify the certificate and address using system trust. Saving clears any saved PEM and fingerprint.' })}
+                    </p>
                   )}
-                />
+                  {form.watch('verification') === 'fingerprint' && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="certificate_sha256"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('nodeModal.verificationFingerprint', { defaultValue: 'SHA-256 fingerprint' })}</FormLabel>
+                            <FormControl>
+                              <Input dir="ltr" className="font-mono text-xs" {...field} value={field.value ?? ''} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <p className="text-muted-foreground text-sm">
+                        {t('nodeModal.fingerprintHelp', {
+                          defaultValue: 'Use the SHA-256 of the complete leaf certificate DER. Both ports must present the same certificate, with valid dates and matching SANs.',
+                        })}
+                      </p>
+                      {!!form.watch('server_ca') && (
+                        <p className="text-muted-foreground text-sm">
+                          {t('nodeModal.inactivePem', { defaultValue: 'The saved PEM is inactive while a fingerprint is set. Saving this selection clears the PEM.' })}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {form.watch('verification') === 'pem' && (
+                    <FormField
+                      control={form.control}
+                      name="server_ca"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('nodeModal.certificate')}</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              dir="ltr"
+                              placeholder={t('nodeModal.certificatePlaceholder')}
+                              className={cn('h-[200px] font-mono text-xs', !!form.formState.errors.server_ca && 'border-destructive')}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-3">

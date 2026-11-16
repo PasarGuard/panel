@@ -16,12 +16,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextvars import ContextVar
 
 from PasarGuardNodeBridge import Health, NodeAPIError, NodeType, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import User
+from PasarGuardNodeBridge.controller import Controller
 from PasarGuardNodeBridge.grpclib import Node as GrpcNode
 from PasarGuardNodeBridge.rest import Node as RestNode
 from PasarGuardNodeBridge.storage import ClaimedUser, LifecycleLease, LifecycleStatus
@@ -111,6 +113,21 @@ class FenceHold:
 
 
 class _QueuedBatchSync:
+    async def aclose(self) -> None:
+        """Retire local tasks and every transport pool without a remote RPC."""
+        try:
+            await self.disconnect()
+        finally:
+            close_channel = getattr(self, "_close_chan", None)
+            if close_channel is not None:
+                close_channel()
+            for name in ("_client", "_json_client"):
+                client = getattr(self, name, None)
+                # gRPC's _client is a service stub; HTTP clients own sessions.
+                close = getattr(client, "close", None)
+                if close is not None:
+                    await close()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Full snapshots in progress on this process for this node object, and
@@ -433,6 +450,19 @@ class QueuedRestNode(_QueuedBatchSync, RestNode):
 
 
 def create_node(connection: NodeType, **kwargs) -> PasarGuardNode:
+    # TODO(node-tls): On hold until bridge TLS policies are implemented and
+    # published. Update the dependency/lockfile and verify all transports before
+    # release; see docs/node-tls-panel.md for the remaining work.
+    # Old bridge versions cannot enforce the new policies. Never discard a pin
+    # or silently fall back to PEM when running with an older worker image.
+    if "certificate_sha256" not in inspect.signature(Controller.__init__).parameters:
+        fingerprint = kwargs.pop("certificate_sha256", None)
+        if fingerprint or not kwargs.get("server_ca"):
+            raise NodeAPIError(
+                -1,
+                "This node verification policy requires a TLS-migration-capable pasarguard-node-bridge; "
+                "upgrade the bridge on all panel workers before using fingerprints or system trust.",
+            )
     if connection is NodeType.grpc:
         return QueuedGrpcNode(**kwargs)
     if connection is NodeType.rest:

@@ -43,6 +43,7 @@ class NodeManager:
             node.port,
             node.api_port,
             node.server_ca,
+            node.certificate_sha256,
             node.api_key,
             node.default_timeout,
             node.internal_timeout,
@@ -56,6 +57,7 @@ class NodeManager:
             "port": node.port,
             "api_port": node.api_port,
             "server_ca": node.server_ca,
+            "certificate_sha256": node.certificate_sha256,
             "api_key": node.api_key,
             "name": node.name,
             "logger": self.logger,
@@ -85,6 +87,13 @@ class NodeManager:
                 await node.stop()
         except Exception:
             pass
+        finally:
+            close = getattr(node, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception:
+                    self.logger.exception("Failed to close retired node connections")
 
     async def _cancel_user_syncs(self, node_id: int) -> None:
         current = asyncio.current_task()
@@ -150,8 +159,12 @@ class NodeManager:
 
             async with self._lock.writer_lock:
                 old_node: PasarGuardNode | None = self._nodes.pop(node.id, None)
-
-                new_node = create_node(**self._create_node_kwargs(node))
+                self._node_signatures.pop(node.id, None)
+                try:
+                    new_node = create_node(**self._create_node_kwargs(node))
+                except Exception:
+                    await self._shutdown_node(old_node, remote_stop=False)
+                    raise
 
                 self._nodes[node.id] = new_node
                 self._node_signatures[node.id] = signature

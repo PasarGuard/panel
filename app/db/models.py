@@ -693,6 +693,7 @@ class Node(Base, CreatedAtUTCMixin):
     xray_version: Mapped[str | None] = mapped_column(String(32), nullable=True, init=False)
     message: Mapped[str | None] = mapped_column(String(1024), nullable=True, init=False)
     server_ca: Mapped[str] = mapped_column(String(2048), nullable=False)
+    certificate_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None, kw_only=True)
     api_key: Mapped[str | None] = mapped_column(String(36))
     node_version: Mapped[str | None] = mapped_column(String(32), nullable=True, init=False)
     core_config_id: Mapped[int | None] = fk_id_column("core_configs.id", ondelete="SET NULL", nullable=True)
