@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from ipaddress import ip_address
 
+import certifi
 import pytest
 from aiohttp import web
 from cryptography import x509
@@ -119,10 +120,13 @@ async def test_tls_policies_allow_main_and_maintenance(tmp_path, monkeypatch, tr
     async with tls_node(tmp_path, transport) as (kwargs, pem, pin, cert_path, received):
         if policy == "system":
             monkeypatch.setenv("SSL_CERT_FILE", str(cert_path))
+        # Public roots do not trust this self-signed server; the matching pin
+        # must take precedence over PEM verification when both are configured.
+        server_ca = certifi.contents() if policy == "both" else pem if policy == "pem" else ""
         node = create_node(
             transport,
             **kwargs,
-            server_ca=pem if policy in ("pem", "both") else "",
+            server_ca=server_ca,
             certificate_sha256=pin if policy in ("pin", "both") else None,
         )
         try:
