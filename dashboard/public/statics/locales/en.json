@@ -2782,6 +2782,7 @@
     "section": {
       "label": "Section",
       "api": "API",
+      "geodata": "Geodata",
       "inbounds": "Inbounds",
       "outbounds": "Outbounds",
       "routing": "Routing",
@@ -2795,6 +2796,7 @@
     "sectionDesc": {
       "wgInterface": "WireGuard interface and keys",
       "api": "Xray gRPC API services",
+      "geodata": "Schedule geodata downloads and reloads in Xray",
       "advanced": "JSON editing and diagnostics",
       "inbounds": "Inbound listeners and protocols",
       "outbounds": "Outbound connections and upstreams",
@@ -2848,6 +2850,37 @@
         "webBasePath": "Each domain path must be empty or up to 128 characters of Latin letters, digits, \"-\" and \"_\" in parts separated by \"/\", each part starting with a letter or digit, with no \"/\" at the start or end (for example tg or my-app/web).",
         "webVhost": "WEB needs at least one domain, each with a domain name and a decoy URL on a loopback or private IP."
       }
+    },
+    "geodata": {
+      "configure": "Configure geodata",
+      "cron": "Reload schedule",
+      "cronHint": "A five-field cron expression in the Xray node’s time zone. Leave blank to disable scheduled reloads.",
+      "cronMode": {
+        "disabled": "Disabled",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "hours": "Every N hours",
+        "custom": "Custom (cron)"
+      },
+      "cronDay": "Day of week",
+      "cronTime": "Time",
+      "cronHour": "Hour",
+      "cronMinute": "Minute",
+      "cronEveryHours_one": "Every {{count}} hour",
+      "cronEveryHours_other": "Every {{count}} hours",
+      "cronServerTime": "server time",
+      "cronInvalid": "Enter a valid Xray cron schedule.",
+      "cronFrequentWarning": "Runs more often than hourly. Reloading geodata uses memory, so be careful on low-RAM devices.",
+      "outbound": "Download outbound tag",
+      "outboundHint": "Leave blank to use Xray routing.",
+      "noOutbound": "No outbound tag",
+      "assets": "Download assets",
+      "assetsHint": "Use HTTPS URLs for .dat or .dat.gz files. Each target must already exist in the Xray resource directory. With no assets, Xray reloads the existing files.",
+      "addAsset": "Add custom asset",
+      "addPreset": "Add regional assets",
+      "url": "Download URL",
+      "file": "Target file",
+      "removeAsset": "Remove asset {{number}}"
     },
     "api": {
       "title": "API Services",

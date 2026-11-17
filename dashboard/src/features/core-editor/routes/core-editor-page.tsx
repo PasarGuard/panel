@@ -538,6 +538,10 @@ function StoreCoreEditorPage() {
         title: 'coreEditor.section.dns',
         description: 'coreEditor.sectionDesc.dns',
       },
+      geodata: {
+        title: 'coreEditor.section.geodata',
+        description: 'coreEditor.sectionDesc.geodata',
+      },
       bindings: {
         title: 'coreEditor.section.bindings',
         description: 'coreEditor.sectionDesc.bindings',

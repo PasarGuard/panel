@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { ArrowDownToLine, ArrowUpFromLine, Braces, Cable, Globe, Link2, Scale, Waypoints, Webhook } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, Braces, Cable, Database, Globe, Link2, Scale, Waypoints, Webhook } from 'lucide-react'
 import type { WgCoreSection, XrayCoreSection } from '@/features/core-editor/state/core-editor-store'
 
 export type XraySectionNavItem = {
@@ -22,6 +22,7 @@ export const XRAY_CORE_SECTION_NAV: XraySectionNavItem[] = [
   { id: 'routing', labelKey: 'coreEditor.section.routing', defaultLabel: 'Routing', icon: Waypoints },
   { id: 'balancers', labelKey: 'coreEditor.section.balancers', defaultLabel: 'Balancers', icon: Scale },
   { id: 'dns', labelKey: 'coreEditor.section.dns', defaultLabel: 'DNS', icon: Globe },
+  { id: 'geodata', labelKey: 'coreEditor.section.geodata', defaultLabel: 'Geodata', icon: Database },
   { id: 'bindings', labelKey: 'coreEditor.section.bindings', defaultLabel: 'Bindings', icon: Link2 },
   { id: 'api', labelKey: 'coreEditor.section.api', defaultLabel: 'API', icon: Webhook },
   { id: 'advanced', labelKey: 'coreEditor.section.advanced', defaultLabel: 'Advanced', icon: Braces },
