@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 import { CoresSimpleResponse, DataLimitResetStrategy, getNode, NodeConnectionType, NodeResponse, useCreateNode, useGetNode, useModifyNode } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client'
-import { Loader2, RefreshCw, Settings, Server, Pencil } from 'lucide-react'
+import { AlertTriangle, Loader2, RefreshCw, Settings, Server, Pencil } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -602,7 +602,12 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                     )}
                   />
                   {form.watch('verification') === 'trusted' && <p className="text-muted-foreground text-sm">{t('nodeModal.systemTrust')}</p>}
-                  {form.watch('verification') === 'pem' && <p className="text-muted-foreground text-sm">{t('nodeModal.legacyPemWarning')}</p>}
+                  {form.watch('verification') === 'pem' && (
+                    <div role="alert" className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-200">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      <p className="text-sm font-medium">{t('nodeModal.legacyPemWarning')}</p>
+                    </div>
+                  )}
                   {form.watch('verification') === 'fingerprint' && (
                     <>
                       <FormField
