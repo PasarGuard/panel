@@ -2394,6 +2394,9 @@
     "verificationPem": "Legacy PEM certificate",
     "legacyPemWarningTitle": "Legacy PEM verification will be removed",
     "legacyPemWarning": "Legacy PEM certificate verification will be removed in a future release. Migrate this node to SHA-256 fingerprint verification: select “SHA-256 fingerprint”, paste the fingerprint of the node’s certificate, and save your changes.",
+    "fetchFingerprint": "Fetch SHA256 from node",
+    "fetchFingerprintFailed": "Could not fetch the node certificate fingerprint.",
+    "fetchFingerprintHelp": "Fetches the live certificate from the node address and port above. Verify the fingerprint independently before saving.",
     "fingerprintCertificateHelp": "You can use a self-signed certificate or one issued by a private certificate authority (CA). Include the node’s local IP addresses in the certificate’s Subject Alternative Names (SANs). The IP address or hostname entered as Node Address must also be listed.",
     "fingerprintHelp": "Paste the node certificate’s SHA-256 fingerprint: 64 hexadecimal characters, with or without colons. Both node ports must use the same certificate, and the certificate must be within its validity period.",
     "tlsFrontend": "Use the address and TLS ports that the panel connects to. If you use a reverse proxy, enter its address and ports.",
@@ -2737,6 +2740,12 @@
     "mtprotoHint": "MTProto (telemt) core. Set censorship.tls_domain to a real domain before saving: changing it later breaks every ee link already shared. Give each MTProto core its own inbound_tag."
   },
   "coreEditor": {
+    "certificateFingerprint": {
+      "calculate": "Calculate SHA256",
+      "failed": "Could not retrieve the certificate fingerprint.",
+      "pathUnavailable": "This certificate path is unavailable on the panel server. Paste the PEM into the TLS certificate fields or enter the fingerprint manually.",
+      "missingSource": "Configure a TLS certificate for inbound, or a server address and port for outbound."
+    },
     "nameRequired": "Name is required",
     "fixValidation": "Fix validation errors before saving",
     "validationErrors": "Validation errors",

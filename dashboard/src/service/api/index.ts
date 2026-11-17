@@ -1199,6 +1199,32 @@ export interface BulkUsersSetOwner {
   admin_username: string;
 }
 
+export interface CertificateFingerprintRequest {
+  /** PEM certificate or chain; the first certificate is used. */
+  pem?: string | null;
+  /** Certificate file path on the panel server, containing PEM or DER. */
+  file_path?: string | null;
+  /** TLS server hostname or IP address, without a scheme or port. */
+  server?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 65535
+     */
+  port?: number;
+  /** Optional TLS SNI override for server probes. */
+  server_name?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 20
+     */
+  timeout?: number;
+}
+
+export interface CertificateFingerprintResponse {
+  /** SHA-256 of the complete leaf certificate DER, as 64 lowercase hexadecimal characters. */
+  sha256: string;
+}
+
 /**
  * Automatic retention periods. ``None`` keeps the corresponding data indefinitely.
  */
@@ -9597,6 +9623,81 @@ export const useScanRealityTarget = <TError = ErrorType<Unauthorized | Forbidden
         TContext
       > => {
       return useMutation(getScanRealityTargetMutationOptions(options), queryClient);
+    }
+
+export const getGetCoreCertificateFingerprintUrl = () => {
+
+
+
+
+  return `/api/core/certificate-fingerprint`
+}
+
+/**
+ * Hash a PEM string, a panel-local certificate file, or a live TLS server's leaf certificate.
+ *
+ * Provide exactly one source. Live probes support private node addresses and self-signed
+ * certificates. A retrieved fingerprint must be verified independently before trusting it.
+ * @summary Get Core Certificate Fingerprint
+ */
+export const getCoreCertificateFingerprint = async (certificateFingerprintRequest: CertificateFingerprintRequest, options?: RequestInit): Promise<CertificateFingerprintResponse> => {
+
+  return orvalFetcher<CertificateFingerprintResponse>(getGetCoreCertificateFingerprintUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(certificateFingerprintRequest)
+  }
+);}
+
+
+
+
+
+export const getGetCoreCertificateFingerprintMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getCoreCertificateFingerprint>>, TError,{data: BodyType<CertificateFingerprintRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof getCoreCertificateFingerprint>>, TError,{data: BodyType<CertificateFingerprintRequest>}, TContext> => {
+
+const mutationKey = ['getCoreCertificateFingerprint'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getCoreCertificateFingerprint>>, {data: BodyType<CertificateFingerprintRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  getCoreCertificateFingerprint(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GetCoreCertificateFingerprintMutationResult = NonNullable<Awaited<ReturnType<typeof getCoreCertificateFingerprint>>>
+    export type GetCoreCertificateFingerprintMutationBody = BodyType<CertificateFingerprintRequest>
+    export type GetCoreCertificateFingerprintMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+    /**
+ * @summary Get Core Certificate Fingerprint
+ */
+export const useGetCoreCertificateFingerprint = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getCoreCertificateFingerprint>>, TError,{data: BodyType<CertificateFingerprintRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof getCoreCertificateFingerprint>>,
+        TError,
+        {data: BodyType<CertificateFingerprintRequest>},
+        TContext
+      > => {
+      return useMutation(getGetCoreCertificateFingerprintMutationOptions(options), queryClient);
     }
 
 export const getReorderCoreConfigsUrl = () => {

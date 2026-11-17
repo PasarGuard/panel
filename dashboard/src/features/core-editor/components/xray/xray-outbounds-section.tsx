@@ -19,6 +19,8 @@ import { CoreEditorDataTable } from '@/features/core-editor/components/shared/co
 import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/core-editor-form-dialog'
 import { JsonCodeEditorPanel } from '@/features/core-editor/components/shared/json-code-editor-panel'
 import { OutboundLatencyTestDialog } from '@/features/core-editor/components/xray/outbound-latency-test-dialog'
+import { CertificateFingerprintButton } from '@/features/core-editor/components/shared/certificate-fingerprint-button'
+import { outboundCertificateFingerprintRequest } from '@/features/core-editor/kit/certificate-fingerprint'
 import { pruneSockoptObject, XrayStreamSockoptFields } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { XrayStreamFinalmaskFields } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'
 import { inferParityFieldMode, outboundScalarParityFieldPrefersFullGridWidth, outboundSettingToString, parseOutboundSettingValue } from '@/features/core-editor/kit/xray-parity-value'
@@ -1863,6 +1865,18 @@ function OutboundStreamSettingsAccordion({ ob, obStreamSettings, form, patchOutb
                 <Shield className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
                 <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">{t('coreEditor.outbound.tlsSettings', { defaultValue: 'TLS Settings' })}</p>
               </div>
+
+              <FieldRow label={t('coreEditor.transportFields.pinnedpeercertsha256', { defaultValue: 'Pinned Peer Cert SHA256' })} wide>
+                <div className="flex flex-wrap items-start gap-2">
+                  <Input
+                    dir="ltr"
+                    className="h-10 min-w-0 flex-1 font-mono text-xs"
+                    value={typeof tlsSettings?.pinnedPeerCertSha256 === 'string' ? tlsSettings.pinnedPeerCertSha256 : ''}
+                    onChange={event => patchTls({ pinnedPeerCertSha256: event.target.value || undefined })}
+                  />
+                  <CertificateFingerprintButton request={outboundCertificateFingerprintRequest(ob)} onFingerprint={fingerprint => patchTls({ pinnedPeerCertSha256: fingerprint })} />
+                </div>
+              </FieldRow>
 
               <FieldRow label={t('coreEditor.field.serverName', { defaultValue: 'Server Name (SNI)' })}>
                 <Input

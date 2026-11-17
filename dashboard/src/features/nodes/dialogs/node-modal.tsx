@@ -23,6 +23,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { inferNodeVerification, nodeVerificationPayload, type NodeFormValues } from '@/features/nodes/forms/node-form'
 import type { CoreSimple } from '@/service/api'
+import { FetchNodeFingerprintButton } from '@/features/nodes/components/fetch-node-fingerprint-button'
 
 // A node without a core runs the default core (id 1, which cannot be deleted).
 // Editing must show and send that core, not the first one in the admin's order.
@@ -622,6 +623,12 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                         )}
                       />
                       <p className="text-muted-foreground text-sm">{t('nodeModal.fingerprintCertificateHelp')}</p>
+                      <FetchNodeFingerprintButton
+                        address={form.watch('address')}
+                        port={form.watch('port')}
+                        onFingerprint={fingerprint => form.setValue('certificate_sha256', fingerprint, { shouldDirty: true, shouldTouch: true, shouldValidate: true })}
+                      />
+                      <p className="text-muted-foreground text-sm">{t('nodeModal.fetchFingerprintHelp')}</p>
                       <p className="text-muted-foreground text-sm">{t('nodeModal.fingerprintHelp')}</p>
                       {!!form.watch('server_ca') && <p className="text-muted-foreground text-sm">{t('nodeModal.inactivePem')}</p>}
                     </>

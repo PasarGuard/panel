@@ -26,6 +26,7 @@ from app.db.crud.wireguard import (
 )
 from app.db.models import CoreType
 from app.models.admin import AdminDetails
+from app.models.certificate import CertificateFingerprintRequest, CertificateFingerprintResponse
 from app.models.core import (
     BulkCoreSelection,
     CoreCreate,
@@ -40,6 +41,7 @@ from app.models.core import (
 from app.models.reality_scan import RealityScanRequest, RealityScanResult
 from app.node.sync import sync_users
 from app.operation import BaseOperation
+from app.utils.certificate import CertificateFingerprintError, get_certificate_fingerprint
 from app.utils.logger import get_logger
 from app.utils.reality_scan import RealityScanError, scan_reality_target
 
@@ -53,6 +55,13 @@ class CoreModification(NamedTuple):
 
 
 class CoreOperation(BaseOperation):
+    async def certificate_fingerprint(self, request: CertificateFingerprintRequest) -> CertificateFingerprintResponse:
+        try:
+            fingerprint = await get_certificate_fingerprint(request)
+        except CertificateFingerprintError as exc:
+            await self.raise_error(message=str(exc), code=exc.status_code)
+        return CertificateFingerprintResponse(sha256=fingerprint)
+
     async def reorder_cores(self, db: AsyncSession, ordered_ids: list[int], admin: AdminDetails) -> None:
         """Persist a core configuration order requested by an administrator."""
         if not await reorder_core_configs(db, ordered_ids):

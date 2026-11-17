@@ -15,6 +15,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { CoreEditorDataTable } from '@/features/core-editor/components/shared/core-editor-data-table'
 import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/core-editor-form-dialog'
+import { CertificateFingerprintButton } from '@/features/core-editor/components/shared/certificate-fingerprint-button'
+import { inboundCertificateFingerprintRequest } from '@/features/core-editor/kit/certificate-fingerprint'
 import { TcpHeaderObfuscationForm } from '@/features/core-editor/components/shared/tcp-header-obfuscation-form'
 import { VlessAdvancedGenerationModal } from '@/features/core-editor/components/shared/vless-advanced-generation-modal'
 import { isBooleanParityField, isJsonRawMessageField, transportParityFieldLabel, XrayParityFormControl } from '@/features/core-editor/components/shared/xray-parity-form-control'
@@ -4356,7 +4358,14 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                           const wide = inferParityFieldMode(def) !== 'scalar'
                           const isBoolean = isBooleanParityField(def)
                           const isReality = inboundSecurityType === 'reality'
-                          const securityFieldFullWidth = wide || isBoolean || jsonKey === 'xver' || jsonKey === 'serverName' || jsonKey === 'serverNames' || (isReality && jsonKey === 'fingerprint')
+                          const securityFieldFullWidth =
+                            wide ||
+                            isBoolean ||
+                            jsonKey === 'xver' ||
+                            jsonKey === 'serverName' ||
+                            jsonKey === 'serverNames' ||
+                            jsonKey === 'pinnedPeerCertSha256' ||
+                            (isReality && jsonKey === 'fingerprint')
 
                           return (
                             <Fragment key={jsonKey}>
@@ -4367,22 +4376,33 @@ export function XrayInboundsSection({ headerAddPulse, headerAddEpoch }: XrayInbo
                                   render={({ field }) => (
                                     <FormItem className={cn('w-full min-w-0', securityFieldFullWidth && 'sm:col-span-2')}>
                                       {!isBoolean && <FormLabel className="text-xs font-medium">{transportParityFieldLabel(def, t)}</FormLabel>}
-                                      <XrayParityFormControl
-                                        field={def}
-                                        value={field.value ?? ''}
-                                        placeholder={inboundSecurityParityPlaceholder(jsonKey)}
-                                        renderBooleanAsToggleRow={isBoolean}
-                                        disabled={isReality && jsonKey === 'publicKey'}
-                                        onChange={v => {
-                                          field.onChange(v)
-                                          try {
-                                            patchSecurity({ [jsonKey]: parseOutboundSettingValue(def, v) })
-                                          } catch {
-                                            /* invalid JSON fragment — wait for valid input */
-                                          }
-                                          revalidateRealityInboundForm()
-                                        }}
-                                      />
+                                      <div className={jsonKey === 'pinnedPeerCertSha256' ? 'flex flex-wrap items-start gap-2 [&>input]:min-w-0 [&>input]:flex-1' : 'contents'}>
+                                        <XrayParityFormControl
+                                          field={def}
+                                          value={field.value ?? ''}
+                                          placeholder={inboundSecurityParityPlaceholder(jsonKey)}
+                                          renderBooleanAsToggleRow={isBoolean}
+                                          disabled={isReality && jsonKey === 'publicKey'}
+                                          onChange={v => {
+                                            field.onChange(v)
+                                            try {
+                                              patchSecurity({ [jsonKey]: parseOutboundSettingValue(def, v) })
+                                            } catch {
+                                              /* invalid JSON fragment — wait for valid input */
+                                            }
+                                            revalidateRealityInboundForm()
+                                          }}
+                                        />
+                                        {inboundSecurityType === 'tls' && jsonKey === 'pinnedPeerCertSha256' && (
+                                          <CertificateFingerprintButton
+                                            request={inboundCertificateFingerprintRequest(inboundSecurity?.certificates)}
+                                            onFingerprint={fingerprint => {
+                                              form.setValue(name, fingerprint, { shouldDirty: true, shouldTouch: true, shouldValidate: true })
+                                              patchSecurity({ pinnedPeerCertSha256: fingerprint })
+                                            }}
+                                          />
+                                        )}
+                                      </div>
                                       {isReality && jsonKey === 'fingerprint' && (
                                         <FormRealityFingerprintWarning
                                           fingerprint={field.value || 'chrome'}
