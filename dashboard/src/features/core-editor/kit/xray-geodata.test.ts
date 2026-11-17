@@ -117,3 +117,22 @@ test('cron validates field ranges and preserves Xray schedule shortcuts', () => 
     assert.equal(validateXrayGeodata({ cron })[0]?.path, '/geodata/cron')
   }
 })
+
+test('cron checks the time-zone prefix before validating the schedule', () => {
+  for (const prefix of ['CRON_TZ=UTC', 'TZ=Asia/Tehran', 'CRON_TZ=Local', 'CRON_TZ=US/Eastern', 'TZ=Etc/GMT+3']) {
+    assert.deepEqual(validateXrayGeodata({ cron: `${prefix} 0 4 * * *` }), [], prefix)
+  }
+  for (const prefix of ['CRON_TZ=Not/AZone', 'TZ=Not/AZone', 'CRON_TZ=+03:30', 'TZ=asia/tehran']) {
+    const [issue] = validateXrayGeodata({ cron: `${prefix} 0 4 * * *` })
+    assert.equal(issue?.path, '/geodata/cron', prefix)
+    assert.match(issue.message, /time zone/, prefix)
+  }
+  assert.match(validateXrayGeodata({ cron: 'CRON_TZ=UTC 60 4 * * *' })[0]?.message ?? '', /schedule/)
+})
+
+test('persist validation rejects an imported cron with an unknown time zone', () => {
+  const { profile } = importRawToProfile({ ...DEFAULT_XRAY_CORE_CONFIG, geodata: { cron: 'CRON_TZ=Not/AZone 0 4 * * *' } })
+  const result = validateProfileForPersist(profile)
+  assert.equal(result.ok, false)
+  if (!result.ok) assert.ok(result.strictBlockers.some(issue => issue.path === '/geodata/cron' && issue.message.includes('time zone')))
+})

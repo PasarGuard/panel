@@ -51,8 +51,20 @@ const cronFields = [
   { min: 0, max: 6, names: 'sun mon tue wed thu fri sat'.split(' ') },
 ]
 
-function isCronSchedule(value: string): boolean {
-  const schedule = value.replace(/^(?:CRON_TZ|TZ)=\S+ +/, '').trim()
+function isXrayTimeZone(timeZone: string): boolean {
+  if (timeZone === 'UTC' || timeZone === 'Local') return true
+  // Go's time.LoadLocation accepts names, while Intl also accepts numeric offsets.
+  if (/^[+-]/.test(timeZone)) return false
+  try {
+    const resolved = new Intl.DateTimeFormat('en', { timeZone }).resolvedOptions().timeZone
+    // Some Intl versions canonicalize aliases to an entirely different name.
+    return resolved === timeZone || resolved.toLowerCase() !== timeZone.toLowerCase()
+  } catch {
+    return false
+  }
+}
+
+function isCronSchedule(schedule: string): boolean {
   // Xray's standard parser also accepts named schedules and Go durations.
   if (/^@(?:yearly|annually|monthly|weekly|daily|midnight|hourly)$/.test(schedule)) return true
   if (/^@every (?:[+-]?0|[+-]?(?:(?:\d+(?:\.\d*)?|\.\d+)(?:ns|us|µs|μs|ms|s|m|h))+)$/.test(schedule)) return true
@@ -113,8 +125,14 @@ export function validateXrayGeodata(value: unknown): Issue[] {
     add('', 'Geodata must be an object.')
     return issues
   }
-  if (config.cron != null && (typeof config.cron !== 'string' || !isCronSchedule(config.cron))) {
-    add('/cron', 'Enter a valid Xray cron schedule.')
+  if (config.cron != null) {
+    const cron = typeof config.cron === 'string' ? config.cron : ''
+    const prefix = /^(?:CRON_TZ|TZ)=(\S+) +/.exec(cron)
+    if (prefix && !isXrayTimeZone(prefix[1])) {
+      add('/cron', 'Enter a valid time zone in the Xray cron schedule.')
+    } else if (!isCronSchedule(cron.slice(prefix?.[0].length ?? 0).trim())) {
+      add('/cron', 'Enter a valid Xray cron schedule.')
+    }
   }
   if (config.outbound != null && typeof config.outbound !== 'string') {
     add('/outbound', 'The download outbound tag must be a string.')
