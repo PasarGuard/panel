@@ -12,7 +12,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import type { JsonObject } from '@pasarguard/xray-config-kit'
 import { ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import type { FormEvent } from 'react'
+import type { SubmitEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 function AddCustomGeodataAsset({ onAdd }: { onAdd: (asset: { url: string; file: string }) => void }) {
@@ -21,7 +21,7 @@ function AddCustomGeodataAsset({ onAdd }: { onAdd: (asset: { url: string; file: 
   const [open, setOpen] = useState(false)
   const [errors, setErrors] = useState<ReturnType<typeof validateXrayGeodata>>([])
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const asset = { url: String(data.get('url') ?? '').trim(), file: String(data.get('file') ?? '').trim() }
