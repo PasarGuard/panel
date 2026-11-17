@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { CronField } from '@/features/core-editor/components/shared/cron-field'
 import { addGeodataPresetAssets, geodataObject, geodataPresetGroups, setProfileGeodata, validateXrayGeodata } from '@/features/core-editor/kit/xray-geodata'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -115,12 +116,10 @@ export function XrayGeodataSection() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid content-start gap-2">
               <Label htmlFor="xray-geodata-cron">{t('coreEditor.geodata.cron')}</Label>
-              <Input
+              <CronField
                 id="xray-geodata-cron"
-                dir="ltr"
-                placeholder="0 4 * * *"
                 value={typeof geodata?.cron === 'string' ? geodata.cron : ''}
-                onChange={event => setField('cron', event.target.value)}
+                onChange={value => setField('cron', value)}
                 aria-describedby="xray-geodata-cron-hint"
               />
               <p id="xray-geodata-cron-hint" className="text-muted-foreground text-xs">
