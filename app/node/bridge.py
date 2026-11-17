@@ -9,7 +9,9 @@ subclasses keep that worker but change what the panel depends on:
 * queued work survives detach/reconnect instead of being cleared;
 * a full snapshot is fenced: workers stop claiming while it is captured and
   applied, and a delivery whose claim predates the fence is requeued rather
-  than acknowledged, so an older snapshot can never bury a newer delta.
+  than acknowledged, so an older snapshot can never bury a newer delta;
+* a large update is queued as bulk entries (one per delivery batch) instead of
+  one entry per user, and the worker delivers each one under the same fence.
 """
 
 from __future__ import annotations
@@ -26,6 +28,8 @@ from PasarGuardNodeBridge.grpclib import Node as GrpcNode
 from PasarGuardNodeBridge.rest import Node as RestNode
 from PasarGuardNodeBridge.storage import ClaimedUser, LifecycleLease, LifecycleStatus
 
+from config import nats_settings
+
 _queued_sync: ContextVar[bool] = ContextVar("queued_node_user_sync", default=False)
 
 # Lease for one full snapshot (queue drain + database read + node RPC). It is
@@ -34,6 +38,8 @@ _queued_sync: ContextVar[bool] = ContextVar("queued_node_user_sync", default=Fal
 FULL_SYNC_LEASE_SECONDS = 120.0
 # Safety margin between the delivery budget and the claim lease itself.
 DELIVERY_DEADLINE_MARGIN = 1.0
+# Longest a worker round keeps delivering bulk entries before it claims per-user work.
+BULK_ROUND_SECONDS = 5.0
 
 RefreshHandler = Callable[[str, list[str]], Awaitable[list[User]]]
 _refresh_handler: RefreshHandler | None = None
@@ -254,6 +260,97 @@ class _QueuedBatchSync:
         # lease. Keep the adapter's smaller transport budget within it.
         self._delivery_deadline = time.time() + self._sync_lease_seconds
         return await super()._deliver_claimed_users(claimed_users)
+
+    # ------------------------------------------------------------ bulk entries
+    async def update_users(self, users: list[User]) -> None:
+        """Queue users; an update of many users goes into bulk entries instead of one entry per user.
+
+        One entry per user costs several KV round trips per user and node, so
+        a single large update (an admin's users after a limit change) could
+        saturate the worker and NATS for every node at once.
+        """
+        enqueue_bulk = getattr(self._user_sync_store, "enqueue_bulk", None)
+        threshold = nats_settings.node_bulk_sync_min_users
+        if not callable(enqueue_bulk) or threshold <= 0 or len(users) < threshold:
+            await super().update_users(users)
+            return
+        if self._sync_retries:
+            for user in users:
+                # A newer change replaces any rejected payload held for retry.
+                self._sync_retries.pop(user.email, None)
+        await enqueue_bulk(self.node_id, users, batch_size=max(1, nats_settings.node_update_users_batch_size))
+        self._work_available.set()
+        await self._ensure_sync_worker_running()
+
+    async def _claim_pending_users(self, limit: int | None = None) -> list[ClaimedUser]:
+        """Deliver bulk entries first, then claim per-user work as the bridge does."""
+        bulk_entries = getattr(self._user_sync_store, "bulk_entries", None)
+        if not callable(bulk_entries):
+            return await super()._claim_pending_users(limit)
+        await self._deliver_bulk_entries()
+        claimed = await super()._claim_pending_users(limit)
+        # The bridge consumed the wake signal before it read per-user work; bulk
+        # entries still queued (or added since) must keep this worker running.
+        if await bulk_entries(self.node_id):
+            self._work_available.set()
+        return claimed
+
+    async def _deliver_bulk_entries(self) -> None:
+        """Deliver bulk entries oldest first until per-user work is waiting or the round's bulk budget is spent."""
+        store = self._user_sync_store
+        loop = asyncio.get_running_loop()
+        stop_at = loop.time() + min(BULK_ROUND_SECONDS, self._sync_lease_seconds / 4)
+        while entries := await store.bulk_entries(self.node_id):
+            key, indexed_revision = entries[0]
+            try:
+                await self._deliver_bulk_entry(key, indexed_revision)
+            except FullSyncConflictError as exc:
+                # Another snapshot or bulk delivery holds this node's fence; nothing was retired.
+                self.logger.debug(f"[{self.name}] Bulk user delivery deferred: {exc.detail}")
+                return
+            if loop.time() >= stop_at or await store.has_pending(self.node_id):
+                # Let per-user work (a new user, an edit) through between bulk entries.
+                return
+
+    async def _deliver_bulk_entry(self, key: str, indexed_revision: int) -> None:
+        """Send one bulk entry's users as they are now in the source of truth, then retire the entry.
+
+        The node's full-sync fence keeps every other delivery for this node out
+        (on any worker) while the users are read and sent, and a delivery that
+        was already in flight when it began is re-derived afterwards, exactly as
+        around a full snapshot. Nothing is retired unless the fence is still held.
+        """
+        store = self._user_sync_store
+        async with self.full_sync_fence(self._sync_lease_seconds) as held:
+            entry = await store.read_bulk(key, indexed_revision)
+            if entry is None:
+                return  # retired by a full snapshot, or delivered by another worker
+            users, revision = entry
+            if users:
+                supported, _ = await self._supports_chunked_sync()
+                if supported:
+                    current = await self._current_state(users)
+                    held.check()
+                    failed = await super().sync_users_chunked(
+                        current,
+                        chunk_size=max(1, min(self._sync_chunk_size, len(current))),
+                        flush_pending=False,
+                        timeout=self._internal_timeout,
+                    )
+                    if failed and not getattr(failed, "rejected", False):
+                        detail = getattr(failed, "detail", "") or "transport error"
+                        raise NodeAPIError(-1, f"Bulk delivery of {len(current)} user(s) failed: {detail}")
+                    if failed:
+                        # The node's backend refused the batch (one user it cannot apply fails all
+                        # of it): the per-user path isolates that user and delivers the others.
+                        held.check()
+                        await store.enqueue_missing(self.node_id, users)
+                else:
+                    # Nodes without the chunked delta endpoint keep their per-user protocol.
+                    held.check()
+                    await store.enqueue_missing(self.node_id, users)
+            held.check()
+            await store.retire_bulk(key, revision)
 
     async def _cleanup_sync_worker(self):
         # Stop only this process's worker. Queued work is shared with sibling

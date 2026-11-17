@@ -101,6 +101,9 @@ class NatsSettings(EnvSettings):
     scheduler_rpc_timeout: float = Field(default=5.0, validation_alias="NATS_SCHEDULER_RPC_TIMEOUT")
     node_command_max_payload_bytes: int = Field(default=900000, validation_alias="NATS_NODE_COMMAND_MAX_PAYLOAD_BYTES")
     node_update_users_batch_size: int = Field(default=100, validation_alias="NATS_NODE_UPDATE_USERS_BATCH_SIZE")
+    # An update of at least this many users is queued per node as bulk entries of
+    # NATS_NODE_UPDATE_USERS_BATCH_SIZE users each instead of one entry per user. 0 disables it.
+    node_bulk_sync_min_users: int = Field(default=20, validation_alias="NATS_NODE_BULK_SYNC_MIN_USERS")
     core_pubsub_channel: str = Field(default="core_hosts_updates", validation_alias="CORE_PUBSUB_CHANNEL")
     host_pubsub_channel: str = Field(default="host_manager_updates", validation_alias="HOST_PUBSUB_CHANNEL")
     telegram_kv_bucket: str = Field(default="pasarguard_telegram", validation_alias="NATS_TELEGRAM_KV_BUCKET")
