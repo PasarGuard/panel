@@ -1,5 +1,6 @@
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { TimePicker } from '@/components/ui/time-picker'
 import { build, cronHourIntervals, parse, validateCronExpression } from '@/features/core-editor/kit/cron-field'
 import type { CronFieldState } from '@/features/core-editor/kit/cron-field'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -97,7 +98,7 @@ export function CronField({ value, onChange, id, 'aria-describedby': describedBy
         </SelectContent>
       </Select>
       {(state.mode === 'daily' || state.mode === 'weekly') && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           {state.mode === 'weekly' && (
             <Select dir={dir} value={String(state.day)} onValueChange={day => change({ ...state, day: Number(day) })}>
               <SelectTrigger className="w-auto flex-1" aria-label={t('coreEditor.geodata.cronDay')}>
@@ -112,15 +113,12 @@ export function CronField({ value, onChange, id, 'aria-describedby': describedBy
               </SelectContent>
             </Select>
           )}
-          <Input
-            className="w-auto flex-1"
-            type="time"
-            dir="ltr"
-            aria-label={t('coreEditor.geodata.cronTime')}
+          <TimePicker
+            label={t('coreEditor.geodata.cronTime')}
+            hourLabel={t('coreEditor.geodata.cronHour')}
+            minuteLabel={t('coreEditor.geodata.cronMinute')}
             value={state.time}
-            onChange={event => {
-              if (event.target.value) change({ ...state, time: event.target.value })
-            }}
+            onChange={time => change({ ...state, time })}
           />
         </div>
       )}

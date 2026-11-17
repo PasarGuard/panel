@@ -2645,6 +2645,8 @@
       },
       "cronDay": "День недели",
       "cronTime": "Время",
+      "cronHour": "Час",
+      "cronMinute": "Минута",
       "cronEveryHours_one": "Каждый {{count}} час",
       "cronEveryHours_few": "Каждые {{count}} часа",
       "cronEveryHours_many": "Каждые {{count}} часов",

@@ -2765,6 +2765,8 @@
       },
       "cronDay": "Day of week",
       "cronTime": "Time",
+      "cronHour": "Hour",
+      "cronMinute": "Minute",
       "cronEveryHours_one": "Every {{count}} hour",
       "cronEveryHours_other": "Every {{count}} hours",
       "cronServerTime": "server time",

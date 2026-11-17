@@ -2713,6 +2713,8 @@
       },
       "cronDay": "星期几",
       "cronTime": "时间",
+      "cronHour": "小时",
+      "cronMinute": "分钟",
       "cronEveryHours_other": "每 {{count}} 小时",
       "cronServerTime": "服务器时间",
       "cronInvalid": "无效的 cron 表达式。请使用恰好 5 个字段。",

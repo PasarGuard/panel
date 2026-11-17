@@ -2670,6 +2670,8 @@
       },
       "cronDay": "روز هفته",
       "cronTime": "زمان",
+      "cronHour": "ساعت",
+      "cronMinute": "دقیقه",
       "cronEveryHours_one": "هر {{count}} ساعت",
       "cronEveryHours_other": "هر {{count}} ساعت",
       "cronServerTime": "به وقت سرور",
