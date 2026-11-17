@@ -2395,7 +2395,6 @@
     "legacyPemWarningTitle": "Legacy PEM verification will be removed",
     "legacyPemWarning": "Legacy PEM certificate verification will be removed in a future release. Migrate this node to SHA-256 fingerprint verification: select “SHA-256 fingerprint”, paste the fingerprint of the node’s certificate, and save your changes.",
     "fetchFingerprint": "Fetch SHA256 from node",
-    "fetchFingerprintFailed": "Could not fetch the node certificate fingerprint.",
     "fetchFingerprintHelp": "Fetches the live certificate from the node address and port above. Verify the fingerprint independently before saving.",
     "fingerprintCertificateHelp": "You can use a self-signed certificate or one issued by a private certificate authority (CA). Include the node’s local IP addresses in the certificate’s Subject Alternative Names (SANs). The IP address or hostname entered as Node Address must also be listed.",
     "fingerprintHelp": "Paste the node certificate’s SHA-256 fingerprint: 64 hexadecimal characters, with or without colons. Both node ports must use the same certificate, and the certificate must be within its validity period.",

@@ -19,7 +19,7 @@ import { CoreEditorDataTable } from '@/features/core-editor/components/shared/co
 import { CoreEditorFormDialog } from '@/features/core-editor/components/shared/core-editor-form-dialog'
 import { JsonCodeEditorPanel } from '@/features/core-editor/components/shared/json-code-editor-panel'
 import { OutboundLatencyTestDialog } from '@/features/core-editor/components/xray/outbound-latency-test-dialog'
-import { CertificateFingerprintButton } from '@/features/core-editor/components/shared/certificate-fingerprint-button'
+import { CertificateFingerprintButton } from '@/components/common/certificate-fingerprint-button'
 import { outboundCertificateFingerprintRequest } from '@/features/core-editor/kit/certificate-fingerprint'
 import { pruneSockoptObject, XrayStreamSockoptFields } from '@/features/core-editor/components/shared/xray-stream-sockopt-editor'
 import { XrayStreamFinalmaskFields } from '@/features/core-editor/components/shared/xray-stream-finalmask-editor'

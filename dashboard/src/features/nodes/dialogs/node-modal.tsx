@@ -23,7 +23,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { LoaderButton } from '@/components/ui/loader-button'
 import { inferNodeVerification, nodeVerificationPayload, type NodeFormValues } from '@/features/nodes/forms/node-form'
 import type { CoreSimple } from '@/service/api'
-import { FetchNodeFingerprintButton } from '@/features/nodes/components/fetch-node-fingerprint-button'
+import { CertificateFingerprintButton } from '@/components/common/certificate-fingerprint-button'
 
 // A node without a core runs the default core (id 1, which cannot be deleted).
 // Editing must show and send that core, not the first one in the admin's order.
@@ -72,6 +72,10 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
   )
 
   const currentNode = node || initialNodeData
+  const fingerprintAddress = form.watch('address')
+  const fingerprintPort = form.watch('port')
+  const fingerprintRequest =
+    fingerprintAddress?.trim() && Number.isInteger(fingerprintPort) && fingerprintPort >= 1 && fingerprintPort <= 65535 ? { server: fingerprintAddress, port: fingerprintPort } : undefined
   const lastSyncedNodeRef = useRef<NodeResponse | null>(null)
 
   useEffect(() => {
@@ -623,9 +627,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                         )}
                       />
                       <p className="text-muted-foreground text-sm">{t('nodeModal.fingerprintCertificateHelp')}</p>
-                      <FetchNodeFingerprintButton
-                        address={form.watch('address')}
-                        port={form.watch('port')}
+                      <CertificateFingerprintButton
+                        request={fingerprintRequest}
+                        label={t('nodeModal.fetchFingerprint')}
                         onFingerprint={fingerprint => form.setValue('certificate_sha256', fingerprint, { shouldDirty: true, shouldTouch: true, shouldValidate: true })}
                       />
                       <p className="text-muted-foreground text-sm">{t('nodeModal.fetchFingerprintHelp')}</p>

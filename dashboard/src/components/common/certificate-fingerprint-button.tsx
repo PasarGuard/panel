@@ -6,9 +6,10 @@ import { getCoreCertificateFingerprint, type CertificateFingerprintRequest } fro
 interface CertificateFingerprintButtonProps {
   request: CertificateFingerprintRequest | undefined
   onFingerprint: (fingerprint: string) => void
+  label?: string
 }
 
-export function CertificateFingerprintButton({ request, onFingerprint }: CertificateFingerprintButtonProps) {
+export function CertificateFingerprintButton({ request, onFingerprint, label }: CertificateFingerprintButtonProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,7 +63,7 @@ export function CertificateFingerprintButton({ request, onFingerprint }: Certifi
         onClick={calculate}
         title={!request ? t('coreEditor.certificateFingerprint.missingSource') : undefined}
       >
-        {t('coreEditor.certificateFingerprint.calculate')}
+        {label ?? t('coreEditor.certificateFingerprint.calculate')}
       </LoaderButton>
       {error && (
         <p role="alert" className="text-destructive max-w-64 text-xs">

@@ -2340,7 +2340,6 @@
     "legacyPemWarningTitle": "旧版 PEM 验证将被移除",
     "legacyPemWarning": "旧版 PEM 证书验证将在未来的版本中移除。请将此节点迁移到 SHA-256 指纹验证：选择“SHA-256 指纹”，粘贴节点证书的指纹，然后保存更改。",
     "fetchFingerprint": "从节点获取 SHA256",
-    "fetchFingerprintFailed": "无法获取节点证书指纹。",
     "fetchFingerprintHelp": "从上方节点地址和端口获取实时证书。保存前请独立核实指纹。",
     "fingerprintCertificateHelp": "您可以使用自签名证书或由私有证书颁发机构（CA）签发的证书。请将节点的本地 IP 地址添加到证书的使用者备用名称（SAN）中。“节点地址”字段填写的 IP 地址或主机名也必须列在其中。",
     "fingerprintHelp": "粘贴节点证书的 SHA-256 指纹：64 个十六进制字符，可带冒号或不带冒号。节点的两个端口必须使用同一张证书，且证书必须处于有效期内。",
