@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,7 +10,76 @@ import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-sto
 import useDirDetection from '@/hooks/use-dir-detection'
 import type { JsonObject } from '@pasarguard/xray-config-kit'
 import { ChevronDown, Plus, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+
+function AddCustomGeodataAsset({ onAdd }: { onAdd: (asset: { url: string; file: string }) => void }) {
+  const { t } = useTranslation()
+  const dir = useDirDetection()
+  const [open, setOpen] = useState(false)
+  const [errors, setErrors] = useState<ReturnType<typeof validateXrayGeodata>>([])
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const asset = { url: String(data.get('url') ?? '').trim(), file: String(data.get('file') ?? '').trim() }
+    const issues = validateXrayGeodata({ assets: [asset] })
+    setErrors(issues)
+    if (issues.length === 0) {
+      onAdd(asset)
+      setOpen(false)
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={nextOpen => {
+        setOpen(nextOpen)
+        if (nextOpen) setErrors([])
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm" type="button" variant="outline">
+          <Plus aria-hidden />
+          {t('coreEditor.geodata.addAsset')}
+        </Button>
+      </DialogTrigger>
+      <DialogContent dir={dir}>
+        <DialogHeader>
+          <DialogTitle>{t('coreEditor.geodata.addAsset')}</DialogTitle>
+          <DialogDescription>{t('coreEditor.geodata.assetsHint')}</DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4" noValidate onSubmit={handleSubmit}>
+          {(['url', 'file'] as const).map(field => {
+            const id = `custom-geodata-${field}`
+            const error = errors.find(issue => issue.path === `/geodata/assets/0/${field}`)
+            return (
+              <div key={field} className="space-y-2">
+                <Label htmlFor={id}>{t(`coreEditor.geodata.${field}`)}</Label>
+                <Input id={id} name={field} type={field === 'url' ? 'url' : 'text'} dir="ltr" required aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} />
+                {error && (
+                  <p id={`${id}-error`} className="text-destructive text-sm" role="alert">
+                    {error.message}
+                  </p>
+                )}
+              </div>
+            )
+          })}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                {t('cancel')}
+              </Button>
+            </DialogClose>
+            <Button type="submit">{t('coreEditor.geodata.addAsset')}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export function XrayGeodataSection() {
   const { t } = useTranslation()
@@ -107,10 +177,7 @@ export function XrayGeodataSection() {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button size="sm" type="button" variant="outline" onClick={() => update({ ...geodata, assets: [...assets, { url: '', file: '' }] })}>
-                  <Plus aria-hidden />
-                  {t('coreEditor.geodata.addAsset')}
-                </Button>
+                <AddCustomGeodataAsset onAdd={asset => update({ ...geodata, assets: [...assets, asset] })} />
               </div>
             </div>
             <p className="text-muted-foreground text-xs">{t('coreEditor.geodata.assetsHint')}</p>
