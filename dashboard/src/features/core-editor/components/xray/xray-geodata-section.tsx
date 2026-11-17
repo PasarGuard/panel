@@ -28,9 +28,9 @@ export function XrayGeodataSection() {
 
   return (
     <div className="space-y-5 rounded-lg border p-4">
-      <div className="flex items-center gap-3">
-        <Switch id="xray-geodata-enabled" checked={raw != null} onCheckedChange={enabled => update(enabled ? {} : undefined)} />
+      <div className="flex justify-between items-center gap-3">
         <Label htmlFor="xray-geodata-enabled">{t('coreEditor.geodata.configure')}</Label>
+        <Switch id="xray-geodata-enabled" checked={raw != null} onCheckedChange={enabled => update(enabled ? {} : undefined)} />
       </div>
       {raw != null && (
         <>
