@@ -56,7 +56,7 @@ function AddCustomGeodataAsset({ onAdd }: { onAdd: (asset: { url: string; file: 
             const id = `custom-geodata-${field}`
             const error = errors.find(issue => issue.path === `/geodata/assets/0/${field}`)
             return (
-              <div key={field} className="space-y-2">
+              <div key={field} className="grid gap-2">
                 <Label htmlFor={id}>{t(`coreEditor.geodata.${field}`)}</Label>
                 <Input id={id} name={field} type={field === 'url' ? 'url' : 'text'} dir="ltr" required aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} />
                 {error && (
@@ -106,14 +106,14 @@ export function XrayGeodataSection() {
 
   return (
     <div className="space-y-5 rounded-lg border p-4">
-      <div className="flex justify-between items-center gap-3">
+      <div className="flex items-center justify-between gap-3">
         <Label htmlFor="xray-geodata-enabled">{t('coreEditor.geodata.configure')}</Label>
         <Switch id="xray-geodata-enabled" checked={raw != null} onCheckedChange={enabled => update(enabled ? {} : undefined)} />
       </div>
       {raw != null && (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
+            <div className="grid content-start gap-2">
               <Label htmlFor="xray-geodata-cron">{t('coreEditor.geodata.cron')}</Label>
               <Input
                 id="xray-geodata-cron"
@@ -127,7 +127,7 @@ export function XrayGeodataSection() {
                 {t('coreEditor.geodata.cronHint')}
               </p>
             </div>
-            <div className="space-y-2">
+            <div className="grid content-start gap-2">
               <Label htmlFor="xray-geodata-outbound">{t('coreEditor.geodata.outbound')}</Label>
               <Select dir={dir} value={outboundTag ? `tag:${outboundTag}` : 'routing'} onValueChange={value => setField('outbound', value === 'routing' ? '' : value.slice(4))}>
                 <SelectTrigger id="xray-geodata-outbound" aria-describedby="xray-geodata-outbound-hint">
@@ -188,11 +188,11 @@ export function XrayGeodataSection() {
               }
               return (
                 <div key={index} className="grid items-end gap-3 rounded-md border p-3 sm:grid-cols-[2fr_1fr_auto]">
-                  <div className="min-w-0 space-y-2">
+                  <div className="grid min-w-0 gap-2">
                     <Label htmlFor={`xray-geodata-url-${index}`}>{t('coreEditor.geodata.url')}</Label>
                     <Input id={`xray-geodata-url-${index}`} type="url" dir="ltr" value={typeof asset?.url === 'string' ? asset.url : ''} onChange={event => setAssetField('url', event.target.value)} />
                   </div>
-                  <div className="min-w-0 space-y-2">
+                  <div className="grid min-w-0 gap-2">
                     <Label htmlFor={`xray-geodata-file-${index}`}>{t('coreEditor.geodata.file')}</Label>
                     <Input
                       id={`xray-geodata-file-${index}`}
