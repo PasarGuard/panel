@@ -17,7 +17,8 @@ from config import database_settings
 # access to the values within the .ini file in use.
 config = context.config
 if not config.get_main_option("sqlalchemy.url"):
-    config.set_main_option("sqlalchemy.url", database_settings.url)
+    # Alembic's config treats "%" as interpolation; a URL-encoded password such as "p%40ss" must be escaped.
+    config.set_main_option("sqlalchemy.url", database_settings.url.replace("%", "%%"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
