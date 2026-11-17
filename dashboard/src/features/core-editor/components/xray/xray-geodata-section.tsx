@@ -1,13 +1,14 @@
 import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { geodataObject, setProfileGeodata, validateXrayGeodata } from '@/features/core-editor/kit/xray-geodata'
+import { addGeodataPresetAssets, geodataObject, geodataPresetGroups, setProfileGeodata, validateXrayGeodata } from '@/features/core-editor/kit/xray-geodata'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import useDirDetection from '@/hooks/use-dir-detection'
 import type { JsonObject } from '@pasarguard/xray-config-kit'
-import { Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 export function XrayGeodataSection() {
@@ -79,10 +80,38 @@ export function XrayGeodataSection() {
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-medium">{t('coreEditor.geodata.assets')}</h3>
-              <Button size="sm" type="button" variant="outline" onClick={() => update({ ...geodata, assets: [...assets, { url: '', file: '' }] })}>
-                <Plus aria-hidden />
-                {t('coreEditor.geodata.addAsset')}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <DropdownMenu dir={dir}>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" type="button" variant="outline">
+                      {t('coreEditor.geodata.addPreset')}
+                      <ChevronDown aria-hidden />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-44">
+                    {Object.entries(geodataPresetGroups).map(([region, presets], index) => (
+                      <DropdownMenuGroup key={region} aria-labelledby={`geodata-preset-${region}`}>
+                        {index > 0 && <DropdownMenuSeparator />}
+                        <DropdownMenuLabel id={`geodata-preset-${region}`} className="text-muted-foreground text-xs">
+                          {t(`nodeModal.regions.${region}`)}
+                        </DropdownMenuLabel>
+                        {presets.map(preset => {
+                          const nextAssets = addGeodataPresetAssets(assets, preset)
+                          return (
+                            <DropdownMenuItem key={preset.owner} disabled={nextAssets.length === assets.length} onSelect={() => update({ ...geodata, assets: nextAssets })}>
+                              {preset.owner}
+                            </DropdownMenuItem>
+                          )
+                        })}
+                      </DropdownMenuGroup>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button size="sm" type="button" variant="outline" onClick={() => update({ ...geodata, assets: [...assets, { url: '', file: '' }] })}>
+                  <Plus aria-hidden />
+                  {t('coreEditor.geodata.addAsset')}
+                </Button>
+              </div>
             </div>
             <p className="text-muted-foreground text-xs">{t('coreEditor.geodata.assetsHint')}</p>
             {assets.map((value, index) => {

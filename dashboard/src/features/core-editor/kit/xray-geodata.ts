@@ -1,5 +1,48 @@
 import type { Issue, JsonObject, JsonValue, Profile } from '@pasarguard/xray-config-kit'
 
+type GeodataPreset = {
+  owner: string
+  countryCode: string
+  geoip: string
+  geosite: string
+}
+
+export const geodataPresetGroups = {
+  iran: [
+    {
+      owner: 'Chocolate4U',
+      countryCode: 'ir',
+      geoip: 'https://github.com/Chocolate4U/Iran-v2ray-rules/releases/latest/download/geoip.dat',
+      geosite: 'https://github.com/Chocolate4U/Iran-v2ray-rules/releases/latest/download/geosite.dat',
+    },
+  ],
+  russia: [
+    {
+      owner: 'runetfreedom',
+      countryCode: 'ru',
+      geoip: 'https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geoip.dat',
+      geosite: 'https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geosite.dat',
+    },
+  ],
+  china: [
+    {
+      owner: 'Loyalsoldier',
+      countryCode: 'cn',
+      geoip: 'https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat',
+      geosite: 'https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat',
+    },
+  ],
+} satisfies Record<string, GeodataPreset[]>
+
+export function addGeodataPresetAssets(assets: readonly JsonValue[], preset: GeodataPreset): JsonValue[] {
+  const existingFiles = new Set(assets.map(asset => geodataObject(asset)?.file))
+  const regionalAssets = [
+    { file: `geoip-${preset.countryCode}.dat`, url: preset.geoip },
+    { file: `geosite-${preset.countryCode}.dat`, url: preset.geosite },
+  ]
+  return [...assets, ...regionalAssets.filter(asset => !existingFiles.has(asset.file))]
+}
+
 const cronFields = [
   { min: 0, max: 59 },
   { min: 0, max: 23 },

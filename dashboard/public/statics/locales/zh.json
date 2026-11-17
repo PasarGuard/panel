@@ -2710,6 +2710,7 @@
       "assets": "下载文件",
       "assetsHint": "使用 .dat 或 .dat.gz 文件的 HTTPS 网址。目标文件必须已存在于 Xray 资源目录中。如果未添加下载文件，Xray 将重新加载现有文件。",
       "addAsset": "添加文件",
+      "addPreset": "添加地区文件",
       "url": "下载网址",
       "file": "目标文件",
       "removeAsset": "移除第 {{number}} 个文件"

@@ -2762,6 +2762,7 @@
       "assets": "Download assets",
       "assetsHint": "Use HTTPS URLs for .dat or .dat.gz files. Each target must already exist in the Xray resource directory. With no assets, Xray reloads the existing files.",
       "addAsset": "Add asset",
+      "addPreset": "Add regional assets",
       "url": "Download URL",
       "file": "Target file",
       "removeAsset": "Remove asset {{number}}"
