@@ -1,5 +1,4 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { DecimalInput } from '@/components/common/decimal-input'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -14,7 +13,7 @@ import { cn } from '@/lib/utils'
 import { CoresSimpleResponse, DataLimitResetStrategy, getNode, NodeConnectionType, NodeResponse, useCreateNode, useGetNode, useModifyNode } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client'
-import { AlertTriangle, Loader2, RefreshCw, Settings, Server, Pencil } from 'lucide-react'
+import { Loader2, RefreshCw, Settings, Server, Pencil } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -580,13 +579,6 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                       )
                     }}
                   />
-                  {form.watch('verification') === 'pem' && (
-                    <Alert className="border-amber-500/50 bg-amber-500/10">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertTitle>{t('nodeModal.legacyPemWarningTitle')}</AlertTitle>
-                      <AlertDescription>{t('nodeModal.legacyPemWarning')}</AlertDescription>
-                    </Alert>
-                  )}
                   <FormField
                     control={form.control}
                     name="verification"
@@ -609,8 +601,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                       </FormItem>
                     )}
                   />
-                  <p className="text-muted-foreground text-sm">{t('nodeModal.tlsFrontend')}</p>
                   {form.watch('verification') === 'trusted' && <p className="text-muted-foreground text-sm">{t('nodeModal.systemTrust')}</p>}
+                  {form.watch('verification') === 'pem' && <p className="text-muted-foreground text-sm">{t('nodeModal.legacyPemWarning')}</p>}
                   {form.watch('verification') === 'fingerprint' && (
                     <>
                       <FormField
@@ -626,15 +618,12 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                           </FormItem>
                         )}
                       />
-                      <p className="text-muted-foreground text-sm">{t('nodeModal.fingerprintCertificateHelp')}</p>
                       <CertificateFingerprintButton
                         request={fingerprintRequest}
                         label={t('nodeModal.fetchFingerprint')}
                         onFingerprint={fingerprint => form.setValue('certificate_sha256', fingerprint, { shouldDirty: true, shouldTouch: true, shouldValidate: true })}
                       />
-                      <p className="text-muted-foreground text-sm">{t('nodeModal.fetchFingerprintHelp')}</p>
                       <p className="text-muted-foreground text-sm">{t('nodeModal.fingerprintHelp')}</p>
-                      {!!form.watch('server_ca') && <p className="text-muted-foreground text-sm">{t('nodeModal.inactivePem')}</p>}
                     </>
                   )}
                   {form.watch('verification') === 'pem' && (
