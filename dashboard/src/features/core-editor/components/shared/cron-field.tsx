@@ -57,9 +57,12 @@ export function CronField({ value, onChange, id, 'aria-describedby': describedBy
 
   const expression = build(state)
   const time = state.mode === 'daily' || state.mode === 'weekly' ? state.time : '04:00'
-  const invalid = expression !== '' && !validateCronExpression(expression)
-  const description = expression !== '' && !invalid ? describeCron(expression, language) : undefined
-  const frequent = expression !== '' && !invalid && !/^\d+$/.test(expression.split(/\s+/)[0])
+  const invalid = !validateCronExpression(expression)
+  const prefix = /^(?:CRON_TZ|TZ)=(\S+) +/.exec(expression)
+  const schedule = expression.slice(prefix?.[0].length ?? 0).trim()
+  const timeZone = prefix?.[1]
+  const description = schedule && !invalid ? describeCron(schedule, language) : undefined
+  const frequent = schedule !== '' && !invalid && !schedule.startsWith('@') && !/^\+?\d+$/.test(schedule.split(/\s+/)[0])
 
   return (
     <div className="grid min-w-0 gap-2">
@@ -155,7 +158,7 @@ export function CronField({ value, onChange, id, 'aria-describedby': describedBy
             </code>
             {description && (
               <span>
-                {description} · {t('coreEditor.geodata.cronServerTime')}
+                {description} · {timeZone && timeZone !== 'Local' ? timeZone : t('coreEditor.geodata.cronServerTime')}
               </span>
             )}
           </div>

@@ -54,7 +54,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "croner": "^11.0.1",
     "cronstrue": "^3.41.0",
     "date-fns": "^4.4.0",
     "date-fns-jalali": "4.1.0-0",

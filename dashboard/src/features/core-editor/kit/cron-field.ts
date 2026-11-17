@@ -1,4 +1,4 @@
-import { CronPattern } from 'croner'
+import { validateXrayGeodata } from './xray-geodata'
 
 export const cronHourIntervals = [1, 2, 3, 4, 6, 8, 12]
 
@@ -39,20 +39,5 @@ export function build(state: CronFieldState): string {
 }
 
 export function validateCronExpression(expression: string): boolean {
-  const fields = expression.trim().split(/\s+/)
-  if (fields.length !== 5) return false
-
-  // Xray treats '?' as a wildcard. Croner substitutes the current date or time.
-  const [minute, hour, date, month, weekday] = fields.map(field => field.replace(/(^|[,/-])\+(?=\d)/g, '$1').replace(/\?/g, '*'))
-  const months = /\b(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/gi
-  const weekdays = /\b(?:SUN|MON|TUE|WED|THU|FRI|SAT)\b/gi
-  const hasExtendedSyntax = ![minute, hour, date, month.replace(months, '1'), weekday.replace(weekdays, '1')].every(field => /^[\d*,/-]+$/.test(field))
-  if (hasExtendedSyntax || /(^|[,-])0*7(?=[,/-]|$)/.test(weekday)) return false
-
-  try {
-    new CronPattern([minute, hour, date, month, weekday].join(' '), undefined, { mode: '5-part' })
-    return true
-  } catch {
-    return false
-  }
+  return expression === '' || validateXrayGeodata({ cron: expression }).length === 0
 }

@@ -2770,7 +2770,7 @@
       "cronEveryHours_one": "Every {{count}} hour",
       "cronEveryHours_other": "Every {{count}} hours",
       "cronServerTime": "server time",
-      "cronInvalid": "Invalid cron expression. Use exactly 5 fields.",
+      "cronInvalid": "Enter a valid Xray cron schedule.",
       "cronFrequentWarning": "Runs more often than hourly. Reloading geodata uses memory, so be careful on low-RAM devices.",
       "outbound": "Download outbound tag",
       "outboundHint": "Leave blank to use Xray routing.",

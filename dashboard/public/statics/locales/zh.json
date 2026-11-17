@@ -2717,7 +2717,7 @@
       "cronMinute": "分钟",
       "cronEveryHours_other": "每 {{count}} 小时",
       "cronServerTime": "服务器时间",
-      "cronInvalid": "无效的 cron 表达式。请使用恰好 5 个字段。",
+      "cronInvalid": "请输入有效的 Xray cron 计划。",
       "cronFrequentWarning": "运行频率高于每小时一次。重新加载地理数据会占用内存，在低内存设备上请谨慎使用。",
       "outbound": "下载出站标签",
       "outboundHint": "留空时使用 Xray 路由。",
