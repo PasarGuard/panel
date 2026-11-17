@@ -1142,7 +1142,8 @@ async def test_bulk_entry_the_node_rejects_goes_to_per_user_isolation(monkeypatc
 
 @pytest.mark.asyncio
 async def test_bulk_entry_stays_queued_after_a_transport_failure_and_is_retried(monkeypatch, bulk_settings):
-    """A transport failure leaves the bulk entry queued and the next round delivers it."""
+    """A transport failure leaves the bulk entry queued and a later round delivers it."""
+    monkeypatch.setattr("app.node.bridge.BULK_RETRY_INITIAL_SECONDS", 0.1)
     store = NatsUserSyncStore(MemoryCasKv())
     node = make_node("grpc", store)
     state = attach_fake_transport(monkeypatch, node, FakeNodeState())
@@ -1163,6 +1164,45 @@ async def test_bulk_entry_stays_queued_after_a_transport_failure_and_is_retried(
         await node.update_users([User(email=f"u{n}") for n in range(10)])
         await wait_until(lambda: len(state.users) == 10, timeout=10)
         assert calls == 2
+        assert await store.bulk_entries(node.node_id) == []
+    finally:
+        await close_node(node)
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_failing_bulk_entry_backs_off_without_holding_back_per_user_updates(monkeypatch, bulk_settings):
+    """A bulk entry the node keeps refusing (not as a rejection) stays queued and backs off; per-user
+    updates still reach the node, and the entry is delivered once the node takes it, with no other wake."""
+    monkeypatch.setattr("app.node.bridge.BULK_RETRY_INITIAL_SECONDS", 0.2)
+    store = NatsUserSyncStore(MemoryCasKv())
+    node = make_node("grpc", store)
+    state = attach_fake_transport(monkeypatch, node, FakeNodeState())
+    apply_delta = state.apply_delta
+    refusing = True
+    bulk_attempts = 0
+
+    async def refusing_apply(users):
+        """Refuse every batch carrying bulk users, without the rejection flag, while ``refusing`` holds."""
+        nonlocal bulk_attempts
+        if any(user.email.startswith("bulk-") for user in users):
+            bulk_attempts += 1
+            if refusing:
+                return FailedUsers(users, rejected=False, detail="400 Bad Request")
+        return await apply_delta(users)
+
+    state.apply_delta = refusing_apply
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await node.update_users([User(email=f"bulk-{n}") for n in range(10)])
+        await wait_until(lambda: bulk_attempts >= 1)
+        await node.update_user(User(email="new-user"))
+        await wait_until(lambda: "new-user" in state.users, timeout=2)
+        await asyncio.sleep(0.5)
+        assert bulk_attempts <= 3  # retried after 0.2 s, then 0.4 s, ...: never every round
+        assert len(await store.bulk_entries(node.node_id)) == 1
+        refusing = False
+        await wait_until(lambda: sum(email.startswith("bulk-") for email in state.users) == 10, timeout=10)
         assert await store.bulk_entries(node.node_id) == []
     finally:
         await close_node(node)

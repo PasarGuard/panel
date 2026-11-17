@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import math
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextvars import ContextVar
@@ -40,6 +41,10 @@ FULL_SYNC_LEASE_SECONDS = 120.0
 DELIVERY_DEADLINE_MARGIN = 1.0
 # Longest a worker round keeps delivering bulk entries before it claims per-user work.
 BULK_ROUND_SECONDS = 5.0
+# After a failed bulk delivery, bulk entries wait this long (doubling up to the maximum) before the
+# next attempt; per-user work keeps flowing meanwhile.
+BULK_RETRY_INITIAL_SECONDS = 1.0
+BULK_RETRY_MAX_SECONDS = 30.0
 
 RefreshHandler = Callable[[str, list[str]], Awaitable[list[User]]]
 _refresh_handler: RefreshHandler | None = None
@@ -141,6 +146,9 @@ class _QueuedBatchSync:
         # Wall-clock deadline of the batch currently being delivered: the claim
         # lease measured from before the claim was taken. Nothing is sent past it.
         self._delivery_deadline = 0.0
+        # After a failed bulk delivery: when (loop time) bulk entries may be tried again, and the backoff.
+        self._bulk_retry_at: float | None = None
+        self._bulk_retry_delay = 0.0
         resolver = getattr(self._user_sync_store, "refresh_resolver", None)
         if resolver is None and hasattr(self._user_sync_store, "refresh_resolver"):
             self._user_sync_store.refresh_resolver = _resolve_refresh
@@ -291,14 +299,29 @@ class _QueuedBatchSync:
         claimed = await super()._claim_pending_users(limit)
         # The bridge consumed the wake signal before it read per-user work; bulk
         # entries still queued (or added since) must keep this worker running.
-        if await bulk_entries(self.node_id):
+        # While a failed entry backs off, _next_retry_at wakes it at the retry time instead.
+        if not await bulk_entries(self.node_id):
+            self._bulk_retry_at = None
+        elif self._bulk_retry_at is None:
             self._work_available.set()
         return claimed
 
+    def _next_retry_at(self) -> float:
+        """Also wake at a failed bulk entry's retry time, so the worker never idles out on queued bulk work."""
+        bulk_retry_at = math.inf if self._bulk_retry_at is None else self._bulk_retry_at
+        return min(super()._next_retry_at(), bulk_retry_at)
+
     async def _deliver_bulk_entries(self) -> None:
-        """Deliver bulk entries oldest first until per-user work is waiting or the round's bulk budget is spent."""
+        """Deliver bulk entries oldest first until per-user work is waiting or the round's bulk budget is spent.
+
+        A failed entry stays queued and is tried again after a backoff. The
+        failure does not leave this method, so the per-user claim of the same
+        round (a new user, an edit) still runs.
+        """
         store = self._user_sync_store
         loop = asyncio.get_running_loop()
+        if self._bulk_retry_at is not None and loop.time() < self._bulk_retry_at:
+            return
         stop_at = loop.time() + min(BULK_ROUND_SECONDS, self._sync_lease_seconds / 4)
         while entries := await store.bulk_entries(self.node_id):
             key, indexed_revision = entries[0]
@@ -308,6 +331,22 @@ class _QueuedBatchSync:
                 # Another snapshot or bulk delivery holds this node's fence; nothing was retired.
                 self.logger.debug(f"[{self.name}] Bulk user delivery deferred: {exc.detail}")
                 return
+            except Exception as exc:
+                self._bulk_retry_delay = min(
+                    max(BULK_RETRY_INITIAL_SECONDS, 2 * self._bulk_retry_delay), BULK_RETRY_MAX_SECONDS
+                )
+                self._bulk_retry_at = loop.time() + self._bulk_retry_delay
+                self.logger.warning(
+                    f"[{self.name}] Bulk user delivery failed; retrying in {self._bulk_retry_delay:.0f}s: "
+                    f"{type(exc).__name__}: {exc!s}"
+                )
+                await self._increment_user_sync_failure()
+                return
+            if self._bulk_retry_at is not None:
+                # The node takes deltas again: forget the failures, as a delivered per-user batch does.
+                await self._reset_user_sync_failure_count()
+            self._bulk_retry_delay = 0.0
+            self._bulk_retry_at = None
             if loop.time() >= stop_at or await store.has_pending(self.node_id):
                 # Let per-user work (a new user, an edit) through between bulk entries.
                 return
