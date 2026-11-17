@@ -122,16 +122,18 @@ async def test_rejects_invalid_pem_and_files(tmp_path):
     invalid.write_text("not a certificate")
     oversized = tmp_path / "oversized.pem"
     oversized.write_bytes(b"x" * (certificate_utils.MAX_CERTIFICATE_BYTES + 1))
-    fifo = tmp_path / "fifo"
-    os.mkfifo(fifo)
-    for data in [
+    cases = [
         {"pem": "not a certificate"},
         {"file_path": str(invalid)},
         {"file_path": str(tmp_path / "missing")},
         {"file_path": str(tmp_path)},
         {"file_path": str(oversized)},
-        {"file_path": str(fifo)},
-    ]:
+    ]
+    if hasattr(os, "mkfifo"):
+        fifo = tmp_path / "fifo"
+        os.mkfifo(fifo)
+        cases.append({"file_path": str(fifo)})
+    for data in cases:
         with pytest.raises(CertificateFingerprintError):
             await asyncio.wait_for(get_certificate_fingerprint(CertificateFingerprintRequest(**data)), timeout=2)
 

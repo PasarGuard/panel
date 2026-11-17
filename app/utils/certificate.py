@@ -20,7 +20,8 @@ class CertificateFingerprintError(Exception):
 def _read_certificate_file(file_path: str) -> bytes:
     try:
         # Nonblocking open lets us reject devices and FIFOs without waiting on them.
-        fd = os.open(file_path, os.O_RDONLY | os.O_NONBLOCK)
+        # Windows has no O_NONBLOCK, and opening a FIFO there does not block.
+        fd = os.open(file_path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
         with os.fdopen(fd, "rb") as certificate_file:
             if not stat.S_ISREG(os.fstat(certificate_file.fileno()).st_mode):
                 raise CertificateFingerprintError("Certificate path must be a regular file")
