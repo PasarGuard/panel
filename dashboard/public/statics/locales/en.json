@@ -2730,6 +2730,7 @@
     "section": {
       "label": "Section",
       "api": "API",
+      "geodata": "Geodata",
       "inbounds": "Inbounds",
       "outbounds": "Outbounds",
       "routing": "Routing",
@@ -2742,6 +2743,7 @@
     "sectionDesc": {
       "wgInterface": "WireGuard interface and keys",
       "api": "Xray gRPC API services",
+      "geodata": "Schedule geodata downloads and reloads in Xray",
       "advanced": "JSON editing and diagnostics",
       "inbounds": "Inbound listeners and protocols",
       "outbounds": "Outbound connections and upstreams",
@@ -2749,6 +2751,19 @@
       "balancers": "Outbound load balancing setup",
       "dns": "DNS resolver and server config",
       "bindings": "Inbound tag fallbacks and exclusions"
+    },
+    "geodata": {
+      "configure": "Configure geodata",
+      "cron": "Reload schedule",
+      "cronHint": "A five-field cron expression in the Xray node’s time zone. Leave blank to disable scheduled reloads.",
+      "outbound": "Download outbound tag",
+      "outboundHint": "Leave blank to use Xray routing.",
+      "assets": "Download assets",
+      "assetsHint": "Use HTTPS URLs for .dat or .dat.gz files. Each target must already exist in the Xray resource directory. With no assets, Xray reloads the existing files.",
+      "addAsset": "Add asset",
+      "url": "Download URL",
+      "file": "Target file",
+      "removeAsset": "Remove asset {{number}}"
     },
     "api": {
       "title": "API Services",

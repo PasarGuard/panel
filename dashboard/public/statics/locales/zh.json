@@ -2678,6 +2678,7 @@
     "section": {
       "label": "分区",
       "api": "API",
+      "geodata": "地理数据",
       "inbounds": "入站",
       "outbounds": "出站",
       "routing": "路由",
@@ -2690,6 +2691,7 @@
     "sectionDesc": {
       "wgInterface": "WireGuard 接口与密钥",
       "api": "Xray gRPC API 服务",
+      "geodata": "安排 Xray 下载和重新加载地理数据的时间",
       "advanced": "JSON 编辑与诊断工具",
       "inbounds": "入站监听与协议配置",
       "outbounds": "出站连接与上游路由",
@@ -2697,6 +2699,19 @@
       "balancers": "负载均衡与调度策略",
       "dns": "DNS 解析与解析器",
       "bindings": "入站标签回退与排除"
+    },
+    "geodata": {
+      "configure": "配置地理数据",
+      "cron": "重新加载计划",
+      "cronHint": "使用 Xray 节点所在时区的五字段 cron 表达式。留空可禁用定时重新加载。",
+      "outbound": "下载出站标签",
+      "outboundHint": "留空时使用 Xray 路由。",
+      "assets": "下载文件",
+      "assetsHint": "使用 .dat 或 .dat.gz 文件的 HTTPS 网址。目标文件必须已存在于 Xray 资源目录中。如果未添加下载文件，Xray 将重新加载现有文件。",
+      "addAsset": "添加文件",
+      "url": "下载网址",
+      "file": "目标文件",
+      "removeAsset": "移除第 {{number}} 个文件"
     },
     "api": {
       "title": "API 服务",
