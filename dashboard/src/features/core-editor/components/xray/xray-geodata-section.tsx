@@ -1,15 +1,18 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { geodataObject, setProfileGeodata, validateXrayGeodata } from '@/features/core-editor/kit/xray-geodata'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
+import useDirDetection from '@/hooks/use-dir-detection'
 import type { JsonObject } from '@pasarguard/xray-config-kit'
 import { Plus, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 export function XrayGeodataSection() {
   const { t } = useTranslation()
+  const dir = useDirDetection()
   const profile = useCoreEditorStore(s => s.xrayProfile)
   const updateProfile = useCoreEditorStore(s => s.updateXrayProfile)
   if (!profile) return null
@@ -17,6 +20,10 @@ export function XrayGeodataSection() {
   const raw = profile.raw?.topLevel?.geodata
   const geodata = geodataObject(raw)
   const assets = Array.isArray(geodata?.assets) ? geodata.assets : []
+  const outboundTag = typeof geodata?.outbound === 'string' ? geodata.outbound : ''
+  const outboundTags = new Set(profile.outbounds?.flatMap(outbound => (outbound.tag ? [outbound.tag] : [])))
+  // Keep saved tags visible if an outbound was renamed or removed.
+  if (outboundTag) outboundTags.add(outboundTag)
   const issues = validateXrayGeodata(raw)
   const update = (value?: JsonObject) => updateProfile(p => setProfileGeodata(p, value))
   const setField = (field: 'cron' | 'outbound', value: string) => {
@@ -51,15 +58,19 @@ export function XrayGeodataSection() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="xray-geodata-outbound">{t('coreEditor.geodata.outbound')}</Label>
-              <Input
-                id="xray-geodata-outbound"
-                dir="ltr"
-                list="xray-geodata-outbounds"
-                value={typeof geodata?.outbound === 'string' ? geodata.outbound : ''}
-                onChange={event => setField('outbound', event.target.value)}
-                aria-describedby="xray-geodata-outbound-hint"
-              />
-              <datalist id="xray-geodata-outbounds">{(profile.outbounds ?? []).flatMap(outbound => (outbound.tag ? [<option key={outbound.tag} value={outbound.tag} />] : []))}</datalist>
+              <Select dir={dir} value={outboundTag ? `tag:${outboundTag}` : 'routing'} onValueChange={value => setField('outbound', value === 'routing' ? '' : value.slice(4))}>
+                <SelectTrigger id="xray-geodata-outbound" aria-describedby="xray-geodata-outbound-hint">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="routing">{t('coreEditor.geodata.noOutbound')}</SelectItem>
+                  {Array.from(outboundTags, tag => (
+                    <SelectItem key={tag} value={`tag:${tag}`}>
+                      {tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p id="xray-geodata-outbound-hint" className="text-muted-foreground text-xs">
                 {t('coreEditor.geodata.outboundHint')}
               </p>

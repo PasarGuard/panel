@@ -2706,6 +2706,7 @@
       "cronHint": "使用 Xray 节点所在时区的五字段 cron 表达式。留空可禁用定时重新加载。",
       "outbound": "下载出站标签",
       "outboundHint": "留空时使用 Xray 路由。",
+      "noOutbound": "无出站标签",
       "assets": "下载文件",
       "assetsHint": "使用 .dat 或 .dat.gz 文件的 HTTPS 网址。目标文件必须已存在于 Xray 资源目录中。如果未添加下载文件，Xray 将重新加载现有文件。",
       "addAsset": "添加文件",
