@@ -22,6 +22,11 @@ async def cleanup_user_subscription_updates():
     await flush_user_sub_updates()
 
     async with GetDB() as db:
+        if db.bind.dialect.name in ("mysql", "mariadb"):
+            # Under REPEATABLE READ the ranking scan takes next-key locks across the table, and the buffered
+            # subscription-update inserts deadlock on their gaps; READ COMMITTED takes no gap locks here.
+            await db.connection(execution_options={"isolation_level": "READ COMMITTED"})
+
         # Rank each user's updates newest first and delete everything past the limit in one statement: no list of
         # user ids (asyncpg rejects more than 32767 bind parameters) and no per-user loop. Window functions need
         # SQLite 3.25+, MySQL 8.0+ or MariaDB 10.2+. Reading from the derived table also lets MySQL delete from the

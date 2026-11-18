@@ -126,3 +126,26 @@ async def test_cleanup_is_off_when_the_clients_limit_is_not_positive(cleanup_db,
 
     assert await _updates_by_user(cleanup_db, list(before)) == before
     job.flush_user_sub_updates.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_deletes_under_read_committed_on_mysql(cleanup_db):
+    # Under REPEATABLE READ the delete's ranking scan deadlocks with the buffered subscription-update inserts (#1244)
+    await _seed(cleanup_db, [LIMIT + 2], "isolation")
+    async with cleanup_db() as db:
+        sync_engine = db.bind.sync_engine
+        dialect = db.bind.dialect.name
+    levels: list[str | None] = []
+
+    def record(conn, _cursor, statement, *_args):
+        if statement.lstrip().upper().startswith("DELETE FROM USER_SUBSCRIPTION_UPDATES"):
+            levels.append(conn.get_execution_options().get("isolation_level"))
+
+    event.listen(sync_engine, "before_cursor_execute", record)
+    try:
+        await job.cleanup_user_subscription_updates()
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", record)
+
+    expected = "READ COMMITTED" if dialect in ("mysql", "mariadb") else None
+    assert levels == [expected]
