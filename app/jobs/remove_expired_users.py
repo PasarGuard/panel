@@ -4,6 +4,7 @@ from app import notification, scheduler
 from app.db import GetDB
 from app.db.crud.user import AUTODELETE_MAX_USERS_PER_RUN, autodelete_expired_users
 from app.jobs.dependencies import SYSTEM_ADMIN
+from app.node.sync import remove_user as sync_remove_user
 from app.notification.user_details import UserEventReason
 from app.settings import cleanup_settings
 from app.utils.logger import get_logger
@@ -26,6 +27,7 @@ async def remove_expired_users():
             notification.bulk_remove_users(deleted_users, SYSTEM_ADMIN, UserEventReason.expired_autodelete)
         )
         for user in deleted_users:
+            await sync_remove_user(user)
             logger.info(f"User `{user.username}` has been deleted due to expiration.")
 
         if len(deleted_users) == AUTODELETE_MAX_USERS_PER_RUN:
