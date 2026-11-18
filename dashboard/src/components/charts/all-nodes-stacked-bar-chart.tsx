@@ -11,8 +11,6 @@ import {
   Period,
   type AdminSimple,
   type CoreSimple,
-  type NodeUsageStat,
-  type UserUsageStat,
   useGetAdminUsageById,
   useGetAdminUsageByUsername,
   useGetAdminsSimple,
@@ -53,12 +51,7 @@ import {
   USAGE_RECORD_BUCKET_MINUTES,
 } from '@/utils/chart-period-utils'
 import { getChartBrushWindow, getChartRenderFlags } from '@/utils/chart-performance'
-
-type NodeChartDataPoint = {
-  time: string
-  _period_start: string
-  [key: string]: string | number
-}
+import { buildNodeChartData, type ChartSeries, getDirectionalTraffic, getTrafficBytes, type NodeChartDataPoint, sumTrafficBytes, type UsageStat } from './node-usage-chart-data'
 
 type NodePieChartDataPoint = {
   name: string
@@ -68,43 +61,13 @@ type NodePieChartDataPoint = {
   fill: string
 }
 
-type UsageStat = NodeUsageStat | UserUsageStat
 type UsageBreakdown = 'node' | 'core' | 'admin'
-type ChartSeries = {
-  id: number
-  name: string
-}
 
 const USAGE_SCOPE_ALL = 'all'
 const NO_CORE_SERIES_ID = 0
 const NO_ADMIN_SERIES_ID = 0
 const OTHER_ADMINS_SERIES_ID = -2
 const MAX_ADMIN_SERIES = 9
-
-const isNodeUsageStat = (point: NodeUsageStat | UserUsageStat): point is NodeUsageStat => 'uplink' in point && 'downlink' in point
-
-const getTrafficBytes = (point: NodeUsageStat | UserUsageStat) => {
-  if ('total_traffic' in point) {
-    return Number(point.total_traffic || 0)
-  }
-  return Number(point.uplink || 0) + Number(point.downlink || 0)
-}
-
-const getDirectionalTraffic = (point: NodeUsageStat | UserUsageStat) => {
-  if (isNodeUsageStat(point) && !('total_traffic' in point)) {
-    return {
-      uplink: Number(point.uplink || 0),
-      downlink: Number(point.downlink || 0),
-    }
-  }
-
-  return {
-    uplink: 0,
-    downlink: 0,
-  }
-}
-
-const sumTrafficBytes = (stats: UsageStat[]) => stats.reduce((sum, point) => sum + getTrafficBytes(point), 0)
 
 const mergeUsageStats = (statsGroups: UsageStat[][]): UsageStat[] => {
   const merged = new Map<string, UsageStat>()
@@ -481,82 +444,19 @@ export function AllNodesStackedBarChart() {
     [customRange, selectedTime, showCustomRange],
   )
 
-  const { chartData, totalUsage } = useMemo(() => {
-    const statsKeys = Object.keys(statsBySource)
-    if (statsKeys.length === 0) {
-      return { chartData: [] as NodeChartDataPoint[], totalUsage: null }
-    }
-
-    const hasIndividualNodeData = statsKeys.some(key => key !== '-1')
-    const nodeCount = Math.max(seriesList.length, 1)
-
-    if (!hasIndividualNodeData && Array.isArray(statsBySource['-1'])) {
-      const aggregatedStats = statsBySource['-1']
-      const aggregatedChartData = aggregatedStats.map(point => {
-        const usageBytes = getTrafficBytes(point)
-        const directionalTraffic = getDirectionalTraffic(point)
-        const usagePerNodeInGb = usageBytes / nodeCount / (1024 * 1024 * 1024)
-
-        const entry: NodeChartDataPoint = {
-          time: formatPeriodLabelForPeriod(point.period_start, activePeriod, i18n.language, labelRangeHint),
-          _period_start: point.period_start,
-        }
-
-        seriesList.forEach(node => {
-          entry[node.name] = parseFloat(usagePerNodeInGb.toFixed(2))
-          entry[`_uplink_${node.name}`] = directionalTraffic.uplink / nodeCount
-          entry[`_downlink_${node.name}`] = directionalTraffic.downlink / nodeCount
-        })
-
-        return entry
-      })
-
-      const totalBytes = aggregatedStats.reduce((sum, point) => sum + getTrafficBytes(point), 0)
-      return {
-        chartData: aggregatedChartData,
-        totalUsage: totalBytes > 0 ? String(formatBytes(totalBytes, 2)) : null,
-      }
-    }
-
-    const isScopedToCore = breakdown === 'node' && scopeCoreId != null
-    const visibleStats = isScopedToCore ? seriesList.map(series => statsBySeries[String(series.id)] || []) : Object.values(statsBySource)
-
-    const allPeriods = new Set<string>()
-    visibleStats.forEach(statsArray => {
-      statsArray.forEach(stat => allPeriods.add(stat.period_start))
+  const { chartData, totalUsage, perNodeBreakdownUnavailable } = useMemo(() => {
+    const result = buildNodeChartData({
+      statsBySource,
+      statsBySeries,
+      seriesList,
+      isScopedToCore: breakdown === 'node' && scopeCoreId != null,
+      formatLabel: periodStart => formatPeriodLabelForPeriod(periodStart, activePeriod, i18n.language, labelRangeHint),
     })
-
-    const sortedPeriods = Array.from(allPeriods).sort()
-    const chartRows = sortedPeriods.map(periodStart => {
-      const row: NodeChartDataPoint = {
-        time: formatPeriodLabelForPeriod(periodStart, activePeriod, i18n.language, labelRangeHint),
-        _period_start: periodStart,
-      }
-
-      seriesList.forEach(node => {
-        const nodeStats = statsBySeries[String(node.id)]?.find(stat => stat.period_start === periodStart)
-        if (!nodeStats) {
-          row[node.name] = 0
-          row[`_uplink_${node.name}`] = 0
-          row[`_downlink_${node.name}`] = 0
-          return
-        }
-
-        const usageBytes = getTrafficBytes(nodeStats)
-        const directionalTraffic = getDirectionalTraffic(nodeStats)
-        row[node.name] = usageBytes / (1024 * 1024 * 1024)
-        row[`_uplink_${node.name}`] = directionalTraffic.uplink
-        row[`_downlink_${node.name}`] = directionalTraffic.downlink
-      })
-
-      return row
-    })
-
-    const totalBytes = visibleStats.reduce((sum, statsArray) => sum + sumTrafficBytes(statsArray), 0)
 
     return {
-      chartData: chartRows,
-      totalUsage: totalBytes > 0 ? String(formatBytes(totalBytes, 2)) : null,
+      chartData: result.chartData,
+      totalUsage: result.totalBytes > 0 ? String(formatBytes(result.totalBytes, 2)) : null,
+      perNodeBreakdownUnavailable: result.perNodeBreakdownUnavailable,
     }
   }, [statsBySource, statsBySeries, seriesList, breakdown, scopeCoreId, activePeriod, i18n.language, labelRangeHint])
 
@@ -877,6 +777,13 @@ export function AllNodesStackedBarChart() {
             <EmptyState type="error" className="max-h-[400px] min-h-[200px]" />
           ) : nodeList.length === 0 ? (
             <EmptyState type="no-nodes" className="max-h-[400px] min-h-[200px]" />
+          ) : perNodeBreakdownUnavailable ? (
+            <EmptyState
+              type="no-data"
+              title={t('statistics.perNodeBreakdownUnavailable')}
+              description={t('statistics.perNodeBreakdownUnavailableDescription')}
+              className="max-h-[400px] min-h-[200px]"
+            />
           ) : (
             <div className="mx-auto w-full">
               {chartView === 'bar' && <DenseChartAreaHint pointCount={chartData.length} />}
