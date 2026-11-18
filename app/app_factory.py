@@ -408,6 +408,12 @@ def create_app() -> FastAPI:
     _register_scheduler_hooks()
     _register_jobs()
 
+    from app.notification.dedup import close_notification_dedup
+
+    # Every role can send notifications. Hooks registered at startup (node loops) still run after this one;
+    # anything they send by then falls back to the per-worker dedup.
+    on_shutdown(close_notification_dedup)
+
     _use_route_names_as_operation_ids(app)
 
     on_startup(lambda: logger.info(f"PasarGuard v{__version__} ({runtime_settings.role.value})"))
