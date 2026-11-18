@@ -13,6 +13,7 @@ from app.lifecycle import on_shutdown, on_startup
 from app.middlewares import setup_middleware
 from app.nats import is_multi_worker, require_nats_if_multiworker
 from app.nats.message import MessageTopic
+from app.nats.process_registry import start_process_guard, stop_process_guard
 from app.nats.router import router
 from app.settings import handle_settings_message, refresh_caches
 from app.subscription.client_templates import handle_client_template_message
@@ -357,6 +358,10 @@ def create_app() -> FastAPI:
     require_nats_if_multiworker(is_multi_worker())
 
     _warn_deprecated_role()
+
+    # Runs before node connect and scheduler start so a conflicting process never polls nodes.
+    on_startup(start_process_guard, first=True)
+    on_shutdown(stop_process_guard)
 
     app = FastAPI(
         title="PasarGuardAPI",

@@ -10,6 +10,7 @@ from cryptography.hazmat.backends import default_backend
 
 from app import create_app  # noqa: F401
 from app.nats import require_nats_if_multiworker
+from app.nats.process_registry import PROCESS_GROUP_ENV, new_process_group
 from app.utils.logger import LOGGING_CONFIG, get_logger
 from config import logging_settings, runtime_settings, server_settings
 
@@ -148,6 +149,9 @@ Then, navigate to {click.style(f"http://{ip}:{server_settings.port}", bold=True)
     effective_log_level = logging_settings.level
     for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         LOGGING_CONFIG["loggers"][logger_name]["level"] = effective_log_level
+
+    # Lets the process registry tell this container's workers apart from other containers.
+    os.environ.setdefault(PROCESS_GROUP_ENV, new_process_group())
 
     try:
         uvicorn.run(

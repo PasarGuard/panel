@@ -71,3 +71,35 @@ def test_warn_deprecated_role_uses_is_deprecated(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr("app.app_factory.runtime_settings.role", Role.ALL_IN_ONE)
     app_factory._warn_deprecated_role()
     assert warned == []
+
+
+def test_on_startup_first_runs_before_existing_hooks(monkeypatch: pytest.MonkeyPatch):
+    from app import lifecycle
+
+    monkeypatch.setattr(lifecycle, "startup_functions", [])
+
+    def _later():
+        pass
+
+    def _guard():
+        pass
+
+    lifecycle.on_startup(_later)
+    lifecycle.on_startup(_guard, first=True)
+    lifecycle.on_startup(_guard, first=True)
+
+    assert lifecycle.startup_functions == [_guard, _later]
+
+
+@pytest.mark.asyncio
+async def test_process_guard_is_noop_without_nats(monkeypatch: pytest.MonkeyPatch):
+    from app.nats import process_registry
+
+    monkeypatch.setattr("app.nats.nats_settings.enabled", False)
+
+    async def _should_not_connect():
+        raise AssertionError("should not open NATS without NATS_ENABLED")
+
+    monkeypatch.setattr(process_registry, "create_nats_client", _should_not_connect)
+    await process_registry.start_process_guard()
+    await process_registry.stop_process_guard()
