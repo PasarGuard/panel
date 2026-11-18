@@ -1,4 +1,6 @@
+import ipaddress
 from random import choice
+from typing import ClassVar
 
 from pydantic import BaseModel
 
@@ -171,6 +173,7 @@ class ClashConfiguration(BaseSubscription):
             "sc-min-posts-interval-ms": config.sc_min_posts_interval_ms,
             "reuse-settings": self._mihomo_reuse_settings(config.xmux),
             "download-settings": self._mihomo_download_settings(config.download_settings),
+            **self._mihomo_session_id_opts(config.session_id_table, config.session_id_length),
         }
 
         if random_user_agent:
@@ -185,6 +188,63 @@ class ClashConfiguration(BaseSubscription):
                 result["headers"] = headers
 
         return self._normalize_mihomo_xhttp_opts(result)
+
+    # Named tables from Mihomo transport/xhttp/config.go (predefinedTable); any other value is the literal charset.
+    _MIHOMO_SESSION_TABLES: ClassVar[dict[str, str]] = {
+        "ALPHABET": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "Alphabet": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+        "BASE36": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "Base62": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+        "HEX": "0123456789ABCDEF",
+        "alphabet": "abcdefghijklmnopqrstuvwxyz",
+        "base36": "0123456789abcdefghijklmnopqrstuvwxyz",
+        "hex": "0123456789abcdef",
+        "number": "0123456789",
+    }
+
+    @classmethod
+    def _mihomo_session_id_opts(cls, table: str | None, length: str | int | None) -> dict:
+        """Map sessionIDTable/sessionIDLength to Mihomo's session-table/session-length.
+
+        Mihomo rejects the whole profile when the pair is unusable, so emit the keys only when
+        they pass the same checks as Config.GetGenerateSessionID in transport/xhttp/config.go.
+        """
+        # "" keeps Mihomo's default hex id; "uuid" is a Mihomo-only keyword, not the charset Xray would use.
+        if not table or table == "uuid":
+            return {}
+        length = None if length is None else str(length).strip()
+
+        charset = cls._MIHOMO_SESSION_TABLES.get(table, table)
+        if any(ord(char) >= 0x80 for char in charset):
+            return {}
+
+        # ParseRange(session-length, "16-32"): "N" or "MIN-MAX", 0 <= MIN <= MAX.
+        parts = [part.strip() for part in (length or "16-32").split("-")]
+        if not all(part.isascii() and part.isdigit() for part in parts):
+            return {}
+        parts = [int(part) for part in parts]
+        if len(parts) == 1:
+            parts = parts * 2
+        if len(parts) != 2:
+            return {}
+        min_length, max_length = parts
+        # An absurd length only makes Mihomo overflow or stall while it sizes the id space.
+        if min_length <= 0 or max_length < min_length or max_length > 1024:
+            return {}
+
+        # roomSize(len(table), min, max) = sum(len(table) ** k) must reach 2 << 30.
+        threshold = 2 << 30
+        size = len(charset)
+        if size == 1:
+            room = max_length - min_length + 1
+        elif size >= 2 and max_length >= threshold.bit_length():
+            room = threshold  # size ** max_length alone is already at least 2 ** 31
+        else:
+            room = sum(size**k for k in range(min_length, max_length + 1))
+        if room < threshold:
+            return {}
+
+        return {"session-table": table, "session-length": length or None}
 
     @staticmethod
     def _select_host(host: list[str] | str) -> str:
@@ -228,7 +288,7 @@ class ClashConfiguration(BaseSubscription):
             "host": xhttp_settings.get("host"),
             "headers": self._mihomo_http_headers(extra.get("headers")),
             "reuse-settings": self._mihomo_reuse_settings(extra.get("xmux")),
-            "server": download_settings.get("address"),
+            "server": self._clash_server(download_settings.get("address")),
             "port": self._select_port(download_settings.get("port")),
             "tls": True if security and security != "none" else None,
             "alpn": tls_settings.get("alpn"),
@@ -248,7 +308,7 @@ class ClashConfiguration(BaseSubscription):
     def _mihomo_download_settings_from_inbound(self, inbound: SubscriptionInboundData) -> dict:
         transport_config = inbound.transport_config
         result = {
-            "server": self._select_address(inbound.address),
+            "server": self._clash_server(self._select_address(inbound.address)),
             "port": self._select_port(inbound.port),
         }
 
@@ -283,8 +343,18 @@ class ClashConfiguration(BaseSubscription):
         return ""
 
     @staticmethod
+    def _clash_server(address):
+        # Links need "[2001:db8::1]", but Mihomo joins server and port itself
+        # (net.JoinHostPort), so a bracketed value becomes "[[...]]:port" and fails.
+        if isinstance(address, str) and len(address) > 1 and address.startswith("[") and address.endswith("]"):
+            return address[1:-1]
+        return address
+
+    @staticmethod
     def _mihomo_client_fingerprint(fingerprint: str | None) -> str | None:
-        return "chrome" if fingerprint == "unsafe" else fingerprint
+        # Mihomo's names are in component/tls/utls.go; unknown names silently disable uTLS,
+        # and REALITY nodes then refuse to start.
+        return {"unsafe": "chrome", "randomizednoalpn": "random"}.get(fingerprint, fingerprint)
 
     def _apply_mihomo_download_tls(self, node: dict, tls_config: TLSConfig):
         if not tls_config.tls:
@@ -587,7 +657,7 @@ class ClashConfiguration(BaseSubscription):
         if not handler:
             return
 
-        node = handler(proxy_remark, address, inbound, settings)
+        node = handler(proxy_remark, self._clash_server(address), inbound, settings)
         if node:
             self.data["proxies"].append(node)
             self.proxy_remarks.append(proxy_remark)
@@ -753,7 +823,26 @@ class ClashMetaConfiguration(ClashConfiguration):
             "udp": True,
         }
 
+        # WireGuard reads the keepalive as an unsigned 16-bit number
+        if inbound.wireguard_keepalive and 0 < inbound.wireguard_keepalive <= 65535:
+            node["persistent-keepalive"] = inbound.wireguard_keepalive
+
+        # Mihomo uses "dns" only with remote-dns-resolve, and one bad entry fails the whole profile
+        # (dns.ParseNameServer in adapter/outbound/wireguard.go), so pass plain IP addresses only.
+        if inbound.wireguard_dns and all(self._is_ip_address(server) for server in inbound.wireguard_dns):
+            node["remote-dns-resolve"] = True
+            node["dns"] = list(inbound.wireguard_dns)
+
         return self._normalize_and_remove_none_values(node)
+
+    @staticmethod
+    def _is_ip_address(value) -> bool:
+        try:
+            address = ipaddress.ip_address(value)
+        except ValueError, TypeError:
+            return False
+        # Mihomo turns the entry into a URL, where an IPv6 zone ("%eth0") is an invalid escape.
+        return not getattr(address, "scope_id", None)
 
     @staticmethod
     def _parse_wireguard_reserved(reserved: str | None) -> list[int] | str | None:
@@ -788,7 +877,7 @@ class ClashMetaConfiguration(ClashConfiguration):
         if not handler:
             return
 
-        node = handler(proxy_remark, address, inbound, settings)
+        node = handler(proxy_remark, self._clash_server(address), inbound, settings)
         if node:
             self.data["proxies"].append(node)
             self.proxy_remarks.append(proxy_remark)
