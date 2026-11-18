@@ -1,6 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { type HostAdvanceSearchFormValues, hostAdvanceSearchFormSchema } from '@/features/hosts/forms/host-advance-search-form'
-import { HostFormSchema, hostFormDefaultValues, mapHostFragmentSettingsForForm, mapMasqueXmuxForForm, type HostFormValues } from '@/features/hosts/forms/host-form'
+import { HostFormSchema, hostFormDefaultValues, mapMasqueXmuxForForm, type HostFormValues } from '@/features/hosts/forms/host-form'
 import HostAdvanceSearchModal from '@/features/hosts/dialogs/host-advance-search-modal'
 import { type HostListFilters, HostFilters } from '@/features/hosts/components/host-filters'
 import { ListGenerator } from '@/components/common/list-generator'
@@ -210,18 +210,7 @@ export default function HostsList({
         : undefined,
       final_mask_settings: host.final_mask_settings ?? undefined,
       cipher_suites: host.cipher_suites ?? undefined,
-      fragment_settings: mapHostFragmentSettingsForForm(host.fragment_settings),
-      noise_settings: host.noise_settings
-        ? {
-            xray:
-              host.noise_settings.xray?.map(noise => ({
-                type: noise.type,
-                packet: noise.packet ?? '',
-                delay: noise.delay ?? '',
-                apply_to: (noise.apply_to as 'ip' | 'ipv4' | 'ipv6') || 'ip',
-              })) ?? undefined,
-          }
-        : undefined,
+      fragment_settings: host.fragment_settings ? { sing_box: host.fragment_settings.sing_box ?? undefined } : undefined,
       mux_settings: host.mux_settings
         ? {
             xray: host.mux_settings.xray
@@ -403,7 +392,6 @@ export default function HostsList({
         pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
         verify_peer_cert_by_name: host.verify_peer_cert_by_name || undefined,
         fragment_settings: host.fragment_settings,
-        noise_settings: host.noise_settings,
         mux_settings: host.mux_settings,
         transport_settings: host.transport_settings as any, // Type cast needed due to Output/Input mismatch
         http_headers: host.http_headers || {},
@@ -613,7 +601,6 @@ export default function HostsList({
         verify_peer_cert_by_name: host.verify_peer_cert_by_name || undefined,
         subscription_templates: host.subscription_templates ?? undefined,
         fragment_settings: host.fragment_settings,
-        noise_settings: host.noise_settings,
         mux_settings: host.mux_settings
           ? {
               xray: host.mux_settings.xray

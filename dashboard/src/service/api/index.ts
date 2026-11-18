@@ -866,17 +866,6 @@ export interface MuxSettingsOutput {
   xray?: XrayMuxSettingsOutput | null;
 }
 
-export interface XrayFragmentSettings {
-  /** @pattern ^(:?tlshello|[\d-]{1,16})$ */
-  packets: string;
-  /** @pattern ^[\d-]{1,16}$ */
-  length: string;
-  /** @pattern ^[\d-]{1,16}$ */
-  interval: string;
-  maxSplit?: string | null;
-  [key: string]: unknown;
- }
-
 export interface SingBoxFragmentSettings {
   fragment?: boolean;
   /** @pattern ^$|^\d+ms$ */
@@ -885,23 +874,7 @@ export interface SingBoxFragmentSettings {
 }
 
 export interface FragmentSettings {
-  xray?: XrayFragmentSettings | null;
   sing_box?: SingBoxFragmentSettings | null;
-}
-
-export interface XrayNoiseSettings {
-  /** @pattern ^$|^(:?rand|str|base64|hex)$ */
-  type: string;
-  packet?: string | number[] | null;
-  delay?: string | number | null;
-  /** @pattern ip|ipv4|ipv6 */
-  apply_to?: string;
-  rand?: number | string | null;
-  [key: string]: unknown;
- }
-
-export interface NoiseSettings {
-  xray?: XrayNoiseSettings[] | null;
 }
 
 export type UserStatus = typeof UserStatus[keyof typeof UserStatus];
@@ -982,7 +955,6 @@ export interface BaseHost {
   transport_settings?: TransportSettings | null;
   mux_settings?: MuxSettingsOutput | null;
   fragment_settings?: FragmentSettings | null;
-  noise_settings?: NoiseSettings | null;
   random_user_agent?: boolean;
   use_sni_as_host?: boolean;
   vless_route?: string | null;
@@ -1642,7 +1614,6 @@ export interface CreateHost {
   transport_settings?: TransportSettings | null;
   mux_settings?: MuxSettingsInput | null;
   fragment_settings?: FragmentSettings | null;
-  noise_settings?: NoiseSettings | null;
   random_user_agent?: boolean;
   use_sni_as_host?: boolean;
   vless_route?: string | null;

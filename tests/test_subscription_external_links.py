@@ -139,7 +139,7 @@ HOSTS = {
         {"id": UUID},
     ),
     # Every value the link builder writes is read back: KCP MTU and TTI, the WebSocket heartbeat,
-    # cipher suites, the ECH query mode, the Xray fragment and finalmask.
+    # cipher suites, the ECH query mode, finalmask.
     "vless-kcp": (
         _host("vless", "kcp", KCPTransportConfig(mtu=1200, tti=10)),
         {"id": UUID},
@@ -177,16 +177,6 @@ HOSTS = {
             "tcp",
             TCPTransportConfig(),
             TLSConfig(tls="tls", sni="cdn.example.com", ech_config_list="AEX+DQBBAAAgACB", ech_query_strategy="half"),
-        ),
-        {"id": UUID},
-    ),
-    "vless-tls-fragment": (
-        _host(
-            "vless",
-            "tcp",
-            TCPTransportConfig(),
-            TLSConfig(tls="tls", sni="cdn.example.com"),
-            fragment_settings={"xray": {"packets": "tlshello", "length": "100-200", "interval": "10-20"}},
         ),
         {"id": UUID},
     ),
@@ -453,3 +443,36 @@ async def test_generate_subscription_passes_external_links_from_settings(monkeyp
         config_cache.clear_sub_config_cache()
 
     assert process.await_args.kwargs["external_links"] == ["vless://a"]
+
+
+def test_legacy_xray_fragment_is_ignored_while_singbox_and_finalmask_still_work():
+    singbox_fragment = {"fragment": True, "fragment_fallback_delay": "100ms", "record_fragment": True}
+    inbound = _host(
+        "vless",
+        "tcp",
+        TCPTransportConfig(),
+        TLSConfig(tls="tls", sni="cdn.example.com"),
+        fragment_settings={
+            "xray": {"packets": "tlshello", "length": "100-200", "interval": "10-20"},
+            "sing_box": singbox_fragment,
+        },
+        finalmask=FINALMASK,
+        finalmask_link=json.dumps(FINALMASK, separators=(",", ":")),
+    )
+    settings = {"id": UUID}
+    link = _share_link(inbound, settings)
+    assert "fragment=" not in link
+    assert "fm=" in link
+
+    xray = XrayConfiguration(xray_template_content=XRAY_TEMPLATE)
+    xray.add(remark=inbound.remark, address=inbound.address, inbound=inbound, settings=settings)
+    outbounds = xray.config[0]["outbounds"]
+    assert all(outbound["tag"] not in ("dialer", "dsdialer") for outbound in outbounds)
+    stream = next(outbound for outbound in outbounds if outbound["tag"] == "proxy")["streamSettings"]
+    assert "sockopt" not in stream
+    assert stream["finalmask"] == FINALMASK
+
+    singbox = SingBoxConfiguration()
+    singbox.add(remark=inbound.remark, address=inbound.address, inbound=inbound, settings=settings)
+    tls = singbox.config["outbounds"][0]["tls"]
+    assert all(tls[key] == value for key, value in singbox_fragment.items())

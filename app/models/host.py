@@ -5,7 +5,6 @@ from string import Formatter
 from typing import Annotated, Any, Literal
 
 from pydantic import (
-    AliasChoices,
     BaseModel,
     BeforeValidator,
     ConfigDict,
@@ -71,15 +70,6 @@ class ECHSettings(BaseModel):
     sing_box: ClientECHSettings | None = Field(default=None)
 
 
-class XrayFragmentSettings(BaseModel):
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-    packets: str = Field(pattern=r"^(:?tlshello|[\d-]{1,16})$")
-    length: str = Field(pattern=r"^[\d-]{1,16}$")
-    interval: str = Field(pattern=r"^[\d-]{1,16}$", validation_alias=AliasChoices("interval", "delay"))
-    max_split: str | None = Field(default=None, alias="maxSplit")
-
-
 class SingBoxFragmentSettings(BaseModel):
     fragment: bool = Field(default=False)
     fragment_fallback_delay: str = Field("", pattern=r"^$|^\d+ms$")
@@ -87,22 +77,7 @@ class SingBoxFragmentSettings(BaseModel):
 
 
 class FragmentSettings(BaseModel):
-    xray: XrayFragmentSettings | None = Field(default=None)
     sing_box: SingBoxFragmentSettings | None = Field(default=None)
-
-
-class XrayNoiseSettings(BaseModel):
-    type: str = Field(pattern=r"^$|^(:?rand|str|base64|hex)$")
-    packet: str | list[int] | None = Field(default=None)
-    delay: str | int | None = Field(default=None)
-    apply_to: str = Field(default="ip", pattern=r"ip|ipv4|ipv6")
-    rand: int | str | None = Field(default=None)
-
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-
-class NoiseSettings(BaseModel):
-    xray: list[XrayNoiseSettings] | None = Field(default=None)
 
 
 class FinalMaskBaseModel(BaseModel):
@@ -953,7 +928,6 @@ class BaseHost(BaseModel):
     transport_settings: TransportSettings | None = Field(default=None)
     mux_settings: MuxSettings | None = Field(default=None)
     fragment_settings: FragmentSettings | None = Field(default=None)
-    noise_settings: NoiseSettings | None = Field(default=None)
     random_user_agent: bool = Field(default=False)
     use_sni_as_host: bool = Field(default=False)
     vless_route: str | None = Field(default=None, pattern=r"^$|^[0-9a-fA-F]{4}$")

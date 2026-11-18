@@ -132,7 +132,6 @@ async def test_prepare_inbound_data_for_mtproto_host(monkeypatch: pytest.MonkeyP
     assert prepared.mtproto_tls_domain == "www.example.org"
     assert prepared.mtproto_modes == {"classic": False, "secure": False, "tls": True}
     assert prepared.fragment_settings is None
-    assert prepared.noise_settings is None
     assert prepared.finalmask is None
     assert prepared.finalmask_link is None
 

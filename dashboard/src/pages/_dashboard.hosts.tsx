@@ -148,14 +148,6 @@ export default function HostsPage() {
               }
             : undefined,
         fragment_settings: (() => {
-          const xraySettings = formData.fragment_settings?.xray
-            ? {
-                packets: formData.fragment_settings.xray.packets || '',
-                length: formData.fragment_settings.xray.length || '',
-                interval: formData.fragment_settings.xray.interval || '',
-              }
-            : undefined
-
           const singboxSettings = formData.fragment_settings?.sing_box?.fragment
             ? {
                 fragment: formData.fragment_settings.sing_box.fragment,
@@ -164,24 +156,13 @@ export default function HostsPage() {
               }
             : undefined
 
-          if (xraySettings || singboxSettings) {
+          if (singboxSettings) {
             return {
-              xray: xraySettings,
               sing_box: singboxSettings,
             }
           }
           return undefined
         })(),
-        noise_settings: formData.noise_settings?.xray
-          ? {
-              xray: formData.noise_settings.xray.map(noise => ({
-                type: noise.type,
-                packet: noise.packet,
-                delay: noise.delay,
-                apply_to: noise.apply_to,
-              })),
-            }
-          : undefined,
       }
 
       if (editingHost?.id) {

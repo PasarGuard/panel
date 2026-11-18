@@ -342,9 +342,8 @@ class SubscriptionInboundData(BaseModel):
     # Additional settings
     random_user_agent: bool = Field(False)
     use_sni_as_host: bool = Field(False)
-    # Fragment and noise settings
+    # sing-box fragmentation and Xray FinalMask settings
     fragment_settings: dict[str, Any] | None = Field(None)
-    noise_settings: dict[str, Any] | None = Field(None)
     finalmask: dict[str, Any] | None = Field(None)
     finalmask_link: str | None = Field(None)
 

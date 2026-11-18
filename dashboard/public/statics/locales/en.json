@@ -1659,7 +1659,6 @@
       "applyTo.ipv6": "IPv6",
       "duplicateNoise": "Duplicate Noise"
     },
-    "fragmentNoiseDeprecated": "`noise` and `fragment` are being removed in newer versions — use `finalMask` instead.",
     "finalmask": {
       "title": "FinalMask Settings",
       "enable": "Enable FinalMask",

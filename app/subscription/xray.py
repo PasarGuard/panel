@@ -405,24 +405,7 @@ class XrayConfiguration(BaseSubscription):
 
             return self._normalize_and_remove_none_values(config)
 
-    def make_dialer_outbound(
-        self, fragment: dict | None = None, noises: dict | None = None, dialer_tag: str = "dialer"
-    ) -> dict | None:
-        """
-        Create Freedom protocol outbound with fragment/noise settings.
-        This is the CORRECT way to handle fragment/noise in xray-core.
-        """
-        xray_noises = noises.get("xray", []) if noises else []
-        dialer_settings = {
-            "fragment": fragment.get("xray") if fragment else None,
-            "noises": [{self.snake_to_camel(k): v for k, v in noise.items()} for noise in xray_noises] or None,
-        }
-        dialer_settings = self._normalize_and_remove_none_values(dialer_settings)
-
-        if dialer_settings:
-            return {"tag": dialer_tag, "protocol": "freedom", "settings": dialer_settings}
-
-    def _download_config(self, download_settings: SubscriptionInboundData, link_format: bool = False) -> dict:
+    def _download_config(self, download_settings: SubscriptionInboundData) -> dict:
         """Build download settings block for xHTTP transports"""
 
         network = download_settings.network
@@ -439,20 +422,11 @@ class XrayConfiguration(BaseSubscription):
         security = security if security and security != "none" else None
         tls_settings = self._apply_tls(download_settings.tls_config, security) if security else None
 
-        dialer_proxy = ""
-        if (download_settings.fragment_settings or download_settings.noise_settings) and not link_format:
-            dialer_proxy = "dsdialer"
-        if dialer_proxy:
-            sockopt = {"dialerProxy": dialer_proxy}
-        else:
-            sockopt = None
-
         stream_settings = self._stream_setting_config(
             network=network,
             security=security,
             network_setting=network_setting,
             tls_settings=tls_settings,
-            sockopt=sockopt,
         )
 
         return self._normalize_and_remove_none_values(
@@ -529,14 +503,7 @@ class XrayConfiguration(BaseSubscription):
             },
         }
 
-        # Handle fragment/noise - create dialer outbound
         extra_outbounds = []
-        sockopt = None
-        if inbound.fragment_settings or inbound.noise_settings:
-            dialer_outbound = self.make_dialer_outbound(inbound.fragment_settings, inbound.noise_settings, "dialer")
-            if dialer_outbound:
-                extra_outbounds.append(dialer_outbound)
-                sockopt = {"dialerProxy": "dialer"}
 
         network_setting = None
         has_http_obfs = self._shadowsocks_http_obfs_host(inbound) is not None
@@ -554,11 +521,10 @@ class XrayConfiguration(BaseSubscription):
             request = self._normalize_and_remove_none_values(request)
             network_setting = {"header": {"type": "http", "request": request}}
 
-        if sockopt or inbound.finalmask or has_http_obfs:
+        if inbound.finalmask or has_http_obfs:
             outbound["streamSettings"] = self._stream_setting_config(
                 network=inbound.network,
                 network_setting=network_setting,
-                sockopt=sockopt,
                 finalmask=inbound.finalmask,
             )
 
@@ -635,19 +601,11 @@ class XrayConfiguration(BaseSubscription):
             },
         }
 
-        # Handle fragment/noise - create dialer outbound
         extra_outbounds = []
-        sockopt = None
-        if inbound.fragment_settings or inbound.noise_settings:
-            dialer_outbound = self.make_dialer_outbound(inbound.fragment_settings, inbound.noise_settings, "dialer")
-            if dialer_outbound:
-                extra_outbounds.append(dialer_outbound)
-                sockopt = {"dialerProxy": "dialer"}
 
-        # Use streamSettings for sockopt and finalmask
-        if sockopt or inbound.finalmask:
+        # Use streamSettings for finalmask
+        if inbound.finalmask:
             outbound["streamSettings"] = self._stream_setting_config(
-                sockopt=sockopt,
                 finalmask=inbound.finalmask,
             )
 
@@ -660,7 +618,7 @@ class XrayConfiguration(BaseSubscription):
         inbound: SubscriptionInboundData,
         user_settings: dict,
     ) -> dict:
-        """Return a proxy outbound and a list of optional fragment/noise dialers.
+        """Return a proxy outbound and a list of extra outbounds.
 
         Apply the inbound's transport, TLS, final mask, and enabled Xray mux
         settings. MASQUE always uses the MASQUE transport, places credentials
@@ -760,21 +718,13 @@ class XrayConfiguration(BaseSubscription):
         security = inbound.tls_config.tls if inbound.tls_config.tls != "none" else None
         tls_settings = self._apply_tls(inbound.tls_config, security) if security else None
 
-        # Handle fragment/noise - create dialer outbound
         extra_outbounds = []
-        sockopt = None
-        if inbound.fragment_settings or inbound.noise_settings:
-            dialer_outbound = self.make_dialer_outbound(inbound.fragment_settings, inbound.noise_settings, "dialer")
-            if dialer_outbound:
-                extra_outbounds.append(dialer_outbound)
-                sockopt = {"dialerProxy": "dialer"}
 
         outbound["streamSettings"] = self._stream_setting_config(
             network=None if protocol_type == "masque" else network,
             security=security,
             network_setting=None if protocol_type == "masque" else network_setting,
             tls_settings=tls_settings,
-            sockopt=sockopt,
             finalmask=inbound.finalmask,
         )
         if protocol_type == "masque":
@@ -821,7 +771,7 @@ class XrayConfiguration(BaseSubscription):
                 finalmask = finalmask.model_dump(exclude_none=True, by_alias=True, mode="json")
             try:
                 finalmask = FinalMask.model_validate(finalmask)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 pass
             if isinstance(finalmask, (FinalMask, dict)):
                 stream_settings["finalmask"] = dump_final_mask_for_xray(finalmask)
