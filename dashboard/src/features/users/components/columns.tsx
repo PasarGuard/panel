@@ -9,6 +9,7 @@ import UsageSliderCompact from '@/components/common/usage-slider-compact'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { dateUtils } from '@/utils/dateFormatter'
+import { isOnlineWithinWindow } from '@/utils/onlineStatus'
 import dayjs from '@/lib/dayjs'
 import { Checkbox } from '@/components/ui/checkbox'
 import { UserFieldValue } from './user-field-value'
@@ -103,7 +104,7 @@ export const setupColumns = ({
         const lastOnlineTime = dateUtils.toDayjs(onlineAt)
         const diffInSeconds = currentTime.diff(lastOnlineTime, 'seconds')
 
-        const isOnline = diffInSeconds <= 60
+        const isOnline = isOnlineWithinWindow(diffInSeconds)
 
         if (isOnline) {
           return null

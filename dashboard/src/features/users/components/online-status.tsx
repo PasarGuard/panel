@@ -1,6 +1,7 @@
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { dateUtils } from '@/utils/dateFormatter'
+import { isOnlineWithinWindow } from '@/utils/onlineStatus'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
@@ -21,7 +22,7 @@ export const OnlineStatus: FC<UserStatusProps> = ({ lastOnline }) => {
   const lastOnlineTime = dateUtils.toDayjs(lastOnline)
   const diffInSeconds = currentTime.diff(lastOnlineTime, 'seconds')
 
-  const isOnline = diffInSeconds <= 60
+  const isOnline = isOnlineWithinWindow(diffInSeconds)
 
   if (isOnline) {
     return <span className={cn('inline-block text-xs font-medium', dir === 'rtl' ? 'mr-0.5 md:mr-2' : 'ml-0.5 md:ml-2', 'text-muted-foreground')}>{t('online')}</span>
