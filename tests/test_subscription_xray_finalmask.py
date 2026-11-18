@@ -259,3 +259,44 @@ def test_finalmask_header_custom_rejects_invalid_rand(rand):
 
     with pytest.raises(ValidationError):
         FinalMask.model_validate(mask)
+
+
+@pytest.mark.parametrize("masked", [False, True])
+def test_xhttp_download_host_finalmask(masked):
+    from app.models.subscription import SubscriptionInboundData, TLSConfig, XHTTPTransportConfig
+
+    mask = {"tcp": [{"type": "fragment", "settings": {"packets": "tlshello", "length": "10-20"}}]}
+    download = SubscriptionInboundData(
+        remark="download",
+        inbound_tag="down",
+        protocol="vless",
+        address="download.example.com",
+        port=443,
+        network="xhttp",
+        tls_config=TLSConfig(tls="none"),
+        transport_config=XHTTPTransportConfig(path="/down"),
+        priority=0,
+        finalmask=FinalMask.model_validate(mask).model_dump(exclude_none=True, by_alias=True) if masked else None,
+    )
+    upload = download.model_copy(
+        update={
+            "finalmask": None,
+            "transport_config": XHTTPTransportConfig(path="/up", download_settings=download),
+        }
+    )
+    config = XrayConfiguration(xray_template_content='{"outbounds": []}')
+    config.add("upload", "upload.example.com", upload, {"id": "11111111-1111-1111-1111-111111111111"})
+    stream = config.config[0]["outbounds"][0]["streamSettings"]
+    assert "finalmask" not in stream
+    result = stream["xhttpSettings"]["extra"]["downloadSettings"]
+    if masked:
+        assert (
+            result["finalmask"] == XrayConfiguration._stream_setting_config(finalmask=download.finalmask)["finalmask"]
+        )
+    else:
+        assert result == {
+            "address": "download.example.com",
+            "port": 443,
+            "network": "xhttp",
+            "xhttpSettings": {"path": "/down", "mode": "auto"},
+        }

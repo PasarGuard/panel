@@ -427,6 +427,7 @@ class XrayConfiguration(BaseSubscription):
             security=security,
             network_setting=network_setting,
             tls_settings=tls_settings,
+            finalmask=download_settings.finalmask,
         )
 
         return self._normalize_and_remove_none_values(

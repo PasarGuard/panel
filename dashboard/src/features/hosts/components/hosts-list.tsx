@@ -1,3 +1,4 @@
+import { fetcher } from '@/service/http'
 import { Card, CardContent } from '@/components/ui/card'
 import { type HostAdvanceSearchFormValues, hostAdvanceSearchFormSchema } from '@/features/hosts/forms/host-advance-search-form'
 import { HostFormSchema, hostFormDefaultValues, mapMasqueXmuxForForm, type HostFormValues } from '@/features/hosts/forms/host-form'
@@ -7,7 +8,7 @@ import { ListGenerator } from '@/components/common/list-generator'
 import { ListGeneratorGrid } from '@/components/common/list-generator-grid'
 import { useHostsListColumns } from '@/features/hosts/components/use-hosts-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
-import { BaseHost, CreateHost, createHost, getGetHostsQueryKey, modifyHosts, useBulkDeleteHosts, useBulkDisableHosts, useBulkEnableHosts, useGetInboundDetails } from '@/service/api'
+import { BaseHost, CreateHost, createHost, getGetHostsQueryKey, useBulkDeleteHosts, useBulkDisableHosts, useBulkEnableHosts, useGetInboundDetails } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, UniqueIdentifier, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
@@ -543,7 +544,7 @@ export default function HostsList({
   )
 
   /**
-   * Persist an unfiltered drag reorder as zero-based host priorities, retaining MASQUE DNS settings.
+   * Persist an unfiltered drag reorder as zero-based host priorities, preserving stored host settings.
    * Ignore drops when updates are disallowed or the source or target is invalid.
    * On failure, restore the previous local order and show an error without rejecting the promise.
    */
@@ -576,166 +577,10 @@ export default function HostsList({
     setIsUpdatingPriorities(true)
 
     try {
-      // Prepare the hosts data for the API call with proper data transformation
-      const hostsToUpdate: CreateHost[] = updatedHosts.map((host, index) => ({
-        id: host.id,
-        remark: host.remark || '',
-        address: host.address || [],
-        port: host.port,
-        inbound_tag: host.inbound_tag || '',
-        status: host.status || [],
-        host: host.host || [],
-        sni: host.sni || [],
-        path: host.path || '',
-        security: host.security || 'inbound_default',
-        alpn: host.alpn || [],
-        fingerprint: host.fingerprint || '',
-        allowinsecure: host.allowinsecure || false,
-        is_disabled: host.is_disabled || false,
-        random_user_agent: host.random_user_agent || false,
-        use_sni_as_host: host.use_sni_as_host || false,
-        vless_route: host.vless_route || undefined,
-        priority: index, // New priority based on position
-        ech: host.ech,
-        pinned_peer_cert_sha256: host.pinned_peer_cert_sha256 || undefined,
-        verify_peer_cert_by_name: host.verify_peer_cert_by_name || undefined,
-        subscription_templates: host.subscription_templates ?? undefined,
-        fragment_settings: host.fragment_settings,
-        mux_settings: host.mux_settings
-          ? {
-              xray: host.mux_settings.xray
-                ? {
-                    enabled: host.mux_settings.xray.enabled ?? false,
-                    concurrency: host.mux_settings.xray.concurrency ?? null,
-                    xudp_concurrency: host.mux_settings.xray.xudpConcurrency ?? null,
-                    xudp_proxy_443: host.mux_settings.xray.xudpProxyUDP443 ?? 'reject',
-                  }
-                : undefined,
-              sing_box: host.mux_settings.sing_box
-                ? {
-                    enable: host.mux_settings.sing_box.enable ?? false,
-                    protocol: host.mux_settings.sing_box.protocol ?? 'smux',
-                    max_connections: host.mux_settings.sing_box.max_connections ?? null,
-                    max_streams: host.mux_settings.sing_box.max_streams ?? null,
-                    min_streams: host.mux_settings.sing_box.min_streams ?? null,
-                    padding: host.mux_settings.sing_box.padding ?? undefined,
-                    brutal: host.mux_settings.sing_box.brutal ?? null,
-                  }
-                : undefined,
-              clash: host.mux_settings.clash
-                ? {
-                    enable: host.mux_settings.clash.enable ?? false,
-                    protocol: host.mux_settings.clash.protocol ?? 'smux',
-                    max_connections: host.mux_settings.clash.max_connections ?? null,
-                    max_streams: host.mux_settings.clash.max_streams ?? null,
-                    min_streams: host.mux_settings.clash.min_streams ?? null,
-                    padding: host.mux_settings.clash.padding ?? undefined,
-                    brutal: host.mux_settings.clash.brutal ?? null,
-                    statistic: host.mux_settings.clash.statistic ?? undefined,
-                    only_tcp: host.mux_settings.clash.only_tcp ?? undefined,
-                  }
-                : undefined,
-            }
-          : undefined,
-        transport_settings: host.transport_settings
-          ? {
-              masque_settings: host.transport_settings.masque_settings
-                ? {
-                    remote_dns: host.transport_settings.masque_settings.remote_dns ?? [],
-                    xmux: host.transport_settings.masque_settings.xmux ?? undefined,
-                  }
-                : undefined,
-              xdrive_settings: host.transport_settings.xdrive_settings
-                ? {
-                    xmux: host.transport_settings.xdrive_settings.xmux ?? undefined,
-                  }
-                : undefined,
-              xhttp_settings: host.transport_settings.xhttp_settings
-                ? {
-                    mode: host.transport_settings.xhttp_settings.mode ?? undefined,
-                    no_grpc_header: host.transport_settings.xhttp_settings.no_grpc_header === null ? undefined : !!host.transport_settings.xhttp_settings.no_grpc_header,
-                    x_padding_bytes: host.transport_settings.xhttp_settings.x_padding_bytes ?? undefined,
-                    x_padding_obfs_mode: host.transport_settings.xhttp_settings.x_padding_obfs_mode === null ? undefined : !!host.transport_settings.xhttp_settings.x_padding_obfs_mode,
-                    x_padding_key: host.transport_settings.xhttp_settings.x_padding_key ?? undefined,
-                    x_padding_header: host.transport_settings.xhttp_settings.x_padding_header ?? undefined,
-                    x_padding_placement: host.transport_settings.xhttp_settings.x_padding_placement ?? undefined,
-                    x_padding_method: host.transport_settings.xhttp_settings.x_padding_method ?? undefined,
-                    uplink_http_method: host.transport_settings.xhttp_settings.uplink_http_method ?? undefined,
-                    session_placement: host.transport_settings.xhttp_settings.session_placement ?? undefined,
-                    session_key: host.transport_settings.xhttp_settings.session_key ?? undefined,
-                    session_id_table: host.transport_settings.xhttp_settings.session_id_table ?? undefined,
-                    session_id_length: host.transport_settings.xhttp_settings.session_id_length ?? undefined,
-                    seq_placement: host.transport_settings.xhttp_settings.seq_placement ?? undefined,
-                    seq_key: host.transport_settings.xhttp_settings.seq_key ?? undefined,
-                    uplink_data_placement: host.transport_settings.xhttp_settings.uplink_data_placement ?? undefined,
-                    uplink_data_key: host.transport_settings.xhttp_settings.uplink_data_key ?? undefined,
-                    uplink_chunk_size: host.transport_settings.xhttp_settings.uplink_chunk_size ?? undefined,
-                    sc_max_each_post_bytes: host.transport_settings.xhttp_settings.sc_max_each_post_bytes ?? undefined,
-                    sc_min_posts_interval_ms: host.transport_settings.xhttp_settings.sc_min_posts_interval_ms ?? undefined,
-                    download_settings: host.transport_settings.xhttp_settings.download_settings ?? undefined,
-                    xmux: host.transport_settings.xhttp_settings.xmux ?? undefined,
-                  }
-                : undefined,
-              grpc_settings: host.transport_settings.grpc_settings
-                ? {
-                    multi_mode: host.transport_settings.grpc_settings.multi_mode === null ? undefined : !!host.transport_settings.grpc_settings.multi_mode,
-                    idle_timeout: host.transport_settings.grpc_settings.idle_timeout ?? undefined,
-                    health_check_timeout: host.transport_settings.grpc_settings.health_check_timeout ?? undefined,
-                    permit_without_stream: host.transport_settings.grpc_settings.permit_without_stream ?? undefined,
-                    initial_windows_size: host.transport_settings.grpc_settings.initial_windows_size ?? undefined,
-                  }
-                : undefined,
-              kcp_settings: host.transport_settings.kcp_settings
-                ? {
-                    mtu: host.transport_settings.kcp_settings.mtu ?? undefined,
-                    tti: host.transport_settings.kcp_settings.tti ?? undefined,
-                    uplink_capacity: host.transport_settings.kcp_settings.uplink_capacity ?? undefined,
-                    downlink_capacity: host.transport_settings.kcp_settings.downlink_capacity ?? undefined,
-                    congestion: host.transport_settings.kcp_settings.congestion === null ? undefined : !!host.transport_settings.kcp_settings.congestion,
-                    read_buffer_size: host.transport_settings.kcp_settings.read_buffer_size ?? undefined,
-                    write_buffer_size: host.transport_settings.kcp_settings.write_buffer_size ?? undefined,
-                  }
-                : undefined,
-              tcp_settings: host.transport_settings.tcp_settings
-                ? {
-                    header: host.transport_settings.tcp_settings.header ?? undefined,
-                    request: host.transport_settings.tcp_settings.request
-                      ? {
-                          version: host.transport_settings.tcp_settings.request.version ?? undefined,
-                          method: host.transport_settings.tcp_settings.request.method ?? undefined,
-                          headers: host.transport_settings.tcp_settings.request.headers ?? undefined,
-                        }
-                      : undefined,
-                    response: host.transport_settings.tcp_settings.response
-                      ? {
-                          version: host.transport_settings.tcp_settings.response.version ?? undefined,
-                          status: host.transport_settings.tcp_settings.response.status ?? undefined,
-                          reason: host.transport_settings.tcp_settings.response.reason ?? undefined,
-                          headers: host.transport_settings.tcp_settings.response.headers ?? undefined,
-                        }
-                      : undefined,
-                  }
-                : undefined,
-              websocket_settings: host.transport_settings.websocket_settings
-                ? {
-                    heartbeatPeriod: host.transport_settings.websocket_settings.heartbeatPeriod ?? undefined,
-                  }
-                : undefined,
-              mtproto_settings: host.transport_settings.mtproto_settings
-                ? {
-                    link_type: host.transport_settings.mtproto_settings.link_type ?? undefined,
-                  }
-                : undefined,
-            }
-          : undefined,
-        wireguard_overrides: host.wireguard_overrides ?? undefined,
-        http_headers: host.http_headers || {},
-        final_mask_settings: host.final_mask_settings ?? undefined,
-        cipher_suites: host.cipher_suites ?? undefined,
-      }))
-
-      // Make the API call to update priorities
-      await modifyHosts(hostsToUpdate)
+      await fetcher<void>('/api/hosts/priorities', {
+        method: 'PUT',
+        body: updatedHosts.map(host => ({ id: host.id, priority: host.priority })),
+      })
 
       // Update local state with the response data
       setHosts(updatedHosts)

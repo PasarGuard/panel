@@ -995,6 +995,11 @@ class CreateHost(BaseHost):
         return validate_format_variables(v, allow_quoting=False) if v else v
 
 
+class HostPriorityUpdate(BaseModel):
+    id: int
+    priority: int
+
+
 class BulkHostSelection(BaseModel):
     """Model for bulk host selection by IDs"""
 
