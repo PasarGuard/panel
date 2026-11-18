@@ -140,7 +140,7 @@ class XrayConfiguration(BaseSubscription):
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
         ws_settings = {
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers) if config.http_headers else {},
             "heartbeatPeriod": config.heartbeat_period,
             "path": path,
             "host": host,
@@ -156,7 +156,7 @@ class XrayConfiguration(BaseSubscription):
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
         httpupgrade_settings = {
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers) if config.http_headers else {},
             "path": path,
             "host": host,
         }
@@ -177,7 +177,7 @@ class XrayConfiguration(BaseSubscription):
         }
 
         extra = {
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers) if config.http_headers else {},
             "scMaxEachPostBytes": config.sc_max_each_post_bytes,
             "scMinPostsIntervalMs": config.sc_min_posts_interval_ms,
             "xPaddingBytes": config.x_padding_bytes,
