@@ -627,7 +627,7 @@ export const HostFormSchema = z.object({
       allowed_ips: z.array(z.string()).optional(),
       mtu: z.number().min(576).max(9000).nullish(),
       reserved: z.string().max(64).optional(),
-      keepalive_seconds: z.number().min(0).max(86400).optional(),
+      keepalive_seconds: z.number().min(0).max(65535).optional(),
       dns: z.array(z.string()).optional(),
     })
     .optional(),
