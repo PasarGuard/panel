@@ -1363,6 +1363,11 @@ def test_user_subscription_body_start_placement_moves_headers_into_body(access_t
         "header_placement": "body_start",
     }
 
+    # tests/api mocks app.settings.get_settings to a static snapshot (see conftest.mock_settings).
+    # The PUT reloads the settings caches from it, so mirror the change before saving, as the DB would.
+    original_header_placement = mock_settings["subscription"].get("header_placement", "header")
+    mock_settings["subscription"]["header_placement"] = "body_start"
+
     update_response = client.put(
         "/api/settings",
         headers=auth_headers(access_token),
@@ -1370,11 +1375,6 @@ def test_user_subscription_body_start_placement_moves_headers_into_body(access_t
     )
     assert update_response.status_code == status.HTTP_200_OK
     assert update_response.json()["subscription"]["header_placement"] == "body_start"
-
-    # tests/api mocks app.settings.get_settings to a static snapshot (see conftest.mock_settings),
-    # so runtime subscription generation doesn't observe the PUT above; mirror it in the snapshot.
-    original_header_placement = mock_settings["subscription"].get("header_placement", "header")
-    mock_settings["subscription"]["header_placement"] = "body_start"
 
     core, groups = setup_groups(access_token, 1)
     hosts = create_hosts_for_inbounds(access_token)

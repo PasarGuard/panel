@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, TimeoutError as PoolTimeoutError
 
 from app.db.base import database_pool_summary
 from app.lifecycle import on_shutdown, on_startup
@@ -162,7 +162,7 @@ async def _ignore_worker_sync_message(_: dict):
     return None
 
 
-async def database_operational_error_handler(request: Request, exc: DBAPIError):
+async def database_operational_error_handler(request: Request, exc: DBAPIError | PoolTimeoutError):
     orig = getattr(exc, "orig", None)
     error_summary = f"{type(orig).__name__}: {orig}" if orig else type(exc).__name__
     logger.warning(f"Database unavailable while handling {request.method} {request.url.path}: {error_summary}")
@@ -424,6 +424,8 @@ def create_app() -> FastAPI:
         )
 
     app.add_exception_handler(DBAPIError, database_operational_error_handler)
+    # Pool exhaustion is not a DBAPIError; it is the same "try again shortly" condition.
+    app.add_exception_handler(PoolTimeoutError, database_operational_error_handler)
 
     from app.operation.permissions import LimitExceeded, PermissionDenied
 
