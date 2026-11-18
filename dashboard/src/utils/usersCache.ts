@@ -1,8 +1,9 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import type { GetUsersParams, UserListItem, UserResponse, UsersResponse } from '@/service/api'
+import { ONLINE_USERS_WINDOW_SECONDS } from '@/utils/onlineStatus'
 
 const USERS_QUERY_KEY = '/api/users'
-const ONLINE_USERS_WINDOW_MS = 2 * 60 * 1000
+const ONLINE_USERS_WINDOW_MS = ONLINE_USERS_WINDOW_SECONDS * 1000
 
 const toNumber = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) return value

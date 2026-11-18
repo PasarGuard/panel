@@ -1,5 +1,6 @@
 import { FC } from 'react'
 import { dateUtils } from '@/utils/dateFormatter'
+import { isOnlineWithinWindow } from '@/utils/onlineStatus'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
@@ -20,7 +21,7 @@ export const OnlineBadge: FC<UserStatusProps> = ({ lastOnline }) => {
     const lastOnlineTime = dateUtils.toDayjs(lastOnline)
     const diffInSeconds = currentTime.diff(lastOnlineTime, 'seconds')
 
-    const isOnline = diffInSeconds <= 60
+    const isOnline = isOnlineWithinWindow(diffInSeconds)
 
     if (isOnline) {
       return t('online')
@@ -72,7 +73,7 @@ export const OnlineBadge: FC<UserStatusProps> = ({ lastOnline }) => {
     const lastOnlineTime = dateUtils.toDayjs(lastOnline)
     const diffInSeconds = currentTime.diff(lastOnlineTime, 'seconds')
 
-    const isOnline = diffInSeconds <= 60
+    const isOnline = isOnlineWithinWindow(diffInSeconds)
 
     if (isOnline) {
       // Online - green dot
