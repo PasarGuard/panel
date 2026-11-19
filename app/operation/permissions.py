@@ -65,6 +65,12 @@ def intersect_permissions(requested: RolePermissions, ceiling: RolePermissions) 
     return RolePermissions.model_validate(effective)
 
 
+def role_grants(permissions: RolePermissions, resource: str, action: str) -> bool:
+    """Return True when a role's permission map allows resource+action, whatever the status of its admins."""
+    resource_perms = permissions.get(resource)
+    return resource_perms is not None and _permission_level(resource_perms.get(action)) != PermissionScope.NONE
+
+
 _READ_ACTIONS = frozenset({"read", "read_simple", "read_general", "logs", "stats"})
 
 

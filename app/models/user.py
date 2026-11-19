@@ -6,6 +6,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models import DataLimitResetStrategy, UserStatus
 from app.models.admin import AdminBase, AdminContactInfo
+from app.models.host import HostOverride
 from app.models.proxy import ProxyTable, ShadowsocksMethods
 from app.models.stats import Period, PeriodStartStat, StatList
 from app.utils.helpers import fix_datetime_timezone
@@ -170,6 +171,8 @@ class SubscriptionUserResponse(UserResponse):
 
 class UsersResponseWithInbounds(SubscriptionUserResponse):
     inbounds: list[str] | None = Field(default_factory=list)
+    # The owning admin's host remarks and hidden hosts, keyed by host ID
+    host_overrides: dict[int, HostOverride] = Field(default_factory=dict, exclude=True)
 
     model_config = ConfigDict(from_attributes=True)
 

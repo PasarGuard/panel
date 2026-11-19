@@ -79,6 +79,8 @@ class HostsPermissions(_ResourcePermissions):
     create: RoleActionValue | None = None
     read: RoleActionValue | None = None
     update: RoleActionValue | None = None
+    # Rename or hide hosts for the admin's own users only, without access to the host config
+    customize: RoleActionValue | None = None
 
 
 class SettingsPermissions(_ResourcePermissions):

@@ -1,10 +1,23 @@
 import MainSection from '@/features/hosts/components/hosts-list'
+import HostCustomizationsList from '@/features/hosts/components/host-customizations-list'
 import { mapHostTransportSettingsForApi, type HostFormValues } from '@/features/hosts/forms/host-form'
 import PageHeader from '@/components/layout/page-header'
 import { Separator } from '@/components/ui/separator'
-import { BaseHost, createHost, CreateHost, getGetHostsQueryKey, getHosts, modifyHost, MultiplexProtocol, ProxyHostALPN, ProxyHostFingerprint, Xudp } from '@/service/api'
+import {
+  BaseHost,
+  createHost,
+  CreateHost,
+  getGetHostCustomizationsQueryKey,
+  getGetHostsQueryKey,
+  getHosts,
+  modifyHost,
+  MultiplexProtocol,
+  ProxyHostALPN,
+  ProxyHostFingerprint,
+  Xudp,
+} from '@/service/api'
 import { useAdmin } from '@/hooks/use-admin'
-import { hasPermission } from '@/utils/rbac'
+import { canReadResourcePage, hasPermission, isOwner } from '@/utils/rbac'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { useCallback, useState } from 'react'
@@ -14,16 +27,24 @@ import { useCommandCreate } from '@/hooks/use-command-create'
 
 export default function HostsPage() {
   const { admin } = useAdmin()
-  const canCreateHosts = hasPermission(admin, 'hosts', 'create')
+  const canReadHosts = canReadResourcePage(admin, 'hosts')
+  // The create dialog lives in the hosts list, which only admins with hosts.read get
+  const canCreateHosts = canReadHosts && hasPermission(admin, 'hosts', 'create')
   const canUpdateHosts = hasPermission(admin, 'hosts', 'update')
+  // Non-owner admins rename or hide hosts for their own users without touching the host config
+  const canCustomizeHosts = !isOwner(admin) && hasPermission(admin, 'hosts', 'customize')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingHost, setEditingHost] = useState<BaseHost | null>(null)
   const { data, refetch, isFetching } = useQuery({
     queryKey: getGetHostsQueryKey(),
     queryFn: () => getHosts(),
+    enabled: canReadHosts,
   })
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+
+  // The Refresh button also brings the admin's own customization cards up to date
+  const handleRefresh = useCallback(() => Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: getGetHostCustomizationsQueryKey() })]), [refetch, queryClient])
 
   const handleDialogOpen = (open: boolean) => {
     setIsDialogOpen(open)
@@ -189,7 +210,7 @@ export default function HostsPage() {
       } else {
         await createHost(hostData)
       }
-      await queryClient.invalidateQueries({ queryKey: getGetHostsQueryKey() })
+      await Promise.all([queryClient.invalidateQueries({ queryKey: getGetHostsQueryKey() }), queryClient.invalidateQueries({ queryKey: getGetHostCustomizationsQueryKey() })])
       return { status: 200 }
     } catch (error: any) {
       console.error('Error submitting host:', error)
@@ -243,7 +264,7 @@ export default function HostsPage() {
       <div className="w-full transform-gpu">
         <PageHeader
           title="hosts"
-          description="manageHosts"
+          description={canReadHosts ? 'manageHosts' : 'hostCustomizations.pageDescription'}
           buttonIcon={canCreateHosts ? Plus : undefined}
           buttonText={canCreateHosts ? 'hostsDialog.addHost' : undefined}
           onButtonClick={canCreateHosts ? handleCreateClick : undefined}
@@ -251,21 +272,31 @@ export default function HostsPage() {
         <Separator />
       </div>
 
-      <div className="w-full p-4">
-        <MainSection
-          data={data}
-          isDialogOpen={isDialogOpen}
-          onDialogOpenChange={handleDialogOpen}
-          onAddHost={onAddHost}
-          onSubmit={handleSubmit}
-          editingHost={editingHost}
-          setEditingHost={setEditingHost}
-          onRefresh={refetch}
-          isRefreshing={isFetching}
-          canCreate={canCreateHosts}
-          canUpdate={canUpdateHosts}
-        />
-      </div>
+      {canCustomizeHosts && (
+        <div className="w-full p-4">
+          <HostCustomizationsList />
+        </div>
+      )}
+
+      {canCustomizeHosts && canReadHosts && <Separator />}
+
+      {canReadHosts && (
+        <div className="w-full p-4">
+          <MainSection
+            data={data}
+            isDialogOpen={isDialogOpen}
+            onDialogOpenChange={handleDialogOpen}
+            onAddHost={onAddHost}
+            onSubmit={handleSubmit}
+            editingHost={editingHost}
+            setEditingHost={setEditingHost}
+            onRefresh={handleRefresh}
+            isRefreshing={isFetching}
+            canCreate={canCreateHosts}
+            canUpdate={canUpdateHosts}
+          />
+        </div>
+      )}
     </div>
   )
 }

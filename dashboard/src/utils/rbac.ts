@@ -43,6 +43,9 @@ export const canReadResourcePage = (admin: AdminDetails | null | undefined, reso
   return hasPermission(admin, resource, 'read')
 }
 
+/** The hosts page also lists hosts an admin may only rename or hide for its own users. */
+export const canOpenHostsPage = (admin: AdminDetails | null | undefined) => canReadResourcePage(admin, 'hosts') || hasPermission(admin, 'hosts', 'customize')
+
 export const canManageResource = (admin: AdminDetails | null | undefined, resource: string, mutationActions: readonly string[] = ['create', 'update', 'delete']) => {
   if (isOwner(admin)) return true
   if (!hasPermission(admin, resource, 'read')) return false
@@ -56,7 +59,7 @@ export const firstAllowedRoute = (admin: AdminDetails | null | undefined) => {
   if (hasPermission(admin, 'system', 'read')) return '/'
   if (hasPermission(admin, 'users', 'read')) return '/users'
   if (hasPermission(admin, 'nodes', 'stats')) return '/statistics'
-  if (canReadResourcePage(admin, 'hosts')) return '/hosts'
+  if (canOpenHostsPage(admin)) return '/hosts'
   if (canReadResourcePage(admin, 'groups')) return '/groups'
   if (canReadResourcePage(admin, 'admins')) return '/admins'
   if (canReadResourcePage(admin, 'nodes')) return '/nodes'
@@ -73,7 +76,7 @@ export const canAccessRoute = (admin: AdminDetails | null | undefined, pathname:
   if (pathname.startsWith('/theme') || pathname.startsWith('/settings/theme')) return true
   if (pathname.startsWith('/users')) return hasPermission(admin, 'users', 'read')
   if (pathname.startsWith('/statistics')) return hasPermission(admin, 'nodes', 'stats')
-  if (pathname.startsWith('/hosts')) return canReadResourcePage(admin, 'hosts')
+  if (pathname.startsWith('/hosts')) return canOpenHostsPage(admin)
   if (pathname.startsWith('/groups')) return canReadResourcePage(admin, 'groups')
   if (pathname === '/templates') return canReadResourcePage(admin, 'templates') || canReadResourcePage(admin, 'client_templates')
   if (pathname.startsWith('/templates/client')) return canReadResourcePage(admin, 'client_templates')
