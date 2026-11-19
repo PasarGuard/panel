@@ -1,5 +1,4 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
@@ -19,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { ClientTemplateType, type InboundSummary, UserStatus, getGetHostsQueryKey, getHosts, useGetClientTemplatesSimple } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, Cable, ChevronsLeftRightEllipsis, Copy, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X, ListTodo } from 'lucide-react'
+import { Cable, ChevronsLeftRightEllipsis, Pencil, GlobeLock, Info, Loader2, Lock, Network, Plus, Route, Trash2, X, ListTodo } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -132,129 +131,6 @@ const createHostFormDefaults = (): HostFormValues => ({
   verify_peer_cert_by_name: [],
 })
 
-// Memoized Noise Item Component for optimal performance
-interface NoiseItemProps {
-  index: number
-  form: UseFormReturn<HostFormValues>
-  onRemove: (index: number) => void
-  onDuplicate: (index: number) => void
-  t: (key: string) => string
-}
-
-const NoiseItem = memo<NoiseItemProps>(({ index, form, onRemove, onDuplicate, t }) => {
-  const handleRemove = useCallback(() => {
-    onRemove(index)
-  }, [index, onRemove])
-
-  const handleDuplicate = useCallback(() => {
-    onDuplicate(index)
-  }, [index, onDuplicate])
-
-  return (
-    <div className="space-y-2 rounded-md border p-2">
-      {/* Row 1: type, apply_to, actions */}
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground w-5 shrink-0 text-center text-xs">{index + 1}</span>
-        <FormField
-          control={form.control}
-          name={`noise_settings.xray.${index}.type`}
-          render={({ field }) => (
-            <FormItem className="w-[110px] shrink-0">
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger className="h-8">
-                    <SelectValue placeholder={t('hostsDialog.noise.type')} />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="rand">rand</SelectItem>
-                  <SelectItem value="str">str</SelectItem>
-                  <SelectItem value="base64">base64</SelectItem>
-                  <SelectItem value="hex">hex</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name={`noise_settings.xray.${index}.apply_to`}
-          render={({ field }) => (
-            <FormItem className="w-[100px] shrink-0">
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger className="h-8">
-                    <SelectValue placeholder={t('hostsDialog.noise.applyTo')} />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="ip">ip</SelectItem>
-                  <SelectItem value="ipv4">ipv4</SelectItem>
-                  <SelectItem value="ipv6">ipv6</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="ml-auto flex items-center gap-1">
-          <Button type="button" variant="ghost" size="icon" className="hover:bg-muted/70 h-8 w-8 shrink-0 transition-colors" onClick={handleDuplicate} title={t('hostsDialog.noise.duplicateNoise')}>
-            <Copy className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0 border-red-500/20 transition-colors hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
-            onClick={handleRemove}
-            title={t('hostsDialog.noise.removeNoise')}
-          >
-            <Trash2 className="h-4 w-4 text-red-500" />
-          </Button>
-        </div>
-      </div>
-      {/* Row 2: packet, delay */}
-      <div className="grid grid-cols-2 gap-2 pl-7">
-        <FormField
-          control={form.control}
-          name={`noise_settings.xray.${index}.packet`}
-          render={({ field }) => (
-            <FormItem>
-              <FormControl>
-                <Input
-                  placeholder={t('hostsDialog.noise.packetPlaceholder')}
-                  {...field}
-                  // Xray noise packets are strings; show a list packet stored through the API as JSON.
-                  value={Array.isArray(field.value) ? JSON.stringify(field.value) : (field.value ?? '')}
-                  className="h-8"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name={`noise_settings.xray.${index}.delay`}
-          render={({ field }) => (
-            <FormItem>
-              <FormControl>
-                <Input placeholder={t('hostsDialog.noise.delayPlaceholder')} {...field} value={field.value ?? ''} className="h-8" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-    </div>
-  )
-})
-
-
-NoiseItem.displayName = 'NoiseItem'
-
-// Reusable ArrayInput wrapper backed by shared popover-array component
 interface ArrayInputProps {
   field: any
   placeholder: string
@@ -321,19 +197,11 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
   const isMobile = useIsMobile()
   const [_isSubmitting, setIsSubmitting] = useState(false)
   const selectedInboundTag = form.watch('inbound_tag')
-  const selectedNoiseSettings = form.watch('noise_settings.xray')
-  const selectedFragmentSettings = form.watch('fragment_settings.xray')
   const xPaddingObfsEnabled = form.watch('transport_settings.xhttp_settings.x_padding_obfs_mode') === true
   const selectedFingerprint = form.watch('fingerprint')
   const selectedSecurity = form.watch('security')
   const infoPopoverSide = isMobile ? 'bottom' : dir === 'rtl' ? 'left' : 'right'
   const infoPopoverAlign = isMobile ? 'center' : 'start'
-  const hasFragmentPopulated = Boolean(
-    String(selectedFragmentSettings?.packets ?? '').trim() || String(selectedFragmentSettings?.length ?? '').trim() || String(selectedFragmentSettings?.interval ?? '').trim(),
-  )
-  const hasNoisePopulated = (selectedNoiseSettings || []).some(noise => noise && (String(noise.packet ?? '').trim() || String(noise.delay ?? '').trim()))
-  const showFragmentNoiseDeprecatedWarning = hasFragmentPopulated || hasNoisePopulated
-
   const renderCamouflageSection = () => {
     return (
       <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="camouflag">
@@ -351,116 +219,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
             </TabsList>
             <TabsContent dir={dir} value="xray">
               <div className="space-y-6">
-                {showFragmentNoiseDeprecatedWarning && (
-                  <Alert className="border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-100">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                    <AlertDescription className="text-xs sm:text-sm">
-                      {t('hostsDialog.fragmentNoiseDeprecated', {
-                        defaultValue: '`noise` and `fragment` are being removed in newer versions â€” use `finalMask` instead.',
-                      })}
-                    </AlertDescription>
-                  </Alert>
-                )}
-                {/* Fragment Settings */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="flex items-center gap-2 text-sm font-medium">
-                      {t('hostsDialog.fragment.title')}
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                            <Info className="text-muted-foreground h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                          <div className="space-y-1.5">
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info')}</p>
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info.attention')}</p>
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.fragment.info.examples')}</p>
-                            <p className="text-muted-foreground overflow-hidden text-[11px]">100-200,10-20,tlshello 100-200,10-20,1-3</p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </h4>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="fragment_settings.xray.packets"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('hostsDialog.fragment.packets')}</FormLabel>
-                          <FormControl>
-                            <Input placeholder={t('hostsDialog.fragment.packetsPlaceholder')} {...field} value={field.value || ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="fragment_settings.xray.length"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('hostsDialog.fragment.length')}</FormLabel>
-                          <FormControl>
-                            <Input placeholder={t('hostsDialog.fragment.lengthPlaceholder')} {...field} value={field.value || ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="fragment_settings.xray.interval"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('hostsDialog.fragment.interval')}</FormLabel>
-                          <FormControl>
-                            <Input placeholder={t('hostsDialog.fragment.intervalPlaceholder')} {...field} value={field.value || ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* Noise Settings */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-medium">{t('hostsDialog.noise.title')}</h4>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button type="button" variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent">
-                            <Info className="text-muted-foreground h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={infoPopoverSide} align={infoPopoverAlign} sideOffset={5}>
-                          <div className="space-y-1.5">
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info')}</p>
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info.attention')}</p>
-                            <p className="text-muted-foreground text-[11px]">{t('hostsDialog.noise.info.examples')}</p>
-                            <p className="text-muted-foreground overflow-hidden text-[11px]">
-                              rand:10-20,10-20 rand:10-20,10-20 &base64:7nQBAAABAAAAAAAABnQtcmluZwZtc2VkZ2UDbmV0AAABAAE=,10-25
-                            </p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <Button type="button" variant="outline" size="icon" className="h-6 w-6" onClick={addNoiseSetting} title={t('hostsDialog.noise.addNoise')}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    {(selectedNoiseSettings || []).map((_, index) => (
-                      <NoiseItem key={index} index={index} form={form} onRemove={removeNoiseSetting} onDuplicate={duplicateNoiseSetting} t={t} />
-                    ))}
-                    {(selectedNoiseSettings || []).length === 0 && <div className="text-muted-foreground py-8 text-center text-sm">{t('hostsDialog.noise.noNoiseSettings')}</div>}
-                  </div>
-                </div>
-
                 {/* FinalMask Settings */}
                 <div className="space-y-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
@@ -584,58 +342,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     form.setValue('port', undefined, { shouldDirty: false, shouldTouch: false, shouldValidate: false })
     form.clearErrors('port')
   }, [form])
-
-  // Optimized noise settings handlers with useCallback for performance
-  const addNoiseSetting = useCallback(() => {
-    const currentNoiseSettings = form.getValues('noise_settings.xray') || []
-    form.setValue(
-      'noise_settings.xray',
-      [
-        ...currentNoiseSettings,
-        {
-          type: 'rand',
-          packet: '',
-          delay: '',
-          apply_to: 'ip',
-        },
-      ],
-      {
-        shouldDirty: true,
-        shouldTouch: true,
-      },
-    )
-  }, [form])
-
-  const removeNoiseSetting = useCallback(
-    (index: number) => {
-      const currentNoiseSettings = form.getValues('noise_settings.xray') || []
-      const newNoiseSettings = currentNoiseSettings.filter((_, i) => i !== index)
-      form.setValue('noise_settings.xray', newNoiseSettings, {
-        shouldDirty: true,
-        shouldTouch: true,
-      })
-    },
-    [form],
-  )
-
-  const duplicateNoiseSetting = useCallback(
-    (index: number) => {
-      const currentNoiseSettings = form.getValues('noise_settings.xray') || []
-      const targetNoise = currentNoiseSettings[index]
-      if (!targetNoise) {
-        return
-      }
-
-      const duplicatedNoise = { ...targetNoise }
-      const newNoiseSettings = [...currentNoiseSettings.slice(0, index + 1), duplicatedNoise, ...currentNoiseSettings.slice(index + 1)]
-
-      form.setValue('noise_settings.xray', newNoiseSettings, {
-        shouldDirty: true,
-        shouldTouch: true,
-      })
-    },
-    [form],
-  )
 
   const cleanPayload = (data: any): any => {
     // Helper function to check if an object has any non-empty values
@@ -808,7 +514,6 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
     form.setValue('pinned_peer_cert_sha256', undefined, { shouldDirty: true })
     form.setValue('verify_peer_cert_by_name', [], { shouldDirty: true })
     form.setValue('fragment_settings', undefined, { shouldDirty: true })
-    form.setValue('noise_settings', undefined, { shouldDirty: true })
     form.setValue('mux_settings', undefined, { shouldDirty: true })
     form.setValue('transport_settings', undefined, { shouldDirty: true })
   }, [form, isSimpleInbound, selectedInboundTag, editingHost])

@@ -2,7 +2,14 @@ from fastapi import APIRouter, Depends, status
 
 from app.db import AsyncSession, get_db
 from app.models.admin import AdminDetails
-from app.models.host import BaseHost, BulkHostsActionResponse, BulkHostSelection, CreateHost, RemoveHostsResponse
+from app.models.host import (
+    BaseHost,
+    BulkHostsActionResponse,
+    BulkHostSelection,
+    CreateHost,
+    HostPriorityUpdate,
+    RemoveHostsResponse,
+)
 from app.operation import OperatorType
 from app.operation.host import HostOperation
 from app.utils import responses
@@ -134,3 +141,13 @@ async def bulk_enable_hosts(
 ):
     """Enable selected hosts by ID."""
     return await host_operator.bulk_set_hosts_disabled(db, bulk_hosts, admin, is_disabled=False)
+
+
+@router.put("s/priorities", status_code=status.HTTP_204_NO_CONTENT)
+async def update_host_priorities(
+    priorities: list[HostPriorityUpdate],
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(require_permission("hosts", "update")),
+):
+    """Update host priorities without rewriting host settings."""
+    await host_operator.update_priorities(db, priorities, admin)

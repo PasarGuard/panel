@@ -22,6 +22,7 @@ from app.models.host import (
     BulkHostSelection,
     CreateHost,
     HostListQuery,
+    HostPriorityUpdate,
     RemoveHostsResponse,
 )
 from app.operation import BaseOperation
@@ -180,6 +181,27 @@ class HostOperation(BaseOperation):
         asyncio.create_task(notification.remove_host(host, admin.username))
 
         await host_manager.remove_host(host.id)
+
+    async def update_priorities(
+        self, db: AsyncSession, priorities: list[HostPriorityUpdate], admin: AdminDetails
+    ) -> None:
+        try:
+            db_hosts = await get_hosts(db=db)
+            hosts_by_id = {host.id: host for host in db_hosts}
+            ids = [item.id for item in priorities]
+            if len(ids) != len(set(ids)):
+                await self.raise_error("Duplicate host IDs", 400, db=db)
+            if any(host_id not in hosts_by_id for host_id in ids):
+                await self.raise_error("Host not found", 404, db=db)
+            for item in priorities:
+                hosts_by_id[item.id].priority = item.priority
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
+        await host_manager.add_hosts(db, await get_hosts(db=db))
+        logger.info('Host priorities updated by admin "%s"', admin.username)
 
     async def modify_hosts(
         self, db: AsyncSession, modified_hosts: list[CreateHost], admin: AdminDetails

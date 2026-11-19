@@ -1,5 +1,5 @@
 import * as z from 'zod'
-import type { CreateHost, FinalMask, MtprotoHostSettingsLinkType, XMuxSettings, XrayNoiseSettings } from '@/service/api'
+import type { CreateHost, FinalMask, MtprotoHostSettingsLinkType, XMuxSettings } from '@/service/api'
 
 interface Brutal {
   enable?: boolean
@@ -79,24 +79,11 @@ export interface HostFormValues {
   pinned_peer_cert_sha256?: string
   verify_peer_cert_by_name?: string[]
   fragment_settings?: {
-    xray?: {
-      packets?: string
-      length?: string
-      interval?: string
-    }
     sing_box?: {
       fragment?: boolean
       fragment_fallback_delay?: string
       record_fragment?: boolean
     }
-  }
-  noise_settings?: {
-    xray?: {
-      type: string
-      packet?: XrayNoiseSettings['packet']
-      delay?: XrayNoiseSettings['delay']
-      apply_to: 'ip' | 'ipv4' | 'ipv6'
-    }[]
   }
   mux_settings?: MuxSettings
   wireguard_overrides?: {
@@ -533,41 +520,12 @@ export const HostFormSchema = z.object({
   verify_peer_cert_by_name: z.array(z.string()).default([]),
   fragment_settings: z
     .object({
-      xray: z
-        .object({
-          packets: z.string().optional(),
-          length: z.string().optional(),
-          interval: z.string().optional(),
-        })
-        .optional(),
       sing_box: z
         .object({
           fragment: z.boolean().optional(),
           fragment_fallback_delay: z.string().optional(),
           record_fragment: z.boolean().optional(),
         })
-        .optional(),
-    })
-    .optional(),
-  noise_settings: z
-    .object({
-      xray: z
-        .array(
-          z.object({
-            type: z
-              .string()
-              .regex(/^(?:rand|str|base64|hex)$/)
-              .optional(),
-            packet: z.union([z.string(), z.array(z.number().int())]).nullish(),
-            delay: z
-              .union([z.string(), z.number().int()])
-              .nullish()
-              .refine(val => val == null || val === '' || /^\d{1,16}(-\d{1,16})?$/.test(String(val)), {
-                message: "Delay must be in format like '10-20' or '10'",
-              }),
-            apply_to: z.enum(['ip', 'ipv4', 'ipv6']).default('ip'),
-          }),
-        )
         .optional(),
     })
     .optional(),
@@ -671,27 +629,4 @@ export const hostFormDefaultValues: HostFormValues = {
   subscription_templates: undefined,
   final_mask_settings: undefined,
   cipher_suites: undefined,
-}
-
-/** Normalize API fragment settings for the host form (accept legacy `delay` as `interval`). */
-export function mapHostFragmentSettingsForForm(
-  fragmentSettings: { xray?: Record<string, unknown> | null; sing_box?: NonNullable<HostFormValues['fragment_settings']>['sing_box'] | null } | null | undefined,
-): HostFormValues['fragment_settings'] | undefined {
-  if (!fragmentSettings) return undefined
-  const xrayRaw = fragmentSettings.xray
-  if (!xrayRaw && fragmentSettings.sing_box == null) return undefined
-
-  const intervalValue = xrayRaw?.interval ?? xrayRaw?.delay
-  const interval = typeof intervalValue === 'string' && intervalValue ? intervalValue : undefined
-
-  return {
-    xray: xrayRaw
-      ? {
-          packets: typeof xrayRaw.packets === 'string' ? xrayRaw.packets : undefined,
-          length: typeof xrayRaw.length === 'string' ? xrayRaw.length : undefined,
-          interval,
-        }
-      : undefined,
-    sing_box: fragmentSettings.sing_box ?? undefined,
-  }
 }

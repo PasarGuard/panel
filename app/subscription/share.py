@@ -447,7 +447,7 @@ async def _prepare_download_settings(
             user_agent_template_content=client_templates["USER_AGENT_TEMPLATE"],
             grpc_user_agent_template_content=client_templates["GRPC_USER_AGENT_TEMPLATE"],
         )
-        return xc._download_config(download_copy, link_format=True)
+        return xc._download_config(download_copy)
 
     return download_copy
 

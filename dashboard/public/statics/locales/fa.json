@@ -1481,7 +1481,6 @@
       "applyTo.ipv6": "IPv6",
       "duplicateNoise": "تکثیر نویز"
     },
-    "fragmentNoiseDeprecated": "`noise` و `fragment` در نسخه‌های جدیدتر حذف می‌شوند — به‌جای آن از `finalMask` استفاده کنید.",
     "finalmask": {
       "title": "تنظیمات FinalMask",
       "enable": "فعال‌سازی FinalMask",

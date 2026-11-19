@@ -38,14 +38,6 @@ def _b64decode_text(value: str) -> str:
     return base64.b64decode(value + "=" * (-len(value) % 4), validate=True).decode()
 
 
-def _fragment_settings(value: str) -> dict | None:
-    """Read the Xray fragment the link builder writes as "length,interval,packets"."""
-    if not value:
-        return None
-    length, interval, packets = value.split(",")
-    return {"xray": {"length": length, "interval": interval, "packets": packets}}
-
-
 def _finalmask(value: str) -> dict | None:
     """Read the finalmask the link builder writes as JSON; another value stays only in the link."""
     try:
@@ -170,7 +162,6 @@ def parse_share_link(link: str) -> tuple[str, SubscriptionInboundData, dict, dic
         transport_config=transport,
         encryption=params.get("encryption") or "none",
         inbound_flow=params.get("flow", ""),
-        fragment_settings=_fragment_settings(params.get("fragment", "")),
         finalmask=_finalmask(params.get("fm", "")),
         finalmask_link=params.get("fm") or None,
     )

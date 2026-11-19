@@ -230,7 +230,6 @@ async def _prepare_subscription_inbound_data(
             wireguard_reserved=reserved,
             wireguard_dns=dns,
             fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
-            noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
             finalmask=final_mask_settings,
             finalmask_link=finalmask_link,
             priority=host.priority,
@@ -594,7 +593,6 @@ async def _prepare_subscription_inbound_data(
         random_user_agent=host.random_user_agent,
         use_sni_as_host=host.use_sni_as_host,
         fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
-        noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
         finalmask=final_mask_settings,
         finalmask_link=finalmask_link,
         priority=host.priority,
@@ -612,7 +610,8 @@ class HostManager:
     # v4: a disabled, deleted or unserved xHTTP download host is no longer embedded in its parent.
     # v5: a disabled xHTTP download host can still supply settings to its parent.
     # v6: rebuild shared inbound metadata using stable core ID precedence.
-    STATE_CACHE_KEY = "state_v7"
+    # v8: rebuild prepared hosts after removing legacy Xray fragment and noise output.
+    STATE_CACHE_KEY = "state_v8"
     KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):
