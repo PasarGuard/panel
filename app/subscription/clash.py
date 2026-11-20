@@ -59,9 +59,11 @@ class ClashConfiguration(BaseSubscription):
         }
 
     def render(self):
+        # An empty group (`proxies:` -> null) makes Mihomo/Clash reject the whole profile;
+        # the built-in DIRECT policy keeps it loadable when the user has no usable host.
         return render_template_string(
             self.clash_template_content,
-            {"conf": self.data, "proxy_remarks": self.proxy_remarks},
+            {"conf": self.data, "proxy_remarks": self.proxy_remarks or ["DIRECT"]},
         )
 
     def __str__(self) -> str:
@@ -71,19 +73,26 @@ class ClashConfiguration(BaseSubscription):
         return self.render()
 
     def _transport_http(self, config: TCPTransportConfig, path: str, random_user_agent: bool = False):
-        """Build HTTP transport config"""
+        """Build HTTP transport config (http-opts: method string, path and every header value are lists)"""
         host = config.host if isinstance(config.host, str) else ""
-        result = {
-            "path": [path] if path else None,
-            "Host": host,
-            "headers": {},
-        }
-        if config.request:
-            result.update(config.request)
+        request = config.request or {}
 
+        def as_list(value) -> list[str]:
+            return [str(item) for item in value] if isinstance(value, list) else [str(value)]
+
+        headers = {name: as_list(value) for name, value in (request.get("headers") or {}).items()}
+        if host:
+            headers = {k: v for k, v in headers.items() if k not in ("Host", "host")}
+            headers["Host"] = [host]
         if random_user_agent:
-            result["headers"]["User-Agent"] = choice(self.user_agent_list)
+            headers["User-Agent"] = [choice(self.user_agent_list)]
 
+        request_path = request.get("path")
+        result = {
+            "method": request.get("method"),
+            "path": [path] if path else (as_list(request_path) if request_path else None),
+            "headers": headers,
+        }
         return self._normalize_and_remove_none_values(result)
 
     def _transport_ws(
@@ -587,12 +596,20 @@ class ClashConfiguration(BaseSubscription):
             "network": inbound.network,
             "udp": True,
             "password": settings["password"],
-            "cipher": settings["method"],
+            "cipher": self._clash_shadowsocks_cipher(settings["method"]),
         }
         if (obfs_host := self._shadowsocks_http_obfs_host(inbound)) is not None:
             node["plugin"] = "obfs"
             node["plugin-opts"] = {"mode": "http", "host": obfs_host} if obfs_host else {"mode": "http"}
         return node
+
+    @staticmethod
+    def _clash_shadowsocks_cipher(method: str) -> str:
+        """Xray accepts short chacha names; Clash/Mihomo know only the -ietf- ones and reject the profile otherwise."""
+        return {
+            "chacha20-poly1305": "chacha20-ietf-poly1305",
+            "xchacha20-poly1305": "xchacha20-ietf-poly1305",
+        }.get(method, method)
 
     def _build_wireguard(
         self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
@@ -743,6 +760,7 @@ class ClashMetaConfiguration(ClashConfiguration):
             inbound.password,
             settings["password"],
         )
+        method = self._clash_shadowsocks_cipher(method)
 
         node = {
             "name": remark,
@@ -775,7 +793,7 @@ class ClashMetaConfiguration(ClashConfiguration):
         udp_hop = quic_params.get("udpHop") or {}
         node["ports"] = udp_hop.get("ports", "")
         hop_interval = udp_hop.get("interval")
-        node["hop-interval"] = f"{str(hop_interval).rstrip('s')}s" if hop_interval not in (None, "") else None
+        node["hop-interval"] = self._mihomo_hop_interval(hop_interval)
 
         if obfs_password:
             node["obfs"] = "salamander"
@@ -787,6 +805,18 @@ class ClashMetaConfiguration(ClashConfiguration):
         self._apply_mux(node, inbound.mux_settings)
 
         return self._normalize_and_remove_none_values(node)
+
+    @staticmethod
+    def _mihomo_hop_interval(interval) -> int | str | None:
+        """Mihomo parses hop-interval as seconds or a "min-max" range; a "s" suffix breaks the profile."""
+        if interval in (None, ""):
+            return None
+        value = str(interval).strip().removesuffix("s").strip()
+        if value.isascii() and value.isdigit():
+            return int(value)
+        low, _, high = value.partition("-")
+        # Anything else fails Mihomo's range parser; without the key it falls back to its own default.
+        return value if low.isascii() and low.isdigit() and high.isascii() and high.isdigit() else None
 
     def _build_wireguard(
         self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
