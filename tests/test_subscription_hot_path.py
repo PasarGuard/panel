@@ -141,6 +141,10 @@ async def test_subscription_and_headers_compute_rule_header_variables_once(db_se
 
     op = SubscriptionOperation(OperatorType.SYSTEM)
     monkeypatch.setattr("app.operation.subscription.subscription_settings", AsyncMock(return_value=sub_settings))
+    # The token is checked before the client rules run; "tok" is not a signed token
+    monkeypatch.setattr(
+        "app.operation.subscription.get_subscription_payload", AsyncMock(return_value={"user_id": user_id})
+    )
     monkeypatch.setattr(op, "get_validated_sub", AsyncMock(return_value=db_user))
     monkeypatch.setattr(op, "validate_and_register_hwid", AsyncMock())
     monkeypatch.setattr("app.operation.subscription.user_sub_update", AsyncMock())
