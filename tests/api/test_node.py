@@ -948,6 +948,15 @@ def test_sync_node_users_flushes_by_default(access_token, node_operator_mock):
     awaited_kwargs = node_operator_mock.sync_node_users.await_args.kwargs
     assert awaited_kwargs["node_id"] == 11
     assert awaited_kwargs["flush_users"] is True
+    assert awaited_kwargs["full"] is False  # deltas: the core keeps running
+
+
+def test_sync_node_users_full_snapshot_on_request(access_token, node_operator_mock):
+    node_operator_mock.sync_node_users.return_value = {"synced": True}
+    response = client.put("/api/node/11/sync", headers=auth_headers(access_token), params={"full": True})
+
+    assert response.status_code == status.HTTP_200_OK
+    assert node_operator_mock.sync_node_users.await_args.kwargs["full"] is True
 
 
 def test_remove_node(access_token, node_operator_mock):

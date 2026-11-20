@@ -43,6 +43,11 @@ _MAX_USER_SYNC_VALUE_BYTES = min(900_000, nats_settings.node_command_max_payload
 # A bulk entry write is retried on transport errors; a retry reuses the entry's key.
 _BULK_CREATE_ATTEMPTS = 5
 
+
+class UserSyncValueTooLargeError(RuntimeError):
+    """A user payload exceeds the queue's value limit; writing it again cannot succeed."""
+
+
 _nc: nats.NATS | None = None
 _user_sync_kv: KeyValue | None = None
 _lifecycle_kv: KeyValue | None = None
@@ -220,7 +225,7 @@ class NatsUserSyncStore:
     def _ensure_value_size(self, key: str, value: dict[str, Any]) -> None:
         size = len(json.dumps(value, separators=(",", ":")).encode())
         if size > _MAX_USER_SYNC_VALUE_BYTES:
-            raise RuntimeError(
+            raise UserSyncValueTooLargeError(
                 f"user sync KV value for key={key} is {size} bytes; exceeds limit {_MAX_USER_SYNC_VALUE_BYTES}"
             )
 
@@ -310,12 +315,35 @@ class NatsUserSyncStore:
         )
 
     async def _request_refresh_one(self, node_id: str, email: str) -> bool:
-        """Mark a user for re-derivation unless a payload (or claim) is already queued for it.
+        """Mark a user for re-derivation; give an existing entry a new revision.
 
-        Create-only: an existing entry is either a newer payload that will be
-        delivered anyway or an in-flight claim that must stay visible.
+        An existing entry is rewritten unchanged (a claim stays visible), so
+        nothing that read the state before this request can settle it:
+        a delivery under a claim may carry an older state, and the new revision
+        fails its acknowledgement, which releases the claim, so the entry is
+        delivered again from a fresh read; a full snapshot may have captured an
+        unclaimed entry before reading users, and the new revision survives its
+        retirement. Only the retry of a failed enqueue calls this.
         """
-        return await self._create_if_absent(self._pending_key(node_id, email), {"email": email, "refresh": True})
+        key = self._pending_key(node_id, email)
+        for attempt in range(8):
+            if await self._create_if_absent(key, {"email": email, "refresh": True}):
+                return True
+            doc, rev = await kv_get_json(self._kv, key)
+            if doc is None:
+                continue  # settled meanwhile: create the marker
+            claim = doc.get("claim")
+            until = float(claim.get("until", 0)) if isinstance(claim, dict) else 0.0
+            try:
+                revision = await self._kv.update(key, self._encode(doc), last=rev)
+            except nats_js_errors.KeyWrongLastSequenceError:
+                if attempt < 7:
+                    await cas_retry_backoff()
+                continue
+            self._key_index.observe_put(key, revision)
+            self._claims_seen[key] = (revision, until)
+            return False
+        raise RuntimeError(f"failed to request a refresh of NATS KV key={key} after CAS retries")
 
     async def request_refresh(self, node_id: str, emails: list[str]) -> None:
         """Durably ask any worker to re-derive these users before the next delivery.

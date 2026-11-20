@@ -433,6 +433,11 @@ class _QueuedBatchSync:
         active, _ = await self._fence_state()
         return active
 
+    async def has_queued_users(self) -> bool:
+        """Whether user updates are queued (or being delivered) for this node on any worker."""
+        has_pending = getattr(self._user_sync_store, "has_pending", None)
+        return bool(callable(has_pending) and await has_pending(self.node_id))
+
     async def _renew_full_sync(self, token: str, lease_seconds: float, held: FenceHold) -> None:
         renew = getattr(self._user_sync_store, "renew_full_sync", None)
         interval = max(lease_seconds / 3, 0.05)
