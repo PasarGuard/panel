@@ -24,7 +24,7 @@ import { queryClient } from '@/utils/query-client'
 import NodeModal from '@/features/nodes/dialogs/node-modal'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { nodeFormDefaultValues, nodeFormSchema, type NodeFormValues } from '@/features/nodes/forms/node-form'
+import { inferNodeVerification, nodeFormDefaultValues, nodeFormSchema, type NodeFormValues } from '@/features/nodes/forms/node-form'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { NodeFilters, NodePaginationControls } from '@/features/nodes/components/node-filters'
@@ -236,6 +236,8 @@ export default function NodesList() {
       usage_coefficient: node.usage_coefficient || 1,
       connection_type: node.connection_type,
       server_ca: node.server_ca,
+      certificate_sha256: node.certificate_sha256 ?? null,
+      verification: inferNodeVerification(node),
       keep_alive: node.keep_alive,
       keep_alive_unit: 'seconds',
       proxy_url: node.proxy_url ?? '',
@@ -249,25 +251,8 @@ export default function NodesList() {
     try {
       const shouldEnable = node.status === 'disabled'
       const newStatus = shouldEnable ? 'connected' : 'disabled'
-      const toOptional = <T,>(value: T | null | undefined): Exclude<T, null> | undefined => (value === null || value === undefined ? undefined : (value as Exclude<T, null>))
 
       const data: NodeModify = {
-        name: node.name,
-        address: node.address,
-        port: toOptional(node.port),
-        api_port: toOptional(node.api_port),
-        usage_coefficient: toOptional(node.usage_coefficient),
-        connection_type: node.connection_type,
-        server_ca: node.server_ca,
-        keep_alive: node.keep_alive,
-        core_config_id: toOptional(node.core_config_id),
-        api_key: toOptional(node.api_key),
-        data_limit: toOptional(node.data_limit),
-        data_limit_reset_strategy: toOptional(node.data_limit_reset_strategy),
-        reset_time: toOptional(node.reset_time),
-        default_timeout: toOptional(node.default_timeout),
-        internal_timeout: toOptional(node.internal_timeout),
-        proxy_url: node.proxy_url ?? null,
         status: newStatus,
       }
 

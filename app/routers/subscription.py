@@ -10,8 +10,13 @@ from app.operation.subscription import SubscriptionOperation
 from config import subscription_env_settings
 
 from .dependencies import get_subscription_headers, get_subscription_usage_query
+from .dependencies.subscription import warm_subscription_caches
 
-router = APIRouter(tags=["Subscription"], prefix=f"/{subscription_env_settings.path}")
+router = APIRouter(
+    tags=["Subscription"],
+    prefix=f"/{subscription_env_settings.path}",
+    dependencies=[Depends(warm_subscription_caches)],
+)
 subscription_operator = SubscriptionOperation(operator_type=OperatorType.API)
 
 

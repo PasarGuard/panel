@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/charts/empty-state'
 import UserSubUpdatePieChart from '@/components/charts/user-sub-update-pie-chart'
 import SystemStatisticsSection from './system-statistics-section'
 import { AllNodesStackedBarChart } from '@/components/charts/all-nodes-stacked-bar-chart'
+import { OutboundUsageChart } from '@/components/charts/outbound-usage-chart'
 import { AreaCostumeChart } from '@/components/charts/area-costume-chart'
 import { BarChart3 } from 'lucide-react'
 import { UserCountsChart } from '@/components/charts/user-counts-chart'
@@ -135,9 +136,10 @@ export default function StatisticsCharts({ data, usersData, isLoading, error, se
 
       {/* Charts Section */}
       <div className="space-y-8">
+        {canViewNodeStats && <div className="transform-gpu">{actualSelectedServer === 'master' ? <AllNodesStackedBarChart /> : <CostumeBarChart nodeId={selectedNodeId} />}</div>}
         {canViewNodeStats && (
           <div className="transform-gpu">
-            {actualSelectedServer === 'master' ? <AllNodesStackedBarChart /> : <CostumeBarChart nodeId={selectedNodeId} />}
+            <OutboundUsageChart nodeId={selectedNodeId} />
           </div>
         )}
         <div className="transform-gpu">

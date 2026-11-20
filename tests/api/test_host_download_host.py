@@ -1,4 +1,4 @@
-"""xHTTP download hosts: a parent host must keep working when its download host is removed, disabled or deleted."""
+"""xHTTP download hosts remain usable as download settings when disabled."""
 
 import asyncio
 from copy import deepcopy
@@ -203,31 +203,33 @@ def test_delete_download_host_after_parent_stops_using_it(download_pair):
     assert _download_addresses(pair.user["subscription_url"]) == []
 
 
-def test_bulk_disable_download_host_drops_it_from_parent(download_pair):
+def test_bulk_disable_download_host_keeps_it_in_parent(download_pair):
     pair = download_pair
     response = client.post("/api/hosts/bulk/disable", headers=pair.headers, json={"ids": [pair.download["id"]]})
     assert response.status_code == status.HTTP_200_OK, response.text
-    assert _download_addresses(pair.user["subscription_url"]) == []
+    assert pair.download["id"] not in host_manager._hosts
+    assert _download_addresses(pair.user["subscription_url"]) == ["download.example.com"]
 
     response = client.post("/api/hosts/bulk/enable", headers=pair.headers, json={"ids": [pair.download["id"]]})
     assert response.status_code == status.HTTP_200_OK, response.text
     assert _download_addresses(pair.user["subscription_url"]) == ["download.example.com"]
 
 
-def test_disable_download_host_by_edit_drops_it_from_parent(download_pair):
+def test_disable_download_host_by_edit_keeps_it_in_parent(download_pair):
     pair = download_pair
     download = {key: value for key, value in pair.download.items() if key != "id"}
     download["is_disabled"] = True
     response = client.put(f"/api/host/{pair.download['id']}", headers=pair.headers, json=download)
     assert response.status_code == status.HTTP_200_OK, response.text
-    assert _download_addresses(pair.user["subscription_url"]) == []
+    assert _download_addresses(pair.user["subscription_url"]) == ["download.example.com"]
 
-    # A full rebuild must not bring the disabled download host back
+    # A full rebuild must still use its settings without serving it separately
     asyncio.run(_full_host_refresh())
-    assert _download_addresses(pair.user["subscription_url"]) == []
+    assert pair.download["id"] not in host_manager._hosts
+    assert _download_addresses(pair.user["subscription_url"]) == ["download.example.com"]
 
 
-def test_unusable_download_host_does_not_fall_back_to_inbound_download_settings(download_pair):
+def test_disabled_download_host_overrides_inbound_download_settings(download_pair):
     pair = download_pair
     # The parent's inbound has its own downloadSettings, which hosts without a download host inherit
     up_inbound = deepcopy(pair.up_inbound)
@@ -243,13 +245,13 @@ def test_unusable_download_host_does_not_fall_back_to_inbound_download_settings(
     asyncio.run(_full_host_refresh())
     assert _download_addresses(pair.user["subscription_url"]) == ["download.example.com"]
 
-    # The parent chose a download host: while that host is disabled the parent is served without one
+    # The parent keeps its selected download host even while that host is disabled
     response = client.post("/api/hosts/bulk/disable", headers=pair.headers, json={"ids": [pair.download["id"]]})
     assert response.status_code == status.HTTP_200_OK, response.text
-    assert _download_addresses(pair.user["subscription_url"]) == []
+    assert _download_addresses(pair.user["subscription_url"]) == ["download.example.com"]
     asyncio.run(_full_host_refresh())
     asyncio.run(_host_manager_setup())
-    assert _download_addresses(pair.user["subscription_url"]) == []
+    assert _download_addresses(pair.user["subscription_url"]) == ["download.example.com"]
 
     # A parent without a download host still inherits the inbound's downloadSettings
     parent = {key: value for key, value in pair.parent.items() if key != "id"}
@@ -269,9 +271,9 @@ class _FakeKV:
 
 
 def test_host_snapshot_written_before_the_download_host_checks_is_not_loaded():
-    # "state_v3" snapshots can embed a disabled download host, so setup() must rebuild the hosts from the database
+    # Older snapshots must be rebuilt with the current download-host behavior
     manager = hosts_module.HostManager()
-    manager._kv = _FakeKV({"state_v3": b"{}"})
+    manager._kv = _FakeKV({"state_v4": b"{}"})
     assert asyncio.run(manager._load_state_from_cache()) is False
 
     manager._kv = _FakeKV({hosts_module.HostManager.STATE_CACHE_KEY: b"{}"})

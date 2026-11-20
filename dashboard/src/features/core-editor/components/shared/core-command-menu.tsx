@@ -11,6 +11,7 @@ const xraySections: { id: XrayCoreSection; labelKey: string; defaultLabel: strin
   { id: 'routing', labelKey: 'coreEditor.section.routing', defaultLabel: 'Routing' },
   { id: 'balancers', labelKey: 'coreEditor.section.balancers', defaultLabel: 'Balancers' },
   { id: 'dns', labelKey: 'coreEditor.section.dns', defaultLabel: 'DNS' },
+  { id: 'geodata', labelKey: 'coreEditor.section.geodata', defaultLabel: 'Geodata' },
   { id: 'bindings', labelKey: 'coreEditor.section.bindings', defaultLabel: 'Bindings' },
   { id: 'api', labelKey: 'coreEditor.section.api', defaultLabel: 'API' },
   { id: 'advanced', labelKey: 'coreEditor.section.advanced', defaultLabel: 'Advanced (JSON)' },

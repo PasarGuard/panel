@@ -32,6 +32,7 @@ def setup_node(monkeypatch, *, health=Health.HEALTHY, state=None):
         get_versions=AsyncMock(return_value=(info.node_version, info.core_version)),
         get_lifecycle_state=AsyncMock(return_value=state),
         info=AsyncMock(return_value=info),
+        set_reported_versions=AsyncMock(),
         connect=AsyncMock(),
         _work_available=asyncio.Event(),
         _ensure_sync_worker_running=AsyncMock(),

@@ -680,18 +680,23 @@ async def reset_admin_usage(db: AsyncSession, db_admin: Admin) -> Admin:
     """
     await delete_admin_notification_reminders(db, db_admin.id, ReminderType.data_usage)
 
-    if db_admin.used_traffic == 0:
-        await db.commit()
-        return db_admin
+    logged = (
+        await db.execute(select(Admin.used_traffic).where(Admin.id == db_admin.id).with_for_update())
+    ).scalar_one()
 
-    usage_log = AdminUsageLogs(admin_id=db_admin.id, used_traffic_at_reset=db_admin.used_traffic)
-    db.add(usage_log)
-    db_admin.used_traffic = 0
+    if logged != 0:
+        db.add(AdminUsageLogs(admin_id=db_admin.id, used_traffic_at_reset=logged))
+        await db.execute(
+            update(Admin)
+            .where(Admin.id == db_admin.id)
+            .values(used_traffic=Admin.used_traffic - logged)
+            .execution_options(synchronize_session=False)
+        )
 
-    # After reset, used_traffic = 0 so the admin is no longer limited
-    if db_admin.status == AdminStatus.limited:
-        db_admin.status = AdminStatus.active
-        db_admin.last_status_change = datetime.now(UTC)
+        # After reset, used_traffic = 0 so the admin is no longer limited
+        if db_admin.status == AdminStatus.limited:
+            db_admin.status = AdminStatus.active
+            db_admin.last_status_change = datetime.now(UTC)
 
     await db.commit()
     await db.refresh(db_admin)

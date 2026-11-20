@@ -13,9 +13,11 @@ import type { SectionHeaderAddPulse } from '@/features/core-editor/hooks/use-sec
 import { useXrayPersistValidationItems } from '@/features/core-editor/hooks/use-xray-persist-validation-items'
 import { WireGuardCoreEditor } from '@/features/core-editor/components/wg/wireguard-core-editor'
 import { XrayCoreEditor } from '@/features/core-editor/components/xray/xray-core-editor'
+import { MtprotoCoreEditorPage } from '@/features/core-editor/routes/mtproto-core-editor-page'
 import { profileToPersistedConfig } from '@/features/core-editor/kit/xray-adapter'
 import { getWireGuardPersistConfig } from '@/features/core-editor/kit/wireguard-adapter'
 import { selectCoreEditorHasActualChanges, selectCoreEditorNoteOnlyChange } from '@/features/core-editor/kit/core-editor-change-state'
+import { carriedCoreName } from '@/features/core-editor/kit/core-kind'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import type { WgCoreSection, XrayCoreSection } from '@/features/core-editor/state/core-editor-store'
 import type { CoreKind } from '@pasarguard/core-kit'
@@ -24,7 +26,7 @@ import { queryClient } from '@/utils/query-client'
 import { ArrowLeft } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useParams, useSearchParams } from 'react-router'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -154,10 +156,43 @@ function CoreEditorLoadingSkeleton({ coreKind }: { coreKind?: LoadingCoreKind })
   )
 }
 
+/**
+ * Picks the editor before any core reaches the Xray/WireGuard store: an MTProto core (new with `kind=mtproto`,
+ * or a loaded core of type `mtproto`) gets {@link MtprotoCoreEditorPage}, every other core the store page.
+ */
 export default function CoreEditorPage() {
+  const { coreId: coreIdParam } = useParams<{ coreId: string }>()
+  const [searchParams] = useSearchParams()
+  const isNew = coreIdParam === 'new'
+  const numericId = coreIdParam && !isNew ? Number(coreIdParam) : NaN
+  const validId = Number.isFinite(numericId) && numericId > 0
+
+  const { data: coreData, isLoading } = useGetCoreConfig(validId ? numericId : 0, {
+    query: { enabled: validId },
+  })
+
+  if (isNew) {
+    return searchParams.get('kind') === 'mtproto' ? <MtprotoCoreEditorPage coreId={null} /> : <StoreCoreEditorPage />
+  }
+
+  if (validId && isLoading) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <CoreEditorLoadingSkeleton />
+      </div>
+    )
+  }
+
+  if (validId && coreData?.type === 'mtproto') return <MtprotoCoreEditorPage coreId={numericId} />
+
+  return <StoreCoreEditorPage />
+}
+
+function StoreCoreEditorPage() {
   const dir = useDirDetection()
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const location = useLocation()
   const { coreId: coreIdParam } = useParams<{ coreId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const isNew = coreIdParam === 'new'
@@ -219,10 +254,11 @@ export default function CoreEditorPage() {
   useEffect(() => {
     if (isNew) {
       const k = (searchParams.get('kind') as CoreKind | null) === 'wg' ? 'wg' : 'xray'
-      const currentName = useCoreEditorStore.getState().coreName
+      // A switch from the MTProto page carries the name in the location state.
+      const currentName = useCoreEditorStore.getState().coreName || carriedCoreName(location.state)
       initNew(k, currentName)
     }
-  }, [isNew, initNew, searchParams])
+  }, [isNew, initNew, searchParams, location.state])
 
   const serverConfigJson = useMemo(() => (validId && coreData ? JSON.stringify(coreData.config) : null), [validId, coreData])
 
@@ -435,11 +471,12 @@ export default function CoreEditorPage() {
                   setSearchParams(
                     prev => {
                       const p = new URLSearchParams(prev)
-                      if (nextKind === 'wg') p.set('kind', 'wg')
+                      if (value === 'mtproto') p.set('kind', 'mtproto')
+                      else if (nextKind === 'wg') p.set('kind', 'wg')
                       else p.delete('kind')
                       return p
                     },
-                    { replace: true },
+                    { replace: true, state: value === 'mtproto' ? { coreName } : undefined },
                   )
                   return
                 }
@@ -452,6 +489,7 @@ export default function CoreEditorPage() {
               <SelectContent>
                 <SelectItem value="xray">Xray</SelectItem>
                 <SelectItem value="wg">WireGuard</SelectItem>
+                {isNew && <SelectItem value="mtproto">MTProto</SelectItem>}
               </SelectContent>
             </Select>
           </div>
@@ -521,6 +559,10 @@ export default function CoreEditorPage() {
       dns: {
         title: 'coreEditor.section.dns',
         description: 'coreEditor.sectionDesc.dns',
+      },
+      geodata: {
+        title: 'coreEditor.section.geodata',
+        description: 'coreEditor.sectionDesc.geodata',
       },
       bindings: {
         title: 'coreEditor.section.bindings',

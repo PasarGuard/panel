@@ -1,7 +1,7 @@
 from app.models.admin import AdminDetails
 from app.models.settings import NotificationSettings
 from app.notification.client import send_discord_webhook
-from app.notification.helpers import get_discord_webhook
+from app.notification.helpers import get_discord_webhook, mask_password
 from app.settings import notification_settings
 from app.utils.helpers import escape_ds_markdown_list
 from app.utils.system import readable_size
@@ -108,7 +108,7 @@ async def admin_usage_limit_reached(admin: AdminDetails, usage_percentage: int, 
 
 
 async def admin_login(username: str, password: str, client_ip: str, success: bool):
-    username, password = escape_ds_markdown_list((username, password))
+    username, password = escape_ds_markdown_list((username, mask_password(password)))
     message = {**messages.ADMIN_LOGIN, "footer": dict(messages.ADMIN_LOGIN["footer"])}
     message["description"] = message["description"].format(
         username=username,

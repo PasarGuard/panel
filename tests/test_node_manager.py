@@ -184,3 +184,38 @@ async def test_update_node_replaces_on_name_or_coefficient_change(monkeypatch: p
     node3 = _make_node(1, name="new-name", usage_coefficient=2.0)
     third = await manager.update_node(node3)
     assert third is not second
+
+
+@pytest.mark.asyncio
+async def test_update_node_construction_failure_releases_lock_and_preserves_error(monkeypatch: pytest.MonkeyPatch):
+    manager = NodeManager()
+
+    monkeypatch.setattr("app.node.ensure_bridge_memory", lambda: _AwaitableNone())
+    monkeypatch.setattr("app.node.get_bridge_memory", lambda: (None, None, None))
+
+    node = _make_node(1)
+    monkeypatch.setattr("app.node.create_node", lambda **kwargs: _FakePGNode(**kwargs))
+    await manager.update_node(node)
+
+    lock_held_during_shutdown = None
+
+    async def fake_shutdown(old, remote_stop=True):
+        nonlocal lock_held_during_shutdown
+        lock_held_during_shutdown = manager._lock.writer_lock.locked
+        raise RuntimeError("shutdown failed")
+
+    monkeypatch.setattr(manager, "_shutdown_node", fake_shutdown)
+
+    class ConstructionError(Exception):
+        pass
+
+    def fail_create(**kwargs):
+        raise ConstructionError("bridge build error")
+
+    monkeypatch.setattr("app.node.create_node", fail_create)
+
+    with pytest.raises(ConstructionError, match="bridge build error"):
+        await manager.update_node(_make_node(1, api_key="rotated-key"))
+
+    assert lock_held_during_shutdown is False
+

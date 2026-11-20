@@ -51,6 +51,12 @@ class SingBoxConfiguration(BaseSubscription):
             "wireguard": self._build_wireguard,
         }
 
+        # Xray accepts short chacha names; sing-box knows only the -ietf- ones
+        self.shadowsocks_methods = {
+            "chacha20-poly1305": "chacha20-ietf-poly1305",
+            "xchacha20-poly1305": "xchacha20-ietf-poly1305",
+        }
+
     def add_outbound(self, outbound_data):
         self.config["outbounds"].append(outbound_data)
 
@@ -327,9 +333,13 @@ class SingBoxConfiguration(BaseSubscription):
             "tag": remark,
             "server": address,
             "server_port": self._select_port(inbound.port),
-            "method": method,
+            "method": self.shadowsocks_methods.get(method, method),
             "password": password,
         }
+
+        if (obfs_host := self._shadowsocks_http_obfs_host(inbound)) is not None:
+            config["plugin"] = "obfs-local"
+            config["plugin_opts"] = f"obfs=http;obfs-host={obfs_host}" if obfs_host else "obfs=http"
 
         return self._normalize_and_remove_none_values(config)
 

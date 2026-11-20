@@ -6,12 +6,14 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { FormField, FormItem, FormLabel, FormControl } from '@/components/ui/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Plus, Trash2, Copy, SlidersHorizontal } from 'lucide-react'
+import { Plus, Trash2, Copy, SlidersHorizontal, Info } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { CodeEditorPanel } from '@/components/common/code-editor-panel'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 
 export interface XrayStreamFinalmaskFieldsProps {
@@ -19,6 +21,7 @@ export interface XrayStreamFinalmaskFieldsProps {
   onChange: (next: Record<string, any> | undefined) => void
   t: (key: string, opts?: Record<string, unknown>) => string
   allowClientOnlyMasks?: boolean
+  allowServerOnlyMasks?: boolean
 }
 
 function pruneQuicParams(q: any): any | undefined {
@@ -102,7 +105,7 @@ function hasFinalmaskContent(value: Record<string, any> | undefined): boolean {
   )
 }
 
-export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMasks = true }: XrayStreamFinalmaskFieldsProps) {
+export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMasks = true, allowServerOnlyMasks = false }: XrayStreamFinalmaskFieldsProps) {
   const dir = useDirDetection()
 
   const form = useForm<any>({
@@ -148,7 +151,7 @@ export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMask
         </TabsList>
 
         <TabsContent dir={dir} value="tcp">
-          <TcpLayersForm form={form} />
+          <TcpLayersForm form={form} allowServerOnlyMasks={allowServerOnlyMasks} />
         </TabsContent>
 
         <TabsContent dir={dir} value="udp">
@@ -166,7 +169,7 @@ export function XrayStreamFinalmaskFields({ value, onChange, allowClientOnlyMask
 // ==========================================
 // TCP Layers component
 // ==========================================
-function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
+function TcpLayersForm({ form, allowServerOnlyMasks }: { form: UseFormReturn<any>; allowServerOnlyMasks: boolean }) {
   const { t } = useTranslation()
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -185,7 +188,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
     })
   }
 
-  const handleTypeChange = (index: number, newType: FinalMaskTcpType) => {
+  const handleTypeChange = (index: number, newType: FinalMaskTcpType | 'filter') => {
     form.setValue(`tcp.${index}.type`, newType)
     if (newType === 'fragment') {
       form.setValue(`tcp.${index}.settings`, {
@@ -215,6 +218,11 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
         usernames: [],
         password: '',
       })
+    } else if (newType === 'filter') {
+      form.setValue(`tcp.${index}.settings`, {
+        allowedSourceIPs: [],
+        blockedSourceIPs: [],
+      })
     }
   }
 
@@ -241,7 +249,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
                     name={`tcp.${index}.type`}
                     render={({ field: selectField }) => (
                       <FormItem className="w-48">
-                        <Select onValueChange={val => handleTypeChange(index, val as FinalMaskTcpType)} value={selectField.value || ''}>
+                        <Select onValueChange={val => handleTypeChange(index, val as FinalMaskTcpType | 'filter')} value={selectField.value || ''}>
                           <FormControl>
                             <SelectTrigger className="h-8">
                               <SelectValue placeholder={t('hostsDialog.finalmask.selectType')} />
@@ -252,6 +260,7 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
                             <SelectItem value="sudoku">sudoku</SelectItem>
                             <SelectItem value="header-custom">header-custom</SelectItem>
                             <SelectItem value="xmc">xmc</SelectItem>
+                            {(allowServerOnlyMasks || selectField.value === 'filter') && <SelectItem value="filter">filter</SelectItem>}
                           </SelectContent>
                         </Select>
                       </FormItem>
@@ -276,6 +285,8 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
               )}
 
               {type === 'xmc' && <XmcSettingsForm prefix={`tcp.${index}.settings`} form={form} />}
+
+              {type === 'filter' && <TcpFilterSettingsForm prefix={`tcp.${index}.settings`} form={form} />}
             </div>
           )
         })}
@@ -286,6 +297,51 @@ function TcpLayersForm({ form }: { form: UseFormReturn<any> }) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function TcpFilterSettingsForm({ prefix, form }: { prefix: string; form: UseFormReturn<any> }) {
+  const { t } = useTranslation()
+
+  return (
+    <div className="bg-background space-y-3 rounded-md border p-3">
+      <p className="text-muted-foreground text-xs">
+        {t('hostsDialog.finalmask.filterHint', { defaultValue: 'Inbound only. Place filter last so it is the outermost TCP layer. Blocked IPs take precedence over allowed IPs.' })}
+      </p>
+      {(['allowedSourceIPs', 'blockedSourceIPs'] as const).map(key => (
+        <FormField
+          key={key}
+          control={form.control}
+          name={`${prefix}.${key}`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs">
+                {key === 'allowedSourceIPs'
+                  ? t('hostsDialog.finalmask.allowedSourceIPs', { defaultValue: 'Allowed source IPs' })
+                  : t('hostsDialog.finalmask.blockedSourceIPs', { defaultValue: 'Blocked source IPs' })}
+              </FormLabel>
+              <FormControl>
+                <StringArrayPopoverInput
+                  value={Array.isArray(field.value) ? field.value : []}
+                  onChange={field.onChange}
+                  placeholder={t('hostsDialog.finalmask.sourceIPsPlaceholder', { defaultValue: 'Add CIDR or geoip:cn' })}
+                  addPlaceholder={t('arrayInput.addPlaceholder')}
+                  addButtonLabel={t('arrayInput.addButton')}
+                  itemsLabel={t('arrayInput.items')}
+                  emptyMessage={t('arrayInput.noItems')}
+                  duplicateErrorMessage={t('arrayInput.duplicateError')}
+                  clickToEditTitle={t('arrayInput.clickToEdit')}
+                  editItemTitle={t('arrayInput.editItem')}
+                  removeItemTitle={t('arrayInput.removeItem')}
+                  saveEditTitle={t('arrayInput.saveEdit')}
+                  cancelEditTitle={t('arrayInput.cancelEdit')}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+      ))}
     </div>
   )
 }
@@ -1447,6 +1503,53 @@ interface XrayNoiseSettingsListProps {
   allowExp?: boolean
 }
 
+function NoiseExpPacketInfo() {
+  const { t } = useTranslation()
+  const dir = useDirDetection()
+  const isMobile = useIsMobile()
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-4 w-4 p-0 hover:bg-transparent"
+          aria-label={t('hostsDialog.finalmask.noiseExpSyntaxTitle', { defaultValue: 'Expression packet syntax' })}
+        >
+          <Info className="text-muted-foreground h-4 w-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[min(90vw,20rem)] p-3 sm:w-80" side={isMobile ? 'bottom' : 'top'} align={dir === 'rtl' ? 'end' : 'start'} sideOffset={5}>
+        <div className="space-y-1.5">
+          <h4 className="mb-2 text-[11px] font-medium">{t('hostsDialog.finalmask.noiseExpSyntaxTitle', { defaultValue: 'Expression packet syntax' })}</h4>
+          <div className="text-muted-foreground max-h-[60vh] space-y-1 overflow-y-auto pr-1 text-[11px] leading-relaxed">
+            <p>{t('hostsDialog.finalmask.noiseExpSyntaxIntro', { defaultValue: 'Join these parts in order to build one packet. The expression is evaluated again for every send.' })}</p>
+            <ul className="list-inside list-disc space-y-1">
+              {([
+                ['<b hex>', 'noiseExpBytes'],
+                ['<r N> / <r A-B>', 'noiseExpRandom'],
+                ['<rc N> / <rc A-B>', 'noiseExpLetters'],
+                ['<rd N> / <rd A-B>', 'noiseExpDigits'],
+                ['<t>', 'noiseExpTime'],
+                ['<c>', 'noiseExpCounter'],
+                ['<n>', 'noiseExpNonce'],
+              ] as const).map(([syntax, key]) => (
+                <li key={key}><code dir="ltr">{syntax}</code> — {t(`hostsDialog.finalmask.${key}`)}</li>
+              ))}
+            </ul>
+            <p>
+              {t('hostsDialog.finalmask.noiseExpExample', { defaultValue: 'Example:' })}{' '}
+              <code dir="ltr">{'<b 0d0a0d0a><t><r 24>'}</code>
+            </p>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSettingsListProps) {
   const { t } = useTranslation()
   const { fields, append, remove, insert } = useFieldArray({
@@ -1545,7 +1648,10 @@ function XrayNoiseSettingsList({ form, name, label, allowExp }: XrayNoiseSetting
                 name={`${name}.${index}.packet`}
                 render={({ field: inputField }) => (
                   <FormItem className="min-w-0 sm:col-span-2">
-                    <FormLabel className="text-xs">{t('hostsDialog.noise.packet')}</FormLabel>
+                    <div className="flex items-center gap-1">
+                      <FormLabel className="text-xs">{t('hostsDialog.noise.packet')}</FormLabel>
+                      {isExpType && <NoiseExpPacketInfo />}
+                    </div>
                     <FormControl>
                       {isArrayType ? (
                         <StringArrayPopoverInput
@@ -1656,7 +1762,7 @@ export function XrayStreamFinalmaskInboundAccordion({ accordionItemClassName, va
               }}
             />
           </div>
-          {enabled && <XrayStreamFinalmaskFields value={value} onChange={onChange} t={t} />}
+          {enabled && <XrayStreamFinalmaskFields value={value} onChange={onChange} t={t} allowServerOnlyMasks />}
         </AccordionContent>
       </AccordionItem>
     </Accordion>

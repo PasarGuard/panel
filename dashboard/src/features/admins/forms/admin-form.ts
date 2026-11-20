@@ -72,6 +72,8 @@ export const adminFormSchema = z
         reset_data_usage: z.boolean().optional(),
         data_reset_by_next: z.boolean().optional(),
         subscription_revoked: z.boolean().optional(),
+        percentage_reached: z.boolean().optional(),
+        days_left: z.boolean().optional(),
       })
       .optional(),
     permission_overrides: z
@@ -161,6 +163,8 @@ export const adminFormDefaultValues: Partial<AdminFormValuesInput> = {
     reset_data_usage: true,
     data_reset_by_next: true,
     subscription_revoked: true,
+    percentage_reached: false,
+    days_left: false,
   },
   permission_overrides: adminPermissionOverridesDefaultValues,
 }

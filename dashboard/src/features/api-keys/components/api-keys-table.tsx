@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Calendar as CalendarIcon, KeyRound, MoreVertical, Pencil, RotateCcw, ShieldCheck, Trash2, UserRound } from 'lucide-react'
+import { Calendar as CalendarIcon, Gauge, KeyRound, MoreVertical, Pencil, RotateCcw, ShieldCheck, Trash2, UserRound } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -125,6 +125,20 @@ function ApiKeyActionsMenu({
 
 function formatApiKeyExpireDate(date: string | number | Date, language: string): string {
   return formatDateByLocale(dateUtils.toDayjs(date).toDate(), language.toLowerCase().startsWith('fa'), true)
+}
+
+function ApiKeyUsage({ apiKey, unlimitedLabel }: { apiKey: APIKeyResponse; unlimitedLabel: string }) {
+  if (!apiKey.max_requests) {
+    return <span className="text-muted-foreground">{unlimitedLabel}</span>
+  }
+
+  const isAtLimit = (apiKey.request_count ?? 0) >= apiKey.max_requests
+
+  return (
+    <span className={cn('truncate', isAtLimit && 'text-destructive font-medium')}>
+      {apiKey.request_count ?? 0} / {apiKey.max_requests}
+    </span>
+  )
 }
 
 function ApiKeyStatusBadge({ apiKey, compactOnMobile = true }: { apiKey: APIKeyResponse; compactOnMobile?: boolean }) {
@@ -256,6 +270,14 @@ function ApiKeyCard({
               <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
               <span dir="ltr" className={cn('truncate', apiKey.is_expired && 'text-destructive font-medium')}>{apiKey.expire_date ? formatApiKeyExpireDate(apiKey.expire_date, i18n.language) : t('never')}</span>
             </div>
+            {apiKey.max_requests ? (
+              <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 leading-none">
+                <Gauge className="h-3.5 w-3.5 shrink-0" />
+                <span dir="ltr">
+                  <ApiKeyUsage apiKey={apiKey} unlimitedLabel={t('unlimited')} />
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -369,6 +391,18 @@ export default function ApiKeysTable({
         cell: apiKey => (
           <span dir="ltr" className={cn('text-muted-foreground truncate text-sm', apiKey.is_expired && 'font-medium text-amber-600 dark:text-amber-400')}>
             {apiKey.expire_date ? formatApiKeyExpireDate(apiKey.expire_date, i18n.language) : t('never')}
+          </span>
+        ),
+      },
+      {
+        id: 'usage',
+        header: t('apiKeys.requestCount'),
+        width: 'minmax(7rem, 0.8fr)',
+        hideOnMobile: true,
+        skeletonClassName: 'w-16',
+        cell: apiKey => (
+          <span dir="ltr" className="text-muted-foreground truncate text-sm">
+            <ApiKeyUsage apiKey={apiKey} unlimitedLabel={t('unlimited')} />
           </span>
         ),
       },

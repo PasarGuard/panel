@@ -1,26 +1,25 @@
-from aiocache import cached
-
 from app.db import GetDB
 from app.db.crud.client_template import get_client_template_contents_by_type, get_client_template_values
 from app.models.client_template import ClientTemplateType
 from app.subscription.config_cache import clear_sub_config_cache
+from app.utils.single_flight_cache import single_flight_cached
 
 
-@cached()
+@single_flight_cached
 async def subscription_client_templates() -> dict[str, str]:
     async with GetDB() as db:
         return await get_client_template_values(db)
 
 
-@cached()
+@single_flight_cached
 async def subscription_xray_templates() -> dict[int, str]:
     async with GetDB() as db:
         return await get_client_template_contents_by_type(db, ClientTemplateType.xray_subscription)
 
 
 async def refresh_client_templates_cache() -> None:
-    await subscription_client_templates.cache.clear()
-    await subscription_xray_templates.cache.clear()
+    await subscription_client_templates.refresh()
+    await subscription_xray_templates.refresh()
     clear_sub_config_cache()
 
 

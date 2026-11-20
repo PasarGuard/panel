@@ -28,7 +28,13 @@ from tests.api.helpers import (
     unique_name,
 )
 
-XDRIVE_SETTINGS = {"remoteFolder": "pg-test", "service": "gdrive", "secrets": ["test-secret"], "segmentBytes": 65536}
+XDRIVE_SETTINGS = {
+    "remoteFolder": "pg-test",
+    "service": "s3",
+    "secrets": ["test-key-id", "test-secret"],
+    "segmentBytes": 65536,
+    "s3": {"endpoint": "https://s3.example", "region": "ru-msk", "bucket": "pg-bucket", "pathStyle": False},
+}
 
 
 def _core_config(xdrive_tag: str, tcp_tag: str) -> dict:

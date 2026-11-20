@@ -20,6 +20,7 @@ from app.db.crud.node import (
     get_node_by_id,
     get_node_stats,
     get_nodes,
+    get_nodes_outbound_usage,
     get_nodes_simple,
     get_nodes_usage,
     modify_node,
@@ -43,6 +44,7 @@ from app.models.node import (
     NodeListQuery,
     NodeModify,
     NodeNotification,
+    NodeOutboundUsageQuery,
     NodeResponse,
     NodeSimple,
     NodeSimpleListQuery,
@@ -56,7 +58,9 @@ from app.models.node import (
     UserIPListAll,
 )
 from app.models.stats import (
+    USAGE_RECORD_GRANULARITY,
     NodeOutboundsLatencyResponse,
+    NodeOutboundUsageStatsList,
     NodeRealtimeStats,
     NodeStatsList,
     NodeUsageStatsList,
@@ -73,10 +77,33 @@ from app.node.heartbeat import heartbeat_interval, keep_alive_too_short, shortes
 from app.node.manager_sync import publish_node_sync
 from app.node.nats_memory import clear_bridge_memory_for_node
 from app.operation import BaseOperation, OperatorType
+from app.operation.permissions import PermissionDenied, enforce_permission
 from app.utils.logger import get_logger
 from config import runtime_settings
 
 MAX_MESSAGE_LENGTH = 128
+
+
+def _can_view_node_secrets(admin: AdminDetails | None) -> bool:
+    """The node api_key is a credential: only node managers may read it."""
+    if admin is None:
+        return False
+    if admin.is_owner:
+        return True
+    for action in ("create", "update"):
+        try:
+            enforce_permission(admin, "nodes", action)
+        except PermissionDenied:
+            continue
+        return True
+    return False
+
+
+def _hide_node_secrets(node: NodeResponse) -> NodeResponse:
+    node.api_key = None
+    return node
+
+
 # Cap parallel start/attach so ~100 nodes don't stampede NATS lifecycle KV.
 CONNECT_CONCURRENCY = 10
 NODE_RESTART_FIELDS = frozenset({"core_config_id", "keep_alive"})
@@ -92,10 +119,45 @@ logger = get_logger("node-operation")
 _MAINTENANCE_RPC_TIMEOUT = 340.0
 
 
+# The node gives telemt up to 90 s to start and keeps starting after the panel's call times out.
+MTPROTO_START_TIMEOUT = 100
+MTPROTO_UNSUPPORTED_NODE_MESSAGE = (
+    'This node does not support MTProto cores (it answered "invalid backend type"). Update your node.'
+)
+MTPROTO_SYNC_PENDING_MESSAGE = "The node is still applying the users and finishes on its own. Check again in a minute."
+_MTPROTO_RETRY_LATER_MARKERS = ("the users are still being applied", "context deadline exceeded")
+
+_BACKEND_TYPES: dict[CoreType, int] = {
+    CoreType.xray: service.BackendType.XRAY,
+    CoreType.wg: service.BackendType.WIREGUARD,
+    CoreType.mtproto: service.BackendType.MTPROTO,
+}
+
+
+def backend_type_for_core(core_type: CoreType | None) -> int | None:
+    """The node backend that runs ``core_type``: ``None`` means Xray, and ``None`` is returned for unknown types."""
+    return _BACKEND_TYPES.get(core_type or CoreType.xray)
+
+
+def is_mtproto_retry_later_error(error: NodeAPIError) -> bool:
+    """Whether an MTProto node error means "still applying, check later" rather than a node failure.
+
+    A client-side timeout is code -1: "Request timed out" over gRPC, "Timeout error: ..." over REST.
+    """
+    detail = error.detail or ""
+    if error.code == -1 and (detail == "Request timed out" or detail.startswith("Timeout error")):
+        return True
+    detail = detail.lower()
+    return error.code in (503, 504) or any(marker in detail for marker in _MTPROTO_RETRY_LATER_MARKERS)
+
+
 class NodeOperation(BaseOperation):
     # Local Start RPCs in progress on this process. Health checks must not fire a
     # second Start just because pg-node still returns "core is not started yet".
     _in_flight_connects: ClassVar[set[int]] = set()
+    # Node id to consecutive MTProto Start timeouts. The first one is retried on the
+    # next check instead of failing the node, since the node keeps starting telemt.
+    _mtproto_start_timeouts: ClassVar[dict[int, int]] = {}
 
     def __init__(self, operator_type: OperatorType):
         """Select local or remote node-operation handlers for this process role."""
@@ -117,6 +179,7 @@ class NodeOperation(BaseOperation):
             self._get_user_online_stats_impl = self._get_user_online_stats_local
             self._get_user_ip_list_impl = self._get_user_ip_list_local
             self._get_user_ip_list_all_impl = self._get_user_ip_list_all_local
+            self._hard_reset_node_impl = self._hard_reset_node_local
             self._update_node_api_impl = self._update_node_api_local
             self._update_core_impl = self._update_core_local
             self._update_geofiles_impl = self._update_geofiles_local
@@ -135,6 +198,7 @@ class NodeOperation(BaseOperation):
             self._get_user_online_stats_impl = self._get_user_online_stats_remote
             self._get_user_ip_list_impl = self._get_user_ip_list_remote
             self._get_user_ip_list_all_impl = self._get_user_ip_list_all_remote
+            self._hard_reset_node_impl = self._hard_reset_node_remote
             self._update_node_api_impl = self._update_node_api_remote
             self._update_core_impl = self._update_core_remote
             self._update_geofiles_impl = self._update_geofiles_remote
@@ -151,6 +215,7 @@ class NodeOperation(BaseOperation):
         self,
         db: AsyncSession,
         query: NodeListQuery,
+        admin: AdminDetails | None = None,
     ) -> NodesResponse:
         db_nodes, count = await get_nodes(
             db=db,
@@ -159,7 +224,18 @@ class NodeOperation(BaseOperation):
             load_lifetime_usage=True,
         )
         node_responses = [NodeResponse.model_validate(node) for node in db_nodes]
+        if not _can_view_node_secrets(admin):
+            for node in node_responses:
+                _hide_node_secrets(node)
         return NodesResponse(nodes=node_responses, total=count)
+
+    async def get_node_response(
+        self, db: AsyncSession, node_id: int, admin: AdminDetails | None = None
+    ) -> NodeResponse:
+        """Single-node read response with the node credential hidden from read-only roles."""
+        db_node = await self.get_validated_node(db=db, node_id=node_id)
+        response = NodeResponse.model_validate(db_node)
+        return response if _can_view_node_secrets(admin) else _hide_node_secrets(response)
 
     async def get_nodes_simple(
         self,
@@ -260,8 +336,9 @@ class NodeOperation(BaseOperation):
 
     @staticmethod
     async def _get_core_users_map(
-        db: AsyncSession, core_ids: set[int], *, lazy: bool = False
+        db: AsyncSession, core_ids: set[int], *, lazy: bool = False, lock: asyncio.Lock | None = None
     ) -> tuple[dict[int, object | None], dict[int, CoreUsers]]:
+        """Resolve each core and its users; deferred reads hold ``lock``, which callers share for other ``db`` work."""
         if not core_ids:
             return {}, {}
 
@@ -270,7 +347,7 @@ class NodeOperation(BaseOperation):
         cores_by_id: dict[int, object | None] = {}
         users_by_core: dict[int, CoreUsers] = {}
         loaded_users: dict[int, list] = {}
-        load_lock = asyncio.Lock()
+        load_lock = lock or asyncio.Lock()
 
         def user_loader(core_id, core):
             async def load():
@@ -304,6 +381,12 @@ class NodeOperation(BaseOperation):
             await pg_node._ensure_sync_worker_running()
 
     @staticmethod
+    def _drop_mtproto_start_timeouts(node_id: object) -> None:
+        """Forget a node's MTProto Start timeouts; bridge nodes carry the panel id as a string."""
+        with contextlib.suppress(TypeError, ValueError):
+            NodeOperation._mtproto_start_timeouts.pop(int(node_id), None)
+
+    @staticmethod
     async def _attach_if_running(pg_node: PasarGuardNode, node_name: str):
         """Attach to an already-started remote core without calling Start RPC."""
         try:
@@ -332,6 +415,8 @@ class NodeOperation(BaseOperation):
             await NodeOperation._resume_shared_sync(pg_node)
             if state is not None:
                 await pg_node.update_observed_lifecycle(LifecycleStatus.HEALTHY, expected_epoch=state.epoch)
+            # The health checker attaches a late-started core directly, so connect_node never sees it.
+            NodeOperation._drop_mtproto_start_timeouts(getattr(pg_node, "node_id", None))
             logger.debug(
                 f'Attached to already-running "{node_name}" node v{info.node_version}, core v{info.core_version}'
             )
@@ -390,6 +475,8 @@ class NodeOperation(BaseOperation):
             }
             if core.type == CoreType.xray:
                 start_kwargs["exclude_inbounds"] = core.exclude_inbound_tags
+            elif core.type == CoreType.mtproto:
+                start_kwargs["timeout"] = max(getattr(db_node, "default_timeout", 0) or 0, MTPROTO_START_TIMEOUT)
 
             if force_start and stop_first:
                 try:
@@ -473,6 +560,10 @@ class NodeOperation(BaseOperation):
             return None
 
         old_status = db_node.status
+        # A first MTProto Start timeout is seen only by the next attempt, so every other outcome
+        # drops it. An admin restart or core apply (force_start) starts a fresh sequence.
+        mtproto_start_timeouts = 0 if force_start else NodeOperation._mtproto_start_timeouts.get(db_node.id, 0)
+        NodeOperation._mtproto_start_timeouts.pop(db_node.id, None)
         if not force_start:
             try:
                 if await pg_node.get_health() == Health.HEALTHY:
@@ -490,7 +581,19 @@ class NodeOperation(BaseOperation):
             except Exception:
                 pass
 
-        type = service.BackendType.WIREGUARD if core.type == CoreType.wg else service.BackendType.XRAY
+        type = backend_type_for_core(core.type)
+        if type is None:
+            message = f'core type "{getattr(core.type, "value", core.type)}" is not supported by nodes'
+            logger.error(f"Failed to connect node {db_node.name} with id {db_node.id}, Error: {message}")
+            return {
+                "node_id": db_node.id,
+                "status": NodeStatus.error,
+                "message": message,
+                "xray_version": "",
+                "node_version": "",
+                "old_status": old_status,
+            }
+        is_mtproto = core.type == CoreType.mtproto
         NodeOperation._in_flight_connects.add(db_node.id)
 
         try:
@@ -553,8 +656,18 @@ class NodeOperation(BaseOperation):
                         "node_version": attached.node_version,
                         "old_status": old_status,
                     }
+                if is_mtproto and mtproto_start_timeouts == 0:
+                    # The node holds its lock while telemt starts, so the probe above times out too.
+                    NodeOperation._mtproto_start_timeouts[db_node.id] = 1
+                    logger.warning(
+                        f'"{db_node.name}" MTProto node is still starting after the Start timeout; '
+                        "retrying on the next check"
+                    )
+                    return None
 
             detail = e.detail[:1020] + "..." if len(e.detail) > 1024 else e.detail
+            if is_mtproto and "invalid backend type" in e.detail.lower():
+                detail = MTPROTO_UNSUPPORTED_NODE_MESSAGE
 
             logger.error(f"Failed to connect node {db_node.name} with id {db_node.id}, Error: {detail}")
 
@@ -757,7 +870,9 @@ class NodeOperation(BaseOperation):
         db: AsyncSession,
         query: NodeUsageQuery,
     ) -> NodeUsageStatsList:
-        start, end = await self.validate_dates(query.start, query.end, True)
+        start, end = await self.validate_dates(
+            query.start, query.end, True, period=query.period, granularity=USAGE_RECORD_GRANULARITY
+        )
         return await get_nodes_usage(
             db,
             start,
@@ -767,13 +882,28 @@ class NodeOperation(BaseOperation):
             group_by_node=query.group_by_node,
         )
 
+    async def get_outbound_usage(
+        self,
+        db: AsyncSession,
+        query: NodeOutboundUsageQuery,
+    ) -> NodeOutboundUsageStatsList:
+        # Outbound rows share the 10 minute bucket of node usage history
+        start, end = await self.validate_dates(
+            query.start, query.end, True, period=query.period, granularity=USAGE_RECORD_GRANULARITY
+        )
+        return await get_nodes_outbound_usage(
+            db, start, end, period=query.period, node_id=query.node_id, group_by_node=query.group_by_node
+        )
+
     async def get_user_count_metric(
         self,
         db: AsyncSession,
         metric: UserCountMetric,
         query: NodeUsageQuery,
     ) -> UserCountMetricStatsList:
-        start, end = await self.validate_dates(query.start, query.end, True)
+        start, end = await self.validate_dates(
+            query.start, query.end, True, period=query.period, granularity=USAGE_RECORD_GRANULARITY
+        )
         try:
             validate_user_count_metric_scope(metric, node_id=query.node_id, group_by_node=query.group_by_node)
         except ValueError as exc:
@@ -796,7 +926,7 @@ class NodeOperation(BaseOperation):
     async def get_node_stats_periodic(
         self, db: AsyncSession, node_id: int, query: NodeStatsPeriodQuery
     ) -> NodeStatsList:
-        start, end = await self.validate_dates(query.start, query.end, True)
+        start, end = await self.validate_dates(query.start, query.end, True, period=query.period)
 
         return await get_node_stats(db, node_id, start, end, period=query.period)
 
@@ -858,17 +988,21 @@ class NodeOperation(BaseOperation):
         except Exception as e:
             await self.raise_error(code=400, message=f"Deletion failed due to server error: {e!s}")
 
+    async def hard_reset_node(self, db: AsyncSession, node_id: int) -> dict:
+        await self.get_validated_node(db, node_id, load_usage_logs=False)
+        return await self._hard_reset_node_impl(db, node_id)
+
     async def update_node(self, db: AsyncSession, node_id: int) -> dict:
         await self.get_validated_node(db, node_id, load_usage_logs=False)
-        return await self._update_node_api_impl(node_id)
+        return await self._update_node_api_impl(db, node_id)
 
     async def update_core(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
         await self.get_validated_node(db, node_id, load_usage_logs=False)
-        return await self._update_core_impl(node_id, node_core_update)
+        return await self._update_core_impl(db, node_id, node_core_update)
 
     async def update_geofiles(self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
         await self.get_validated_node(db, node_id, load_usage_logs=False)
-        return await self._update_geofiles_impl(node_id, node_geofiles_update)
+        return await self._update_geofiles_impl(db, node_id, node_geofiles_update)
 
     async def _update_node_local(self, db_node: Node) -> None:
         await node_manager.update_node(db_node)
@@ -883,6 +1017,7 @@ class NodeOperation(BaseOperation):
     async def _remove_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
         await clear_bridge_memory_for_node(node_id)
+        NodeOperation._drop_mtproto_start_timeouts(node_id)
 
     async def _remove_node_sync(self, node_id: int) -> None:
         await self._remove_node_local(node_id)
@@ -898,7 +1033,9 @@ class NodeOperation(BaseOperation):
             return
 
         core_ids = {node.core_config_id or 1 for node in nodes}
-        cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids, lazy=True)
+        # The node groups below write statuses while the other group may still read users on this session.
+        db_lock = asyncio.Lock()
+        cores_by_id, users_by_core = await self._get_core_users_map(db, core_ids, lazy=True, lock=db_lock)
         sem = asyncio.Semaphore(CONNECT_CONCURRENCY)
 
         async def connect_single(node: Node) -> dict | None:
@@ -927,45 +1064,59 @@ class NodeOperation(BaseOperation):
                     stop_first=stop_first,
                 )
 
-        results = await asyncio.gather(*[connect_single(node) for node in nodes])
-
-        # Filter out None results
-        valid_results = [r for r in results if r is not None]
-
         nodes_dict = {node.id: node for node in nodes}
 
-        notifications_to_send = []
-        for result in valid_results:
-            node = nodes_dict.get(result["node_id"])
-            if not node:
-                continue
+        async def connect_group(group: list[Node]) -> None:
+            results = await asyncio.gather(*[connect_single(node) for node in group])
 
-            # Create lightweight notification object
-            node_notif = NodeNotification(
-                id=result["node_id"],
-                name=node.name,
-                xray_version=result.get("xray_version"),
-                node_version=result.get("node_version"),
-                message=result.get("message"),
-            )
+            # Filter out None results
+            valid_results = [r for r in results if r is not None]
 
-            notifications_to_send.append(
-                {
-                    "node": node_notif,
-                    "status": result["status"],
-                    "old_status": result["old_status"],
-                }
-            )
+            notifications_to_send = []
+            for result in valid_results:
+                node = nodes_dict.get(result["node_id"])
+                if not node:
+                    continue
 
-        # Bulk update all statuses in ONE query
-        await bulk_update_node_status(db, valid_results)
+                # Create lightweight notification object
+                node_notif = NodeNotification(
+                    id=result["node_id"],
+                    name=node.name,
+                    xray_version=result.get("xray_version"),
+                    node_version=result.get("node_version"),
+                    message=result.get("message"),
+                )
 
-        # Send notifications using pre-built objects
-        for notif in notifications_to_send:
-            if notif["status"] == NodeStatus.connected and notif["old_status"] != NodeStatus.connected:
-                asyncio.create_task(notification.connect_node(notif["node"]))
-            elif notif["status"] == NodeStatus.error and notif["old_status"] != NodeStatus.error:
-                asyncio.create_task(notification.error_node(notif["node"]))
+                notifications_to_send.append(
+                    {
+                        "node": node_notif,
+                        "status": result["status"],
+                        "old_status": result["old_status"],
+                    }
+                )
+
+            # Bulk update the group's statuses in ONE query
+            async with db_lock:
+                await bulk_update_node_status(db, valid_results)
+
+            # Send notifications using pre-built objects
+            for notif in notifications_to_send:
+                if notif["status"] == NodeStatus.connected and notif["old_status"] != NodeStatus.connected:
+                    asyncio.create_task(notification.connect_node(notif["node"]))
+                elif notif["status"] == NodeStatus.error and notif["old_status"] != NodeStatus.error:
+                    asyncio.create_task(notification.error_node(notif["node"]))
+
+        # An MTProto Start can take up to MTPROTO_START_TIMEOUT, so MTProto nodes get their own
+        # status write instead of holding back the status and notifications of every other node.
+        def is_mtproto(node: Node) -> bool:
+            core = cores_by_id.get(node.core_config_id or 1)
+            return getattr(core, "type", None) == CoreType.mtproto
+
+        groups = [
+            [node for node in nodes if not is_mtproto(node)],
+            [node for node in nodes if is_mtproto(node)],
+        ]
+        await asyncio.gather(*[connect_group(group) for group in groups if group])
 
     async def _connect_nodes_bulk_sync(
         self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False, stop_first: bool = True
@@ -1078,6 +1229,7 @@ class NodeOperation(BaseOperation):
 
     async def _disconnect_single_node_local(self, node_id: int) -> None:
         await node_manager.remove_node(node_id)
+        NodeOperation._drop_mtproto_start_timeouts(node_id)
 
     async def _disconnect_single_node_sync(self, node_id: int) -> None:
         await self._disconnect_single_node_local(node_id)
@@ -1299,8 +1451,8 @@ class NodeOperation(BaseOperation):
         if pg_node is None:
             await self.raise_error(message="Node is not connected", code=409)
 
+        core_id = db_node.core_config_id or 1
         try:
-            core_id = db_node.core_config_id or 1
             # Defer the snapshot read: sync_full takes it inside the node's
             # fence, after any queued deltas were drained, so nothing created
             # between the read and the flush can be lost.
@@ -1320,6 +1472,17 @@ class NodeOperation(BaseOperation):
             # still in flight past their lease (503); nothing reached the node.
             await self.raise_error(message=e.detail, code=e.code)
         except NodeAPIError as e:
+            core = await core_manager.get_core(core_id)
+            if core is not None and core.type == CoreType.mtproto and is_mtproto_retry_later_error(e):
+                # The node keeps applying the users after this call returns: not a node failure.
+                logger.info(f'"{db_node.name}" MTProto node is still applying the users: {e.detail}')
+                node_answer = (e.detail or "").strip()
+                message = (
+                    f"{MTPROTO_SYNC_PENDING_MESSAGE} Node: {node_answer}"
+                    if node_answer
+                    else MTPROTO_SYNC_PENDING_MESSAGE
+                )
+                await self.raise_error(message=message, code=409)
             await update_node_status(db=db, db_node=db_node, status=NodeStatus.error, message=e.detail)
             await self.raise_error(message=e.detail, code=e.code)
 
@@ -1332,7 +1495,72 @@ class NodeOperation(BaseOperation):
         )
         return NodeResponse.model_validate(await self.get_validated_node(db, node_id))
 
-    async def _update_node_api_local(self, node_id: int) -> dict:
+    @staticmethod
+    async def refresh_node_versions(
+        db: AsyncSession,
+        node_id: int,
+        node: PasarGuardNode,
+        timeout: int | None = None,
+        *,
+        persist: bool = True,
+    ) -> bool:
+        """Read live versions and persist them only for the current connected node."""
+        info = await node.info(timeout=timeout)
+        if info is None or not info.started or not info.node_version or not info.core_version:
+            return False
+        if await node_manager.get_node(node_id) is not node:
+            return False
+
+        if not persist:
+            await node.set_reported_versions(info.node_version, info.core_version)
+            return True
+
+        db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
+        if db_node is None or db_node.status != NodeStatus.connected:
+            return False
+        if db_node.node_version != info.node_version or db_node.xray_version != info.core_version:
+            db_node.node_version = info.node_version
+            db_node.xray_version = info.core_version
+            await db.commit()
+        await node.set_reported_versions(info.node_version, info.core_version)
+        return True
+
+    @staticmethod
+    async def _mark_node_reconnecting_after_update(db: AsyncSession, node_id: int, node: PasarGuardNode) -> None:
+        """Leave a restarted node for the health job to attach or start."""
+        db_node = await get_node_by_id(db, node_id, load_usage_logs=False)
+        if db_node is None or db_node.status in (NodeStatus.disabled, NodeStatus.limited):
+            return
+        await update_node_status(
+            db,
+            db_node,
+            NodeStatus.connecting,
+            message="",
+            xray_version="",
+            node_version="",
+        )
+        await node.set_health(Health.NOT_CONNECTED)
+
+    async def _hard_reset_node_local(self, db: AsyncSession, node_id: int) -> dict:
+        node = await node_manager.get_node(node_id)
+        if node is None:
+            await self.raise_error(message="Node not found", code=404)
+        try:
+            response = await node.hard_reset()
+        except NodeAPIError as e:
+            await self.raise_error(message=e.detail, code=e.code)
+        await self._mark_node_reconnecting_after_update(db, node_id, node)
+        return response.json()
+
+    async def _hard_reset_node_remote(self, db: AsyncSession, node_id: int) -> dict:
+        try:
+            return await node_nats_client.request(
+                "hard_reset_node", {"node_id": node_id}, timeout=_MAINTENANCE_RPC_TIMEOUT
+            )
+        except RuntimeError as exc:
+            await self.handle_rpc_error(exc)
+
+    async def _update_node_api_local(self, db: AsyncSession, node_id: int) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -1340,9 +1568,10 @@ class NodeOperation(BaseOperation):
             response = await node.update_node()
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
+        await self._mark_node_reconnecting_after_update(db, node_id, node)
         return response.json()
 
-    async def _update_node_api_remote(self, node_id: int) -> dict:
+    async def _update_node_api_remote(self, db: AsyncSession, node_id: int) -> dict:
         try:
             return await node_nats_client.request(
                 "update_node_api", {"node_id": node_id}, timeout=_MAINTENANCE_RPC_TIMEOUT
@@ -1350,7 +1579,7 @@ class NodeOperation(BaseOperation):
         except RuntimeError as exc:
             await self.handle_rpc_error(exc)
 
-    async def _update_core_local(self, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
+    async def _update_core_local(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -1358,16 +1587,19 @@ class NodeOperation(BaseOperation):
             response = await node.update_core(node_core_update.model_dump(mode="json"))
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
+        await self._mark_node_reconnecting_after_update(db, node_id, node)
         return response.json()
 
-    async def _update_core_remote(self, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
+    async def _update_core_remote(self, db: AsyncSession, node_id: int, node_core_update: NodeCoreUpdate) -> dict:
         return await node_nats_client.request(
             "update_core",
             {"node_id": node_id, "core_update": node_core_update.model_dump(mode="json")},
             timeout=_MAINTENANCE_RPC_TIMEOUT,
         )
 
-    async def _update_geofiles_local(self, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+    async def _update_geofiles_local(
+        self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate
+    ) -> dict:
         node = await node_manager.get_node(node_id)
         if node is None:
             await self.raise_error(message="Node not found", code=404)
@@ -1375,9 +1607,12 @@ class NodeOperation(BaseOperation):
             response = await node.update_geofiles(node_geofiles_update.model_dump(mode="json"))
         except NodeAPIError as e:
             await self.raise_error(message=e.detail, code=e.code)
+        await self._mark_node_reconnecting_after_update(db, node_id, node)
         return response.json()
 
-    async def _update_geofiles_remote(self, node_id: int, node_geofiles_update: NodeGeoFilesUpdate) -> dict:
+    async def _update_geofiles_remote(
+        self, db: AsyncSession, node_id: int, node_geofiles_update: NodeGeoFilesUpdate
+    ) -> dict:
         return await node_nats_client.request(
             "update_geofiles",
             {"node_id": node_id, "geofiles_update": node_geofiles_update.model_dump(mode="json")},
@@ -1440,6 +1675,7 @@ class NodeOperation(BaseOperation):
             usage_coefficient=node.usage_coefficient,
             connection_type=node.connection_type,
             server_ca=node.server_ca,
+            certificate_sha256=node.certificate_sha256,
             keep_alive=node.keep_alive,
             core_config_id=node.core_config_id,
             api_key=node.api_key,

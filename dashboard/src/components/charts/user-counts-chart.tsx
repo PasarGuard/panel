@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
+import { useChartPeriodLimit } from '@/hooks/use-chart-period-limit'
 import { Period, UserCountMetric, type GetUsersCountMetricParams, type NodeSimple, type UserCountMetricStat, useGetUsersCountMetric } from '@/service/api'
 import {
   CHART_PERIOD_OVERRIDE_AUTO,
@@ -27,6 +28,7 @@ import {
   resolvePeriodOverride,
   toStatsRecord,
   TrafficShortcutKey,
+  USAGE_RECORD_BUCKET_MINUTES,
 } from '@/utils/chart-period-utils'
 import { getChartBrushWindow, getChartRenderFlags } from '@/utils/chart-performance'
 
@@ -189,9 +191,12 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
   const [selectedAdmin, setSelectedAdmin] = useState<string>('all')
   const [groupByNode, setGroupByNode] = useState(false)
   const [selectedTime, setSelectedTime] = useState<TrafficShortcutKey>('1w')
-  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
+  const [selectedPeriodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [showCustomRange, setShowCustomRange] = useState(false)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
+  const { allowedPeriods, periodOverride } = useChartPeriodLimit({ shortcut: selectedTime, customRange: showCustomRange ? customRange : undefined }, selectedPeriodOverride, setPeriodOverride, {
+    recordBucketMinutes: USAGE_RECORD_BUCKET_MINUTES,
+  })
   const [windowWidth, setWindowWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1024))
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedData, setSelectedData] = useState<CountDataPoint | null>(null)
@@ -533,7 +538,7 @@ export function UserCountsChart({ nodeId, isSudo, nodesData = [] }: UserCountsCh
               <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                 <TimeSelector selectedTime={selectedTime} setSelectedTime={handleTimeSelect} shortcuts={TRAFFIC_TIME_SELECTOR_SHORTCUTS} maxVisible={5} className="w-full sm:w-fit" />
                 <div className="flex w-full items-center gap-2 sm:w-auto">
-                  <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
+                  <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} allowedPeriods={allowedPeriods} className="min-w-0 flex-1 sm:w-[7rem] sm:flex-none" />
                   <button
                     type="button"
                     aria-label={t('statistics.customRange', { defaultValue: 'Custom Range' })}

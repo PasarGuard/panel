@@ -12,6 +12,7 @@ import nats.errors as nats_errors
 import pytest
 from PasarGuardNodeBridge import Health, InMemoryUserSyncStore, NodeAPIError, NodeType
 from PasarGuardNodeBridge.common.service_pb2 import Empty, User
+from PasarGuardNodeBridge.controller import FailedUsers
 from PasarGuardNodeBridge.grpclib import Node as GrpcNode
 from PasarGuardNodeBridge.rest import Node as RestNode
 
@@ -716,6 +717,7 @@ async def test_in_memory_store_capture_holds_entries_and_settles_after_snapshot(
 
 @pytest.mark.asyncio
 async def test_bulk_updates_use_the_fenced_durable_queue(monkeypatch):
+    """A bulk update is recorded durably behind a fence held elsewhere and delivered in bounded batches."""
     kv = MemoryCasKv()
     store = NatsUserSyncStore(kv)
     node = make_node("grpc", store)
@@ -728,7 +730,8 @@ async def test_bulk_updates_use_the_fenced_durable_queue(monkeypatch):
         await asyncio.sleep(0.2)
         assert state.deltas == []  # recorded durably, held behind the fence
         captured, _ = await store.capture_queued(node.node_id)
-        assert len(captured) == 150
+        # One bulk entry per delivery batch, not one entry per user.
+        assert len(captured) == 2 and all(key.startswith(f"b.{node.node_id}.") for key in captured)
         await store.end_full_sync(node.node_id, token)
         await wait_until(lambda: len(state.users) == 150)
         assert all(1 <= len(batch) <= 100 for batch in state.deltas)
@@ -974,3 +977,271 @@ async def test_health_transitions_do_not_lose_queued_work(monkeypatch):
 @contextlib.asynccontextmanager
 async def _noop():
     yield
+
+
+def _db_state(node_id, emails):
+    """Refresh handler double: every user's current state carries the inbound 'db'."""
+    return [User(email=email, inbounds=["db"]) for email in emails]
+
+
+@pytest.fixture
+def bulk_settings(monkeypatch):
+    """Small bulk threshold and batch so tests exercise several bulk entries."""
+    monkeypatch.setattr("app.node.bridge.nats_settings.node_bulk_sync_min_users", 5)
+    monkeypatch.setattr("app.node.bridge.nats_settings.node_update_users_batch_size", 10)
+    register_refresh_handler(AsyncMock(side_effect=_db_state))
+    yield
+    register_refresh_handler(None)
+
+
+def _record_creates(kv):
+    """Record the key of every KV create while passing it through."""
+    created = []
+    original = kv.create
+
+    async def create(key, value):
+        """Record the key, then create it."""
+        created.append(key)
+        return await original(key, value)
+
+    kv.create = create
+    return created
+
+
+@pytest.mark.asyncio
+async def test_large_update_is_delivered_from_bulk_entries_under_the_fence(monkeypatch, bulk_settings):
+    """A large update costs one queue entry per batch, not per user, and is sent with current state."""
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    node = make_node("grpc", store)
+    state = attach_fake_transport(monkeypatch, node, FakeNodeState())
+    created = _record_creates(kv)
+    fenced = []
+    apply_delta = state.apply_delta
+
+    async def recording_apply(users):
+        """Note whether the node's fence is held while the batch is applied."""
+        fenced.append(await store.full_sync_active(node.node_id))
+        return await apply_delta(users)
+
+    state.apply_delta = recording_apply
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await node.update_users([User(email=f"u{n}", inbounds=["queued"]) for n in range(25)])
+        await wait_until(lambda: len(state.users) == 25)
+        assert {tuple(inbounds) for inbounds in state.users.values()} == {("db",)}
+        assert [len(delta) for delta in state.deltas] == [10, 10, 5]
+        assert fenced == [True, True, True]
+        assert not any(key.startswith(f"p.{node.node_id}.") for key in created)
+        assert len([key for key in created if key.startswith(f"b.{node.node_id}.")]) == 3
+        await wait_until(lambda: not any(key.startswith(f"b.{node.node_id}.") for key in kv._data))
+    finally:
+        await close_node(node)
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_small_update_keeps_one_entry_per_user(monkeypatch, bulk_settings):
+    """An update below the bulk threshold keeps one queue entry per user."""
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    node = make_node("grpc", store)
+    state = attach_fake_transport(monkeypatch, node, FakeNodeState())
+    created = _record_creates(kv)
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await node.update_users([User(email="a"), User(email="b")])
+        await wait_until(lambda: {"a", "b"} <= set(state.users))
+        assert len([key for key in created if key.startswith(f"p.{node.node_id}.")]) == 2
+        assert not any(key.startswith("b.") for key in created)
+    finally:
+        await close_node(node)
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_delivery_on_another_worker_waits_for_an_in_flight_bulk_entry(monkeypatch, bulk_settings):
+    """The fence holds back a sibling worker's per-user delivery (and its own bulk attempt) until the entry is sent."""
+    kv = MemoryCasKv()
+    store, sibling_store = NatsUserSyncStore(kv), NatsUserSyncStore(kv)
+    node = make_node("grpc", store)
+    sibling = make_node("grpc", sibling_store, node_id=node.node_id)
+    state = attach_fake_transport(monkeypatch, node, FakeNodeState())
+    sibling_state = attach_fake_transport(monkeypatch, sibling, FakeNodeState())
+    state.gate = asyncio.Event()
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await node.update_users([User(email=f"u{n}") for n in range(10)])
+        await asyncio.wait_for(state.delta_started.wait(), 2)  # the bulk entry is being sent
+        await sibling.connect("0.5.4", "26.3.27")
+        await sibling.update_user(User(email="single"))
+        await asyncio.sleep(0.1)
+        assert sibling_state.deltas == []  # held back by the fence
+        assert await store.full_sync_active(node.node_id)
+        state.gate.set()
+        # Either worker may deliver the per-user update once the fence is released.
+        await wait_until(lambda: "single" in state.users or "single" in sibling_state.users)
+        sent = state.deltas + sibling_state.deltas
+        assert sent.count([f"u{n}" for n in range(10)]) == 1  # the bulk entry was sent exactly once
+        assert sent.count(["single"]) == 1
+        assert await store.bulk_entries(node.node_id) == []
+    finally:
+        state.gate.set()
+        await close_node(sibling)
+        await close_node(node)
+        await sibling_store.close()
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_bulk_entry_waits_for_a_snapshot_fence_held_elsewhere(monkeypatch, bulk_settings):
+    """A bulk entry waits, without counting failures, while another worker's snapshot holds the fence."""
+    store = NatsUserSyncStore(MemoryCasKv())
+    node = make_node("grpc", store)
+    state = attach_fake_transport(monkeypatch, node, FakeNodeState())
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        token = await store.begin_full_sync(node.node_id, "other-worker", 120)
+        await node.update_users([User(email=f"u{n}") for n in range(10)])
+        await asyncio.sleep(0.1)
+        assert state.deltas == []
+        assert len(await store.bulk_entries(node.node_id)) == 1
+        assert not node.requires_hard_reset()
+        await store.end_full_sync(node.node_id, token)
+        await wait_until(lambda: len(state.users) == 10)
+    finally:
+        await close_node(node)
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_bulk_entry_the_node_rejects_goes_to_per_user_isolation(monkeypatch, bulk_settings):
+    """One user the node cannot apply fails the whole batch; everyone else is still delivered."""
+    store = NatsUserSyncStore(MemoryCasKv())
+    node = make_node("grpc", store)
+    state = attach_fake_transport(monkeypatch, node, FakeNodeState())
+    apply_delta = state.apply_delta
+
+    async def rejecting_apply(users):
+        """Reject any batch that contains the user 'bad', as a node backend would."""
+        if any(user.email == "bad" for user in users):
+            return FailedUsers(users, rejected=True, detail="failed to update users: bad")
+        return await apply_delta(users)
+
+    state.apply_delta = rejecting_apply
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await node.update_users([User(email=f"u{n}") for n in range(9)] + [User(email="bad")])
+        await wait_until(lambda: len(state.users) == 9, timeout=10)
+        assert "bad" not in state.users
+        assert await store.bulk_entries(node.node_id) == []
+    finally:
+        await close_node(node)
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_bulk_entry_stays_queued_after_a_transport_failure_and_is_retried(monkeypatch, bulk_settings):
+    """A transport failure leaves the bulk entry queued and a later round delivers it."""
+    monkeypatch.setattr("app.node.bridge.BULK_RETRY_INITIAL_SECONDS", 0.1)
+    store = NatsUserSyncStore(MemoryCasKv())
+    node = make_node("grpc", store)
+    state = attach_fake_transport(monkeypatch, node, FakeNodeState())
+    apply_delta = state.apply_delta
+    calls = 0
+
+    async def flaky_apply(users):
+        """Fail the first send with a transport error, then apply normally."""
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return FailedUsers(users, rejected=False, detail="UNAVAILABLE")
+        return await apply_delta(users)
+
+    state.apply_delta = flaky_apply
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await node.update_users([User(email=f"u{n}") for n in range(10)])
+        await wait_until(lambda: len(state.users) == 10, timeout=10)
+        assert calls == 2
+        assert await store.bulk_entries(node.node_id) == []
+    finally:
+        await close_node(node)
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_failing_bulk_entry_backs_off_without_holding_back_per_user_updates(monkeypatch, bulk_settings):
+    """A bulk entry the node keeps refusing (not as a rejection) stays queued and backs off; per-user
+    updates still reach the node, and the entry is delivered once the node takes it, with no other wake."""
+    monkeypatch.setattr("app.node.bridge.BULK_RETRY_INITIAL_SECONDS", 0.2)
+    store = NatsUserSyncStore(MemoryCasKv())
+    node = make_node("grpc", store)
+    state = attach_fake_transport(monkeypatch, node, FakeNodeState())
+    apply_delta = state.apply_delta
+    refusing = True
+    bulk_attempts = 0
+
+    async def refusing_apply(users):
+        """Refuse every batch carrying bulk users, without the rejection flag, while ``refusing`` holds."""
+        nonlocal bulk_attempts
+        if any(user.email.startswith("bulk-") for user in users):
+            bulk_attempts += 1
+            if refusing:
+                return FailedUsers(users, rejected=False, detail="400 Bad Request")
+        return await apply_delta(users)
+
+    state.apply_delta = refusing_apply
+    try:
+        await node.connect("0.5.4", "26.3.27")
+        await node.update_users([User(email=f"bulk-{n}") for n in range(10)])
+        await wait_until(lambda: bulk_attempts >= 1)
+        await node.update_user(User(email="new-user"))
+        await wait_until(lambda: "new-user" in state.users, timeout=2)
+        await asyncio.sleep(0.5)
+        assert bulk_attempts <= 3  # retried after 0.2 s, then 0.4 s, ...: never every round
+        assert len(await store.bulk_entries(node.node_id)) == 1
+        refusing = False
+        await wait_until(lambda: sum(email.startswith("bulk-") for email in state.users) == 10, timeout=10)
+        assert await store.bulk_entries(node.node_id) == []
+    finally:
+        await close_node(node)
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_bulk_entry_left_by_a_stopped_worker_is_delivered_on_connect(monkeypatch, bulk_settings):
+    """A bulk entry written before this worker started is delivered after connect."""
+    store = NatsUserSyncStore(MemoryCasKv())
+    node_id = uuid4().hex
+    await store.enqueue_bulk(node_id, [User(email=f"u{n}") for n in range(3)], batch_size=10)
+    node = make_node("grpc", store, node_id=node_id)
+    state = attach_fake_transport(monkeypatch, node, FakeNodeState())
+    try:
+        await node.connect("0.5.4", "26.3.27")  # the connect wake is the only wake this work gets
+        await wait_until(lambda: len(state.users) == 3)
+        assert await store.bulk_entries(node_id) == []
+    finally:
+        await close_node(node)
+        await store.close()
+
+
+@pytest.mark.asyncio
+async def test_bulk_entry_for_a_node_without_chunked_sync_uses_the_per_user_protocol(monkeypatch, bulk_settings):
+    """Nodes without chunked sync get a bulk entry's users through the per-user protocol."""
+    store = NatsUserSyncStore(MemoryCasKv())
+    node = make_node("grpc", store)
+    fallback = AsyncMock(return_value=[])
+    monkeypatch.setattr(GrpcNode, "_sync_batch_users", fallback)
+    chunked = AsyncMock(return_value=[])
+    monkeypatch.setattr(GrpcNode, "sync_users_chunked", chunked)
+    try:
+        await node.connect("0.1.0", "26.3.27")
+        await node.update_users([User(email=f"u{n}") for n in range(6)])
+        await wait_until(lambda: sum(len(call.args[0]) for call in fallback.await_args_list) >= 6)
+        chunked.assert_not_awaited()
+        assert {user.email for call in fallback.await_args_list for user in call.args[0]} == {f"u{n}" for n in range(6)}
+        await wait_until(lambda: not any(key.startswith(f"b.{node.node_id}.") for key in store._kv._data))
+    finally:
+        await close_node(node)
+        await store.close()

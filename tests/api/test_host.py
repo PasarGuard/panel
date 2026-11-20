@@ -11,6 +11,7 @@ from tests.api.helpers import (
     get_inbounds,
     unique_name,
 )
+from tests.api.sample_data import XRAY_CONFIG
 
 
 def test_host_create(access_token):
@@ -606,4 +607,97 @@ def test_host_finalmask_legacy_interval_to_delays(access_token):
         assert "length" not in settings
     finally:
         client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_core(access_token, core["id"])
+
+
+def test_host_finalmask_header_custom_numeric_rand(access_token):
+    """Header-custom rand is an int32 in Xray, and the API returns Xray camelCase keys."""
+    core = create_core(access_token)
+    created_ids = []
+
+    try:
+        inbound = get_inbounds(access_token)[0]
+        header_custom = {
+            "type": "header-custom",
+            "settings": {
+                "client": [{"type": "array", "packet": [1, 2], "rand": "32", "randRange": "32"}],
+                "server": [{"type": "array", "packet": [1, 2], "rand": "", "delay": "5-10", "rand_range": "0-255"}],
+            },
+        }
+        create_response = client.post(
+            "/api/host",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "remark": unique_name("test_host_finalmask_header_rand"),
+                "address": ["127.0.0.1"],
+                "port": 443,
+                "inbound_tag": inbound,
+                "priority": 1,
+                "final_mask_settings": {"udp": [header_custom]},
+            },
+        )
+        if create_response.status_code == status.HTTP_201_CREATED:
+            created_ids.append(create_response.json()["id"])
+        assert create_response.status_code == status.HTTP_201_CREATED, create_response.text
+        host_id = create_response.json()["id"]
+
+        get_res = client.get(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        assert get_res.status_code == status.HTTP_200_OK
+        settings = get_res.json()["final_mask_settings"]["udp"][0]["settings"]
+        client_item = settings["client"][0]
+        assert client_item["rand"] == 32
+        assert client_item["randRange"] == "32"
+        server_item = settings["server"][0]
+        assert server_item["randRange"] == "0-255"
+        assert "rand" not in server_item
+        assert "delay" not in server_item
+        assert "rand_range" not in get_res.text
+
+        invalid_response = client.post(
+            "/api/host",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "remark": unique_name("test_host_finalmask_header_rand_invalid"),
+                "address": ["127.0.0.1"],
+                "port": 443,
+                "inbound_tag": inbound,
+                "priority": 1,
+                "final_mask_settings": {
+                    "udp": [{"type": "header-custom", "settings": {"client": [{"type": "array", "rand": "1-8"}]}}]
+                },
+            },
+        )
+        if invalid_response.status_code == status.HTTP_201_CREATED:
+            created_ids.append(invalid_response.json()["id"])
+        assert invalid_response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, invalid_response.text
+    finally:
+        for host_id in created_ids:
+            client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
+        delete_core(access_token, core["id"])
+
+
+def test_non_mtproto_host_ignores_mtproto_settings(access_token):
+    core = create_core(access_token)
+    # Use an inbound of the Xray core created here: the global list can start with another core's MTProto inbound.
+    available = set(get_inbounds(access_token))
+    xray_inbound = next(inbound["tag"] for inbound in XRAY_CONFIG["inbounds"] if inbound["tag"] in available)
+    host_id = None
+    try:
+        response = client.post(
+            "/api/host",
+            headers=auth_headers(access_token),
+            json={
+                "remark": unique_name("xray_host_mtproto_settings"),
+                "address": ["127.0.0.1"],
+                "port": 443,
+                "inbound_tag": xray_inbound,
+                "priority": 1,
+                "transport_settings": {"mtproto_settings": {"link_type": "web"}},
+            },
+        )
+        assert response.status_code == status.HTTP_201_CREATED, response.text
+        host_id = response.json()["id"]
+    finally:
+        if host_id is not None:
+            client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
         delete_core(access_token, core["id"])

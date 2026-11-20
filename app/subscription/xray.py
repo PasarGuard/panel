@@ -1,4 +1,5 @@
 import json
+from collections.abc import Iterable
 from random import choice
 
 from pydantic import BaseModel
@@ -20,6 +21,7 @@ from app.models.subscription import (
 
 from . import BaseSubscription
 from .base import dumps_compact
+from .share_links import SHARE_LINK_ERRORS, parse_share_link
 
 
 class XrayConfiguration(BaseSubscription):
@@ -80,6 +82,27 @@ class XrayConfiguration(BaseSubscription):
     def render(self):
         return dumps_compact(self.config)
 
+    def add_share_links(self, links: Iterable[str]):
+        """Add a configuration for each vmess, vless, trojan or shadowsocks share link in ``links``.
+
+        A link of another scheme or transport, or one that does not parse, is skipped.
+        """
+        for link in links:
+            try:
+                parsed = parse_share_link(link)
+                if parsed is None:
+                    continue
+                remark, inbound, settings, xhttp_extra = parsed
+                outbound, extra_outbounds = self.protocol_handlers[inbound.protocol](
+                    address=inbound.address, inbound=inbound, settings=settings
+                )
+                if xhttp_extra:
+                    # The link already carries xHTTP extra in Xray's own field names.
+                    outbound["streamSettings"].setdefault(f"{inbound.network}Settings", {})["extra"] = xhttp_extra
+            except SHARE_LINK_ERRORS:
+                continue
+            self.add_config(remarks=remark, outbounds=[outbound, *extra_outbounds])
+
     def add(
         self,
         remark: str,
@@ -117,7 +140,7 @@ class XrayConfiguration(BaseSubscription):
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
         ws_settings = {
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers) if config.http_headers else {},
             "heartbeatPeriod": config.heartbeat_period,
             "path": path,
             "host": host,
@@ -133,7 +156,7 @@ class XrayConfiguration(BaseSubscription):
         host = config.host if isinstance(config.host, str) else (config.host[0] if config.host else "")
 
         httpupgrade_settings = {
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers) if config.http_headers else {},
             "path": path,
             "host": host,
         }
@@ -154,7 +177,7 @@ class XrayConfiguration(BaseSubscription):
         }
 
         extra = {
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers) if config.http_headers else {},
             "scMaxEachPostBytes": config.sc_max_each_post_bytes,
             "scMinPostsIntervalMs": config.sc_min_posts_interval_ms,
             "xPaddingBytes": config.x_padding_bytes,
@@ -515,9 +538,26 @@ class XrayConfiguration(BaseSubscription):
                 extra_outbounds.append(dialer_outbound)
                 sockopt = {"dialerProxy": "dialer"}
 
-        if sockopt or inbound.finalmask:
+        network_setting = None
+        has_http_obfs = self._shadowsocks_http_obfs_host(inbound) is not None
+        if has_http_obfs:
+            host = inbound.transport_config.host
+            if isinstance(host, list):
+                host = host[0] if host else ""
+            request = dict(inbound.transport_config.request or {})
+            if inbound.transport_config.path:
+                request["path"] = [inbound.transport_config.path]
+            if host:
+                headers = dict(request.get("headers") or {})
+                headers["Host"] = [host]
+                request["headers"] = headers
+            request = self._normalize_and_remove_none_values(request)
+            network_setting = {"header": {"type": "http", "request": request}}
+
+        if sockopt or inbound.finalmask or has_http_obfs:
             outbound["streamSettings"] = self._stream_setting_config(
                 network=inbound.network,
+                network_setting=network_setting,
                 sockopt=sockopt,
                 finalmask=inbound.finalmask,
             )
@@ -628,8 +668,6 @@ class XrayConfiguration(BaseSubscription):
 
         Raises:
             ValueError: A selected port from a comma-separated string is not an integer.
-            IndexError: A gRPC multi-mode path beginning with ``/`` lacks the
-                ``|`` stream separator.
         """
         network = "masque" if protocol_type == "masque" else inbound.network
         path = inbound.transport_config.path
@@ -752,7 +790,14 @@ class XrayConfiguration(BaseSubscription):
         ):
             outbound["mux"] = self._normalize_and_remove_none_values(xray_mux)
 
-        return self._normalize_and_remove_none_values(outbound), extra_outbounds
+        outbound = self._normalize_and_remove_none_values(outbound)
+        if network == "xdrive":
+            if "mux" not in outbound:
+                outbound["mux"] = {"enabled": True}
+            if network_setting:
+                # The cleanup drops false like 0, but Xray reads XDrive settings as given (s3 "pathStyle" defaults to true).
+                outbound["streamSettings"]["xdriveSettings"] = network_setting
+        return outbound, extra_outbounds
 
     @staticmethod
     def _stream_setting_config(

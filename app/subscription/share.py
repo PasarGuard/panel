@@ -29,6 +29,7 @@ from . import (
     OutlineConfiguration,
     SingBoxConfiguration,
     StandardLinks,
+    TelegramLinks,
     WireGuardConfiguration,
     XrayConfiguration,
 )
@@ -38,6 +39,13 @@ SERVER_IPV6 = "[::1]"
 
 # Transports only the Xray JSON format can express.
 XRAY_ONLY_NETWORKS = frozenset({"xdrive"})
+
+# Internal format for the subscription page and the dashboard: share links plus Telegram proxy links.
+# Not a ConfigFormat, so no client and no subscription rule can request it.
+TELEGRAM_PAGE_LINKS_FORMAT = "links_telegram"
+
+# Formats that carry the external share links of the subscription settings (Outline and WireGuard do not).
+SHARE_LINK_FORMATS = (StandardLinks, XrayConfiguration, SingBoxConfiguration, ClashConfiguration)
 
 
 def _build_subscription_config(
@@ -60,6 +68,8 @@ def _build_subscription_config(
 
     if config_format == "links":
         return StandardLinks(**common_kwargs)
+    if config_format == TELEGRAM_PAGE_LINKS_FORMAT:
+        return TelegramLinks(**common_kwargs)
     if config_format == "clash":
         return ClashConfiguration(
             clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
@@ -112,6 +122,7 @@ async def generate_subscription(
             xray_template_overrides=xray_template_overrides,
             randomize_order=randomize_order,
             custom_variables=custom_variables,
+            external_links=sub_settings.external_links,
         )
         if as_base64 and not isinstance(config, bytes):
             config = base64.b64encode(config.encode()).decode()
@@ -455,6 +466,7 @@ async def process_inbounds_and_tags(
     xray_template_overrides: dict[int, str] | None = None,
     randomize_order: bool = False,
     custom_variables: list | tuple | None = None,
+    external_links: list[str] | None = None,
 ) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
@@ -524,6 +536,9 @@ async def process_inbounds_and_tags(
                 inbound=inbound_copy,
                 settings=settings,
             )
+
+    if external_links and isinstance(conf, SHARE_LINK_FORMATS):
+        conf.add_share_links(external_links)
 
     return conf.render()
 

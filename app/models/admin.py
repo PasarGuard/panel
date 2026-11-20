@@ -14,7 +14,7 @@ from app.models.settings import CustomVariable, validate_custom_variables
 from app.models.stats import Period
 from app.utils.helpers import has_markup_unsafe_chars
 
-from .notification_enable import UserNotificationEnable
+from .notification_enable import OwnerNotificationEnable
 from .validators import (
     DiscordValidator,
     ListValidator,
@@ -96,7 +96,7 @@ class AdminContactInfo(AdminBase):
     profile_title: str | None = None
     support_url: str | None = None
     custom_variables: list[CustomVariable] = Field(default_factory=list)
-    notification_enable: UserNotificationEnable | None = None
+    notification_enable: OwnerNotificationEnable | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -113,13 +113,13 @@ class AdminContactInfo(AdminBase):
     @field_validator("notification_enable", mode="before")
     @classmethod
     def convert_notification_enable(cls, value):
-        """Convert dict to UserNotificationEnable object when loading from database."""
+        """Convert dict to OwnerNotificationEnable object when loading from database."""
         if value is None:
             return None
-        if isinstance(value, UserNotificationEnable):
+        if isinstance(value, OwnerNotificationEnable):
             return value
         if isinstance(value, dict):
-            return UserNotificationEnable(**value)
+            return OwnerNotificationEnable(**value)
         return value
 
 
@@ -176,7 +176,7 @@ class AdminModify(BaseModel):
     support_url: str | None = None
     custom_variables: list[CustomVariable] | None = None
     note: str | None = None
-    notification_enable: UserNotificationEnable | None = None
+    notification_enable: OwnerNotificationEnable | None = None
     role_id: int | None = None
     permission_overrides: RoleLimits | None = None
 

@@ -10,9 +10,11 @@ from uuid import uuid4
 import certifi
 import pytest
 from PasarGuardNodeBridge import Health, NodeAPIError, NodeType
+from PasarGuardNodeBridge.storage import LifecycleStatus
 
 from app.db.models import CoreType, NodeStatus
 from app.jobs import node_checker
+from app.models.settings import General, NodeHealthSettings
 from app.node import heartbeat as heartbeat_module
 from app.node.bridge import create_node
 from app.operation import node as node_operation
@@ -47,6 +49,18 @@ class _FakeDB:
         return False
 
 
+def _patch_health_settings(monkeypatch, **values):
+    """Serve `general.node_health` from memory; tests change the returned object in place."""
+    health = NodeHealthSettings.model_construct(**{**NodeHealthSettings().model_dump(), **values})
+    general = General.model_construct(node_health=health)
+
+    async def get_general_settings():
+        return general
+
+    monkeypatch.setattr(node_checker, "general_settings", get_general_settings)
+    return health
+
+
 def _real_node(name: str):
     node = create_node(
         connection=NodeType.grpc,
@@ -75,11 +89,11 @@ def _db_node(status=NodeStatus.error, **extra):
 def checker(monkeypatch):
     monkeypatch.setattr(node_checker, "_health_streaks", {})
     monkeypatch.setattr(node_checker, "_probe_backoffs", {})
-    monkeypatch.setattr(node_checker.job_settings, "node_health_fail_threshold", 3)
-    monkeypatch.setattr(node_checker.job_settings, "node_health_recover_threshold", 2)
+    monkeypatch.setattr(node_checker, "_core_starting_since", {})
+    health = _patch_health_settings(
+        monkeypatch, fail_threshold=3, recover_threshold=2, probe_timeout=0.2, max_backoff=60
+    )
     monkeypatch.setattr(node_checker.job_settings, "core_health_check_interval", 10)
-    monkeypatch.setattr(node_checker.job_settings, "node_health_probe_timeout", 0.2)
-    monkeypatch.setattr(node_checker.job_settings, "node_health_max_backoff", 60)
     monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: True)
     monkeypatch.setattr(node_checker, "needs_shared_bridge_memory", lambda: False)
     monkeypatch.setattr(node_checker, "GetDB", lambda: _FakeDB())
@@ -88,7 +102,7 @@ def checker(monkeypatch):
     monkeypatch.setattr(NodeOperation, "_update_single_node_status", AsyncMock(return_value=True))
     clock = [1000.0]
     monkeypatch.setattr(node_checker, "time", SimpleNamespace(monotonic=lambda: clock[0]))
-    return SimpleNamespace(monkeypatch=monkeypatch, clock=clock)
+    return SimpleNamespace(monkeypatch=monkeypatch, clock=clock, health=health)
 
 
 def _fake_node(health=Health.BROKEN):
@@ -100,7 +114,62 @@ def _fake_node(health=Health.BROKEN):
     node.set_health = AsyncMock()
     node.get_versions = AsyncMock(return_value=("0.5.4", "26.10.21"))
     node.info = AsyncMock(return_value=SimpleNamespace(started=True, node_version="0.5.4", core_version="26.10.21"))
+    node.set_reported_versions = AsyncMock()
     return node
+
+
+@pytest.mark.asyncio
+async def test_health_job_starts_node_marked_connecting_after_update(checker):
+    db_node, node = _db_node(NodeStatus.connecting), _fake_node(Health.NOT_CONNECTED)
+    checker.monkeypatch.setattr(
+        node_checker, "verify_node_backend_health", AsyncMock(return_value=(Health.NOT_CONNECTED, None, None))
+    )
+    reconnect = AsyncMock()
+    checker.monkeypatch.setattr(node_checker.node_operator, "connect_single_node", reconnect)
+
+    await node_checker.process_node_health_check(db_node, node)
+
+    reconnect.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_stopped_core_is_repaired_after_starting_grace(checker):
+    db_node, node = _db_node(NodeStatus.connected), _fake_node(Health.BROKEN)
+    node.info.return_value = SimpleNamespace(started=False, node_version="0.5.5", core_version="26.10.21")
+    checker.monkeypatch.setattr(
+        node_checker,
+        "verify_node_backend_health",
+        AsyncMock(return_value=(Health.BROKEN, 503, "core is not started yet")),
+    )
+    reconnect = AsyncMock()
+    checker.monkeypatch.setattr(node_checker.node_operator, "connect_single_node", reconnect)
+
+    await node_checker.process_node_health_check(db_node, node)
+    reconnect.assert_not_awaited()
+    checker.clock[0] += node_checker._CORE_STARTING_GRACE
+    await node_checker.process_node_health_check(db_node, node)
+
+    reconnect.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_starting_core_with_active_lifecycle_is_not_restarted_after_grace(checker):
+    db_node, node = _db_node(NodeStatus.connected), _fake_node(Health.BROKEN)
+    node.info.return_value = SimpleNamespace(started=False, node_version="0.5.5", core_version="26.10.21")
+    node.get_lifecycle_state.return_value = SimpleNamespace(observed=LifecycleStatus.STARTING)
+    checker.monkeypatch.setattr(
+        node_checker,
+        "verify_node_backend_health",
+        AsyncMock(return_value=(Health.BROKEN, 503, "core is not started yet")),
+    )
+    reconnect = AsyncMock()
+    checker.monkeypatch.setattr(node_checker.node_operator, "connect_single_node", reconnect)
+
+    await node_checker.process_node_health_check(db_node, node)
+    checker.clock[0] += node_checker._CORE_STARTING_GRACE
+    await node_checker.process_node_health_check(db_node, node)
+
+    reconnect.assert_not_awaited()
 
 
 async def _runs(checker, db_node, node, seconds, step=10):
@@ -133,7 +202,7 @@ async def test_probe_does_not_wait_for_a_raised_default_timeout(checker):
 
 @pytest.mark.asyncio
 async def test_probe_timeout_is_capped_by_the_node_default_timeout(checker):
-    checker.monkeypatch.setattr(node_checker.job_settings, "node_health_probe_timeout", 5)
+    checker.health.probe_timeout = 5
     node = _fake_node(Health.HEALTHY)
     node.get_backend_stats = AsyncMock()
 
@@ -157,7 +226,7 @@ async def test_errored_unreachable_node_is_probed_with_backoff(checker):
 
 @pytest.mark.asyncio
 async def test_backoff_can_be_disabled(checker):
-    checker.monkeypatch.setattr(node_checker.job_settings, "node_health_max_backoff", 0)
+    checker.health.max_backoff = 0
     checker.monkeypatch.setattr(node_checker, "verify_node_backend_health", AsyncMock(return_value=TIMEOUT))
 
     probed = await _runs(checker, _db_node(), _fake_node(), 60)

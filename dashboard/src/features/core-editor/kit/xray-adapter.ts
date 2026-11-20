@@ -5,6 +5,7 @@ import type { CoreKitValidationIssue } from '@pasarguard/core-kit'
 import { validateCoreConfig } from '@pasarguard/core-kit'
 import { filterCoreKitIssuesHidingInboundClients } from './inbound-clients-issue-filter'
 import { sanitizeProfileInbounds } from './sanitize-inbound'
+import { validateXrayGeodata } from './xray-geodata'
 
 function isEmptyCompiledConfig(config: unknown): boolean {
   return typeof config === 'object' && config !== null && !Array.isArray(config) && Object.keys(config as object).length === 0
@@ -548,8 +549,8 @@ export function validateProfileForSave(profile: Profile) {
  * (inbound clients noise filtered out). Warnings and info-level issues do not block save.
  */
 export function validateProfileForPersist(profile: Profile): XrayPersistValidationResult {
-  const strictBlockers = getXrayStrictCompileBlockers(profile)
   const config = profileToPersistedConfig(profile)
+  const strictBlockers = [...getXrayStrictCompileBlockers(profile), ...validateXrayGeodata(config.geodata)]
   const r = validateCoreConfig('xray', config)
   const coreKitIssues = r.ok ? [] : filterCoreKitIssuesHidingInboundClients([...r.issues])
 
