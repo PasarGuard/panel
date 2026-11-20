@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
+from app.core import xray
 from app.core.xray import XRayConfig
 
 PARENT_TAG = "vless-tls"
@@ -17,6 +18,12 @@ CHILD_TAG = "vless-ws"
 SERVER_NAME = "fallback.example.com"
 NODE_CERT_FILE = "/opt/certs/missing/fullchain.pem"
 NODE_KEY_FILE = "/opt/certs/missing/privkey.pem"
+
+
+@pytest.fixture(autouse=True)
+def allow_tls_files_in_tmp_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The certificates below are written to tmp_path, outside the default TLS_FILES_ALLOWED_DIRS."""
+    monkeypatch.setattr(xray.server_settings, "tls_files_allowed_dirs", str(tmp_path))
 
 
 def _write_self_signed(directory: Path) -> tuple[str, str]:

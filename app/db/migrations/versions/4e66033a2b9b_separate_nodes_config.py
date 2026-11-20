@@ -84,6 +84,8 @@ def upgrade() -> None:
             config,
             migration_settings.xray_exclude_inbound_tags,
             migration_settings.xray_fallbacks_inbound_tags,
+            # The legacy xray config is already in use: do not fall back to base_xray over TLS_FILES_ALLOWED_DIRS.
+            strict_tls_paths=False,
         )
     except Exception:
         config = base_xray
