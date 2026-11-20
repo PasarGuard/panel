@@ -1,4 +1,4 @@
-from sqlalchemy import delete, func, select
+from sqlalchemy import bindparam, delete, func, select
 
 from app import scheduler
 from app.db import GetDB
@@ -26,16 +26,26 @@ async def cleanup_user_subscription_updates():
         # user ids (asyncpg rejects more than 32767 bind parameters) and no per-user loop. Window functions need
         # SQLite 3.25+, MySQL 8.0+ or MariaDB 10.2+. Reading from the derived table also lets MySQL delete from the
         # table the subquery reads.
-        ranked = select(
-            UserSubscriptionUpdate.id,
-            func.row_number()
-            .over(
-                partition_by=UserSubscriptionUpdate.user_id,
-                order_by=(UserSubscriptionUpdate.created_at.desc(), UserSubscriptionUpdate.id.desc()),
+        limit_param = bindparam("clients_limit", clients_limit)
+        users_over_limit = (
+            select(UserSubscriptionUpdate.user_id)
+            .group_by(UserSubscriptionUpdate.user_id)
+            .having(func.count(UserSubscriptionUpdate.id) > limit_param)
+        )
+        ranked = (
+            select(
+                UserSubscriptionUpdate.id,
+                func.row_number()
+                .over(
+                    partition_by=UserSubscriptionUpdate.user_id,
+                    order_by=(UserSubscriptionUpdate.created_at.desc(), UserSubscriptionUpdate.id.desc()),
+                )
+                .label("rn"),
             )
-            .label("rn"),
-        ).subquery()
-        excess_ids = select(ranked.c.id).where(ranked.c.rn > clients_limit)
+            .where(UserSubscriptionUpdate.user_id.in_(users_over_limit))
+            .subquery()
+        )
+        excess_ids = select(ranked.c.id).where(ranked.c.rn > limit_param)
         result = await db.execute(
             delete(UserSubscriptionUpdate)
             .where(UserSubscriptionUpdate.id.in_(excess_ids))
