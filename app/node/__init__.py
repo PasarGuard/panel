@@ -705,43 +705,37 @@ class NodeManager:
     async def _queue_current_users(self, node_id: int, emails: list[str]) -> None:
         """Queue for a node the state the database holds now for these users.
 
-        A user in the database gets its current payload (a removal with its stored
-        credentials when it must not be on the node), written over whatever is queued
-        for it. A user gone from the database has no credentials left. With the NATS
-        queue it only asks the queue to re-read it before delivery: nothing is written
-        over an entry already queued for it, because that entry is delivered from the
-        database anyway and keeps the credentials a node may need to find what to remove
-        (an entry being delivered is made to be delivered once more). The bridge's
-        in-memory queue has no such request: the removal is written over the queued
-        entry, so it reaches the node without credentials (enough for xray, not for
-        WireGuard).
+        With the NATS queue this only asks the queue to re-read the users before delivery:
+        nothing is written over an entry already queued for a user, because that entry is
+        delivered from the database anyway and keeps the credentials a node may need to
+        find what to remove (an entry being delivered is made to be delivered once more).
+        A payload read here could be older than that entry: written over it, the
+        credentials of a user changed and then deleted in between would replace the ones
+        the node holds. The bridge's in-memory queue has no such request: the current
+        payload (a removal with its stored credentials when the user must not be on the
+        node, without any once the user is gone from the database) is written over the
+        queued entry, so a removal can reach the node without the credentials WireGuard
+        needs (xray does not need them).
         """
         read = get_refresh_handler()
         if read is None:
             raise RuntimeError("no reader of the current user state is registered")
-        present: list[ProtoUser] = []
         task = self._track_user_sync(node_id)
         try:
             current = {user.email: user for user in await read(str(node_id), emails)}
             if missing := [email for email in emails if email not in current]:
                 raise ValueError(f"no current state for user(s) {_describe_users(missing)}")
-            gone: list[ProtoUser] = []
-            for email in emails:
-                user = current[email]
-                (gone if not user.inbounds and not user.HasField("proxies") else present).append(user)
-            if gone:
-                node = await self.get_node(node_id)
-                if node is None:
-                    return
-                request_refresh = getattr(node, "request_refresh", None)
-                if callable(request_refresh) and self._supports_shared_sync(node):
-                    await request_refresh(gone)
-                else:
-                    present.extend(gone)
+            users = [current[email] for email in emails]
+            node = await self.get_node(node_id)
+            if node is None:
+                return
+            request_refresh = getattr(node, "request_refresh", None)
+            if callable(request_refresh) and self._supports_shared_sync(node):
+                await request_refresh(users)
+                return
         finally:
             self._untrack_user_sync(node_id, task)
-        if present:
-            await self._sync_users_to_node(node_id, None, present)
+        await self._sync_users_to_node(node_id, None, users)
 
     async def _drop_pending_user_syncs(self, node_id: int) -> None:
         task = self._user_sync_retry_tasks.pop(node_id, None)

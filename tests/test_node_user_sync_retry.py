@@ -500,12 +500,54 @@ async def test_retry_never_writes_a_payload_it_saw_queued_meanwhile(monkeypatch,
         await _close(manager)
 
 
+async def test_retry_never_replaces_the_credentials_of_a_user_changed_and_deleted_after_its_read(monkeypatch, database):
+    # The retry read the user with K1. Before it writes, the key changes to K2 and the user is
+    # deleted; the removal is queued with K2, the key the node holds. Written over it, the retry's
+    # K1 would be the only credentials left for the removal and the K2 peer would stay on the node.
+    store = FlakyStore(failures=1)
+    manager, [state] = await _cluster(monkeypatch, store, delays=(0.01,))
+    node = manager._nodes[1]
+    keys = _removal_keys(monkeypatch)
+    release = _hold_delivery(monkeypatch, node, store)
+    write, refresh = store.enqueue_users, store.request_refresh
+    retry_writing, retry_may_finish = asyncio.Event(), asyncio.Event()
+
+    def held(call):
+        async def hold_the_retry(node_id, items):
+            if store.enqueue_calls == 1 and not retry_writing.is_set():  # the retry's write
+                retry_writing.set()
+                await retry_may_finish.wait()
+            await call(node_id, items)
+
+        return hold_the_retry
+
+    try:
+        with pytest.raises(StoreDown):
+            await manager.update_user(database.put(_wireguard_user(5, "K1", "in-a")))
+        monkeypatch.setattr(store, "enqueue_users", held(write))
+        monkeypatch.setattr(store, "request_refresh", held(refresh))
+        await asyncio.wait_for(retry_writing.wait(), 2)
+        await manager.update_user(database.put(_wireguard_user(5, "K2", "in-a")))
+        del database["5"]
+        await manager.update_user(_wireguard_user(5, "K2"))
+        retry_may_finish.set()
+        await _settled(manager)
+        assert not _pending(manager, 1)
+        release.set()
+        await _drained(store, node)
+        assert keys == ["K2"]
+        assert state.users.get("5") == []
+    finally:
+        release.set()
+        await _close(manager)
+
+
 async def test_transient_failures_never_drop_a_user(monkeypatch, caplog, database):
     # Review must-fix 2: NATS flaps; writes of user 7 keep failing for a while although
     # other users are queued fine in between. User 7 stays until it is queued.
     store = FlakyStore()
     manager, [state] = await _cluster(monkeypatch, store, delays=(0.01,))
-    write = store.enqueue_users
+    write, refresh = store.enqueue_users, store.request_refresh
     failing = True
 
     async def flaky(node_id, users):
@@ -513,7 +555,13 @@ async def test_transient_failures_never_drop_a_user(monkeypatch, caplog, databas
             raise StoreDown("nats timeout")
         await write(node_id, users)
 
+    async def flaky_refresh(node_id, emails):  # the retry's write
+        if failing and "7" in emails:
+            raise StoreDown("nats timeout")
+        await refresh(node_id, emails)
+
     monkeypatch.setattr(store, "enqueue_users", flaky)
+    monkeypatch.setattr(store, "request_refresh", flaky_refresh)
     try:
         with caplog.at_level(logging.ERROR, logger=manager.logger.name):
             with pytest.raises(StoreDown):
@@ -540,19 +588,19 @@ async def test_failure_during_a_retry_attempt_keeps_the_user(monkeypatch, databa
     # the retry's write working must not count for the newer change.
     store = FlakyStore(failures=1)
     manager, [state] = await _cluster(monkeypatch, store, delays=(0.01, 0.01))
-    write = store.enqueue_users
+    refresh = store.request_refresh
     retry_writing, retry_may_finish = asyncio.Event(), asyncio.Event()
 
-    async def held_retry(node_id, users):
+    async def held_retry(node_id, emails):
         if store.enqueue_calls == 1 and not retry_writing.is_set():  # the retry's write
             retry_writing.set()
             await retry_may_finish.wait()
-        await write(node_id, users)
+        await refresh(node_id, emails)
 
     try:
         with pytest.raises(StoreDown):
             await manager.update_user(database.put(_user(8, "in-a")))
-        monkeypatch.setattr(store, "enqueue_users", held_retry)
+        monkeypatch.setattr(store, "request_refresh", held_retry)
         await asyncio.wait_for(retry_writing.wait(), 2)
         store.failures = 1
         with pytest.raises(StoreDown):
