@@ -18,6 +18,8 @@ from config import server_settings
 logger = get_logger("Notification")
 
 DEDUP_WINDOW_SECONDS = 15.0
+# Keys live in their own bucket that expires them; the scheduler leader bucket must keep its keys.
+DEDUP_KEY_TTL_SECONDS = 2 * DEDUP_WINDOW_SECONDS
 # A notification must not wait for dedup: nats-py applies the connect timeout to TCP, INFO and PONG each.
 _CONNECT_TIMEOUT_SECONDS = 1
 # For ws:// nats-py hands connect_timeout to aiohttp as the close timeout; the HTTP upgrade waits up to 300s.
@@ -32,6 +34,8 @@ _nc = None
 _kv_lock = asyncio.Lock()
 _closed = False
 _retry_at = 0.0
+# Warn once per outage of the bucket, not on every retry.
+_bucket_warned = False
 
 
 def notification_fingerprint(event_name: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
@@ -113,7 +117,7 @@ async def _log_nats_error(exc: Exception) -> None:
 
 
 async def _get_kv():
-    global _kv, _nc
+    global _kv, _nc, _bucket_warned
     if _closed or _backing_off():
         return None
     if _kv_ready():
@@ -137,13 +141,21 @@ async def _get_kv():
         try:
             js = await get_jetstream_context(nc)
             kv = await asyncio.wait_for(
-                get_or_create_kv_bucket(js, nats_settings.scheduler_leader_kv_bucket),
+                get_or_create_kv_bucket(js, nats_settings.notification_dedup_kv_bucket, ttl=DEDUP_KEY_TTL_SECONDS),
                 timeout=_KV_TIMEOUT_SECONDS,
             )
-        except BaseException:
+        except BaseException as exc:
             _back_off()
             await _close_nats(nc)
+            if isinstance(exc, Exception) and not _bucket_warned:
+                _bucket_warned = True
+                logger.warning(
+                    "Notification dedup bucket %s is unavailable, workers may send duplicate notifications: %r",
+                    nats_settings.notification_dedup_kv_bucket,
+                    exc,
+                )
             raise
+        _bucket_warned = False
         # Shutdown may have run while connect() was retrying; nobody would close this client later.
         if kv is None or _closed:
             await _close_nats(nc)
