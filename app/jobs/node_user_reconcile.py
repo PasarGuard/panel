@@ -207,12 +207,12 @@ async def _last_issued_user_id() -> int | None:
 
 async def _removal_sweep_ids(
     exclude: set[int], node_id: int | None = None, gap_from: int | None = None
-) -> tuple[list[int], int]:
+) -> tuple[list[int], int, int]:
     """Ids of every inactive user and of ids up to the last one issued that no user has.
 
     Ids above the highest existing one are covered only up to ``MAX_SWEEP_IDS_ABOVE_EXISTING``.
     Ids no user has are taken from ``gap_from`` on, wrapping around, at most ``MAX_SWEEP_GAP_IDS``
-    of them; returns the ids and the ``gap_from`` of the next sweep. Without a valid ``gap_from``
+    of them; returns the ids, the ``gap_from`` used and the one of the next sweep. Without a valid ``gap_from``
     (a node state just created, e.g. after a panel restart, or none at all) they start at a random
     id, so sweeps that never get to go on from a previous one still reach every id in time.
     """
@@ -255,7 +255,7 @@ async def _removal_sweep_ids(
             upper - len(existing) - len(gaps),
             next_from,
         )
-    return sorted(removals - exclude), next_from
+    return sorted(removals - exclude), gap_from, next_from
 
 
 # -------------------------------------------------------------------- node checks
@@ -447,7 +447,11 @@ async def _reconcile_node(
     removals: list[int] = []
     if sweep:
         gap_from = state.sweep_gap_from if state is not None else None
-        removals, gap_next = await _removal_sweep_ids(set(ids), node_id=node_id, gap_from=gap_from)
+        removals, gap_from, gap_next = await _removal_sweep_ids(set(ids), node_id=node_id, gap_from=gap_from)
+        if state is not None:
+            # Kept before the first chunk is sent: a sweep that picked a random start and is then
+            # interrupted starts over at the same id instead of picking another one.
+            state.sweep_gap_from = gap_from
     chunks = _chunks(ids) + _chunks(removals)
     skipped: list[str] = []
     warned_at = state.unreadable_warned_at if state is not None else None

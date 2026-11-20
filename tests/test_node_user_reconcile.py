@@ -324,10 +324,10 @@ async def test_user_activated_after_the_removal_list_was_built_stays_on_the_node
     collect = reconcile._removal_sweep_ids
 
     async def collect_then_activate(exclude, **kwargs):
-        ids, gap_next = await collect(exclude, **kwargs)
+        ids, gap_from, gap_next = await collect(exclude, **kwargs)
         assert user_id in ids
         await env.set_status(user_id, UserStatus.active)
-        return ids, gap_next
+        return ids, gap_from, gap_next
 
     monkeypatch.setattr(reconcile, "_removal_sweep_ids", collect_then_activate)
     await run_pass(env)
@@ -633,7 +633,7 @@ async def test_sweep_stops_a_bounded_distance_above_the_highest_existing_id(env,
 
     counter = user_id + 1_000_000  # the id counter was pushed far ahead
     monkeypatch.setattr(reconcile, "_last_issued_user_id", AsyncMock(return_value=counter))
-    ids, _ = await reconcile._removal_sweep_ids(set(), node_id=1)
+    ids, _, _ = await reconcile._removal_sweep_ids(set(), node_id=1)
     ceiling = user_id + reconcile.MAX_SWEEP_IDS_ABOVE_EXISTING
     assert len(ids) == reconcile.MAX_SWEEP_IDS_ABOVE_EXISTING and ids[-1] == ceiling
     [warning] = warnings_with(caplog, "stops at id")
@@ -698,6 +698,36 @@ async def test_interrupted_sweep_keeps_its_start_and_a_sweep_wraps_around(env, m
     make_sweep_due()
     await run_pass(env)
     assert still_on_the_node(env, deleted) == deleted[1:3]
+    assert node_state().sweep_gap_from == deleted[1]
+
+
+async def test_interrupted_sweep_without_a_cursor_keeps_the_start_it_picked(env, monkeypatch):
+    # After a restart the start is random; the retry of an interrupted sweep must not pick another one.
+    monkeypatch.setattr(reconcile, "MAX_SWEEP_GAP_IDS", 3)
+    monkeypatch.setattr(reconcile, "CHUNK_SIZE", 1)
+    deleted = await deleted_users_on_the_node(env)
+    reconcile._states[1] = settled_state(swept=False)
+    assert node_state().sweep_gap_from is None
+    starts = [deleted[3], deleted[1]]  # a second random pick would move the sweep to other ids
+    monkeypatch.setattr(reconcile.random, "randint", lambda low, high: starts.pop(0))
+    pause, pauses = reconcile._pause_between_chunks, []
+
+    async def stop_after_the_first_removal(node):
+        pauses.append(node)
+        if len(pauses) == 2:  # chunks: the existing user, deleted[0], deleted[3], deleted[4]
+            raise reconcile._PassStopped("stopped for the test")
+        await pause(node)
+
+    monkeypatch.setattr(reconcile, "_pause_between_chunks", stop_after_the_first_removal)
+    await run_pass(env)
+    assert still_on_the_node(env, deleted) == deleted[1:]
+    assert node_state().sweep_gap_from == deleted[3]
+
+    monkeypatch.setattr(reconcile, "_pause_between_chunks", pause)
+    make_sweep_due()
+    await run_pass(env)
+    assert still_on_the_node(env, deleted) == deleted[1:3]
+    assert starts == [deleted[1]]  # the retry did not pick a start again
     assert node_state().sweep_gap_from == deleted[1]
 
 
