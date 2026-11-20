@@ -22,7 +22,7 @@ dependencies = [
     "pydantic>=2.14.3",
     "pydantic-settings>=2.16.3",
     "python-dateutil>=4.0.0",
-    "python-multipart>=0.0.33",
+    "python-multipart>=0.0.34",
     "qrcode>=8.1",
     "rich>=15.0.0",
     "uvicorn==0.54.0",
