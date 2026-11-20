@@ -31,6 +31,7 @@ from app.notification import (
     remove_api_key as notify_delete,
 )
 from app.operation import BaseOperation
+from app.operation.api_key_usage_buffer import flush_api_key_usage
 
 
 def _check_permissions_not_exceed_admin(admin: AdminDetails, requested: RolePermissions) -> None:
@@ -167,6 +168,14 @@ class APIKeyOperation(BaseOperation):
     async def modify_api_key(
         self, db: AsyncSession, *, admin: AdminDetails, key_id: int, model: APIKeyUpdate
     ) -> APIKeyResponse:
+        # A new limit must see requests this process buffered while the key had none.
+        try:
+            await flush_api_key_usage()
+        except Exception:
+            # Usage is only a statistic here; unwritten requests stay buffered and are
+            # carried into the counter by the next request of a limited key.
+            # flush_api_key_usage has already logged the failure.
+            pass
         db_key = await get_api_key_by_id(db, key_id)
         if db_key is None:
             await self.raise_error(message="API key not found", code=404)

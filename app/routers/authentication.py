@@ -23,6 +23,7 @@ from app.models.admin_role import RoleAccess, RoleFeatures, RoleLimits, RolePerm
 from app.models.api_key import APIKeyResponse
 from app.models.settings import Telegram
 from app.notification import remove_api_key as notify_delete_api_key
+from app.operation.api_key_usage_buffer import record_api_key_usage, restore_api_key_usage, take_api_key_usage
 from app.operation.permissions import PermissionDenied, enforce_permission, intersect_permissions, is_scope_all
 from app.settings import telegram_settings
 from app.utils.jwt import get_admin_payload, get_admin_token_binding, get_secret_key
@@ -119,11 +120,22 @@ async def _get_admin_from_api_key_internal(
     if not db_key.is_usable:
         return
 
-    new_count = await increment_api_key_usage(db, db_key.id)
-    if new_count is None:
-        # The key hit its max_requests limit concurrently; treat as exhausted.
-        return
-    reached_limit = db_key.max_requests is not None and db_key.max_requests > 0 and new_count >= db_key.max_requests
+    if db_key.max_requests is None:
+        # No limit: the counter is a statistic, so skip the per-request row lock.
+        record_api_key_usage(db_key.id, db_key.key_hash)
+        new_count = None
+    else:
+        # Requests buffered here before the limit was set still count toward it.
+        carry = take_api_key_usage(db_key.id, db_key.key_hash)
+        try:
+            new_count = await increment_api_key_usage(db, db_key.id, carry=carry)
+        except BaseException:
+            restore_api_key_usage(db_key.id, db_key.key_hash, carry)
+            raise
+        if new_count is None:
+            # The key hit its max_requests limit concurrently; treat as exhausted.
+            return
+    reached_limit = new_count is not None and db_key.max_requests > 0 and new_count >= db_key.max_requests
     if reached_limit and db_key.delete_on_limit:
         api_key_resp = APIKeyResponse.model_validate(db_key)
         await delete_api_key(db, db_key)
