@@ -2,6 +2,15 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import type { GetUsersParams, UserListItem, UserResponse, UsersResponse } from '@/service/api'
 
 const USERS_QUERY_KEY = '/api/users'
+export const DEFAULT_USERS_SORT = '-created_at'
+// Server sort for a search: exact username, then usernames starting with the text, then other username matches,
+// then users found only by their note, newest first inside each group
+export const RELEVANCE_USERS_SORT = 'relevance'
+
+// While a search is typed and the admin has not picked a sort, ask for the best matches first
+export const toUsersQueryParams = <T extends { sort?: string | null; search?: string | null }>(filters: T): T =>
+  filters.search?.trim() && (!filters.sort || filters.sort === DEFAULT_USERS_SORT) ? { ...filters, sort: RELEVANCE_USERS_SORT } : filters
+
 const ONLINE_USERS_WINDOW_MS = 2 * 60 * 1000
 
 const toNumber = (value: unknown): number | undefined => {
@@ -177,8 +186,26 @@ const matchesUserFilters = (user: UserResponse, params?: GetUsersParams): boolea
   return true
 }
 
-const compareBySort = (a: UserResponse, b: UserResponse, sort?: string | null): number => {
-  const resolvedSort = sort && sort.trim() !== '' ? sort : '-created_at'
+const searchRank = (username: string, search: string, byRelevance: boolean): number => {
+  if (username === search) return 0
+  const lowerName = username.toLowerCase()
+  const lowerSearch = search.toLowerCase()
+  if (lowerName === lowerSearch) return 1
+  if (!byRelevance) return 2
+  if (lowerName.startsWith(lowerSearch)) return 2
+  if (lowerName.includes(lowerSearch)) return 3
+  return 4
+}
+
+// Same order as the server: the search rank first, then the chosen sort
+export const compareBySort = (a: UserResponse, b: UserResponse, sort?: string | null, search?: string | null): number => {
+  const byRelevance = sort === RELEVANCE_USERS_SORT
+  const trimmedSearch = search?.trim()
+  if (trimmedSearch) {
+    const rankDiff = searchRank(a.username, trimmedSearch, byRelevance) - searchRank(b.username, trimmedSearch, byRelevance)
+    if (rankDiff !== 0) return rankDiff
+  }
+  const resolvedSort = sort && sort.trim() !== '' && !byRelevance ? sort : DEFAULT_USERS_SORT
   const desc = resolvedSort.startsWith('-')
   const field = desc ? resolvedSort.slice(1) : resolvedSort
 
@@ -231,7 +258,7 @@ const upsertInSingleUsersQuery = (oldData: UsersResponse, user: UserResponse, pa
       changed = true
     }
   } else if (allowInsert && matchesFilters && shouldInsertIntoQueryPage(params)) {
-    users = [...oldUsers, user].sort((a, b) => compareBySort(a, b, params?.sort))
+    users = [...oldUsers, user].sort((a, b) => compareBySort(a, b, params?.sort, params?.search))
     total += 1
     changed = true
   }
