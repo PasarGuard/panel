@@ -1,6 +1,8 @@
 import { CodeEditorPanel } from '@/components/common/code-editor-panel'
 import type { ClientTemplateFormValues } from '@/features/templates/forms/client-template-form'
 import { DEFAULT_TEMPLATE_CONTENT } from '@/features/templates/forms/client-template-form'
+import { buildHappRoutingLink, HAPP_ROUTING_LINK_WARN_BYTES } from '@/features/templates/forms/happ-routing'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -12,9 +14,9 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
 import { ClientTemplateType, useCreateClientTemplate, useModifyClientTemplate } from '@/service/api'
 import { queryClient } from '@/utils/query-client'
-import { Pencil, FileCode2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { UseFormReturn } from 'react-hook-form'
+import { Pencil, FileCode2, Info, TriangleAlert } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -24,9 +26,12 @@ const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   [ClientTemplateType.singbox_subscription]: 'SingBox Subscription',
   [ClientTemplateType.user_agent]: 'User Agent',
   [ClientTemplateType.grpc_user_agent]: 'gRPC User Agent',
+  [ClientTemplateType.happ_routing]: 'Happ Routing',
 }
 
 const isYamlType = (templateType: string) => templateType === ClientTemplateType.clash_subscription
+// Happ routing profiles are only delivered through subscription rules, so they have no "default"
+const isHappRoutingType = (templateType: string) => templateType === ClientTemplateType.happ_routing
 
 interface ValidationResult {
   isValid: boolean
@@ -51,6 +56,10 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
 
   const templateType = form.watch('template_type')
   const isYaml = isYamlType(templateType)
+  const isHappRouting = isHappRoutingType(templateType)
+  // useWatch keeps typing from re-rendering the whole templates page; only the Happ routing editor needs it
+  const content = useWatch({ control: form.control, name: 'content', disabled: !isHappRouting })
+  const happRoutingLinkSize = useMemo(() => (isHappRouting ? (buildHappRoutingLink(content || '')?.length ?? null) : null), [content, isHappRouting])
 
   const validateContent = useCallback(
     (value: string, showToast = false) => {
@@ -136,18 +145,20 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
       }
     }
 
+    const isDefault = isHappRoutingType(values.template_type) ? undefined : values.is_default
+
     try {
       if (editingTemplate && editingTemplateId !== undefined) {
         await modifyClientTemplate.mutateAsync({
           templateId: editingTemplateId,
-          data: { name: values.name, content: finalContent, is_default: values.is_default },
+          data: { name: values.name, content: finalContent, is_default: isDefault },
         })
         toast.success(t('success', { defaultValue: 'Success' }), {
           description: t('clientTemplates.updateSuccess', { name: values.name, defaultValue: 'Template "{{name}}" updated successfully' }),
         })
       } else {
         await createClientTemplate.mutateAsync({
-          data: { name: values.name, template_type: values.template_type, content: finalContent, is_default: values.is_default },
+          data: { name: values.name, template_type: values.template_type, content: finalContent, is_default: isDefault },
         })
         toast.success(t('success', { defaultValue: 'Success' }), {
           description: t('clientTemplates.createSuccess', { name: values.name, defaultValue: 'Template "{{name}}" created successfully' }),
@@ -252,21 +263,70 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="is_default"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                        <div className="space-y-1">
-                          <FormLabel className="cursor-pointer">{t('clientTemplates.isDefault', { defaultValue: 'Set as default' })}</FormLabel>
-                          <p className="text-muted-foreground text-xs">{t('clientTemplates.isDefaultDescription', { defaultValue: 'Use this template automatically for matching output type.' })}</p>
-                        </div>
-                        <FormControl>
-                          <Switch checked={!!field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                  {isHappRouting && (
+                    <div className="space-y-3">
+                      <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription className="space-y-2 text-xs">
+                          <p>
+                            {t('clientTemplates.happRouting.help', {
+                              defaultValue:
+                                'A routing profile for the Happ app: which sites and IPs go direct, through the VPN or are blocked, and which DNS to use. Pick it in a subscription rule (for example ^Happ/) and Happ users get it with the subscription automatically.',
+                            })}
+                          </p>
+                          <p>
+                            {t('clientTemplates.happRouting.nameHelp', {
+                              defaultValue: 'Happ updates the profile by its "Name": keep the same Name to update it for users, a new Name adds a second profile.',
+                            })}
+                          </p>
+                          <p>
+                            {t('clientTemplates.happRouting.listsHelp', {
+                              defaultValue: 'Lists accept domains, IPs/CIDRs and geosite:/geoip: entries. You can build a profile on',
+                            })}{' '}
+                            <a href="https://routing.happ.su" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                              routing.happ.su
+                            </a>
+                          </p>
+                        </AlertDescription>
+                      </Alert>
+                      {happRoutingLinkSize !== null && (
+                        <p className="text-muted-foreground text-xs">
+                          {t('clientTemplates.happRouting.linkSize', {
+                            size: (happRoutingLinkSize / 1024).toFixed(1),
+                            defaultValue: 'Link size: {{size}} KB',
+                          })}
+                        </p>
+                      )}
+                      {happRoutingLinkSize !== null && happRoutingLinkSize > HAPP_ROUTING_LINK_WARN_BYTES && (
+                        <Alert variant="destructive">
+                          <TriangleAlert className="h-4 w-4" />
+                          <AlertDescription className="text-xs">
+                            {t('clientTemplates.happRouting.largeWarning', {
+                              defaultValue: 'The link is larger than 4 KB. Large headers can be cut by proxies; turn on sending headers in the subscription body.',
+                            })}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
+                  )}
+
+                  {!isHappRouting && (
+                    <FormField
+                      control={form.control}
+                      name="is_default"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-1">
+                            <FormLabel className="cursor-pointer">{t('clientTemplates.isDefault', { defaultValue: 'Set as default' })}</FormLabel>
+                            <p className="text-muted-foreground text-xs">{t('clientTemplates.isDefaultDescription', { defaultValue: 'Use this template automatically for matching output type.' })}</p>
+                          </div>
+                          <FormControl>
+                            <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </div>
               </div>
             </div>
