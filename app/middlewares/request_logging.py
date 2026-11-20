@@ -1,10 +1,38 @@
 import logging
+import re
 from time import perf_counter
+from urllib.parse import unquote_plus
 
 from h11 import LocalProtocolError
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.utils.performance import request_phases, start_request_phases
+from config import subscription_env_settings
+
+# Values that grant access on their own and must never reach access logs or log files.
+_SECRET_QUERY_PARAMS = {"key", "token", "api_key", "secret", "password"}
+_SUBSCRIPTION_PREFIX = re.compile(
+    rf"(/{re.escape(subscription_env_settings.path)}/)[^/?#]+" if subscription_env_settings.path else r"$^"
+)
+
+
+def _redact_query(query: str) -> str:
+    # Work on the raw query: values stay percent-encoded exactly as received, so decoding can never
+    # put characters such as line breaks into the log line. Only the name is decoded, to compare it.
+    parts = []
+    for part in query.split("&"):
+        name, separator, _ = part.partition("=")
+        if separator and unquote_plus(name).lower() in _SECRET_QUERY_PARAMS:
+            part = f"{name}=***"
+        parts.append(part)
+    return "&".join(parts)
+
+
+def redact_log_path(path: str, query_bytes: bytes = b"") -> str:
+    """Hide subscription tokens (path) and one-time keys (query) before logging."""
+    if query_bytes:
+        path = f"{path}?{_redact_query(query_bytes.decode(errors='replace'))}"
+    return _SUBSCRIPTION_PREFIX.sub(r"\1***", path)
 
 
 class RequestProcessTimeLoggingMiddleware:
@@ -48,8 +76,7 @@ class RequestProcessTimeLoggingMiddleware:
             process_time_ms = (perf_counter() - start_time) * 1000
             path = scope.get("path", "")
             query_bytes = scope.get("query_string", b"")
-            if query_bytes:
-                path = f"{path}?{query_bytes.decode(errors='replace')}"
+            path = redact_log_path(path, query_bytes)
             http_version = scope.get("http_version", "1.1")
             client = scope.get("client")
             client_addr = client[0] if client else "-"
