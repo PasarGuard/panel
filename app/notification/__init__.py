@@ -32,12 +32,10 @@ async def _gather_notifications(event_name: str, *aws):
             )
 
 
-def _safe_notification_task(func, dedup: bool = True):
+def _safe_notification_task(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
-            if dedup and not await claim_notification_slot(func.__name__, args, kwargs):
-                return None
             return await func(*args, **kwargs)
         except asyncio.CancelledError:
             raise
@@ -144,23 +142,28 @@ async def remove_node(node: NodeResponse, by: str):
         await _gather_notifications("remove_node", ds.remove_node(node, by), tg.remove_node(node, by))
 
 
+# Every worker connects the nodes at startup, and a job may run twice while the leader changes, so these
+# events can be reported by several workers at once. The claim comes after the enabled check: a disabled
+# event must not write to the dedup store.
 async def connect_node(node: NodeNotification):
-    if (await notification_enable()).node.connect:
+    if (await notification_enable()).node.connect and await claim_notification_slot("connect_node", (node,), {}):
         await _gather_notifications("connect_node", ds.connect_node(node), tg.connect_node(node))
 
 
 async def recovered_node(node: NodeNotification):
-    if (await notification_enable()).node.recovered:
+    if (await notification_enable()).node.recovered and await claim_notification_slot("recovered_node", (node,), {}):
         await _gather_notifications("recovered_node", ds.recovered_node(node), tg.recovered_node(node))
 
 
 async def error_node(node: NodeNotification):
-    if (await notification_enable()).node.error:
+    if (await notification_enable()).node.error and await claim_notification_slot("error_node", (node,), {}):
         await _gather_notifications("error_node", ds.error_node(node), tg.error_node(node))
 
 
 async def limited_node(node: NodeNotification, data_limit: int, used_traffic: int):
-    if (await notification_enable()).node.limited:
+    if (await notification_enable()).node.limited and await claim_notification_slot(
+        "limited_node", (node, data_limit, used_traffic), {}
+    ):
         await _gather_notifications(
             "limited_node",
             ds.limited_node(node, data_limit, used_traffic),
@@ -169,7 +172,9 @@ async def limited_node(node: NodeNotification, data_limit: int, used_traffic: in
 
 
 async def reset_node_usage(node: NodeResponse, by: str, uplink: int, downlink: int):
-    if (await notification_enable()).node.reset_usage:
+    if (await notification_enable()).node.reset_usage and await claim_notification_slot(
+        "reset_node_usage", (node, by, uplink, downlink), {}
+    ):
         await _gather_notifications(
             "reset_node_usage",
             ds.reset_node_usage(node, by, uplink, downlink),
@@ -215,7 +220,10 @@ async def admin_usage_reset(admin: AdminDetails, by: str):
 
 
 async def admin_usage_limit_reached(admin: AdminDetails, usage_percentage: int, threshold: int):
-    if (await notification_enable()).admin.usage_limit_warning:
+    # The review_admins job sends it; see the comment above connect_node.
+    if (await notification_enable()).admin.usage_limit_warning and await claim_notification_slot(
+        "admin_usage_limit_reached", (admin, usage_percentage, threshold), {}
+    ):
         await _gather_notifications(
             "admin_usage_limit_reached",
             ds.admin_usage_limit_reached(admin, usage_percentage, threshold),
@@ -468,6 +476,8 @@ async def bulk_user_data_reset_by_next(users: list[UserNotificationResponse], by
         )
 
 
+# Only the events that claim a dedup slot themselves (see connect_node) can be reported by several workers.
+# One API request or one scheduler run produces every other event: a repeat is a new event, never a duplicate.
 for _task_name in (
     "create_api_key",
     "modify_api_key",
@@ -509,11 +519,6 @@ for _task_name in (
     "create_core",
     "modify_core",
     "remove_core",
-):
-    globals()[_task_name] = _safe_notification_task(globals()[_task_name])
-
-# One request or one scheduler run produces each of these, so they skip the per-event dedup.
-for _task_name in (
     "user_reminders",
     "bulk_create_users",
     "bulk_modify_users",
@@ -522,6 +527,6 @@ for _task_name in (
     "bulk_reset_user_data_usage",
     "bulk_user_data_reset_by_next",
 ):
-    globals()[_task_name] = _safe_notification_task(globals()[_task_name], dedup=False)
+    globals()[_task_name] = _safe_notification_task(globals()[_task_name])
 
 del _task_name

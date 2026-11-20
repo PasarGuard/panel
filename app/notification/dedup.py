@@ -9,6 +9,7 @@ import time
 from typing import Any
 
 from nats.js.errors import KeyWrongLastSequenceError
+from pydantic import BaseModel
 
 from app.nats import is_nats_enabled
 from app.nats.kv_cas import kv_get_json
@@ -39,29 +40,18 @@ _bucket_warned = False
 
 
 def notification_fingerprint(event_name: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
-    parts = [event_name]
-    for value in (*args, *kwargs.values()):
-        if value is None or isinstance(value, bool):
-            continue
-        ident = _identity(value)
-        if ident:
-            parts.append(ident)
-            break
-    raw = "|".join(parts)
+    # The whole payload, not just the object id: workers reporting one event send the same payload,
+    # while two changes of one object within the window differ and must both be sent.
+    payload = [event_name, [_content(value) for value in args], {key: _content(kwargs[key]) for key in sorted(kwargs)}]
+    raw = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"))
     digest = hashlib.sha256(raw.encode("utf-8", errors="replace")).hexdigest()[:24]
     return f"nd.{digest}"
 
 
-def _identity(value: Any) -> str:
-    if hasattr(value, "id") and getattr(value, "id", None) is not None:
-        return f"id:{value.id}"
-    if hasattr(value, "username") and getattr(value, "username", None):
-        return f"user:{value.username}"
-    if hasattr(value, "name") and getattr(value, "name", None):
-        return f"name:{value.name}"
-    if isinstance(value, (str, int)):
-        return str(value)[:80]
-    return ""
+def _content(value: Any) -> Any:
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    return value
 
 
 async def claim_notification_slot(event_name: str, args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
@@ -69,7 +59,12 @@ async def claim_notification_slot(event_name: str, args: tuple[Any, ...], kwargs
     if server_settings.workers <= 1:
         return True
 
-    key = notification_fingerprint(event_name, args, kwargs)
+    try:
+        key = notification_fingerprint(event_name, args, kwargs)
+    except Exception as exc:
+        # An event that cannot be fingerprinted is still a real event: send it.
+        logger.debug("Notification dedup key failed for %s: %s", event_name, exc)
+        return True
     now = time.time()
     async with _local_lock:
         _prune_local(now)
