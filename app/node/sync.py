@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import async_object_session
 
 from app.db import GetDB
 from app.db.models import Admin, AdminRole, AdminStatus, User
+from app.lifecycle import on_shutdown
 from app.models.user import UserNotificationResponse
 from app.nats.node_rpc import encode_node_command, node_nats_client
 from app.nats.proto_utils import serialize_proto_message, serialize_proto_messages
@@ -261,18 +262,58 @@ async def refresh_node_users(node_id: str, emails: list[str]) -> list[ProtoUser]
 
 register_refresh_handler(refresh_node_users)
 
+# Dispatches the API does not wait for. Held here so they are not garbage
+# collected mid-flight, and so a failure is logged with the users it concerns.
+_background_dispatches: set[asyncio.Task] = set()
+
+
+def _dispatch_in_background(coro, proto_users) -> None:
+    task = asyncio.create_task(coro, name="node-user-dispatch")
+    _background_dispatches.add(task)
+    emails = [user.email for user in proto_users]
+    task.add_done_callback(lambda done: _background_dispatch_done(done, emails))
+
+
+def _background_dispatch_done(task: asyncio.Task, emails: list[str]) -> None:
+    _background_dispatches.discard(task)
+    if task.cancelled() or (exc := task.exception()) is None:
+        return
+    shown = ", ".join(emails[:50]) + (f" (+{len(emails) - 50} more)" if len(emails) > 50 else "")
+    if runtime_settings.role.runs_node:
+        # The node manager keeps what a node failed to queue and retries it.
+        logger.warning("Node update for user(s) %s failed, retrying: %s: %s", shown, type(exc).__name__, exc)
+    else:
+        logger.error("Failed to dispatch node update for user(s) %s: %s: %s", shown, type(exc).__name__, exc)
+
+
+@on_shutdown
+async def drain_background_dispatches(timeout: float = 3.0) -> None:
+    """Let in-flight dispatches finish on shutdown, then cancel the rest.
+
+    With the node manager's own 2 s this keeps both within ~5 s, so the other
+    shutdown hooks (usage flush) still fit in the container's stop grace period.
+    """
+    tasks = set(_background_dispatches)
+    if not tasks:
+        return
+    _, pending = await asyncio.wait(tasks, timeout=timeout)
+    for task in pending:
+        task.cancel()
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+
 
 async def sync_user(db_user: User) -> None:
     if await _user_sync_blocked(db_user):
         return
 
     proto_user = await serialize_user(db_user)
-    asyncio.create_task(_dispatch_user_update(proto_user))
+    _dispatch_in_background(_dispatch_user_update(proto_user), [proto_user])
 
 
 async def remove_user(user: UserNotificationResponse) -> None:
     proto_user = _serialize_user_for_node(user.id, user.proxy_settings.dict())
-    asyncio.create_task(_dispatch_user_update(proto_user))
+    _dispatch_in_background(_dispatch_user_update(proto_user), [proto_user])
 
 
 async def remove_user_awaited(user: UserNotificationResponse) -> None:
@@ -294,7 +335,7 @@ async def remove_users(users: list[User], *, await_dispatch: bool = False) -> No
     if await_dispatch:
         await _dispatch_users_update(proto_users, await_dispatch=True)
     else:
-        asyncio.create_task(_dispatch_users_update(proto_users))
+        _dispatch_in_background(_dispatch_users_update(proto_users), proto_users)
 
 
 async def sync_users(users: list[User], *, await_dispatch: bool = False) -> None:
@@ -305,4 +346,4 @@ async def sync_users(users: list[User], *, await_dispatch: bool = False) -> None
     if await_dispatch:
         await _dispatch_users_update(proto_users, await_dispatch=True)
     else:
-        asyncio.create_task(_dispatch_users_update(proto_users))
+        _dispatch_in_background(_dispatch_users_update(proto_users), proto_users)
