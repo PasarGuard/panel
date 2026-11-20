@@ -1,9 +1,15 @@
 import asyncio
+from datetime import UTC, datetime as dt
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
+from app import notification
+from app.db.models import UserStatus
+from app.models.admin import AdminDetails
 from app.models.node import NodeNotification
+from app.models.user import UserNotificationResponse
 from app.notification import connect_node, dedup as notification_dedup, recovered_node
 
 
@@ -14,6 +20,7 @@ def _reset_notification_dedup(monkeypatch: pytest.MonkeyPatch):
     notification_dedup._nc = None
     notification_dedup._closed = False
     notification_dedup._retry_at = 0.0
+    notification_dedup._bucket_warned = False
     # pytest-asyncio gives every test its own loop; a lock that was waited on is bound to the old one.
     monkeypatch.setattr(notification_dedup, "_kv_lock", asyncio.Lock())
     monkeypatch.setattr(notification_dedup.server_settings, "workers", 4)
@@ -108,7 +115,7 @@ def _patch_nats_client(monkeypatch: pytest.MonkeyPatch, clients: list, kv_error:
         clients.append(nc)
         return nc
 
-    async def _bucket(js, bucket_name):
+    async def _bucket(js, bucket_name, **options):
         if kv_error is not None:
             raise kv_error
         return object()
@@ -233,7 +240,7 @@ async def test_unreachable_nats_does_not_queue_or_retry_every_notification(monke
             raise OSError("connection refused")
         return _FakeNats()
 
-    async def _bucket(js, bucket_name):
+    async def _bucket(js, bucket_name, **options):
         return shared_kv
 
     monkeypatch.setattr(notification_dedup, "_connect_nats", _create)
@@ -327,7 +334,7 @@ async def test_connect_in_progress_makes_concurrent_notifications_wait_for_the_s
         await asyncio.sleep(0.2)  # a cold-start connect to a working NATS
         return _FakeNats()
 
-    async def _bucket(js, bucket_name):
+    async def _bucket(js, bucket_name, **options):
         return shared_kv
 
     monkeypatch.setattr(notification_dedup, "_connect_nats", _create)
@@ -565,3 +572,245 @@ async def test_failed_handshake_closes_the_connection(monkeypatch: pytest.Monkey
     assert created[0].options["allow_reconnect"] is False
     assert created[0].options["connect_timeout"] <= 1
     assert notification_dedup._backing_off()
+
+
+class _RecordingJs:
+    def __init__(self):
+        self.created: list[dict] = []
+
+    async def create_key_value(self, **params):
+        self.created.append(params)
+        return object()
+
+
+@pytest.mark.asyncio
+async def test_dedup_keys_go_to_own_bucket_with_ttl(monkeypatch: pytest.MonkeyPatch):
+    from app.nats import client as nats_client
+    from config import nats_settings
+
+    js = _RecordingJs()
+
+    async def _create():
+        return _FakeNats()
+
+    monkeypatch.setattr(notification_dedup, "_connect_nats", _create)
+    monkeypatch.setattr(nats_client, "get_jetstream_context", AsyncMock(return_value=js))
+
+    assert await notification_dedup._get_kv() is not None
+    assert js.created == [
+        {"bucket": nats_settings.notification_dedup_kv_bucket, "ttl": notification_dedup.DEDUP_KEY_TTL_SECONDS}
+    ]
+    assert nats_settings.notification_dedup_kv_bucket != nats_settings.scheduler_leader_kv_bucket
+    assert notification_dedup.DEDUP_KEY_TTL_SECONDS >= notification_dedup.DEDUP_WINDOW_SECONDS
+
+
+@pytest.mark.asyncio
+async def test_scheduler_leader_bucket_is_created_without_ttl(monkeypatch: pytest.MonkeyPatch):
+    from app.nats import client as nats_client, leader
+    from config import nats_settings
+
+    js = _RecordingJs()
+    monkeypatch.setattr(leader, "create_nats_client", AsyncMock(return_value=_FakeNats()))
+    monkeypatch.setattr(leader, "get_jetstream_context", AsyncMock(return_value=js))
+    monkeypatch.setattr(leader, "is_nats_enabled", lambda: True)
+    monkeypatch.setattr(leader, "_nc", None)
+    monkeypatch.setattr(leader, "_kv", None)
+
+    await leader._ensure_kv()
+    await nats_client.get_or_create_kv_bucket(js, "other_bucket")
+
+    assert js.created == [{"bucket": nats_settings.scheduler_leader_kv_bucket}, {"bucket": "other_bucket"}]
+
+
+@pytest.mark.asyncio
+async def test_unavailable_dedup_bucket_is_warned_once_per_outage(monkeypatch: pytest.MonkeyPatch):
+    from unittest.mock import Mock
+
+    clients: list[_FakeNats] = []
+    _patch_nats_client(monkeypatch, clients, kv_error=RuntimeError("permissions violation"))
+    monkeypatch.setattr(notification_dedup, "is_nats_enabled", lambda: True)
+    log = Mock()
+    monkeypatch.setattr(notification_dedup, "logger", log)
+
+    for i in range(3):
+        notification_dedup._retry_at = 0.0  # the back-off is over
+        assert await notification_dedup.claim_notification_slot("connect_node", (_node(i),), {}) is True
+
+    assert len(clients) == 3
+    assert log.warning.call_count == 1
+
+    # The bucket is back, then lost again: that outage is reported too.
+    _patch_nats_client(monkeypatch, clients)
+    notification_dedup._retry_at = 0.0
+    assert await notification_dedup._get_kv() is not None
+    clients[-1].is_closed = True
+    _patch_nats_client(monkeypatch, clients, kv_error=RuntimeError("permissions violation"))
+    assert await notification_dedup.claim_notification_slot("connect_node", (_node(9),), {}) is True
+    assert log.warning.call_count == 2
+
+
+def _event_settings(enabled: bool = True) -> SimpleNamespace:
+    flags = SimpleNamespace(
+        modify=enabled,
+        status_change=enabled,
+        login=enabled,
+        usage_limit_warning=enabled,
+        connect=enabled,
+        limited=enabled,
+    )
+    return SimpleNamespace(user=flags, admin=flags, node=flags)
+
+
+def _user(**overrides) -> UserNotificationResponse:
+    data = {
+        "id": 7,
+        "username": "alice",
+        "status": UserStatus.active,
+        "used_traffic": 0,
+        "data_limit": 10 * 1024**3,
+        "created_at": dt(2026, 11, 1, tzinfo=UTC),
+    } | overrides
+    return UserNotificationResponse(**data)
+
+
+class _Workers:
+    """Uvicorn workers sharing one dedup store, each with its own in-process claims."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch, enabled: bool = True):
+        self.sent: list[str] = []
+        self.store: dict[str, float] = {}
+        self.local: dict[str, dict[str, float]] = {}
+        self.now = 1_000_000.0
+        self.shared_claims = 0
+        self.current: str | None = None
+
+        async def _gather(event_name, *aws):
+            for aw in aws:
+                aw.close()
+            self.sent.append(event_name)
+
+        async def _enabled():
+            return _event_settings(enabled)
+
+        async def _claim_shared(key, now):
+            self.shared_claims += 1
+            if self.store.get(key, 0) > now:
+                return False
+            self.store[key] = now + notification_dedup.DEDUP_WINDOW_SECONDS
+            return True
+
+        monkeypatch.setattr("app.notification.notification_enable", _enabled)
+        monkeypatch.setattr("app.notification._gather_notifications", _gather)
+        monkeypatch.setattr(notification_dedup, "is_nats_enabled", lambda: True)
+        monkeypatch.setattr(notification_dedup, "_claim_shared", _claim_shared)
+        monkeypatch.setattr(notification_dedup.time, "time", lambda: self.now)
+
+    def on(self, worker: str) -> _Workers:
+        claims = notification_dedup._local_claims
+        if self.current is not None:
+            self.local[self.current] = dict(claims)
+        claims.clear()
+        claims.update(self.local.get(worker, {}))
+        self.current = worker
+        return self
+
+
+@pytest.mark.asyncio
+async def test_distinct_changes_of_one_user_within_the_window_are_all_sent(monkeypatch: pytest.MonkeyPatch):
+    workers = _Workers(monkeypatch)
+    by = AdminDetails(username="root", is_sudo=True)
+    # Four API edits of one user at 0, 3, 6 and 14 s, each handled by whichever worker got the request.
+    for second, (worker, limit) in zip((0, 3, 6, 14), (("a", 10), ("b", 20), ("a", 30), ("c", 40))):
+        workers.now = 1_000_000.0 + second
+        workers.on(worker)
+        await notification.modify_user(_user(data_limit=limit * 1024**3), by)
+        await notification.user_status_change(_user(data_limit=limit * 1024**3), by)
+
+    assert workers.sent == ["modify_user", "user_status_change"] * 4
+
+
+@pytest.mark.asyncio
+async def test_repeated_identical_request_events_are_all_sent(monkeypatch: pytest.MonkeyPatch):
+    workers = _Workers(monkeypatch).on("a")
+    by = AdminDetails(username="root", is_sudo=True)
+    # A user disabled and enabled again, and two failed logins with the same password: separate events.
+    await notification.user_status_change(_user(status=UserStatus.active), by)
+    await notification.user_status_change(_user(status=UserStatus.disabled), by)
+    await notification.user_status_change(_user(status=UserStatus.active), by)
+    await notification.admin_login("root", "wrong", "10.0.0.1", False)
+    await notification.admin_login("root", "wrong", "10.0.0.1", False)
+
+    assert workers.sent == ["user_status_change"] * 3 + ["admin_login"] * 2
+    assert workers.shared_claims == 0
+
+
+@pytest.mark.asyncio
+async def test_one_event_reported_by_two_workers_is_sent_once(monkeypatch: pytest.MonkeyPatch):
+    workers = _Workers(monkeypatch)
+    node = _node(3)
+    # Every worker connects the nodes at startup and reports the same connect.
+    workers.on("a")
+    await connect_node(node)
+    workers.now += 0.2
+    workers.on("b")
+    await connect_node(NodeNotification(**node.model_dump()))
+
+    assert workers.sent == ["connect_node"]
+
+
+@pytest.mark.asyncio
+async def test_identical_event_after_the_window_is_sent_again(monkeypatch: pytest.MonkeyPatch):
+    workers = _Workers(monkeypatch)
+    node = _node(3)
+    workers.on("a")
+    await connect_node(node)
+    workers.now += notification_dedup.DEDUP_WINDOW_SECONDS + 1
+    workers.on("b")
+    await connect_node(node)
+
+    assert workers.sent == ["connect_node", "connect_node"]
+
+
+@pytest.mark.asyncio
+async def test_background_events_with_different_payloads_are_not_merged(monkeypatch: pytest.MonkeyPatch):
+    workers = _Workers(monkeypatch).on("a")
+    admin = AdminDetails(username="reseller", is_sudo=False, used_traffic=900)
+    await notification.admin_usage_limit_reached(admin, 80, 80)
+    await notification.admin_usage_limit_reached(admin, 90, 90)
+    await notification.limited_node(_node(3), 100, 100)
+    await notification.limited_node(_node(3), 100, 120)
+
+    assert workers.sent == ["admin_usage_limit_reached"] * 2 + ["limited_node"] * 2
+
+
+@pytest.mark.asyncio
+async def test_disabled_event_does_not_touch_the_dedup_store(monkeypatch: pytest.MonkeyPatch):
+    workers = _Workers(monkeypatch, enabled=False).on("a")
+    await connect_node(_node(3))
+    await notification.limited_node(_node(3), 100, 120)
+    await notification.admin_usage_limit_reached(AdminDetails(username="reseller", is_sudo=False), 80, 80)
+
+    assert workers.sent == []
+    assert workers.shared_claims == 0
+    assert notification_dedup._local_claims == {}
+
+
+def test_fingerprint_tells_apart_changes_of_one_object():
+    user = _user(data_limit=1)
+    a = notification_dedup.notification_fingerprint("modify_user", (user,), {})
+    b = notification_dedup.notification_fingerprint("modify_user", (user.model_copy(update={"data_limit": 2}),), {})
+    # Another worker builds its own copy of the same state.
+    same = notification_dedup.notification_fingerprint("modify_user", (user.model_copy(deep=True),), {})
+    assert a != b
+    assert a == same
+
+
+@pytest.mark.asyncio
+async def test_event_that_cannot_be_fingerprinted_is_still_sent(monkeypatch):
+    monkeypatch.setattr(notification_dedup.server_settings, "workers", 4)
+
+    def _broken(*_args, **_kwargs):
+        raise ValueError("unserializable payload")
+
+    monkeypatch.setattr(notification_dedup, "notification_fingerprint", _broken)
+    assert await notification_dedup.claim_notification_slot("connect_node", (object(),), {}) is True
