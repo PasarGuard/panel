@@ -228,7 +228,7 @@ def _create_group_filter(bulk_model: BulkGroup):
 
 async def add_groups_to_users(db: AsyncSession, bulk_model: BulkGroup) -> tuple[list, int] | tuple[list[User], int]:
     """
-    Bulk add groups to users and return list of affected User objects.
+    Bulk add groups to users; the caller commits after allocation reconciliation.
     """
     final_filter = _create_group_filter(bulk_model)
     count_effctive_users = await count_bulk_group_scope(db, bulk_model)
@@ -280,7 +280,7 @@ async def remove_groups_from_users(
     db: AsyncSession, bulk_model: BulkGroup
 ) -> tuple[list, int] | tuple[list[User], int]:
     """
-    Bulk remove groups from users and return list of affected User objects.
+    Bulk remove groups from users; the caller commits after allocation reconciliation.
     """
     final_filter = _create_group_filter(bulk_model)
     count_effctive_users = await count_bulk_group_scope(db, bulk_model)
