@@ -1,7 +1,7 @@
 """add country code and note to nodes, note to core configs
 
 Revision ID: e4b7c1d9a2f6
-Revises: c8d2e4f6a1b3
+Revises: f3a91b62d408
 Create Date: 2026-10-23 00:00:00.000000
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "e4b7c1d9a2f6"
-down_revision = "c8d2e4f6a1b3"
+down_revision = "f3a91b62d408"
 branch_labels = None
 depends_on = None
 
