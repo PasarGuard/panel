@@ -10,6 +10,7 @@ from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db.models import Settings
+from app.models.client_template import ClientTemplateType
 from app.models.settings import SettingsSchema
 from app.operation import OperatorType
 from app.operation.client_template import ClientTemplateOperation
@@ -27,7 +28,11 @@ from app.settings import (
     telegram_settings,
     webhook_settings,
 )
-from app.subscription.client_templates import subscription_client_templates, subscription_xray_templates
+from app.subscription.client_templates import (
+    subscription_client_templates,
+    subscription_happ_routing_templates,
+    subscription_xray_templates,
+)
 from app.utils.jwt import get_secret_key
 
 from . import client
@@ -43,6 +48,7 @@ CACHES = (
     cleanup_settings,
     subscription_client_templates,
     subscription_xray_templates,
+    subscription_happ_routing_templates,
     get_secret_key,
 )
 
@@ -79,8 +85,9 @@ async def small_pool(tmp_path, monkeypatch, mock_settings):
         await read(db, "client_templates")
         return {}
 
-    async def fake_xray_templates(db, _type):
-        await read(db, "xray_templates")
+    async def fake_xray_templates(db, template_type):
+        is_xray = template_type == ClientTemplateType.xray_subscription
+        await read(db, "xray_templates" if is_xray else "happ_routing_templates")
         return {}
 
     async def fake_secret_key(db):
