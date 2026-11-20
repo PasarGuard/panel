@@ -14,6 +14,7 @@ def _reset_notification_dedup(monkeypatch: pytest.MonkeyPatch):
     notification_dedup._nc = None
     notification_dedup._closed = False
     notification_dedup._retry_at = 0.0
+    notification_dedup._bucket_warned = False
     # pytest-asyncio gives every test its own loop; a lock that was waited on is bound to the old one.
     monkeypatch.setattr(notification_dedup, "_kv_lock", asyncio.Lock())
     monkeypatch.setattr(notification_dedup.server_settings, "workers", 4)
@@ -108,7 +109,7 @@ def _patch_nats_client(monkeypatch: pytest.MonkeyPatch, clients: list, kv_error:
         clients.append(nc)
         return nc
 
-    async def _bucket(js, bucket_name):
+    async def _bucket(js, bucket_name, **options):
         if kv_error is not None:
             raise kv_error
         return object()
@@ -233,7 +234,7 @@ async def test_unreachable_nats_does_not_queue_or_retry_every_notification(monke
             raise OSError("connection refused")
         return _FakeNats()
 
-    async def _bucket(js, bucket_name):
+    async def _bucket(js, bucket_name, **options):
         return shared_kv
 
     monkeypatch.setattr(notification_dedup, "_connect_nats", _create)
@@ -327,7 +328,7 @@ async def test_connect_in_progress_makes_concurrent_notifications_wait_for_the_s
         await asyncio.sleep(0.2)  # a cold-start connect to a working NATS
         return _FakeNats()
 
-    async def _bucket(js, bucket_name):
+    async def _bucket(js, bucket_name, **options):
         return shared_kv
 
     monkeypatch.setattr(notification_dedup, "_connect_nats", _create)
@@ -565,3 +566,78 @@ async def test_failed_handshake_closes_the_connection(monkeypatch: pytest.Monkey
     assert created[0].options["allow_reconnect"] is False
     assert created[0].options["connect_timeout"] <= 1
     assert notification_dedup._backing_off()
+
+
+class _RecordingJs:
+    def __init__(self):
+        self.created: list[dict] = []
+
+    async def create_key_value(self, **params):
+        self.created.append(params)
+        return object()
+
+
+@pytest.mark.asyncio
+async def test_dedup_keys_go_to_own_bucket_with_ttl(monkeypatch: pytest.MonkeyPatch):
+    from app.nats import client as nats_client
+    from config import nats_settings
+
+    js = _RecordingJs()
+
+    async def _create():
+        return _FakeNats()
+
+    monkeypatch.setattr(notification_dedup, "_connect_nats", _create)
+    monkeypatch.setattr(nats_client, "get_jetstream_context", AsyncMock(return_value=js))
+
+    assert await notification_dedup._get_kv() is not None
+    assert js.created == [
+        {"bucket": nats_settings.notification_dedup_kv_bucket, "ttl": notification_dedup.DEDUP_KEY_TTL_SECONDS}
+    ]
+    assert nats_settings.notification_dedup_kv_bucket != nats_settings.scheduler_leader_kv_bucket
+    assert notification_dedup.DEDUP_KEY_TTL_SECONDS >= notification_dedup.DEDUP_WINDOW_SECONDS
+
+
+@pytest.mark.asyncio
+async def test_scheduler_leader_bucket_is_created_without_ttl(monkeypatch: pytest.MonkeyPatch):
+    from app.nats import client as nats_client, leader
+    from config import nats_settings
+
+    js = _RecordingJs()
+    monkeypatch.setattr(leader, "create_nats_client", AsyncMock(return_value=_FakeNats()))
+    monkeypatch.setattr(leader, "get_jetstream_context", AsyncMock(return_value=js))
+    monkeypatch.setattr(leader, "is_nats_enabled", lambda: True)
+    monkeypatch.setattr(leader, "_nc", None)
+    monkeypatch.setattr(leader, "_kv", None)
+
+    await leader._ensure_kv()
+    await nats_client.get_or_create_kv_bucket(js, "other_bucket")
+
+    assert js.created == [{"bucket": nats_settings.scheduler_leader_kv_bucket}, {"bucket": "other_bucket"}]
+
+
+@pytest.mark.asyncio
+async def test_unavailable_dedup_bucket_is_warned_once_per_outage(monkeypatch: pytest.MonkeyPatch):
+    from unittest.mock import Mock
+
+    clients: list[_FakeNats] = []
+    _patch_nats_client(monkeypatch, clients, kv_error=RuntimeError("permissions violation"))
+    monkeypatch.setattr(notification_dedup, "is_nats_enabled", lambda: True)
+    log = Mock()
+    monkeypatch.setattr(notification_dedup, "logger", log)
+
+    for i in range(3):
+        notification_dedup._retry_at = 0.0  # the back-off is over
+        assert await notification_dedup.claim_notification_slot("connect_node", (_node(i),), {}) is True
+
+    assert len(clients) == 3
+    assert log.warning.call_count == 1
+
+    # The bucket is back, then lost again: that outage is reported too.
+    _patch_nats_client(monkeypatch, clients)
+    notification_dedup._retry_at = 0.0
+    assert await notification_dedup._get_kv() is not None
+    clients[-1].is_closed = True
+    _patch_nats_client(monkeypatch, clients, kv_error=RuntimeError("permissions violation"))
+    assert await notification_dedup.claim_notification_slot("connect_node", (_node(9),), {}) is True
+    assert log.warning.call_count == 2
