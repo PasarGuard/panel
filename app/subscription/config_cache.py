@@ -42,7 +42,7 @@ def make_sub_config_key(
     else:
         proxy_key = ""
     return (
-        _generation if config_format == "wireguard" else 0,
+        _generation,
         getattr(user, "id", None),
         config_format,
         bool(as_base64),
@@ -82,20 +82,33 @@ async def get_or_create_sub_config(key: tuple, factory: Callable[[], Awaitable[s
         return cached
 
     async with _inflight_lock:
+        cached = get_sub_config(key)
+        if cached is not None:
+            return cached
         task = _inflight.get(key)
         if task is None:
-            task = asyncio.create_task(factory(), name="subscription-config-render")
+            start_generation = _generation
+
+            async def _render() -> str | bytes:
+                value = await factory()
+                # A clear that landed mid-render means this value was built from stale state.
+                if _generation == start_generation:
+                    put_sub_config(key, value)
+                return value
+
+            task = asyncio.create_task(_render(), name="subscription-config-render")
+
+            def _forget(done_task: asyncio.Task[str | bytes]) -> None:
+                # Runs even when every waiter was cancelled, so the entry never outlives the render.
+                if _inflight.get(key) is done_task:
+                    _inflight.pop(key, None)
+                if not done_task.cancelled():
+                    done_task.exception()
+
+            task.add_done_callback(_forget)
             _inflight[key] = task
 
-    try:
-        value = await asyncio.shield(task)
-        put_sub_config(key, value)
-        return value
-    finally:
-        if task.done():
-            async with _inflight_lock:
-                if _inflight.get(key) is task:
-                    _inflight.pop(key, None)
+    return await asyncio.shield(task)
 
 
 def clear_sub_config_cache() -> None:
