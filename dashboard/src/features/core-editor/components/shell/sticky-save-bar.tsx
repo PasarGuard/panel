@@ -16,11 +16,26 @@ interface StickySaveBarProps {
   saving: boolean
   showRestart?: boolean
   restartNodes: boolean
+  /** Only the note changed: nothing to sync, so the checkbox is off and locked. */
+  restartDisabled?: boolean
   onRestartChange: (v: boolean) => void
   className?: string
 }
 
-export function StickySaveBar({ dirty, canSave = dirty, saveLabel, onSave, onDiscard, onCancel, saving, showRestart, restartNodes, onRestartChange, className }: StickySaveBarProps) {
+export function StickySaveBar({
+  dirty,
+  canSave = dirty,
+  saveLabel,
+  onSave,
+  onDiscard,
+  onCancel,
+  saving,
+  showRestart,
+  restartNodes,
+  restartDisabled = false,
+  onRestartChange,
+  className,
+}: StickySaveBarProps) {
   const { t } = useTranslation()
   const statusLabel = dirty ? t('coreEditor.unsaved', { defaultValue: 'Unsaved changes' }) : t('coreEditor.saved', { defaultValue: 'All changes saved' })
 
@@ -35,10 +50,21 @@ export function StickySaveBar({ dirty, canSave = dirty, saveLabel, onSave, onDis
         <div className="flex flex-wrap items-center justify-end gap-3">
           {showRestart && (
             <div className="flex items-center gap-2 pr-2">
-              <Checkbox id="restart-nodes" checked={restartNodes} onCheckedChange={v => onRestartChange(v === true)} />
+              <Checkbox
+                id="restart-nodes"
+                checked={restartNodes && !restartDisabled}
+                disabled={restartDisabled}
+                aria-describedby={restartDisabled ? 'restart-nodes-hint' : undefined}
+                onCheckedChange={v => onRestartChange(v === true)}
+              />
               <Label htmlFor="restart-nodes" className="text-sm font-normal">
                 {t('coreConfigModal.restartNodes', { defaultValue: 'Sync nodes' })}
               </Label>
+              {restartDisabled && (
+                <span id="restart-nodes-hint" className="text-muted-foreground text-xs">
+                  {t('coreConfigModal.restartNodesNoteOnly', { defaultValue: 'Only the note changed, nodes are not restarted' })}
+                </span>
+              )}
             </div>
           )}
           {dirty ? (

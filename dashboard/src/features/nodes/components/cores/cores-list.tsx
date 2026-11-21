@@ -84,6 +84,7 @@ export default function Cores({ cores, onDuplicateCore, onDeleteCore, canCreate 
         fallback_id: core.fallbacks_inbound_tags ?? [],
         excluded_inbound_ids: core.exclude_inbound_tags ?? [],
         restart_nodes: true,
+        note: core.note ?? '',
       })
       setEditingCoreIdInModal(core.id)
       setIsEditingCoreInModal(true)
@@ -155,7 +156,7 @@ export default function Cores({ cores, onDuplicateCore, onDeleteCore, canCreate 
   const filteredCores = useMemo(() => {
     if (!searchQuery.trim()) return coresList
     const query = searchQuery.toLowerCase().trim()
-    return coresList.filter((core: CoreResponse) => core.name?.toLowerCase().includes(query))
+    return coresList.filter((core: CoreResponse) => core.name?.toLowerCase().includes(query) || core.note?.toLowerCase().includes(query))
   }, [coresList, searchQuery])
 
   const isSortingDisabled = !canUpdate || !!searchQuery.trim() || reorderCoresMutation.isPending

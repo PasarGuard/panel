@@ -30,6 +30,8 @@ export const nodeFormSchema = z
     default_timeout: z.number().min(3, 'Default timeout must be 3 or greater').optional(),
     internal_timeout: z.number().min(3, 'Internal timeout must be 3 or greater').max(60, 'Internal timeout must be 60 or lower').optional(),
     proxy_url: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
+    country_code: z.string().length(2).nullable().optional(),
+    note: z.string().max(500, 'Note must be 500 characters or fewer').optional(),
   })
   .superRefine((values, ctx) => {
     if (values.verification === 'pem' && !values.server_ca.trim()) {
@@ -55,4 +57,6 @@ export const nodeFormDefaultValues: Partial<NodeFormValues> = {
   keep_alive_unit: 'seconds',
   api_key: '',
   proxy_url: '',
+  country_code: null,
+  note: '',
 }

@@ -2362,6 +2362,12 @@
   "searchInbounds": "Search inbounds...",
   "noInboundsFound": "No inbounds found",
   "nodeModal": {
+    "country": "Country",
+    "countryNone": "None",
+    "countrySearch": "Search country",
+    "countryNotFound": "No country found",
+    "note": "Note",
+    "notePlaceholder": "Optional note for admins",
     "hardReset": "Hard Reset",
     "hardResetPrompt": "Hard reset node «{{name}}»? This restarts the node container and temporarily interrupts connections.",
     "hardResetting": "Restarting node...",
@@ -2634,6 +2640,8 @@
     "previewMuted": "Usage"
   },
   "coreConfigModal": {
+    "note": "Note",
+    "notePlaceholder": "Optional note for admins",
     "addConfig": "Create Core Configuration",
     "createNewConfig": "Create a new core configuration",
     "editCore": "Modify Core Configuration",
@@ -2670,6 +2678,7 @@
     "copyPrivateKey": "Copy Private Key",
     "copyShortId": "Copy Short ID",
     "restartNodes": "Sync Nodes",
+    "restartNodesNoteOnly": "Only the note changed, nodes are not restarted",
     "generateShadowsocksPassword": "Shadowsocks Password",
     "generatingShadowsocksPassword": "Generating Password...",
     "shadowsocksPassword": "Shadowsocks Password",

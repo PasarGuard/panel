@@ -2146,6 +2146,12 @@
   },
   "name": "نام",
   "nodeModal": {
+    "country": "کشور",
+    "countryNone": "هیچکدام",
+    "countrySearch": "جستجوی کشور",
+    "countryNotFound": "کشوری یافت نشد",
+    "note": "یادداشت",
+    "notePlaceholder": "یادداشت اختیاری برای ادمین‌ها",
     "hardReset": "بازنشانی سخت",
     "hardResetPrompt": "نود «{{name}}» بازنشانی سخت شود؟ کانتینر نود راه‌اندازی مجدد می‌شود و اتصال‌ها موقتاً قطع می‌شوند.",
     "hardResetting": "در حال راه‌اندازی مجدد نود...",
@@ -2540,6 +2546,8 @@
     "previewMuted": "مصرف"
   },
   "coreConfigModal": {
+    "note": "یادداشت",
+    "notePlaceholder": "یادداشت اختیاری برای ادمین‌ها",
     "addConfig": "افزودن پیکربندی هسته",
     "createNewConfig": "ایجاد پیکربندی جدید هسته",
     "editCore": "ویرایش پیکربندی هسته",
@@ -2576,6 +2584,7 @@
     "copyPrivateKey": "کپی کلید خصوصی",
     "copyShortId": "کپی شناسه کوتاه",
     "restartNodes": "راه‌اندازی مجدد گره‌ها",
+    "restartNodesNoteOnly": "فقط یادداشت تغییر کرده است، گره‌ها راه‌اندازی مجدد نمی‌شوند",
     "generateShadowsocksPassword": "رمز عبور Shadowsocks",
     "generatingShadowsocksPassword": "در حال تولید رمز عبور...",
     "shadowsocksPassword": "رمز عبور Shadowsocks",

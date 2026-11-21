@@ -2237,6 +2237,12 @@
   },
   "name": "Имя",
   "nodeModal": {
+    "country": "Страна",
+    "countryNone": "Не указана",
+    "countrySearch": "Поиск страны",
+    "countryNotFound": "Страна не найдена",
+    "note": "Заметка",
+    "notePlaceholder": "Необязательная заметка для админов",
     "hardReset": "Жёсткий сброс",
     "hardResetPrompt": "Выполнить жёсткий сброс узла «{{name}}»? Контейнер узла будет перезапущен, соединения временно прервутся.",
     "hardResetting": "Перезапуск узла...",
@@ -2509,6 +2515,8 @@
     "previewMuted": "Использование"
   },
   "coreConfigModal": {
+    "note": "Заметка",
+    "notePlaceholder": "Необязательная заметка для админов",
     "addConfig": "Добавить конфигурацию ядра",
     "createNewConfig": "Создать новую конфигурацию ядра",
     "editCore": "Редактировать конфигурацию ядра",
@@ -2545,6 +2553,7 @@
     "copyPrivateKey": "Копировать приватный ключ",
     "copyShortId": "Копировать короткий ID",
     "restartNodes": "Синхронизировать узлы",
+    "restartNodesNoteOnly": "Изменена только заметка, узлы не перезапускаются",
     "generateShadowsocksPassword": "Пароль Shadowsocks",
     "generatingShadowsocksPassword": "Генерация пароля...",
     "shadowsocksPassword": "Пароль Shadowsocks",

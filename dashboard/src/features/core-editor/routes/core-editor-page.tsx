@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import PageHeader from '@/components/layout/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CoreEditorLayout } from '@/features/core-editor/components/shell/core-editor-layout'
 import { CoreSectionTabsPlaceholder } from '@/features/core-editor/components/shell/core-section-sidebar'
@@ -15,7 +16,7 @@ import { XrayCoreEditor } from '@/features/core-editor/components/xray/xray-core
 import { MtprotoCoreEditorPage } from '@/features/core-editor/routes/mtproto-core-editor-page'
 import { profileToPersistedConfig } from '@/features/core-editor/kit/xray-adapter'
 import { getWireGuardPersistConfig } from '@/features/core-editor/kit/wireguard-adapter'
-import { selectCoreEditorHasActualChanges } from '@/features/core-editor/kit/core-editor-change-state'
+import { selectCoreEditorHasActualChanges, selectCoreEditorNoteOnlyChange } from '@/features/core-editor/kit/core-editor-change-state'
 import { carriedCoreName } from '@/features/core-editor/kit/core-kind'
 import { useCoreEditorStore } from '@/features/core-editor/state/core-editor-store'
 import type { WgCoreSection, XrayCoreSection } from '@/features/core-editor/state/core-editor-store'
@@ -213,7 +214,11 @@ function StoreCoreEditorPage() {
   const kind = useCoreEditorStore(s => s.kind)
   const coreName = useCoreEditorStore(s => s.coreName)
   const setCoreName = useCoreEditorStore(s => s.setCoreName)
+  const coreNote = useCoreEditorStore(s => s.coreNote)
+  const setCoreNote = useCoreEditorStore(s => s.setCoreNote)
   const hasActualChanges = useCoreEditorStore(selectCoreEditorHasActualChanges)
+  // A note-only save has nothing to sync, so nodes are not restarted for it.
+  const noteOnlyChange = useCoreEditorStore(selectCoreEditorNoteOnlyChange)
   const discardDraft = useCoreEditorStore(s => s.discardDraft)
   const markClean = useCoreEditorStore(s => s.markClean)
   const restartNodes = useCoreEditorStore(s => s.restartNodes)
@@ -308,6 +313,8 @@ function StoreCoreEditorPage() {
       return
     }
     setNameSubmitAttempted(false)
+    // Empty note clears it on the server (null).
+    const note = coreNote.trim() || null
     setSaving(true)
     try {
       if (kind === 'wg') {
@@ -328,6 +335,7 @@ function StoreCoreEditorPage() {
               config: cfg,
               exclude_inbound_tags: [],
               fallbacks_inbound_tags: [],
+              note,
             },
           })
           toast.success(t('coreConfigModal.createSuccess', { name }))
@@ -344,8 +352,9 @@ function StoreCoreEditorPage() {
               config: cfg,
               exclude_inbound_tags: [],
               fallbacks_inbound_tags: [],
+              note,
             },
-            params: { restart_nodes: restartNodes },
+            params: { restart_nodes: restartNodes && !noteOnlyChange },
           })
           toast.success(t('coreConfigModal.editSuccess', { name }))
           markClean()
@@ -366,6 +375,7 @@ function StoreCoreEditorPage() {
               config: cfg,
               exclude_inbound_tags: excludeInboundTags,
               fallbacks_inbound_tags: fallbacksInboundTags,
+              note,
             },
           })
           toast.success(t('coreConfigModal.createSuccess', { name }))
@@ -382,8 +392,9 @@ function StoreCoreEditorPage() {
               config: cfg,
               exclude_inbound_tags: excludeInboundTags,
               fallbacks_inbound_tags: fallbacksInboundTags,
+              note,
             },
-            params: { restart_nodes: restartNodes },
+            params: { restart_nodes: restartNodes && !noteOnlyChange },
           })
           toast.success(t('coreConfigModal.editSuccess', { name }))
           markClean()
@@ -402,6 +413,7 @@ function StoreCoreEditorPage() {
     }
   }, [
     coreName,
+    coreNote,
     kind,
     wgDraft,
     xrayProfile,
@@ -412,6 +424,7 @@ function StoreCoreEditorPage() {
     fallbacksInboundTags,
     excludeInboundTags,
     restartNodes,
+    noteOnlyChange,
     createMutation,
     modifyMutation,
     markClean,
@@ -480,6 +493,15 @@ function StoreCoreEditorPage() {
               </SelectContent>
             </Select>
           </div>
+          <Textarea
+            value={coreNote}
+            onChange={e => setCoreNote(e.target.value)}
+            rows={1}
+            maxLength={500}
+            className="min-h-9 max-w-2xl resize-y py-1.5"
+            placeholder={t('coreConfigModal.notePlaceholder', { defaultValue: 'Optional note for admins' })}
+            aria-label={t('coreConfigModal.note', { defaultValue: 'Note' })}
+          />
           {kind === 'xray' && xrayImportWarnings.length > 0 && (
             <Alert>
               <AlertTitle>{t('coreEditor.importWarnings', { defaultValue: 'Import notes' })}</AlertTitle>
@@ -625,6 +647,7 @@ function StoreCoreEditorPage() {
         saving={saving || createMutation.isPending || modifyMutation.isPending}
         showRestart={!isNew}
         restartNodes={restartNodes}
+        restartDisabled={noteOnlyChange}
         onRestartChange={setRestartNodes}
       />
       <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>

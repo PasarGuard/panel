@@ -16,6 +16,7 @@ interface CoreEditorLayoutProps {
   saving: boolean
   showRestart?: boolean
   restartNodes: boolean
+  restartDisabled?: boolean
   onRestartChange: (v: boolean) => void
   /** `CoreSectionTabs` reads the Xray/WireGuard store; editors outside it pass `false`. */
   showSectionTabs?: boolean
@@ -35,6 +36,7 @@ export function CoreEditorLayout({
   saving,
   showRestart,
   restartNodes,
+  restartDisabled,
   onRestartChange,
   showSectionTabs = true,
   className,
@@ -57,6 +59,7 @@ export function CoreEditorLayout({
         saving={saving}
         showRestart={showRestart}
         restartNodes={restartNodes}
+        restartDisabled={restartDisabled}
         onRestartChange={onRestartChange}
       />
     </div>
