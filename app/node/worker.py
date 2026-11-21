@@ -210,12 +210,13 @@ class NodeWorkerService(BaseRpcService):
     async def _sync_node_users(self, data: dict):
         node_id = data.get("node_id")
         flush_users = data.get("flush_users", False)
+        full = bool(data.get("full", False))
         if not node_id:
             return
         # Refresh from KV before syncing to avoid stale core/inbound cache races.
         await core_manager._reload_from_cache()
         async with GetDB() as db:
-            await self._node_operator.sync_node_users(db, node_id=node_id, flush_users=flush_users)
+            await self._node_operator.sync_node_users(db, node_id=node_id, flush_users=flush_users, full=full)
 
     async def _get_node_system_stats(self, data: dict) -> dict:
         node_id = data.get("node_id")

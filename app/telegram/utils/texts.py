@@ -96,6 +96,11 @@ class Message:
     v2ray_links_unavailable = "❌ No V2Ray links available for this user."
 
     @staticmethod
+    def sync_failed(node_names: list[str]) -> str:
+        text = f"❌ Users were not synced on: {', '.join(escape(name) for name in node_names)}"
+        return text if len(text) <= 4096 else f"{text[:4095]}…"
+
+    @staticmethod
     def start(stats: SystemStats, data_limit: int | None):
         memory_percentage = int(stats.mem_used / stats.mem_total * 100) if stats.mem_total else 0
         disk_percentage = int(stats.disk_used / stats.disk_total * 100) if stats.disk_total else 0

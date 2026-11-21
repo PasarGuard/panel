@@ -3035,6 +3035,7 @@ core_id?: number | null;
 
 export type SyncNodeParams = {
 flush_users?: boolean;
+full?: boolean;
 };
 
 export type GetNodeStatsPeriodicParams = {
