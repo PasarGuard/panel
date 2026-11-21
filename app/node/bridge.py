@@ -27,7 +27,7 @@ from PasarGuardNodeBridge import Health, NodeAPIError, NodeType, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import User
 from PasarGuardNodeBridge.grpclib import Node as GrpcNode
 from PasarGuardNodeBridge.rest import Node as RestNode
-from PasarGuardNodeBridge.storage import ClaimedUser, LifecycleLease, LifecycleStatus
+from PasarGuardNodeBridge.storage import ClaimedUser, InMemoryUserSyncStore, LifecycleLease, LifecycleStatus
 
 from config import nats_settings
 
@@ -89,6 +89,37 @@ def _keep_removal_credentials(fresh: User, queued: User) -> User:
     kept.CopyFrom(fresh)
     kept.proxies.wireguard.CopyFrom(queued.proxies.wireguard)
     return kept
+
+
+class MemoryUserSyncStore(InMemoryUserSyncStore):
+    """The bridge's process-local queue, with a refresh that never writes over a queued entry."""
+
+    async def refresh_users(self, node_id: str, users: list[User]) -> None:
+        """Queue each user that has no entry; give an entry already queued a new revision, payload kept.
+
+        Like a refresh request on the NATS queue: every delivery re-reads the
+        user, so the queued payload only supplies the credentials a removal
+        needs, and the ones queued first are kept. The new revision makes an
+        entry under a claim fail its acknowledgement, so a delivery that read
+        the user before this request is followed by one from a fresh read.
+        """
+        if not users:
+            return
+        async with self._lock:
+            pending = self._pending.setdefault(node_id, {})
+            for user in {user.email: user for user in users}.values():
+                self._revision += 1
+                queued = pending.get(user.email)
+                payload = queued[0] if queued is not None else User.FromString(user.SerializeToString())
+                pending[user.email] = (payload, self._revision)
+
+
+_memory_user_sync_store = MemoryUserSyncStore()
+
+
+def get_memory_user_sync_store() -> MemoryUserSyncStore:
+    """The process-local queue shared by the nodes of this process when NATS is off."""
+    return _memory_user_sync_store
 
 
 class FullSyncConflictError(NodeAPIError):
@@ -561,11 +592,15 @@ class _QueuedBatchSync:
         if not users:
             return
         request = getattr(self._user_sync_store, "request_refresh", None)
+        refresh_users = getattr(self._user_sync_store, "refresh_users", None)
         if callable(request):
             await request(self.node_id, [user.email for user in users])
-            await self.wake_sync_worker()
+        elif callable(refresh_users):
+            await refresh_users(self.node_id, users)
         else:
             await self.update_users(users)
+            return
+        await self.wake_sync_worker()
 
 
 async def _resolve_refresh(node_id: str, emails: list[str]) -> list[User]:

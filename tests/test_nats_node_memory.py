@@ -11,7 +11,7 @@ from nats.js.errors import KeyWrongLastSequenceError
 from PasarGuardNodeBridge.common.service_pb2 import User
 from PasarGuardNodeBridge.storage import LifecycleOperation, LifecycleStatus, NodeLifecycleState
 
-from app.nats.kv_cas import MemoryCasKv
+from app.nats.kv_cas import MemoryCasKv, kv_get_json
 from app.node.nats_memory import (
     NatsNodeLifecycleCoordinator,
     NatsUserSyncStore,
@@ -206,6 +206,79 @@ async def test_ack_reports_unconfirmed_only_when_entry_vanished():
     assert await store.ack_users("1", [claimed["a"].token, claimed["b"].token]) == ["b"]
     remaining = await store.claim_users("1", "a", 10, 30)
     assert [(item.user.email, list(item.user.inbounds)) for item in remaining] == [("a", ["newer"])]
+
+
+@pytest.mark.asyncio
+async def test_refresh_request_redelivers_a_claimed_entry_and_keeps_every_payload():
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    await store.enqueue_users("1", [_user("a")])
+    [claimed] = await store.claim_users("1", "worker-a", 10, 30)
+    await store.enqueue_users("1", [_user("b")])
+    await store.request_refresh("1", ["c"])
+    keys = {email: store._pending_key("1", email) for email in "abc"}
+    before = {email: await kv_get_json(kv, key) for email, key in keys.items()}
+
+    # The delivery of "a" may carry a state read before this request.
+    await store.request_refresh("1", ["a", "b", "c"])
+    after = {email: await kv_get_json(kv, key) for email, key in keys.items()}
+    for email in "abc":  # same payload (and claim), new revision
+        assert after[email][0] == before[email][0] and after[email][1] != before[email][1]
+
+    # Its acknowledgement fails and releases the claim, so it is delivered again.
+    assert await store.ack_users("1", [claimed.token]) == []
+    again = await store.claim_users("1", "worker-b", 10, 30)
+    assert "a" in [item.user.email for item in again]
+
+
+@pytest.mark.asyncio
+async def test_refresh_request_redelivers_an_entry_whose_claim_expired():
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    await store.enqueue_users("1", [_user("a")])
+    [claimed] = await store.claim_users("1", "worker-a", 10, 0)
+    await asyncio.sleep(0.01)
+    await store.request_refresh("1", ["a"])
+    assert await store.ack_users("1", [claimed.token]) == []
+    again = await store.claim_users("1", "worker-b", 10, 30)
+    assert [item.user.email for item in again] == ["a"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_request_never_writes_back_an_entry_replaced_after_its_read():
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    await store.enqueue_users("1", [_user("u", "old")])
+    update = kv.update
+
+    async def enqueue_newer_state_first(*args, **kwargs):
+        kv.update = update  # type: ignore[method-assign]
+        await store.enqueue_users("1", [_user("u", "new")])  # lands between the refresh's read and write
+        return await update(*args, **kwargs)
+
+    kv.update = enqueue_newer_state_first  # type: ignore[method-assign]
+    await store.request_refresh("1", ["u"])
+    [item] = await store.claim_users("1", "worker", 10, 30)
+    assert list(item.user.inbounds) == ["new"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("queued", ["payload", "marker"])
+async def test_refresh_request_after_a_snapshot_read_survives_its_retirement(queued):
+    # A full snapshot captured the queued entry of "u" and read "u" as active; "u" is then
+    # deleted, its removal fails to queue and the retry asks for a refresh before the
+    # snapshot retires what it captured. The request must outlive that retirement.
+    store = NatsUserSyncStore(MemoryCasKv())
+    if queued == "payload":
+        await store.enqueue_users("1", [_user("u")])
+    else:
+        await store.request_refresh("1", ["u"])
+    captured, _ = await store.capture_queued("1")
+    await store.request_refresh("1", ["u"])
+    assert await store.retire_captured("1", captured) == 0
+    store.refresh_resolver = AsyncMock(return_value=[User(email="u", inbounds=[])])
+    again = await store.claim_users("1", "worker", 10, 30)
+    assert [item.user.email for item in again] == ["u"]
 
 
 @pytest.mark.asyncio
