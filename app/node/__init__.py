@@ -9,7 +9,7 @@ from PasarGuardNodeBridge import Health, NodeType, PasarGuardNode
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 
 from app.db.models import Node, NodeConnectionType
-from app.node.bridge import create_node, get_refresh_handler
+from app.node.bridge import create_node, get_memory_user_sync_store, get_refresh_handler
 from app.node.nats_memory import UserSyncValueTooLargeError, ensure_bridge_memory, get_bridge_memory
 from app.node.user import core_users
 from app.utils.logger import get_logger
@@ -106,6 +106,8 @@ class NodeManager:
             kwargs["user_sync_store"] = store
             kwargs["lifecycle_coordinator"] = coordinator
             kwargs["worker_id"] = worker_id
+        else:
+            kwargs["user_sync_store"] = get_memory_user_sync_store()
         return kwargs
 
     async def _shutdown_node(self, node: PasarGuardNode | None, *, remote_stop: bool = True):
@@ -711,11 +713,9 @@ class NodeManager:
         find what to remove (an entry being delivered is made to be delivered once more).
         A payload read here could be older than that entry: written over it, the
         credentials of a user changed and then deleted in between would replace the ones
-        the node holds. The bridge's in-memory queue has no such request: the current
-        payload (a removal with its stored credentials when the user must not be on the
-        node, without any once the user is gone from the database) is written over the
-        queued entry, so a removal can reach the node without the credentials WireGuard
-        needs (xray does not need them).
+        the node holds. The process-local queue used without NATS does the same: it
+        queues the payload read here only for a user with no entry, and gives an entry
+        already queued a new revision with its payload kept.
         """
         read = get_refresh_handler()
         if read is None:

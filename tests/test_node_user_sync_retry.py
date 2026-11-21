@@ -10,7 +10,7 @@ import pytest
 from PasarGuardNodeBridge import InMemoryUserSyncStore
 from PasarGuardNodeBridge.common.service_pb2 import User as ProtoUser
 
-from app.db.models import NodeStatus
+from app.db.models import NodeConnectionType, NodeStatus
 from app.jobs import node_checker
 from app.nats.kv_cas import MemoryCasKv
 from app.node import NodeManager, bridge as bridge_module, sync as node_sync
@@ -722,8 +722,8 @@ async def test_removal_that_failed_to_queue_during_a_delivery_still_removes_the_
         await store.close()
 
 
-class LandsThenFails(InMemoryUserSyncStore):
-    """The bridge's own queue (no request_refresh) whose write lands and then reports a failure."""
+class LandsThenFails(bridge_module.MemoryUserSyncStore):
+    """The process-local queue (no NATS) whose write lands and then reports a failure."""
 
     fail_after_write = 0
 
@@ -734,10 +734,9 @@ class LandsThenFails(InMemoryUserSyncStore):
             raise StoreDown("ack lost")
 
 
-async def test_memory_store_retry_of_a_deleted_user_overwrites_its_queued_credentials(monkeypatch, database):
-    # Known limitation of the in-memory queue: it cannot be asked to re-read a user, so the
-    # retry of a deleted user writes a removal without credentials over the queued one.
-    # The user is still removed (xray needs only the email); a WireGuard peer is not found.
+async def test_memory_store_retry_of_a_deleted_user_keeps_its_queued_credentials(monkeypatch, database):
+    # The retry reads a removal without credentials (the user is gone); the queued removal
+    # keeps K2, so the node can still find the WireGuard peer.
     store = LandsThenFails()
     manager, [state] = await _cluster(monkeypatch, store, delays=(0.01,))
     node = manager._nodes[1]
@@ -752,10 +751,54 @@ async def test_memory_store_retry_of_a_deleted_user_overwrites_its_queued_creden
         release.set()
         await _drained(store, node)
         assert state.users.get("5") == []
-        assert keys == [""]
+        assert keys == ["K2"]
     finally:
         release.set()
         await _close(manager)
+
+
+async def test_memory_store_refresh_keeps_a_queued_payload_and_queues_a_missing_one():
+    store = bridge_module.MemoryUserSyncStore()
+    await store.enqueue_users("1", [_wireguard_user(7, "K2")])
+    await store.refresh_users("1", [_user(7), _wireguard_user(8, "K8")])
+    claimed = {item.user.email: item.user for item in await store.claim_users("1", "w", 10, 30)}
+    assert claimed["7"].proxies.wireguard.public_key == "K2"
+    assert claimed["8"].proxies.wireguard.public_key == "K8"
+
+
+async def test_memory_store_refresh_outlives_a_delivery_claimed_before_it():
+    # A delivery claimed before the refresh may carry an older read: its ack must not settle the entry.
+    store = bridge_module.MemoryUserSyncStore()
+    await store.enqueue_users("1", [_user(9, "in-a")])
+    [item] = await store.claim_users("1", "w", 10, 30)
+    await store.refresh_users("1", [_user(9)])
+    await store.ack_users("1", [item.token])
+    assert await store.has_pending("1")
+    [again] = await store.claim_users("1", "w", 10, 30)
+    assert again.user.email == "9"
+    await store.ack_users("1", [again.token])
+    assert not await store.has_pending("1")
+
+
+def test_nodes_without_nats_share_the_refreshing_memory_store(monkeypatch):
+    monkeypatch.setattr("app.node.get_bridge_memory", lambda: (None, None, "w"))
+    node = SimpleNamespace(
+        connection_type=NodeConnectionType.grpc,
+        address="127.0.0.1",
+        port=1,
+        api_port=2,
+        server_ca="",
+        certificate_sha256=None,
+        api_key="k",
+        name="n",
+        default_timeout=10,
+        internal_timeout=15,
+        proxy_url=None,
+        id=3,
+        usage_coefficient=1.0,
+    )
+    kwargs = NodeManager()._create_node_kwargs(node)
+    assert kwargs["user_sync_store"] is bridge_module.get_memory_user_sync_store()
 
 
 async def test_shutdown_leaves_no_retry_task_behind(monkeypatch, database):
