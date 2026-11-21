@@ -506,7 +506,8 @@ template_group_association = Table(
 class NextPlan(Base, IdMixin):
     __tablename__ = "next_plans"
     __table_args__ = (
-        # user_id will already have an index from the FK
+        # Only MySQL/MariaDB index FK columns on their own; PostgreSQL and SQLite need this for ON DELETE CASCADE.
+        Index("ix_next_plans_user_id", "user_id"),
         # Add if you frequently query by template
         Index("ix_next_plans_user_template_id", "user_template_id"),
     )
@@ -853,6 +854,10 @@ class NodeUsageResetLogs(Base, CreatedAtUTCMixin):
 
 class NotificationReminder(Base, CreatedAtUTCMixin):
     __tablename__ = "notification_reminders"
+    __table_args__ = (
+        # "Already sent?" checks and the ON DELETE CASCADE from users filter by these columns.
+        Index("ix_notification_reminders_user_id_type_threshold", "user_id", "type", "threshold"),
+    )
     user_id: Mapped[int] = fk_id_column("users.id", ondelete="CASCADE")
     user: Mapped[User] = relationship(back_populates="notification_reminders", init=False)
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
