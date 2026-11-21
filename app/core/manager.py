@@ -346,6 +346,19 @@ class CoreManager:
                 return None
             return deepcopy(inbound)
 
+    async def get_inbound_ratio_core_ids(self) -> dict[str, list[int]]:
+        """Map every inbound tag to the ids of the cores that define it.
+
+        Unlike ``_build_inbound_index`` (last core wins), a tag shared by several cores
+        keeps all of them, in core id order.
+        """
+        async with self._lock:
+            mapping: dict[str, list[int]] = {}
+            for core_id in sorted(self._cores):
+                for tag in self._cores[core_id].inbounds_by_tag:
+                    mapping.setdefault(tag, []).append(core_id)
+            return mapping
+
 
 core_manager = CoreManager()
 

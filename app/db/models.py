@@ -567,6 +567,8 @@ class UserUsageResetLogs(Base, IdMixin):
 class ProxyInbound(Base, IdMixin):
     __tablename__ = "inbounds"
     tag: Mapped[str] = mapped_column(String(256), unique=True, index=True)
+    # Panel-side traffic multiplier for users whose groups expose this inbound
+    usage_coefficient: Mapped[float] = mapped_column(Float, server_default=text("1.0"), default=1.0)
     hosts: Mapped[list[ProxyHost]] = relationship(back_populates="inbound", init=False)
     groups: Mapped[list[Group]] = relationship(
         secondary=inbounds_groups_association, back_populates="inbounds", init=False

@@ -716,6 +716,13 @@
         }
       }
     },
+    "inboundsratio": {
+      "title": "入站比例",
+      "description": "为每个入站应用的流量倍率",
+      "sectionTitle": "入站用量比例设置",
+      "sectionDescription": "对所属分组包含此入站的用户，在节点系数之上再乘以该比例；若分组包含多个入站，则取其中最高的比例。",
+      "sectionWarning": "警告：若同时设置节点用量系数与入站比例，二者会合并为一个系数（节点系数 × 入站比例）。示例：节点系数 2 与入站比例 2，下载或上传 10 MB 将按 40 MB 计费。"
+    },
     "theme": {
       "title": "主题",
       "description": "自定义您的应用主题",
@@ -1953,6 +1960,20 @@
   },
   "inbound": "入站",
   "inbounds": "入站",
+  "inboundsratioPage": {
+    "usageRatio": "使用比例",
+    "searchPlaceholder": "搜索入站…",
+    "tag": "标签",
+    "protocol": "协议",
+    "network": "传输网络",
+    "cores": "内核",
+    "groups": "分组",
+    "hosts": "主机",
+    "saved": "使用比例已保存",
+    "saveFailed": "保存使用比例失败",
+    "invalidRatio": "使用比例必须为零或正数",
+    "empty": "未找到入站。请先在核心配置中添加入站。"
+  },
   "address": "地址",
   "usage": "用量",
   "usageLabel": "用量",

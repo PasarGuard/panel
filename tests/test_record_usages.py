@@ -338,7 +338,7 @@ async def test_non_postgres_history_keeps_immediate_path(monkeypatch: pytest.Mon
 
     await record_usages.record_user_stats(node_params, coefficients)
 
-    immediate_write.assert_awaited_once_with(node_params, coefficients)
+    immediate_write.assert_awaited_once_with(node_params, coefficients, None)
 
 
 @pytest.mark.asyncio
@@ -1678,3 +1678,30 @@ async def test_node_and_outbound_history_share_one_bucket(monkeypatch: pytest.Mo
         node_bucket = await session.scalar(select(NodeUsage.created_at))
         outbound_bucket = await session.scalar(select(NodeOutboundUsage.created_at))
         assert node_bucket.replace(tzinfo=UTC) == outbound_bucket.replace(tzinfo=UTC)
+
+
+def test_prepare_node_user_usage_params_applies_inbound_ratio():
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+
+    params = record_usages._prepare_node_user_usage_params(
+        {7: [{"uid": "11", "value": 10}, {"uid": "12", "value": 10}]},
+        {7: 1},
+        bucket,
+        {11: 2.5},
+    )
+
+    assert params == [
+        {"uid": 11, "value": 25, "node_id": 7, "created_at": bucket},
+        {"uid": 12, "value": 10, "node_id": 7, "created_at": bucket},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_calculate_users_usage_applies_node_and_inbound_ratios():
+    users_usage = await record_usages.calculate_users_usage(
+        {7: [{"uid": 11, "value": 10}, {"uid": 12, "value": 10}]},
+        {7: 2},
+        {11: 0.5},
+    )
+
+    assert {item["uid"]: item["value"] for item in users_usage} == {11: 10, 12: 20}

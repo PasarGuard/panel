@@ -3,12 +3,12 @@ import { useAdmin } from '@/hooks/use-admin'
 import { cn } from '@/lib/utils'
 import { getGetGeneralSettingsQueryKey, getGetSettingsQueryKey, useGetSettings, useModifySettings } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, Database, Fingerprint, ListTodo, LucideIcon, Palette, Send, Settings as SettingsIcon, Webhook } from 'lucide-react'
+import { Bell, Database, Fingerprint, ListTodo, LucideIcon, Network, Palette, Send, Settings as SettingsIcon, Webhook } from 'lucide-react'
 import { createContext, useCallback, useContext, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import { hasPermission } from '@/utils/rbac'
+import { canReadResourcePage, hasPermission } from '@/utils/rbac'
 
 interface Tab {
   id: string
@@ -45,6 +45,7 @@ const allTabs: Tab[] = [
   { id: 'webhook', label: 'settings.webhook.title', icon: Webhook, url: '/settings/webhook' },
   { id: 'cleanup', label: 'settings.cleanup.title', icon: Database, url: '/settings/cleanup' },
   { id: 'theme', label: 'theme.title', icon: Palette, url: '/settings/theme' },
+  { id: 'inboundsratio', label: 'settings.inboundsratio.title', icon: Network, url: '/settings/inboundsratio' },
 ]
 
 export default function Settings() {
@@ -58,6 +59,7 @@ export default function Settings() {
   const tabs = allTabs.filter(tab => {
     if (tab.id === 'theme') return true
     if (tab.id === 'general') return canReadGeneral
+    if (tab.id === 'inboundsratio') return canReadResourcePage(admin, 'hosts')
     return canReadSettings
   })
 
@@ -221,7 +223,10 @@ export default function Settings() {
   return (
     <SettingsContext.Provider value={settingsContextValue}>
       <div className="flex w-full flex-col items-start gap-0">
-        <PageHeader title={t(`settings.${activeTab}.title`)} description="manageSettings" />
+        <PageHeader
+          title={t(`settings.${activeTab}.title`)}
+          description={activeTab === 'inboundsratio' ? 'settings.inboundsratio.description' : 'manageSettings'}
+        />
 
         <div className="relative w-full">
           <div className="flex">

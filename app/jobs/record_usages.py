@@ -17,7 +17,18 @@ from sqlalchemy.sql.expression import Insert
 from app import on_shutdown, scheduler
 from app.db import GetDB
 from app.db.base import engine
-from app.db.models import Admin, Node, NodeOutboundUsage, NodeUsage, NodeUserUsage, System, User
+from app.db.models import (
+    Admin,
+    Node,
+    NodeOutboundUsage,
+    NodeUsage,
+    NodeUserUsage,
+    ProxyInbound,
+    System,
+    User,
+    inbounds_groups_association as inbound_groups,
+    users_groups_association as user_groups,
+)
 from app.node import node_manager
 from app.operation.admin_sync import enforce_admin_limits_now
 from app.settings import general_settings
@@ -31,6 +42,10 @@ logger = get_logger("record-usages")
 JOB_SEM = asyncio.Semaphore(3)  # Max 3 concurrent DB write operations
 API_SEM = asyncio.Semaphore(10)  # Max 10 concurrent node stats RPCs
 USAGE_COEFFICIENT_TTL_S = 60.0
+# Panel-side inbound usage ratios (inbounds.usage_coefficient), refreshed at most once a minute.
+INBOUND_RATIO_TTL_S = 60.0
+# Cache of user id -> effective inbound ratio plus its monotonic expiry.
+_inbound_ratio_cache: tuple[float, dict[int, float]] = (0.0, {})
 NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT = {
     "mysql": 1_000,
     "sqlite": 400,
@@ -523,10 +538,18 @@ def _get_time_bucket(now: dt | None = None) -> dt:
     return now.replace(minute=(now.minute // 10) * 10, second=0, microsecond=0)
 
 
+def _user_inbound_ratio(inbound_ratios: dict[int, float] | None, uid: int) -> float:
+    """Return the inbound usage ratio for a user (1.0 when the user has no ratio)."""
+    if not inbound_ratios:
+        return 1.0
+    return inbound_ratios.get(uid, 1.0)
+
+
 def _prepare_node_user_usage_params(
     all_node_params: dict,
     usage_coefficients: dict,
     created_at: dt,
+    inbound_ratios: dict[int, float] | None = None,
 ) -> list[dict]:
     """Normalize and aggregate nonzero node-user history deltas."""
     aggregated_params: defaultdict[tuple[int, int], int] = defaultdict(int)
@@ -535,7 +558,7 @@ def _prepare_node_user_usage_params(
             continue
         coeff = usage_coefficients.get(node_id, 1.0)
         for p in params:
-            value = int(p["value"] * coeff)
+            value = int(p["value"] * coeff * _user_inbound_ratio(inbound_ratios, int(p["uid"])))
             if value:
                 aggregated_params[(int(p["uid"]), node_id)] += value
 
@@ -586,14 +609,18 @@ async def _write_node_user_usage_params(dialect: str, upsert_params: list[dict])
                 )
 
 
-async def record_user_stats_batched(all_node_params: dict, usage_coefficients: dict):
+async def record_user_stats_batched(
+    all_node_params: dict,
+    usage_coefficients: dict,
+    inbound_ratios: dict[int, float] | None = None,
+):
     """Record node-user history immediately using batched dialect-specific UPSERTs."""
     if not all_node_params:
         return
 
     created_at = _get_time_bucket()
     dialect = await get_dialect()
-    upsert_params = _prepare_node_user_usage_params(all_node_params, usage_coefficients, created_at)
+    upsert_params = _prepare_node_user_usage_params(all_node_params, usage_coefficients, created_at, inbound_ratios)
     await _write_node_user_usage_params(dialect, upsert_params)
 
 
@@ -666,18 +693,22 @@ async def flush_user_usage_history_if_due(now_monotonic: float | None = None) ->
         return await _flush_pending_user_usage_history_locked(now_monotonic)
 
 
-async def record_user_stats(all_node_params: dict, usage_coefficients: dict) -> None:
+async def record_user_stats(
+    all_node_params: dict,
+    usage_coefficients: dict,
+    inbound_ratios: dict[int, float] | None = None,
+) -> None:
     """Coalesce PostgreSQL and MySQL history writes while preserving the immediate SQLite path."""
     if not all_node_params:
         return
 
     dialect = await get_dialect()
     if dialect not in BUFFERED_USER_USAGE_HISTORY_DIALECTS:
-        await record_user_stats_batched(all_node_params, usage_coefficients)
+        await record_user_stats_batched(all_node_params, usage_coefficients, inbound_ratios)
         return
 
     created_at = _get_time_bucket()
-    upsert_params = _prepare_node_user_usage_params(all_node_params, usage_coefficients, created_at)
+    upsert_params = _prepare_node_user_usage_params(all_node_params, usage_coefficients, created_at, inbound_ratios)
     if not upsert_params:
         return
 
@@ -884,6 +915,51 @@ async def _node_usage_coefficient(node: PasarGuardNode, node_id: int) -> float:
     return coeff
 
 
+async def _user_inbound_ratios() -> dict[int, float]:
+    """Effective inbound usage ratio per user, cached for INBOUND_RATIO_TTL_S.
+
+    Nodes report traffic per user, not per inbound, so a user's traffic cannot be attributed to
+    the inbound it actually crossed. A user therefore gets the highest ratio among the inbounds
+    their groups expose: a configured ratio is never diluted by the other inbounds of the group,
+    which is what an operator expects when they raise one inbound to charge more.
+    Users without any non-default ratio are absent from the map and stay at 1.0.
+    """
+    global _inbound_ratio_cache
+    now = time.monotonic()
+    expires_at, cached = _inbound_ratio_cache
+    if expires_at > now:
+        return cached
+
+    try:
+        stmt = (
+            select(
+                user_groups.c.user_id,
+                func.max(ProxyInbound.usage_coefficient),
+            )
+            .select_from(user_groups)
+            .join(
+                inbound_groups,
+                inbound_groups.c.group_id == user_groups.c.groups_id,
+            )
+            .join(ProxyInbound, ProxyInbound.id == inbound_groups.c.inbound_id)
+            .group_by(user_groups.c.user_id)
+        )
+        async with GetDB() as db:
+            rows = (await db.execute(stmt)).all()
+        ratios = {
+            int(user_id): float(ratio)
+            for user_id, ratio in rows
+            if ratio is not None and abs(float(ratio) - 1.0) > 1e-9
+        }
+    except Exception as exc:
+        # Never break traffic accounting because of the optional ratio lookup.
+        logger.warning("Failed to load inbound usage ratios; keeping previous values: %s", exc)
+        ratios = cached
+
+    _inbound_ratio_cache = (now + INBOUND_RATIO_TTL_S, ratios)
+    return ratios
+
+
 async def _collect_node_user_usage(node: PasarGuardNode, node_id: int) -> tuple[int, float, list]:
     """Fetch coefficient and user stats under one RPC slot so extra+stats overlap."""
     async with API_SEM:
@@ -983,8 +1059,12 @@ async def calculate_admin_usage(users_usage: list) -> tuple[dict, set[int]]:
     return admin_usage, set(user_admin_map.keys())
 
 
-async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> list:
-    """Aggregate user usage across nodes with coefficients applied."""
+async def calculate_users_usage(
+    api_params: dict,
+    usage_coefficient: dict,
+    inbound_ratios: dict[int, float] | None = None,
+) -> list:
+    """Aggregate user usage across nodes with node and inbound coefficients applied."""
     if not api_params:
         return []
 
@@ -994,7 +1074,8 @@ async def calculate_users_usage(api_params: dict, usage_coefficient: dict) -> li
             continue
         coeff = usage_coefficient.get(node_id, 1)
         for param in params:
-            users_usage[int(param["uid"])] += int(param["value"] * coeff)
+            uid = int(param["uid"])
+            users_usage[uid] += int(param["value"] * coeff * _user_inbound_ratio(inbound_ratios, uid))
 
     return [{"uid": uid, "value": value} for uid, value in users_usage.items()]
 
@@ -1038,7 +1119,8 @@ async def _record_user_usages_impl():
             usage_coefficient[node_id] = coeff
             api_params[node_id] = stats
 
-        users_usage = await calculate_users_usage(api_params, usage_coefficient)
+        inbound_ratios = await _user_inbound_ratios()
+        users_usage = await calculate_users_usage(api_params, usage_coefficient, inbound_ratios)
         if not users_usage:
             logger.debug("No user usage to record")
             return
@@ -1092,7 +1174,7 @@ async def _record_user_usages_impl():
                 filtered_node_params[node_id] = filtered_params
 
         if filtered_node_params:
-            await record_user_stats(filtered_node_params, usage_coefficient)
+            await record_user_stats(filtered_node_params, usage_coefficient, inbound_ratios)
             total_records = sum(len(params) for params in filtered_node_params.values())
             logger.debug(f"Processed {total_records} node user usage deltas across {len(filtered_node_params)} nodes")
 
