@@ -793,6 +793,13 @@
         }
       }
     },
+    "inboundsratio": {
+      "title": "Inbound Ratios",
+      "description": "Traffic multiplier applied to each inbound",
+      "sectionTitle": "Inbound Usage Ratios Settings",
+      "sectionDescription": "Multiplies the traffic charged to users whose groups include this inbound, on top of the node's own ratio. When a user's groups expose several inbounds, the highest ratio among them applies.",
+      "sectionWarning": "Warning: if you set a node usage ratio and an inbound ratio at the same time, they are combined into one coefficient (node ratio × inbound ratio). Example: node usage ratio 2 and inbound usage ratio 2 — a 10 MB download or upload is charged as 40 MB."
+    },
     "theme": {
       "title": "Theme",
       "description": "Customize your application theme",
@@ -1991,6 +1998,20 @@
   },
   "inbound": "Inbound",
   "inbounds": "Inbounds",
+  "inboundsratioPage": {
+    "usageRatio": "Usage Ratio",
+    "searchPlaceholder": "Search inbounds…",
+    "tag": "Tag",
+    "protocol": "Protocol",
+    "network": "Network",
+    "cores": "Core",
+    "groups": "Groups",
+    "hosts": "Hosts",
+    "saved": "Usage ratio saved",
+    "saveFailed": "Failed to save the usage ratio",
+    "invalidRatio": "Usage ratio must be zero or a positive number",
+    "empty": "No inbounds found. Add an inbound to a core config first."
+  },
   "address": "Address",
   "usageLabel": "Usage",
   "viewMode": "View mode",
