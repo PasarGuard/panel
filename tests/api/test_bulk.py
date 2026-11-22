@@ -104,7 +104,7 @@ def test_add_groups_to_users(access_token):
 
         assert response.status_code == status.HTTP_200_OK
         for user in users:
-            response = client.get(f"/api/user/{user['username']}", headers={"Authorization": f"Bearer {access_token}"})
+            response = client.get(f"/api/user/{user['id']}", headers={"Authorization": f"Bearer {access_token}"})
             assert set(response.json()["group_ids"]) == set(group_ids)
     finally:
         cleanup(access_token, core, groups, users)
@@ -158,7 +158,7 @@ def test_bulk_add_wireguard_group_allocates_existing_user_peer_ips(access_token)
         allocated_peer_ips = []
         for user in users:
             user_response = client.get(
-                f"/api/user/{user['username']}",
+                f"/api/user/{user['id']}",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             assert user_response.status_code == status.HTTP_200_OK
@@ -198,7 +198,7 @@ def test_remove_groups_from_users(access_token):
 
         assert response.status_code == status.HTTP_200_OK
         for user in users:
-            response = client.get(f"/api/user/{user['username']}", headers={"Authorization": f"Bearer {access_token}"})
+            response = client.get(f"/api/user/{user['id']}", headers={"Authorization": f"Bearer {access_token}"})
             assert set(response.json()["group_ids"]) == {group_ids[1]}
     finally:
         cleanup(access_token, core, groups, users)
@@ -243,12 +243,12 @@ def test_update_users_expire(access_token):
         create_user(access_token, group_ids=[groups[0]["id"]], payload={"username": unique_name("user_expire2")}),
     ]
     client.put(
-        f"/api/user/{users[0]['username']}",
+        f"/api/user/{users[0]['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"expire": "2025-01-01T00:00:00+00:00"},
     )
     client.put(
-        f"/api/user/{users[1]['username']}",
+        f"/api/user/{users[1]['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"expire": "2026-01-01T00:00:00+00:00"},
     )
@@ -325,12 +325,12 @@ def test_bulk_expire_with_range(access_token):
     # Manually set them to expired status by setting expire date in the past
     # Note: the API might return slightly different formatted strings, so we use isoformat
     client.put(
-        f"/api/user/{user1['username']}",
+        f"/api/user/{user1['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"expire": expire1.isoformat()},
     )
     client.put(
-        f"/api/user/{user2['username']}",
+        f"/api/user/{user2['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"expire": expire2.isoformat()},
     )
@@ -352,13 +352,13 @@ def test_bulk_expire_with_range(access_token):
         assert response.status_code == status.HTTP_200_OK
 
         # Verify user1 was updated
-        resp1 = client.get(f"/api/user/{user1['username']}", headers={"Authorization": f"Bearer {access_token}"})
+        resp1 = client.get(f"/api/user/{user1['id']}", headers={"Authorization": f"Bearer {access_token}"})
         new_expire1 = dt.fromisoformat(resp1.json()["expire"])
         # Should be approximately expire1 + 1 hour
         assert (new_expire1 - expire1).total_seconds() == 3600
 
         # Verify user2 was NOT updated
-        resp2 = client.get(f"/api/user/{user2['username']}", headers={"Authorization": f"Bearer {access_token}"})
+        resp2 = client.get(f"/api/user/{user2['id']}", headers={"Authorization": f"Bearer {access_token}"})
         new_expire2 = dt.fromisoformat(resp2.json()["expire"])
         # Should be exactly expire2 (or very close)
         assert abs((new_expire2 - expire2).total_seconds()) < 1
@@ -390,12 +390,12 @@ def test_bulk_data_limit_with_expire_range_without_expired_status(access_token):
     )
 
     client.put(
-        f"/api/user/{user1['username']}",
+        f"/api/user/{user1['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"expire": expire1.isoformat()},
     )
     client.put(
-        f"/api/user/{user2['username']}",
+        f"/api/user/{user2['id']}",
         headers={"Authorization": f"Bearer {access_token}"},
         json={"expire": expire2.isoformat()},
     )
@@ -415,8 +415,8 @@ def test_bulk_data_limit_with_expire_range_without_expired_status(access_token):
         )
         assert response.status_code == status.HTTP_200_OK
 
-        resp1 = client.get(f"/api/user/{user1['username']}", headers={"Authorization": f"Bearer {access_token}"})
-        resp2 = client.get(f"/api/user/{user2['username']}", headers={"Authorization": f"Bearer {access_token}"})
+        resp1 = client.get(f"/api/user/{user1['id']}", headers={"Authorization": f"Bearer {access_token}"})
+        resp2 = client.get(f"/api/user/{user2['id']}", headers={"Authorization": f"Bearer {access_token}"})
         assert resp1.json()["data_limit"] == 150
         assert resp2.json()["data_limit"] == 200
 
@@ -490,7 +490,7 @@ def test_bulk_reset_users_usage_by_ids(access_token):
 
         for user in users:
             user_response = client.get(
-                f"/api/user/{user['username']}",
+                f"/api/user/{user['id']}",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             assert user_response.status_code == status.HTTP_200_OK
@@ -561,7 +561,7 @@ def test_bulk_revoke_users_subscription_regenerates_wireguard_keys(access_token)
         for user in users:
             assert get_user_sub_revoked_at(user["username"]) is not None
             user_response = client.get(
-                f"/api/user/{user['username']}",
+                f"/api/user/{user['id']}",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             assert user_response.status_code == status.HTTP_200_OK
@@ -596,7 +596,7 @@ def test_bulk_disable_users_by_ids(access_token):
 
         for user in users:
             user_response = client.get(
-                f"/api/user/{user['username']}",
+                f"/api/user/{user['id']}",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             assert user_response.status_code == status.HTTP_200_OK
@@ -631,7 +631,7 @@ def test_bulk_enable_users_by_ids(access_token):
 
         for user in users:
             user_response = client.get(
-                f"/api/user/{user['username']}",
+                f"/api/user/{user['id']}",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             assert user_response.status_code == status.HTTP_200_OK
@@ -650,7 +650,7 @@ def test_bulk_disable_enable_users_ignore_noops(access_token):
         first_user = users[0]
         second_user = users[1]
         disable_single_response = client.put(
-            f"/api/user/{first_user['username']}",
+            f"/api/user/{first_user['id']}",
             headers={"Authorization": f"Bearer {access_token}"},
             json={"status": "disabled"},
         )
@@ -703,7 +703,7 @@ def test_bulk_set_owner_by_ids(access_token):
 
         for user in users:
             user_response = client.get(
-                f"/api/user/{user['username']}",
+                f"/api/user/{user['id']}",
                 headers={"Authorization": f"Bearer {access_token}"},
             )
             assert user_response.status_code == status.HTTP_200_OK

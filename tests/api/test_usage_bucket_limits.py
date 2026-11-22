@@ -111,7 +111,7 @@ def test_user_usage_bucket_limit(access_token):
 def test_admin_usage_bucket_limit(access_token):
     admin = create_admin(access_token)
     try:
-        for path in (f"/api/admin/by-id/{admin['id']}/usage", f"/api/admin/{admin['username']}/usage"):
+        for path in (f"/api/admin/{admin['id']}/usage", f"/api/admin/by-id/{admin['id']}/usage", f"/api/admin/by-username/{admin['username']}/usage"):
             _assert_rejected(client.get(path, headers=auth_headers(access_token), params=TOO_LONG))
             response = client.get(path, headers=auth_headers(access_token), params=NORMAL)
             assert response.status_code == status.HTTP_200_OK, response.text

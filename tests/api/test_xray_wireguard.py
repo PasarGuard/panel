@@ -93,7 +93,7 @@ def test_xray_wireguard_lifecycle_preserves_kernel_allocations(access_token):
         }
         response = client.put(f"/api/core/{xray['id']}", headers=headers, json=payload, params={"restart_nodes": False})
         assert response.status_code == 200, response.text
-        updated = client.get(f"/api/user/{user['username']}", headers=headers).json()["proxy_settings"]["wireguard"]
+        updated = client.get(f"/api/user/{user['id']}", headers=headers).json()["proxy_settings"]["wireguard"]
         assert updated["peer_ips"] == ["10.91.0.3/32", "10.93.0.2/32"]
         assert updated["private_key"] == wg["private_key"]
 
@@ -101,7 +101,7 @@ def test_xray_wireguard_lifecycle_preserves_kernel_allocations(access_token):
         payload["exclude_inbound_tags"] = [xray_tag]
         response = client.put(f"/api/core/{xray['id']}", headers=headers, json=payload, params={"restart_nodes": False})
         assert response.status_code == 200, response.text
-        assert client.get(f"/api/user/{user['username']}", headers=headers).json()["proxy_settings"]["wireguard"][
+        assert client.get(f"/api/user/{user['id']}", headers=headers).json()["proxy_settings"]["wireguard"][
             "peer_ips"
         ] == ["10.91.0.3/32"]
         payload["exclude_inbound_tags"] = []
@@ -109,11 +109,11 @@ def test_xray_wireguard_lifecycle_preserves_kernel_allocations(access_token):
         assert response.status_code == 200, response.text
         delete_core(access_token, xray["id"])
         xray = None
-        assert client.get(f"/api/user/{user['username']}", headers=headers).json()["proxy_settings"]["wireguard"][
+        assert client.get(f"/api/user/{user['id']}", headers=headers).json()["proxy_settings"]["wireguard"][
             "peer_ips"
         ] == ["10.91.0.3/32"]
         assert (
-            client.get(f"/api/user/{kernel_user['username']}", headers=headers).json()["proxy_settings"]["wireguard"]
+            client.get(f"/api/user/{kernel_user['id']}", headers=headers).json()["proxy_settings"]["wireguard"]
             == kernel_settings
         )
     finally:

@@ -25,7 +25,7 @@ async def _set_activity(user_id: int, *, online_at: dt | None, created_at: dt, u
 
 def _cleanup_leftovers(access_token: str, users: list[dict]) -> None:
     for user in users:
-        client.delete(f"/api/user/{user['username']}", headers=auth_headers(access_token))
+        client.delete(f"/api/user/{user['id']}", headers=auth_headers(access_token))
 
 
 @pytest.mark.asyncio
@@ -96,7 +96,7 @@ async def test_inactive_cleanup_removes_provisioned_users_from_nodes(access_toke
         assert users["on_hold"]["id"] in removed_from_nodes
         assert users["disabled"]["id"] not in removed_from_nodes
         for user in users.values():
-            response = client.get(f"/api/user/{user['username']}", headers=auth_headers(access_token))
+            response = client.get(f"/api/user/{user['id']}", headers=auth_headers(access_token))
             assert response.status_code == status.HTTP_404_NOT_FOUND
     finally:
         _cleanup_leftovers(access_token, list(users.values()))

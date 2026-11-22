@@ -81,7 +81,12 @@ def test_create_user_rejects_duplicate_secret(access_token):
         assert "already assigned" in response.json()["detail"]
     finally:
         delete_user(access_token, first["username"])
-        if client.get(f"/api/user/{second_body['username']}", headers=auth_headers(access_token)).status_code == 200:
+        if (
+            client.get(
+                f"/api/user/by-username/{second_body['username']}", headers=auth_headers(access_token)
+            ).status_code
+            == 200
+        ):
             delete_user(access_token, second_body["username"])
 
 
@@ -101,7 +106,12 @@ def test_secret_uniqueness_ignores_case_of_stored_secret(access_token):
         assert _secret(modified) == secret
     finally:
         delete_user(access_token, first["username"])
-        if client.get(f"/api/user/{second_body['username']}", headers=auth_headers(access_token)).status_code == 200:
+        if (
+            client.get(
+                f"/api/user/by-username/{second_body['username']}", headers=auth_headers(access_token)
+            ).status_code
+            == 200
+        ):
             delete_user(access_token, second_body["username"])
 
 
@@ -191,7 +201,7 @@ def test_bulk_template_users_get_distinct_secrets(access_token):
 
         secrets = []
         for username in usernames:
-            user_response = client.get(f"/api/user/{username}", headers=auth_headers(access_token))
+            user_response = client.get(f"/api/user/by-username/{username}", headers=auth_headers(access_token))
             assert user_response.status_code == status.HTTP_200_OK
             secret = _secret(user_response.json())
             _assert_hex32(secret)

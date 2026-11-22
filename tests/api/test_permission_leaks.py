@@ -213,7 +213,7 @@ def _assert_victim_untouched(access_token: str, victim: dict) -> None:
 @pytest.mark.parametrize(
     ("method", "path", "kwargs"),
     [
-        pytest.param("PUT", "/api/user/{username}", {"json": {"note": "changed"}}, id="modify-legacy"),
+        pytest.param("PUT", "/api/user/{user_id}", {"json": {"note": "changed"}}, id="modify-default"),
         pytest.param("PUT", "/api/user/by-username/{username}", {"json": {"note": "changed"}}, id="modify"),
         pytest.param("DELETE", "/api/user/by-username/{username}", {}, id="delete"),
         pytest.param("POST", "/api/user/by-username/{username}/reset", {}, id="reset-usage"),
