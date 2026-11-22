@@ -6,6 +6,7 @@ import pytest
 
 from app.core.hosts import _prepare_subscription_inbound_data
 from app.db.models import DataLimitResetStrategy, UserStatus
+from app.models.host import BaseHost
 from app.models.subscription import SubscriptionInboundData, TCPTransportConfig, TLSConfig
 from app.subscription.links import StandardLinks
 from app.subscription.telegram import TelegramLinks
@@ -94,23 +95,9 @@ def test_mtproto_link_without_usable_mode_is_skipped():
     assert _telegram_links("edge.example.com", inbound, {"secret": SECRET}) == []
 
 
-def _mtproto_host(**overrides) -> SimpleNamespace:
-    fields = {
-        "id": 7,
-        "remark": "mtproto",
-        "inbound_tag": "mtproto",
-        "address": [],
-        "port": None,
-        "sni": None,
-        "transport_settings": None,
-        "path": None,
-        "final_mask_settings": None,
-        "priority": 1,
-        "status": None,
-        "subscription_templates": None,
-    }
-    fields.update(overrides)
-    return SimpleNamespace(**fields)
+def _mtproto_host(**overrides) -> BaseHost:
+    fields = {"id": 7, "remark": "mtproto", "inbound_tag": "mtproto", "priority": 1}
+    return BaseHost.model_validate(fields | overrides)
 
 
 async def test_prepare_inbound_data_for_mtproto_host(monkeypatch: pytest.MonkeyPatch):
@@ -131,12 +118,16 @@ async def test_prepare_inbound_data_for_mtproto_host(monkeypatch: pytest.MonkeyP
     assert prepared.address == ["{SERVER_IP}"]
     assert prepared.mtproto_tls_domain == "www.example.org"
     assert prepared.mtproto_modes == {"classic": False, "secure": False, "tls": True}
+    assert prepared.subscription_order_group is None
     assert prepared.fragment_settings is None
     assert prepared.noise_settings is None
     assert prepared.finalmask is None
     assert prepared.finalmask_link is None
 
-    overridden = await _prepare_subscription_inbound_data(_mtproto_host(port=8443, address=["a.example.net"]))
+    overridden = await _prepare_subscription_inbound_data(
+        _mtproto_host(port=8443, address=["a.example.net"], subscription_order_group="fixed")
+    )
+    assert overridden.subscription_order_group == "fixed"
     assert overridden.port == [8443]
     assert overridden.address == ["a.example.net"]
 
