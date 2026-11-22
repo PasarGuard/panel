@@ -329,6 +329,7 @@ class Subscription(BaseModel):
     allow_browser_config: bool = Field(default=True)
     disable_sub_template: bool = Field(default=False)
     randomize_order: bool = Field(default=False)
+    first_config_remark: str = Field(default="", max_length=256)
     # Share links added after the hosts: as is to links, as configurations to Xray JSON, sing-box and Clash
     external_links: list[str] = Field(default_factory=list)
     custom_variables: list[CustomVariable] = Field(default_factory=list)

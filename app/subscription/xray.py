@@ -132,6 +132,7 @@ class XrayConfiguration(BaseSubscription):
             all_outbounds = [result]
 
         self.add_config(remarks=remark, outbounds=all_outbounds, template_content=template_content)
+        return True
 
     # ========== Transport Handlers (Registry Methods) ==========
 

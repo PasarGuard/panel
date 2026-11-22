@@ -239,6 +239,25 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
 
         <FormField
           control={form.control}
+          name="first_config_remark"
+          render={({ field }) => (
+            <FormItem className="bg-muted/30 space-y-2 rounded-lg border p-3 sm:p-4 lg:col-span-2">
+              <div className="flex items-center gap-2">
+                <FormLabel>{t('settings.subscriptions.general.firstConfigRemark')}</FormLabel>
+                <VariablesPopover />
+                <CustomVariablesPopover />
+              </div>
+              <FormControl>
+                <Input {...field} value={field.value ?? ''} dir="auto" maxLength={256} />
+              </FormControl>
+              <FormDescription>{t('settings.subscriptions.general.firstConfigRemarkDescription')}</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
           name="randomize_order"
           render={({ field }) => (
             <FormItem className="bg-card hover:bg-accent/50 flex flex-row items-center justify-between space-y-0 rounded-lg border p-3 transition-colors sm:p-4 lg:col-span-2">

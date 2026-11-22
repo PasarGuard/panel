@@ -80,6 +80,7 @@ class StandardLinks(BaseSubscription):
         link = handler(remark=remark, address=address, inbound=inbound, settings=settings)
         if link:
             self.add_link(link)
+            return True
 
     # ========== Transport Handlers (Only receive what they need) ==========
 

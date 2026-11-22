@@ -234,6 +234,7 @@ async def _prepare_subscription_inbound_data(
             finalmask=final_mask_settings,
             finalmask_link=finalmask_link,
             priority=host.priority,
+            subscription_order_group=host.subscription_order_group,
             status=list(host.status) if host.status else None,
             subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
             if host.subscription_templates
@@ -267,6 +268,7 @@ async def _prepare_subscription_inbound_data(
             mtproto_native=bool(inbound_config.get("native", True)),
             mtproto_web_vhosts=list(inbound_config.get("web_vhosts") or []),
             priority=host.priority,
+            subscription_order_group=host.subscription_order_group,
             status=list(host.status) if host.status else None,
             subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
             if host.subscription_templates
@@ -598,6 +600,7 @@ async def _prepare_subscription_inbound_data(
         finalmask=final_mask_settings,
         finalmask_link=finalmask_link,
         priority=host.priority,
+        subscription_order_group=host.subscription_order_group,
         status=list(host.status) if host.status else None,
         subscription_templates=host.subscription_templates.model_dump(exclude_none=True)
         if host.subscription_templates
@@ -612,7 +615,8 @@ class HostManager:
     # v4: a disabled, deleted or unserved xHTTP download host is no longer embedded in its parent.
     # v5: a disabled xHTTP download host can still supply settings to its parent.
     # v6: rebuild shared inbound metadata using stable core ID precedence.
-    STATE_CACHE_KEY = "state_v7"
+    # v8: retain subscription ordering groups in prepared hosts.
+    STATE_CACHE_KEY = "state_v8"
     KV_BUCKET_NAME = "host_manager_state"
 
     def __init__(self):
@@ -882,7 +886,7 @@ class HostManager:
     async def get_hosts(self) -> dict[int, SubscriptionInboundData]:
         async with self._lock:
             # Return hosts sorted by priority (accessing from subscription_data model)
-            sorted_hosts = dict(sorted(self._hosts.items(), key=lambda x: x[1].priority))
+            sorted_hosts = dict(sorted(self._hosts.items(), key=lambda item: (item[1].priority, item[0])))
             return deepcopy(sorted_hosts)
 
 

@@ -170,6 +170,8 @@ async def create_host(db: AsyncSession, new_host: CreateHost) -> ProxyHost:
 
 async def modify_host(db: AsyncSession, db_host: ProxyHost, modified_host: CreateHost) -> ProxyHost:
     host_data = modified_host.model_dump(exclude={"id", "inbound_tag"})
+    if "subscription_order_group" not in modified_host.model_fields_set:
+        host_data.pop("subscription_order_group", None)
 
     for key, value in host_data.items():
         setattr(db_host, key, value)
@@ -191,6 +193,8 @@ async def modify_hosts(db: AsyncSession, modified_hosts: list[CreateHost], db_ho
     with db.no_autoflush:
         for host in modified_hosts:
             host_data = host.model_dump(exclude={"id", "inbound_tag"})
+            if "subscription_order_group" not in host.model_fields_set:
+                host_data.pop("subscription_order_group", None)
             db_host = hosts_by_id.get(host.id)
             if db_host is None:
                 db_host = ProxyHost(**host_data)

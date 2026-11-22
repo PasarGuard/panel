@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import AliasChoices, BaseModel, Field, computed_field, field_validator
 
-from app.models.host import FinalMask
+from app.models.host import FinalMask, SubscriptionOrderGroup
 from app.models.stats import Period
 
 from .validators import OptionalAwareDatetime
@@ -350,6 +350,7 @@ class SubscriptionInboundData(BaseModel):
 
     # Priority and status
     priority: int = Field(0)
+    subscription_order_group: SubscriptionOrderGroup | None = None
     status: list[str] | None = Field(None)
     subscription_templates: dict[str, Any] | None = Field(default=None)
 

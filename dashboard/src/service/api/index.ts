@@ -993,6 +993,7 @@ export interface BaseHost {
   verify_peer_cert_by_name?: string[] | null;
   wireguard_overrides?: WireGuardHostOverrides | null;
   subscription_templates?: SubscriptionTemplates | null;
+  subscription_order_group?: 'shuffle' | 'fixed' | null;
   final_mask_settings?: BaseHostFinalMaskSettings;
   cipher_suites?: string | null;
 }
@@ -1653,6 +1654,7 @@ export interface CreateHost {
   verify_peer_cert_by_name?: string[] | null;
   wireguard_overrides?: WireGuardHostOverrides | null;
   subscription_templates?: SubscriptionTemplates | null;
+  subscription_order_group?: 'shuffle' | 'fixed' | null;
   final_mask_settings?: FinalMask | null;
   cipher_suites?: string | null;
 }
@@ -2434,6 +2436,7 @@ export interface Subscription {
   allow_browser_config?: boolean;
   disable_sub_template?: boolean;
   randomize_order?: boolean;
+  first_config_remark?: string;
   external_links?: string[];
   custom_variables?: CustomVariable[];
   clients_limit?: number;

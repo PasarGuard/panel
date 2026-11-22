@@ -103,7 +103,6 @@ class SingBoxConfiguration(BaseSubscription):
             return
 
         remark = self._remark_validation(remark)
-        self.proxy_remarks.append(remark)
 
         # Get protocol handler from registry
         handler = self.protocol_handlers.get(inbound.protocol)
@@ -113,10 +112,12 @@ class SingBoxConfiguration(BaseSubscription):
         # Build outbound or WireGuard endpoint (sing-box 1.11+)
         built = handler(remark=remark, address=address, inbound=inbound, settings=settings)
         if built:
+            self.proxy_remarks.append(remark)
             if inbound.protocol == "wireguard":
                 self.add_endpoint(built)
             else:
                 self.add_outbound(built)
+            return True
 
     # ========== Transport Handlers ==========
 

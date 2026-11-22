@@ -1,3 +1,4 @@
+import { SubscriptionOrderBadge } from './subscription-order-badge'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ListColumn } from '@/components/common/list-generator'
@@ -27,6 +28,7 @@ export const useHostsListColumns = ({ onEdit, onDuplicate, onDataChanged, canUpd
           <div className="flex min-w-0 items-center gap-2">
             <span className={cn('h-2 w-2 shrink-0 rounded-full', host.is_disabled ? 'bg-red-500' : 'bg-green-500')} />
             <span className="truncate font-medium">{host.remark ?? ''}</span>
+            {host.subscription_order_group && <SubscriptionOrderBadge group={host.subscription_order_group} />}
           </div>
         ),
       },

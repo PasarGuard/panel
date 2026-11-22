@@ -935,6 +935,9 @@ class SubscriptionTemplates(BaseModel):
         return v
 
 
+SubscriptionOrderGroup = Literal["shuffle", "fixed"]
+
+
 class BaseHost(BaseModel):
     id: int | None = Field(default=None)
     remark: str
@@ -958,6 +961,7 @@ class BaseHost(BaseModel):
     use_sni_as_host: bool = Field(default=False)
     vless_route: str | None = Field(default=None, pattern=r"^$|^[0-9a-fA-F]{4}$")
     priority: int
+    subscription_order_group: SubscriptionOrderGroup | None = None
     status: set[UserStatus] | None = Field(default_factory=set)
     ech: ECHSettings | None = Field(default=None)
     pinned_peer_cert_sha256: str | None = Field(default=None)

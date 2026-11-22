@@ -661,6 +661,7 @@ class ClashConfiguration(BaseSubscription):
         if node:
             self.data["proxies"].append(node)
             self.proxy_remarks.append(proxy_remark)
+            return True
 
 
 class ClashMetaConfiguration(ClashConfiguration):
@@ -881,3 +882,4 @@ class ClashMetaConfiguration(ClashConfiguration):
         if node:
             self.data["proxies"].append(node)
             self.proxy_remarks.append(proxy_remark)
+            return True

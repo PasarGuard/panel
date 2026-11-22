@@ -376,7 +376,9 @@
         "disableSubTemplate": "Disable Subscription Template",
         "disableSubTemplateDescription": "When disabled, browser requests will return API responses instead of HTML subscription pages",
         "randomizeOrder": "Randomize Subscription Order",
-        "randomizeOrderDescription": "Shuffle configuration order on each subscription request",
+        "firstConfigRemark": "First configuration name",
+        "firstConfigRemarkDescription": "Use this name for the first generated configuration even when the server changes. Supports usage and expiry variables. Leave blank to use the host name.",
+        "randomizeOrderDescription": "Shuffle ungrouped configurations in the subscription.",
         "externalLinks": "External Links",
         "externalLinksDescription": "Share links (vmess, vless, trojan, ss), one per line, added to every subscription after the hosts. The links format gets each link as is; Xray JSON, sing-box and Clash get a configuration built from it. Links these formats cannot carry are left out of them.",
         "clientsLimit": "Client updates kept per user",
@@ -1473,6 +1475,11 @@
     "useChrome": "Use Chrome"
   },
   "hostsDialog": {
+    "subscriptionOrderGroup": "Subscription order group",
+    "subscriptionOrderDefault": "Ungrouped",
+    "subscriptionOrderShuffle": "Group 1 · Shuffled",
+    "subscriptionOrderFixed": "Group 2 · Fixed",
+    "subscriptionOrderDescription": "Group 1 appears first in random order. Group 2 follows in host order. Ungrouped hosts appear last.",
     "addHost": "Create Host",
     "selectInbound": "Select an inbound",
     "selectStatus": "Select Status",

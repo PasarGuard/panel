@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -895,6 +895,7 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
       }
 
       const cleanedData = cleanPayload(payload)
+      cleanedData.subscription_order_group = payload.subscription_order_group
       const response = await onSubmit(cleanedData)
       if (response.status >= 400) {
         throw new Error(`Operation failed with status: ${response.status}`)
@@ -1136,6 +1137,30 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                     <FormControl>
                       <Input placeholder="Remark (e.g. PasarGuard-Host)" isError={!!form.formState.errors.remark} {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="subscription_order_group"
+                render={({ field }) => (
+                  <FormItem className="bg-muted/30 space-y-2 rounded-lg border p-3">
+                    <FormLabel>{t('hostsDialog.subscriptionOrderGroup')}</FormLabel>
+                    <Select value={field.value ?? 'default'} onValueChange={value => field.onChange(value === 'default' ? null : value)}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="default">{t('hostsDialog.subscriptionOrderDefault')}</SelectItem>
+                        <SelectItem value="shuffle">{t('hostsDialog.subscriptionOrderShuffle')}</SelectItem>
+                        <SelectItem value="fixed">{t('hostsDialog.subscriptionOrderFixed')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>{t('hostsDialog.subscriptionOrderDescription')}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

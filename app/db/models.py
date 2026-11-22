@@ -618,6 +618,7 @@ class ProxyHost(Base, IdMixin):
     port: Mapped[int | None] = mapped_column(nullable=True)
     path: Mapped[str | None] = mapped_column(String(256), unique=False, nullable=True)
     priority: Mapped[int] = mapped_column(nullable=False)
+    subscription_order_group: Mapped[str | None] = mapped_column(String(7), nullable=True)
     allowinsecure: Mapped[bool | None] = mapped_column(nullable=True)
     address: Mapped[set[str]] = mapped_column(StringArray(256), default_factory=set, unique=False, nullable=False)
     sni: Mapped[set[str] | None] = mapped_column(StringArray(1000), default_factory=set, unique=False, nullable=True)

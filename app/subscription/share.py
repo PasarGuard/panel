@@ -104,6 +104,15 @@ async def generate_subscription(
     randomize_order: bool = False,
 ) -> str | bytes:
     cache_key = make_sub_config_key(user, config_format, as_base64, randomize_order)
+    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
+    # Cached payloads preserve their order. Render a fresh one when the user has a group to shuffle.
+    can_shuffle = config_format != "outline" and any(
+        host.subscription_order_group == "shuffle"
+        and host.inbound_tag in user.inbounds
+        and (config_format != "wireguard" or host.protocol == "wireguard")
+        for host in hosts
+    )
+
     async def render() -> str | bytes:
         client_templates = await subscription_client_templates()
         xray_template_overrides = await subscription_xray_templates() if config_format == "xray" else None
@@ -123,20 +132,24 @@ async def generate_subscription(
             randomize_order=randomize_order,
             custom_variables=custom_variables,
             external_links=sub_settings.external_links,
+            first_config_remark=sub_settings.first_config_remark,
+            hosts=hosts,
         )
         if as_base64 and not isinstance(config, bytes):
             config = base64.b64encode(config.encode()).decode()
         return config
 
-    if config_format != "wireguard":
-        cached = get_sub_config(cache_key)
-        if cached is not None:
-            return cached
-        config = await render()
-        put_sub_config(cache_key, config)
-        return config
+    if config_format == "wireguard":
+        return await get_or_create_sub_config(cache_key, render, cache_result=not can_shuffle)
+    if can_shuffle:
+        return await render()
 
-    return await get_or_create_sub_config(cache_key, render)
+    cached = get_sub_config(cache_key)
+    if cached is not None:
+        return cached
+    config = await render()
+    put_sub_config(cache_key, config)
+    return config
 
 
 def inject_body_placement(conf: str | bytes, lines: list[str], placement: str, as_base64: bool) -> str | bytes:
@@ -147,7 +160,7 @@ def inject_body_placement(conf: str | bytes, lines: list[str], placement: str, a
     if as_base64:
         try:
             decoded = base64.b64decode(conf).decode()
-        except (ValueError, UnicodeDecodeError):
+        except ValueError, UnicodeDecodeError:
             return conf
         merged = f"{block}\n{decoded}" if placement == "body_start" else f"{decoded}\n{block}"
         return base64.b64encode(merged.encode()).decode()
@@ -452,6 +465,26 @@ async def _prepare_download_settings(
     return download_copy
 
 
+def order_subscription_hosts(
+    hosts: list[SubscriptionInboundData], randomize_order: bool
+) -> list[SubscriptionInboundData]:
+    shuffled = []
+    fixed = []
+    ungrouped = []
+    for host in hosts:
+        if host.subscription_order_group == "shuffle":
+            shuffled.append(host)
+        elif host.subscription_order_group == "fixed":
+            fixed.append(host)
+        else:
+            ungrouped.append(host)
+
+    random.shuffle(shuffled)
+    if randomize_order:
+        random.shuffle(ungrouped)
+    return shuffled + fixed + ungrouped
+
+
 async def process_inbounds_and_tags(
     user: UsersResponseWithInbounds,
     format_variables: dict,
@@ -467,12 +500,21 @@ async def process_inbounds_and_tags(
     randomize_order: bool = False,
     custom_variables: list | tuple | None = None,
     external_links: list[str] | None = None,
+    first_config_remark: str = "",
+    hosts: list[SubscriptionInboundData] | None = None,
 ) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
-    hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
-    if randomize_order and len(hosts) > 1:
-        random.shuffle(hosts)
+    if hosts is None:
+        hosts = await filter_hosts(list((await host_manager.get_hosts()).values()), user.status)
+    if isinstance(conf, OutlineConfiguration):
+        # Outline produces a single access key and historically keeps the last compatible host.
+        if randomize_order and len(hosts) > 1:
+            random.shuffle(hosts)
+        first_config_remark = ""
+    else:
+        hosts = order_subscription_hosts(hosts, randomize_order)
+        first_config_remark = _format_dynamic_value(first_config_remark.strip(), format_variables)
 
     def _resolve_host_xray_template_content(inbound: SubscriptionInboundData) -> str | None:
         if xray_template_overrides is None:
@@ -520,9 +562,14 @@ async def process_inbounds_and_tags(
             if hasattr(inbound_copy.transport_config, "download_settings"):
                 inbound_copy.transport_config.download_settings = processed_download_settings
 
+        # Telegram proxy URLs have no display name.
+        use_first_remark = bool(first_config_remark and inbound_copy.protocol != "mtproto")
+        if use_first_remark:
+            remark = first_config_remark
+
         if isinstance(conf, XrayConfiguration):
             template_content = _resolve_host_xray_template_content(inbound_copy)
-            conf.add(
+            added = conf.add(
                 remark=remark,
                 address=formatted_address,
                 inbound=inbound_copy,
@@ -530,12 +577,15 @@ async def process_inbounds_and_tags(
                 template_content=template_content,
             )
         else:
-            conf.add(
+            added = conf.add(
                 remark=remark,
                 address=formatted_address,
                 inbound=inbound_copy,
                 settings=settings,
             )
+
+        if added and use_first_remark:
+            first_config_remark = ""
 
     if external_links and isinstance(conf, SHARE_LINK_FORMATS):
         conf.add_share_links(external_links)

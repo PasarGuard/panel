@@ -75,11 +75,14 @@ def put_sub_config(key: tuple, value: str | bytes) -> None:
         _cache.popitem(last=False)
 
 
-async def get_or_create_sub_config(key: tuple, factory: Callable[[], Awaitable[str | bytes]]) -> str | bytes:
-    """Return a cached config and coalesce concurrent renders for the same key."""
-    cached = get_sub_config(key)
-    if cached is not None:
-        return cached
+async def get_or_create_sub_config(
+    key: tuple, factory: Callable[[], Awaitable[str | bytes]], *, cache_result: bool = True
+) -> str | bytes:
+    """Coalesce concurrent renders and optionally reuse completed payloads."""
+    if cache_result:
+        cached = get_sub_config(key)
+        if cached is not None:
+            return cached
 
     async with _inflight_lock:
         task = _inflight.get(key)
@@ -89,7 +92,8 @@ async def get_or_create_sub_config(key: tuple, factory: Callable[[], Awaitable[s
 
     try:
         value = await asyncio.shield(task)
-        put_sub_config(key, value)
+        if cache_result:
+            put_sub_config(key, value)
         return value
     finally:
         if task.done():

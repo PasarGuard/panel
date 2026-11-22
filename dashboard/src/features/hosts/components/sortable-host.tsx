@@ -1,3 +1,4 @@
+import { SubscriptionOrderBadge } from './subscription-order-badge'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { UniqueIdentifier } from '@dnd-kit/core'
@@ -79,6 +80,11 @@ export default function SortableHost({ host, onEdit, onDuplicate, onDataChanged,
               <span>{t('inbound')}: </span>
               <span dir="ltr">{host.inbound_tag ?? ''}</span>
             </div>
+            {host.subscription_order_group && (
+              <div className="mt-2">
+                <SubscriptionOrderBadge group={host.subscription_order_group} />
+              </div>
+            )}
           </div>
           <HostActionsMenu host={host} onEdit={onEdit} onDuplicate={onDuplicate} onDataChanged={onDataChanged} canUpdate={canUpdate} canCreate={canCreate} />
         </div>

@@ -71,6 +71,7 @@ class WireGuardConfiguration(BaseSubscription):
 
         config_content = self._render_config(config_data)
         self.configs.append((remark, config_content))
+        return True
 
     def render(self) -> bytes:
         zip_buffer = io.BytesIO()

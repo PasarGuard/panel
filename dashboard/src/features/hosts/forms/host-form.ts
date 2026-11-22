@@ -70,6 +70,7 @@ export interface HostFormValues {
   use_sni_as_host: boolean
   vless_route?: string
   priority: number
+  subscription_order_group: 'shuffle' | 'fixed' | null
   ech_config_list?: string
   ech_query_strategy?: 'none' | 'half' | 'full'
   mihomo_ech_config?: string
@@ -522,6 +523,7 @@ export const HostFormSchema = z.object({
   use_sni_as_host: z.boolean().default(false),
   vless_route: z.union([z.literal(''), z.string().regex(/^[0-9a-fA-F]{4}$/, 'VLESS route must be exactly 4 hex characters')]).optional(),
   priority: z.number().default(0),
+  subscription_order_group: z.enum(['shuffle', 'fixed']).nullable().default(null),
   is_disabled: z.boolean().default(false),
   ech_config_list: z.string().optional(),
   ech_query_strategy: z.enum(['none', 'half', 'full']).optional(),
@@ -659,6 +661,7 @@ export const hostFormDefaultValues: HostFormValues = {
   use_sni_as_host: false,
   vless_route: '',
   priority: 0,
+  subscription_order_group: null,
   ech_config_list: undefined,
   ech_query_strategy: undefined,
   mihomo_ech_config: undefined,
