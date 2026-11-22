@@ -108,7 +108,10 @@ export const subscriptionSchema = z.object({
   allow_browser_config: z.boolean().optional(),
   disable_sub_template: z.boolean().optional(),
   randomize_order: z.boolean().optional(),
-  first_config_remark: z.string().max(256).optional(),
+  first_config_remark: z
+    .string()
+    .refine(remark => Array.from(remark).length <= 256, 'First configuration name must be 256 characters or less')
+    .optional(),
   external_links: z.array(z.string()).optional(),
   custom_variables: customVariablesSchema,
   response_headers: z.record(z.string()).optional(),

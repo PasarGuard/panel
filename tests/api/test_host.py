@@ -51,6 +51,20 @@ def test_host_create(access_token):
         delete_core(access_token, core["id"])
 
 
+def test_batch_creates_host_without_explicit_order_group(access_token):
+    headers = auth_headers(access_token)
+    payload = {"remark": unique_name("ungrouped_host"), "priority": 1}
+
+    response = client.put("/api/hosts", headers=headers, json=[payload])
+
+    assert response.status_code == status.HTTP_200_OK
+    host = next(host for host in response.json() if host["remark"] == payload["remark"])
+    try:
+        assert host["subscription_order_group"] is None
+    finally:
+        client.delete(f"/api/host/{host['id']}", headers=headers)
+
+
 def test_host_get(access_token):
     """Test that the host get route is accessible."""
 

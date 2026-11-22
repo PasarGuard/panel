@@ -244,11 +244,11 @@ export function SubscriptionGeneralSettingsSection({ form }: SubscriptionGeneral
             <FormItem className="bg-muted/30 space-y-2 rounded-lg border p-3 sm:p-4 lg:col-span-2">
               <div className="flex items-center gap-2">
                 <FormLabel>{t('settings.subscriptions.general.firstConfigRemark')}</FormLabel>
-                <VariablesPopover />
-                <CustomVariablesPopover />
+                <VariablesPopover includeProtocolTransport customVariables={customVariables} />
+                <CustomVariablesPopover customVariables={customVariables} />
               </div>
               <FormControl>
-                <Input {...field} value={field.value ?? ''} dir="auto" maxLength={256} />
+                <Input {...field} value={field.value ?? ''} dir="auto" />
               </FormControl>
               <FormDescription>{t('settings.subscriptions.general.firstConfigRemarkDescription')}</FormDescription>
               <FormMessage />

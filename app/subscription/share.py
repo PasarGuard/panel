@@ -514,7 +514,7 @@ async def process_inbounds_and_tags(
         first_config_remark = ""
     else:
         hosts = order_subscription_hosts(hosts, randomize_order)
-        first_config_remark = _format_dynamic_value(first_config_remark.strip(), format_variables)
+        first_config_remark = first_config_remark.strip()
 
     def _resolve_host_xray_template_content(inbound: SubscriptionInboundData) -> str | None:
         if xray_template_overrides is None:
@@ -537,8 +537,10 @@ async def process_inbounds_and_tags(
         inbound_copy: SubscriptionInboundData
         inbound_copy, settings = result
 
-        # Format remark and address with user variables
-        remark = _format_dynamic_value(inbound_copy.remark, format_variables)
+        # Telegram proxy URLs have no display name.
+        use_first_remark = bool(first_config_remark and inbound_copy.protocol != "mtproto")
+        remark_template = first_config_remark if use_first_remark else inbound_copy.remark
+        remark = _format_dynamic_value(remark_template, format_variables)
         formatted_address = _format_dynamic_value(inbound_copy.address, format_variables)
         if has_markup_unsafe_chars(formatted_address):
             # Never valid, and links print the address unencoded; covers hosts saved before
@@ -561,11 +563,6 @@ async def process_inbounds_and_tags(
                 processed_download_settings = download_settings
             if hasattr(inbound_copy.transport_config, "download_settings"):
                 inbound_copy.transport_config.download_settings = processed_download_settings
-
-        # Telegram proxy URLs have no display name.
-        use_first_remark = bool(first_config_remark and inbound_copy.protocol != "mtproto")
-        if use_first_remark:
-            remark = first_config_remark
 
         if isinstance(conf, XrayConfiguration):
             template_content = _resolve_host_xray_template_content(inbound_copy)

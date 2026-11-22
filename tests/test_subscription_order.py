@@ -11,7 +11,11 @@ from app.subscription import share
 
 
 @pytest.mark.asyncio
-async def test_grouped_links_reshuffle_and_keep_first_remark(monkeypatch):
+@pytest.mark.parametrize(
+    ("remark_template", "expected_remark"),
+    [("{DATA_LEFT}", "42 GB"), ("{DATA_LEFT} • {PROTOCOL}/{TRANSPORT}", "42 GB • vless/tcp")],
+)
+async def test_grouped_links_reshuffle_and_keep_first_remark(monkeypatch, remark_template, expected_remark):
     def host(name, group, protocol="vless", inbound_tag="available"):
         return SubscriptionInboundData(
             remark=name,
@@ -47,7 +51,7 @@ async def test_grouped_links_reshuffle_and_keep_first_remark(monkeypatch):
     monkeypatch.setattr(
         share,
         "subscription_settings",
-        AsyncMock(return_value=Subscription(rules=[], first_config_remark="{DATA_LEFT}")),
+        AsyncMock(return_value=Subscription(rules=[], first_config_remark=remark_template)),
     )
     monkeypatch.setattr(share, "setup_format_variables", lambda *_: {"DATA_LEFT": "42 GB"})
     monkeypatch.setattr(
@@ -63,7 +67,7 @@ async def test_grouped_links_reshuffle_and_keep_first_remark(monkeypatch):
 
     monkeypatch.setattr(share.random, "shuffle", lambda hosts: hosts.reverse())
     assert await refresh() == [
-        ("tunnel-b.example.com", "42 GB"),
+        ("tunnel-b.example.com", expected_remark),
         ("tunnel-a.example.com", "tunnel-a"),
         ("fixed-b.example.com", "fixed-b"),
         ("fixed-a.example.com", "fixed-a"),
@@ -72,7 +76,7 @@ async def test_grouped_links_reshuffle_and_keep_first_remark(monkeypatch):
 
     monkeypatch.setattr(share.random, "shuffle", lambda hosts: None)
     assert await refresh() == [
-        ("tunnel-a.example.com", "42 GB"),
+        ("tunnel-a.example.com", expected_remark),
         ("tunnel-b.example.com", "tunnel-b"),
         ("fixed-b.example.com", "fixed-b"),
         ("fixed-a.example.com", "fixed-a"),
