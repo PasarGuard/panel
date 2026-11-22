@@ -258,18 +258,15 @@ export default function NodeLogs() {
     const cutoffMs = since === 'all' ? null : Date.now() - SINCE_DURATION_MS[since]
     const hasTypeFilter = typeFilter.length > 0
 
-    const noTimestamp: LogLine[] = []
-    const timestamped: LogLine[] = []
+    const matchingLogs: LogLine[] = []
     for (let i = 0; i < rawLogs.length; i++) {
       const log = rawLogs[i]
       if (hasTypeFilter && !typeFilter.includes(log.type)) continue
       if (query && !log.message.toLowerCase().includes(query)) continue
       if (cutoffMs !== null && log.timestamp && log.timestamp.getTime() < cutoffMs) continue
-      if (!log.timestamp) noTimestamp.push(log)
-      else timestamped.push(log)
+      matchingLogs.push(log)
     }
-    const visibleTimestamped = timestamped.length > lines ? timestamped.slice(-lines) : timestamped
-    return noTimestamp.length === 0 ? visibleTimestamped : noTimestamp.concat(visibleTimestamped)
+    return matchingLogs.length > lines ? matchingLogs.slice(-lines) : matchingLogs
   }, [rawLogs, debouncedSearch, lines, since, typeFilter])
 
   useEffect(() => {
