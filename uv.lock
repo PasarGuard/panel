@@ -161,11 +161,11 @@ wheels = [
 
 [[package]]
 name = "aiorwlock"
-version = "1.5.1"
+version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6b/65/316cdc82c1b92953235ced1c71a3763f0cd9273c3bec5db60bdb5ad59bfe/aiorwlock-1.5.1.tar.gz", hash = "sha256:2729c77ec736c8d85ec305aa3827a50394fd8c6d823f4404d301cc8c59a4b7f5", size = 7288, upload-time = "2026-02-20T17:42:17.164Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/ee/1967e9d2bbfc7be9fedf7607027c8f05bc7e088b7d455552e42369e9f831/aiorwlock-1.6.0.tar.gz", hash = "sha256:267c168e8e2804f17f3137a217015885e049f464afbedea7008a5c2fa1e2195b", size = 7349, upload-time = "2026-11-17T11:51:58.331Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e7/23/dc60c00fb9178e356d7f5fb009aabae4625ce79c3e63ed4ef3bcc73d949c/aiorwlock-1.5.1-py3-none-any.whl", hash = "sha256:a28e534a5fce4dabe437055db141369a0803c69fe61c406b6fc5cdfa8f3dda13", size = 8016, upload-time = "2026-02-20T17:42:18.095Z" },
+    { url = "https://files.pythonhosted.org/packages/59/5f/6ad0805349fb079e8b96fafdd7d29395bd2527083c7b82a88e0a1a44c878/aiorwlock-1.6.0-py3-none-any.whl", hash = "sha256:a226bc4c02034aa305e5149f27a7ee6c3e2281bfa3233cabeab29e6e75ed8e26", size = 7972, upload-time = "2026-11-17T11:51:59.122Z" },
 ]
 
 [[package]]
@@ -1161,7 +1161,7 @@ requires-dist = [
     { name = "aiogram", specifier = ">=3.31.0" },
     { name = "aiohttp", specifier = ">=3.14.5" },
     { name = "aiohttp-socks", specifier = ">=0.12.0" },
-    { name = "aiorwlock", specifier = ">=1.5.0" },
+    { name = "aiorwlock", specifier = ">=1.6.0" },
     { name = "aiosqlite", specifier = ">=0.21.0" },
     { name = "alembic", specifier = ">=1.20.1" },
     { name = "apscheduler", specifier = ">=3.11.3" },
