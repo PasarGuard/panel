@@ -37,7 +37,7 @@ dependencies = [
     "aiogram>=3.31.0",
     "aiohttp-socks>=0.12.0",
     "uvloop>=0.23.0; sys_platform != 'win32'",
-    "aiorwlock>=1.5.0",
+    "aiorwlock>=1.6.0",
     "typer>=0.29.1",
     "pasarguard-node-bridge>=0.11.2",
     "nats-py>=2.16.0",
