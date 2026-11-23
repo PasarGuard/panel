@@ -1,13 +1,17 @@
+import asyncio
+import operator
 from datetime import UTC, datetime
 
 from sqlalchemy import and_, bindparam, case, delete, func, literal_column, or_, select, update
-from sqlalchemy.exc import InvalidRequestError
+from sqlalchemy.exc import InvalidRequestError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, with_expression
 from sqlalchemy.sql.functions import coalesce
 
 from app.db.base import begin_immediate_if_sqlite
 from app.db.compiles_types import DateDiff
+
+DEADLOCK_MAX_RETRIES = 5
 from app.db.models import (
     DataLimitResetStrategy,
     Node,
@@ -657,10 +661,25 @@ async def bulk_update_node_status(
     for upd in updates:
         upd["now"] = now
 
+    # Consistent node_id order across workers keeps lock acquisition predictable
+    # and avoids MySQL deadlock (1213) when two workers update the same rows.
+    updates.sort(key=operator.itemgetter("node_id"))
+
     # Execute using connection-level execute (bypasses ORM, allows bindparam with WHERE)
     conn = await db.connection()
-    await conn.execute(stmt, updates)
-    await db.commit()
+    for attempt in range(DEADLOCK_MAX_RETRIES):
+        try:
+            await conn.execute(stmt, updates)
+            await db.commit()
+            return
+        except OperationalError as err:
+            errno = getattr(getattr(err, "orig", err), "args", (None,))[0]
+            if errno not in (1213, 1205) or attempt == DEADLOCK_MAX_RETRIES - 1:
+                raise
+            # Release the partially held locks before retrying with a fresh statement
+            await db.rollback()
+            conn = await db.connection()
+            await asyncio.sleep(0.1 * (attempt + 1))
 
 
 async def clear_usage_data(

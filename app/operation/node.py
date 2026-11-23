@@ -354,7 +354,14 @@ class NodeOperation(BaseOperation):
     ):
         if not force_start:
             state = await pg_node.get_lifecycle_state()
-            if state is not None and (
+            if state is None:
+                # No shared lifecycle memory (single worker without NATS): the node
+                # may still be running from a previous panel process - try to attach
+                # before pushing a fresh Start over it.
+                attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
+                if attached is not None:
+                    return attached
+            elif (
                 state.observed in (LifecycleStatus.HEALTHY, LifecycleStatus.STARTING)
                 or state.desired is LifecycleStatus.HEALTHY
             ):
