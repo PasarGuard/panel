@@ -332,10 +332,17 @@ async def reconnect_node(
 async def sync_node(
     node_id: int,
     flush_users: bool = True,
+    full: bool = False,
     db: AsyncSession = Depends(get_db),
     _: AdminDetails = Depends(require_permission("nodes", "update")),
 ):
-    return await node_operator.sync_node_users(db, node_id=node_id, flush_users=flush_users)
+    """Re-send the node's users through deltas, without restarting its core.
+
+    ``full`` sends the full user snapshot instead, which restarts the core and drops its
+    connections; ``flush_users`` applies to it only. A node that cannot take deltas always
+    gets the full snapshot.
+    """
+    return await node_operator.sync_node_users(db, node_id=node_id, flush_users=flush_users, full=full)
 
 
 @router.delete("/{node_id}", status_code=status.HTTP_204_NO_CONTENT)
