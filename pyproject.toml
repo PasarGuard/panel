@@ -34,7 +34,7 @@ dependencies = [
     "asyncpg>=0.32.0",
     "asyncmy>=0.2.18; sys_platform != 'win32'",
     "aiocache>=0.12.3",
-    "aiogram>=3.31.0",
+    "aiogram>=3.33.0",
     "aiohttp-socks>=0.12.0",
     "uvloop>=0.23.0; sys_platform != 'win32'",
     "aiorwlock>=1.6.0",
