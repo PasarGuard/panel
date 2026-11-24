@@ -58,6 +58,7 @@ class NodeWorkerService(BaseRpcService):
         self.register_rpc_handler("get_user_online_stats", self._get_user_online_stats_by_node)
         self.register_rpc_handler("get_user_ip_list", self._get_user_ip_list_by_node)
         self.register_rpc_handler("get_user_ip_list_all", self._get_user_ip_list_all_nodes)
+        self.register_rpc_handler("hard_reset_node", self._hard_reset_node)
         self.register_rpc_handler("update_node_api", self._update_node_api)
         self.register_rpc_handler("update_core", self._update_core)
         self.register_rpc_handler("update_geofiles", self._update_geofiles)
@@ -193,7 +194,11 @@ class NodeWorkerService(BaseRpcService):
                     load_usage_logs=False,
                 )
             await self._node_operator.connect_nodes_bulk(
-                db, nodes, force_start=bool(data.get("force_start"))
+                db,
+                nodes,
+                force_start=bool(data.get("force_start")),
+                # A missing key comes from an API process that predates stop_first.
+                stop_first=bool(data.get("stop_first", True)),
             )
 
     async def _disconnect_node(self, data: dict):
@@ -259,6 +264,13 @@ class NodeWorkerService(BaseRpcService):
         async with GetDB() as db:
             user_ips = await self._node_operator.get_user_ip_list_all_nodes(db, user_id)
         return user_ips.model_dump()
+
+    async def _hard_reset_node(self, data: dict) -> dict:
+        node_id = data.get("node_id")
+        if not node_id:
+            raise RuntimeError("node_id is required")
+        async with GetDB() as db:
+            return await self._node_operator.hard_reset_node(db, node_id)
 
     async def _update_node_api(self, data: dict) -> dict:
         node_id = data.get("node_id")

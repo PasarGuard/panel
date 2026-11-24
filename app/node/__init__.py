@@ -27,6 +27,8 @@ class NodeManager:
     def __init__(self):
         self._nodes: dict[int, PasarGuardNode] = {}
         self._node_signatures: dict[int, tuple] = {}
+        # keep_alive goes to Start, not to the bridge object; the heartbeat reads it here.
+        self._keep_alives: dict[int, int] = {}
         self._user_sync_locks: dict[int, asyncio.Lock] = {}
         self._user_sync_tasks: dict[int, set[asyncio.Task]] = {}
         self._lock = RWLock(fast=True)
@@ -41,6 +43,7 @@ class NodeManager:
             node.port,
             node.api_port,
             node.server_ca,
+            node.certificate_sha256,
             node.api_key,
             node.default_timeout,
             node.internal_timeout,
@@ -54,6 +57,7 @@ class NodeManager:
             "port": node.port,
             "api_port": node.api_port,
             "server_ca": node.server_ca,
+            "certificate_sha256": node.certificate_sha256,
             "api_key": node.api_key,
             "name": node.name,
             "logger": self.logger,
@@ -83,6 +87,13 @@ class NodeManager:
                 await node.stop()
         except Exception:
             pass
+        finally:
+            close = getattr(node, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception:
+                    self.logger.exception("Failed to close retired node connections")
 
     async def _cancel_user_syncs(self, node_id: int) -> None:
         current = asyncio.current_task()
@@ -112,6 +123,7 @@ class NodeManager:
     async def update_node(self, node: Node) -> PasarGuardNode:
         await ensure_bridge_memory()
 
+        self._keep_alives[node.id] = node.keep_alive or 0
         signature = self._connection_signature(node)
         async with self._lock.reader_lock:
             existing = self._nodes.get(node.id)
@@ -145,13 +157,24 @@ class NodeManager:
                 if existing.name == node.name and existing_extra.get("usage_coefficient") == node.usage_coefficient:
                     return existing
 
+            creation_error: Exception | None = None
             async with self._lock.writer_lock:
                 old_node: PasarGuardNode | None = self._nodes.pop(node.id, None)
+                self._node_signatures.pop(node.id, None)
+                try:
+                    new_node = create_node(**self._create_node_kwargs(node))
+                except Exception as exc:
+                    creation_error = exc
+                else:
+                    self._nodes[node.id] = new_node
+                    self._node_signatures[node.id] = signature
 
-                new_node = create_node(**self._create_node_kwargs(node))
-
-                self._nodes[node.id] = new_node
-                self._node_signatures[node.id] = signature
+            if creation_error is not None:
+                try:
+                    await self._shutdown_node(old_node, remote_stop=False)
+                except Exception:
+                    self.logger.exception("Failed to shut down old node after creation failure")
+                raise creation_error
 
             # Metadata-only changes require a fresh bridge object, but must not stop a
             # healthy remote backend. The reconnect path will attach the replacement.
@@ -168,6 +191,7 @@ class NodeManager:
         async with lock, self._lock.writer_lock:
             old_node: PasarGuardNode | None = self._nodes.pop(id, None)
             self._node_signatures.pop(id, None)
+            self._keep_alives.pop(id, None)
             self._user_sync_tasks.pop(id, None)
 
         # Do cleanup without holding the lock to avoid slow delete operations.
@@ -189,6 +213,15 @@ class NodeManager:
     async def get_nodes(self) -> dict[int, PasarGuardNode]:
         async with self._lock.reader_lock:
             return self._nodes
+
+    async def get_keep_alive_nodes(self) -> list[tuple[int, PasarGuardNode, int]]:
+        """Nodes whose core stops without regular requests, with their keep_alive."""
+        async with self._lock.reader_lock:
+            return [
+                (node_id, node, self._keep_alives[node_id])
+                for node_id, node in self._nodes.items()
+                if self._keep_alives.get(node_id, 0) > 0
+            ]
 
     async def get_healthy_nodes(self) -> list[tuple[int, PasarGuardNode]]:
         async with self._lock.reader_lock:

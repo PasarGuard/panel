@@ -26,6 +26,9 @@ def mock_db_session(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("app.settings.GetDB", db_session)
     monkeypatch.setattr("app.subscription.client_templates.GetDB", GetTestDB)
     monkeypatch.setattr("app.subscription.sub_update_buffer.GetDB", GetTestDB)
+    # get_secret_key is cached, so through the app engine it would leave a pooled
+    # connection on a TestClient loop that is closed after the request.
+    monkeypatch.setattr("app.utils.jwt.GetDB", GetTestDB)
     return db_session
 
 
@@ -468,11 +471,22 @@ def access_token() -> str:
 
 
 @pytest.fixture
-def disable_cache(monkeypatch: pytest.MonkeyPatch):
-    def dummy_cached(*args, **kwargs):
-        def wrapper(func):
-            return func  # bypass caching
+def disable_cache():
+    # Settings getters cache in-process; start and end the test with them cold.
+    from app import settings as app_settings
 
-        return wrapper
-
-    monkeypatch.setattr("app.settings.cached", dummy_cached)
+    getters = [
+        app_settings.telegram_settings,
+        app_settings.webhook_settings,
+        app_settings.notification_settings,
+        app_settings.notification_enable,
+        app_settings.subscription_settings,
+        app_settings.hwid_settings,
+        app_settings.general_settings,
+        app_settings.cleanup_settings,
+    ]
+    for getter in getters:
+        getter.clear()
+    yield
+    for getter in getters:
+        getter.clear()

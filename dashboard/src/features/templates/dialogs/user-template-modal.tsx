@@ -22,8 +22,9 @@ import {
   useModifyUserTemplate,
   UserStatusCreate,
 } from '@/service/api'
-import { formatBytes, gbToBytes } from '@/utils/formatByte'
+import { formatBytes, formGigabytesToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client.ts'
+import { toWholeSeconds } from '@/utils/timeUnitSeconds'
 import React, { useEffect, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -37,6 +38,7 @@ interface UserTemplatesModalprops {
   form: UseFormReturn<UserTemplatesFromValueInput>
   editingUserTemplate: boolean
   editingUserTemplateId?: number
+  editingUserTemplateDataLimit?: number | null
 }
 
 type StatusSelectItemProps = {
@@ -114,7 +116,7 @@ const StatusSelectItem = ({ value, children, onSelect }: StatusSelectItemProps) 
   )
 }
 
-export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, editingUserTemplate, editingUserTemplateId }: UserTemplatesModalprops) {
+export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, editingUserTemplate, editingUserTemplateId, editingUserTemplateDataLimit }: UserTemplatesModalprops) {
   const dir = useDirDetection()
   const { admin } = useAdmin()
   const { t } = useTranslation()
@@ -187,7 +189,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
       // Build payload according to UserTemplateCreate interface
       const submitData = {
         name: values.name,
-        data_limit: hasDataLimit ? gbToBytes(normalizedDataLimitGb as any) : 0,
+        data_limit: hasDataLimit ? formGigabytesToBytes(normalizedDataLimitGb, editingUserTemplate ? editingUserTemplateDataLimit : undefined) : 0,
         hwid_limit: normalizedHwidLimit == null ? null : Number.isFinite(normalizedHwidLimit) ? Math.floor(normalizedHwidLimit) : null,
         expire_duration: values.expire_duration,
         username_prefix: values.username_prefix || '',
@@ -370,7 +372,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                               emptyValue={0}
                               zeroValue={0}
                               toDisplayValue={value => value / unitSeconds}
-                              toValue={displayValue => displayValue * unitSeconds}
+                              toValue={displayValue => toWholeSeconds(displayValue, unitSeconds)}
                               onValueChange={value => {
                                 field.onChange(value ?? 0)
                                 void form.trigger('expire_duration')
@@ -442,7 +444,7 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                     const convertToSeconds = (inputValue: string, type: TimeUnit) => {
                       const numValue = parseFloat(inputValue)
                       if (isNaN(numValue) || numValue < 0) return undefined
-                      return numValue * TIME_UNIT_SECONDS[type]
+                      return toWholeSeconds(numValue, TIME_UNIT_SECONDS[type])
                     }
 
                     if (status !== UserStatusCreate.on_hold) {

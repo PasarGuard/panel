@@ -20,7 +20,7 @@ from app.subscription.config_cache import (
     make_sub_config_key,
     put_sub_config,
 )
-from app.utils.helpers import has_markup_unsafe_chars
+from app.utils.helpers import has_markup_unsafe_chars, has_oversized_format_spec
 from app.utils.system import readable_size
 
 from . import (
@@ -29,6 +29,7 @@ from . import (
     OutlineConfiguration,
     SingBoxConfiguration,
     StandardLinks,
+    TelegramLinks,
     WireGuardConfiguration,
     XrayConfiguration,
 )
@@ -38,6 +39,13 @@ SERVER_IPV6 = "[::1]"
 
 # Transports only the Xray JSON format can express.
 XRAY_ONLY_NETWORKS = frozenset({"xdrive"})
+
+# Internal format for the subscription page and the dashboard: share links plus Telegram proxy links.
+# Not a ConfigFormat, so no client and no subscription rule can request it.
+TELEGRAM_PAGE_LINKS_FORMAT = "links_telegram"
+
+# Formats that carry the external share links of the subscription settings (Outline and WireGuard do not).
+SHARE_LINK_FORMATS = (StandardLinks, XrayConfiguration, SingBoxConfiguration, ClashConfiguration)
 
 
 def _build_subscription_config(
@@ -60,6 +68,8 @@ def _build_subscription_config(
 
     if config_format == "links":
         return StandardLinks(**common_kwargs)
+    if config_format == TELEGRAM_PAGE_LINKS_FORMAT:
+        return TelegramLinks(**common_kwargs)
     if config_format == "clash":
         return ClashConfiguration(
             clash_template_content=client_templates["CLASH_SUBSCRIPTION_TEMPLATE"],
@@ -112,6 +122,7 @@ async def generate_subscription(
             xray_template_overrides=xray_template_overrides,
             randomize_order=randomize_order,
             custom_variables=custom_variables,
+            external_links=sub_settings.external_links,
         )
         if as_base64 and not isinstance(config, bytes):
             config = base64.b64encode(config.encode()).decode()
@@ -208,9 +219,13 @@ def apply_custom_format_variables(format_variables: dict, custom_variables: list
 
 def _format_dynamic_value(value, format_variables: dict):
     if isinstance(value, str):
+        if has_oversized_format_spec(value):
+            # Formatting would build the padded result first; a value saved before the size check stays raw text
+            return value
         try:
             return value.format_map(format_variables)
-        except ValueError, KeyError:
+        except ValueError, KeyError, AttributeError, IndexError, TypeError:
+            # A value the variables cannot fill (stray brace, {0}, {X.y}) is kept as it is
             return value
     if isinstance(value, list):
         return [_format_dynamic_value(item, format_variables) for item in value]
@@ -344,14 +359,14 @@ async def process_host(
     if isinstance(inbound.tls_config.sni, list) and inbound.tls_config.sni:
         sni = random.choice(inbound.tls_config.sni)
     sni = sni.replace("*", salt)
-    sni = sni.format_map(format_variables) if sni else ""
+    sni = _format_dynamic_value(sni, format_variables) if sni else ""
 
     req_host = ""
     host_list = inbound.transport_config.host
     if isinstance(host_list, list) and host_list:
         req_host = random.choice(host_list)
     req_host = req_host.replace("*", salt)
-    req_host = req_host.format_map(format_variables) if req_host else ""
+    req_host = _format_dynamic_value(req_host, format_variables) if req_host else ""
 
     address = ""
     if inbound.address:
@@ -367,7 +382,9 @@ async def process_host(
         reality_sid = inbound.tls_config.reality_short_id
 
     # Format path with variables
-    path = inbound.transport_config.path.format_map(format_variables) if inbound.transport_config.path else ""
+    path = (
+        _format_dynamic_value(inbound.transport_config.path, format_variables) if inbound.transport_config.path else ""
+    )
 
     # Apply use_sni_as_host override
     if inbound.use_sni_as_host and sni:
@@ -422,7 +439,7 @@ async def _prepare_download_settings(
     download_copy, _ = result
 
     if isinstance(download_copy.address, str):
-        download_copy.address = download_copy.address.format_map(format_variables)
+        download_copy.address = _format_dynamic_value(download_copy.address, format_variables)
 
     if isinstance(conf, StandardLinks):
         xc = XrayConfiguration(
@@ -449,6 +466,7 @@ async def process_inbounds_and_tags(
     xray_template_overrides: dict[int, str] | None = None,
     randomize_order: bool = False,
     custom_variables: list | tuple | None = None,
+    external_links: list[str] | None = None,
 ) -> str | bytes:
     proxy_settings = user.proxy_settings.dict()
     proxy_settings["_user_id"] = user.id
@@ -478,8 +496,8 @@ async def process_inbounds_and_tags(
         inbound_copy, settings = result
 
         # Format remark and address with user variables
-        remark = inbound_copy.remark.format_map(format_variables)
-        formatted_address = inbound_copy.address.format_map(format_variables)
+        remark = _format_dynamic_value(inbound_copy.remark, format_variables)
+        formatted_address = _format_dynamic_value(inbound_copy.address, format_variables)
         if has_markup_unsafe_chars(formatted_address):
             # Never valid, and links print the address unencoded; covers hosts saved before
             # address validation existed and values that came in through a format variable.
@@ -518,6 +536,9 @@ async def process_inbounds_and_tags(
                 inbound=inbound_copy,
                 settings=settings,
             )
+
+    if external_links and isinstance(conf, SHARE_LINK_FORMATS):
+        conf.add_share_links(external_links)
 
     return conf.render()
 

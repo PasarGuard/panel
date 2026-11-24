@@ -19,11 +19,16 @@ from tests.api.helpers import unique_name
 @pytest.mark.parametrize("reader", ["list", "counts", "stats"])
 @pytest.mark.parametrize("already_flushed", [False, True])
 async def test_subscription_reads_see_updates_after_request_snapshot(reader, already_flushed):
+    # SQLite may give this user the id of one an earlier test deleted, whose update rows (foreign keys are not enforced
+    # there) or still-queued buffer entries would then count as this user's: start from none.
+    await sub_update_buffer.reset_user_sub_update_buffer()
     async with TestSession() as setup:
         user = User(username=unique_name("sub_snapshot"))
         setup.add(user)
         await setup.commit()
         user_id = user.id
+        await setup.execute(delete(UserSubscriptionUpdate).where(UserSubscriptionUpdate.user_id == user_id))
+        await setup.commit()
 
     try:
         async with TestSession() as request:

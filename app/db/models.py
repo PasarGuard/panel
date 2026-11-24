@@ -407,27 +407,35 @@ class User(Base, CreatedAtUTCMixin):
         return and_(cls.data_limit.isnot(None), cls.data_limit > 0, cls.data_limit <= cls.used_traffic)
 
     @hybrid_property
+    def came_online(self) -> bool:
+        """Traffic was seen since the last edit (or creation); older traffic does not count."""
+        if not self.online_at:
+            return False
+        base_time = (self.edit_at or self.created_at).replace(tzinfo=UTC)
+        return self.online_at.replace(tzinfo=UTC) >= base_time
+
+    @came_online.expression
+    def came_online(cls):
+        base_time = case((cls.edit_at.isnot(None), cls.edit_at), else_=cls.created_at)
+        return and_(cls.online_at.isnot(None), cls.online_at >= base_time)
+
+    @hybrid_property
     def become_online(self) -> bool:
-        now = dt.now(UTC)
+        if self.came_online:
+            return True
 
-        # Check if online_at is set and greater than or equal to base time
-        if self.online_at:
-            base_time = (self.edit_at or self.created_at).replace(tzinfo=UTC)
-            return self.online_at.replace(tzinfo=UTC) >= base_time
-
-        # Check if on_hold_timeout has passed
-        return bool(self.on_hold_timeout and self.on_hold_timeout.replace(tzinfo=UTC) <= now)
+        # Check if on_hold_timeout has passed without traffic since the last edit
+        return bool(self.on_hold_timeout and self.on_hold_timeout.replace(tzinfo=UTC) <= dt.now(UTC))
 
     @become_online.expression
     def become_online(cls):
         now = func.current_timestamp()
-        base_time = case((cls.edit_at.isnot(None), cls.edit_at), else_=cls.created_at)
 
         return or_(
             # online_at condition
-            and_(cls.online_at.isnot(None), cls.online_at >= base_time),
-            # on_hold_timeout condition
-            and_(cls.online_at.is_(None), cls.on_hold_timeout.isnot(None), cls.on_hold_timeout <= now),
+            cls.came_online,
+            # on_hold_timeout condition (only matters when no traffic since the last edit)
+            and_(cls.on_hold_timeout.isnot(None), cls.on_hold_timeout <= now),
         )
 
     @hybrid_property
@@ -685,6 +693,7 @@ class Node(Base, CreatedAtUTCMixin):
     xray_version: Mapped[str | None] = mapped_column(String(32), nullable=True, init=False)
     message: Mapped[str | None] = mapped_column(String(1024), nullable=True, init=False)
     server_ca: Mapped[str] = mapped_column(String(2048), nullable=False)
+    certificate_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None, kw_only=True)
     api_key: Mapped[str | None] = mapped_column(String(36))
     node_version: Mapped[str | None] = mapped_column(String(32), nullable=True, init=False)
     core_config_id: Mapped[int | None] = fk_id_column("core_configs.id", ondelete="SET NULL", nullable=True)
@@ -815,6 +824,21 @@ class NodeUsage(Base, IdMixin):
     downlink: Mapped[int] = mapped_column(BigInteger, default=0)
 
 
+class NodeOutboundUsage(Base, IdMixin):
+    __tablename__ = "node_outbound_usages"
+    __table_args__ = (
+        UniqueConstraint("created_at", "node_id", "outbound_tag"),
+        # The unique constraint already serves created_at range scans
+        Index("ix_node_outbound_usages_node_id_created_at", "node_id", "created_at"),
+    )
+    created_at: Mapped[dt] = mapped_column(DateTime(timezone=True), unique=False)  # 10 minute per record
+    node_id: Mapped[int] = fk_id_column("nodes.id", ondelete="CASCADE")
+    # Xray tags are case sensitive; MySQL's default collation is not
+    outbound_tag: Mapped[str] = mapped_column(CaseSensitiveString(256))
+    uplink: Mapped[int] = mapped_column(BigInteger, default=0)
+    downlink: Mapped[int] = mapped_column(BigInteger, default=0)
+
+
 class NodeUsageResetLogs(Base, CreatedAtUTCMixin):
     __tablename__ = "node_usage_reset_logs"
     __table_args__ = (
@@ -834,6 +858,8 @@ class NotificationReminder(Base, CreatedAtUTCMixin):
     type: Mapped[ReminderType] = mapped_column(SQLEnum(ReminderType))
     threshold: Mapped[int | None] = mapped_column(default=None)
     expires_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    # Telegram/Discord reminders and webhooks have separate thresholds, so each keeps its own rows.
+    for_chat: Mapped[bool] = mapped_column(default=False, server_default="0")
 
 
 class AdminNotificationReminder(Base, CreatedAtUTCMixin):
@@ -956,6 +982,10 @@ class ClientTemplate(Base, IdMixin):
 
 class NodeStat(Base, CreatedAtUTCMixin):
     __tablename__ = "node_stats"
+    __table_args__ = (
+        Index("ix_node_stats_created_at", "created_at"),
+        Index("ix_node_stats_node_id_created_at", "node_id", "created_at"),
+    )
     node_id: Mapped[int] = fk_id_column("nodes.id")
     node: Mapped[Node] = relationship(back_populates="stats", init=False)
     mem_total: Mapped[int] = mapped_column(BigInteger, unique=False, nullable=False)
@@ -975,6 +1005,7 @@ class Settings(Base, IdMixin):
     subscription: Mapped[dict] = mapped_column(JSON())
     hwid: Mapped[dict] = mapped_column(JSON())
     general: Mapped[dict] = mapped_column(JSON())
+    cleanup: Mapped[dict] = mapped_column(JSON(), default_factory=dict)
 
 
 class AdminRole(Base, CreatedAtUTCMixin):
@@ -1026,6 +1057,9 @@ class APIKey(Base, CreatedAtUTCMixin):
     note: Mapped[str | None] = mapped_column(String(512), default=None)
     expire_date: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
     revoked_at: Mapped[dt | None] = mapped_column(DateTime(timezone=True), default=None)
+    max_requests: Mapped[int | None] = mapped_column(default=None)
+    request_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    delete_on_limit: Mapped[bool] = mapped_column(default=False, server_default="0")
     status: Mapped[APIKeyStatus] = mapped_column(
         SQLEnum(APIKeyStatus, name="apikeystatus", create_constraint=True),
         default=APIKeyStatus.active,
@@ -1044,14 +1078,23 @@ class APIKey(Base, CreatedAtUTCMixin):
     def is_expired(cls):
         return and_(cls.expire_date.isnot(None), cls.expire_date <= func.current_timestamp())
 
+    @hybrid_property
+    def is_limited(self) -> bool:
+        """True when max_requests is set and request_count has reached or passed it."""
+        return self.max_requests is not None and self.max_requests > 0 and self.request_count >= self.max_requests
+
+    @is_limited.expression
+    def is_limited(cls):
+        return and_(cls.max_requests.isnot(None), cls.max_requests > 0, cls.request_count >= cls.max_requests)
+
     @property
     def is_usable(self) -> bool:
-        """False if the key is disabled, its admin is missing/disabled, or it has expired."""
+        """False if the key is disabled, its admin is missing/disabled, has expired, or hit its request limit."""
         if self.status == APIKeyStatus.disabled:
             return False
         if self.admin is None or self.admin.status == AdminStatus.disabled:
             return False
-        return not self.is_expired
+        return not (self.is_expired or self.is_limited)
 
 
 class TempKey(Base):

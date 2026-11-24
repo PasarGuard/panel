@@ -12,6 +12,7 @@ from app.db.crud.user import (
     get_days_left_reached_users,
     get_on_hold_to_active_users,
     get_usage_percentage_reached_users,
+    reload_review_users,
     remove_users,
     reset_user_by_next,
     start_users_expire,
@@ -21,30 +22,41 @@ from app.db.models import ReminderType, User, UserStatus
 from app.jobs.dependencies import SYSTEM_ADMIN
 from app.models.settings import OnHoldTimeoutAction, Webhook
 from app.models.user import UserNotificationResponse
-from app.node.sync import remove_user_awaited as sync_remove_user_awaited, sync_users
+from app.node.sync import (
+    remove_user as sync_remove_user,
+    remove_user_awaited as sync_remove_user_awaited,
+    sync_users,
+)
+from app.notification.user_details import UserEventReason
 from app.operation import OperatorType
 from app.operation.user import UserOperation
-from app.settings import general_settings, webhook_settings
+from app.settings import general_settings, notification_enable, notification_settings, webhook_settings
 from app.utils.logger import get_logger
-from config import job_settings, runtime_settings, usage_settings
+from config import job_settings, runtime_settings
 
 logger = get_logger("review-users")
 user_operator = UserOperation(operator_type=OperatorType.SYSTEM)
 
 
-async def _notify_status_change(db_user: User, status: UserStatus) -> None:
-    user = await user_operator.validate_user(db_user)
-    asyncio.create_task(notification.user_status_change(user, SYSTEM_ADMIN))
-    logger.info(f'User "{user.username}" status changed to {status.value}')
+async def _notify_status_change(
+    db_users: list[User], status: UserStatus, reason: UserEventReason | None = None
+) -> None:
+    users = [await user_operator.validate_user(db_user) for db_user in db_users]
+    asyncio.create_task(notification.bulk_user_status_change(users, SYSTEM_ADMIN, reason))
+    for user in users:
+        logger.info(f'User "{user.username}" status changed to {status.value}')
 
 
-async def _notify_next_plan(db_user: User) -> None:
-    user = await user_operator.validate_user(db_user)
-    asyncio.create_task(notification.user_data_reset_by_next(user, SYSTEM_ADMIN))
-    logger.info(f'User "{db_user.username}" next plan activated')
+async def _notify_next_plan(db_users: list[User]) -> None:
+    users = [await user_operator.validate_user(db_user) for db_user in db_users]
+    asyncio.create_task(notification.bulk_user_data_reset_by_next(users, SYSTEM_ADMIN))
+    for user in users:
+        logger.info(f'User "{user.username}" next plan activated')
 
 
-async def apply_status_changes(db: AsyncSession, users: list[User], status: UserStatus) -> None:
+async def apply_status_changes(
+    db: AsyncSession, users: list[User], status: UserStatus, reason: UserEventReason | None = None
+) -> None:
     """Bulk-sync status changes, only walking next-plan users one by one."""
     if not users:
         return
@@ -61,24 +73,33 @@ async def apply_status_changes(db: AsyncSession, users: list[User], status: User
         if status in (UserStatus.expired, UserStatus.limited):
             await update_users_status(db, plain_users, status)
         await sync_users(plain_users)
-        for db_user in plain_users:
-            await _notify_status_change(db_user, status)
+        await _notify_status_change(plain_users, status, reason)
 
     if not next_plan_users:
         return
 
+    # Read ids up front: a rollback below expires every loaded user, primary keys included.
+    user_ids = [db_user.id for db_user in next_plan_users]
+    reset_ids: list[int] = []
     reset_users: list[User] = []
-    for db_user in next_plan_users:
-        reset_users.append(
-            await reset_user_by_next(
-                db,
-                db_user,
-                clean_chart_data=usage_settings.reset_user_usage_clean_chart_data,
+    for index, db_user in enumerate(next_plan_users):
+        username = db_user.username
+        try:
+            reset_users.append(
+                await reset_user_by_next(
+                    db,
+                    db_user,
+                    clean_chart_data=(await general_settings()).usage.reset_usage_clean_chart_data,
+                )
             )
-        )
+            reset_ids.append(user_ids[index])
+        except Exception:
+            # One bad next plan must not stall every user after it: skip it, the next run retries it.
+            logger.exception(f'Failed to activate next plan of user "{username}", skipped')
+            await db.rollback()
+            await reload_review_users(db, reset_ids + user_ids[index + 1 :])
     await sync_users(reset_users)
-    for db_user in reset_users:
-        await _notify_next_plan(db_user)
+    await _notify_next_plan(reset_users)
 
 
 async def expire_users_job():
@@ -106,9 +127,14 @@ async def remove_on_hold_users(db: AsyncSession, db_users: list[User]):
     # Node updates confirmed – now commit the database deletions atomically.
     await remove_users(db, db_users)
 
-    # Notifications and logging run after successful removal, same as before.
+    # A delivery re-reads the database, so one that ran before the commit sent
+    # these users as still on hold. Queue the removals again now that they are gone.
     for user in users:
-        asyncio.create_task(notification.remove_user(user, SYSTEM_ADMIN))
+        await sync_remove_user(user)
+
+    # Notifications and logging run after successful removal, same as before.
+    asyncio.create_task(notification.bulk_remove_users(users, SYSTEM_ADMIN, UserEventReason.on_hold_timeout))
+    for user in users:
         logger.info(f'User "{user.username}" removed after on-hold timeout')
 
 
@@ -117,18 +143,38 @@ async def on_hold_to_active_users_job():
         if on_hold_users := await get_on_hold_to_active_users(db):
             settings = await general_settings()
 
-            match settings.on_hold_timeout_action:
-                case OnHoldTimeoutAction.disable:
-                    updated_users = await update_users_status(db, on_hold_users, UserStatus.disabled)
-                    await apply_status_changes(db, updated_users, UserStatus.disabled)
-                case OnHoldTimeoutAction.delete:
-                    await remove_on_hold_users(db, on_hold_users)
-                case _:
-                    updated_users = await start_users_expire(db, on_hold_users)
-                    await apply_status_changes(db, updated_users, UserStatus.active)
+            # The selector returns users that came online and users whose on-hold timeout passed with no
+            # traffic since their last edit. The timeout action is only for the latter: a user who started
+            # using the service is always activated.
+            timed_out_users: list[User] = []
+            if settings.on_hold_timeout_action != OnHoldTimeoutAction.activate:
+                timed_out_users = [user for user in on_hold_users if not user.came_online]
+                on_hold_users = [user for user in on_hold_users if user.came_online]
+
+            if on_hold_users:
+                updated_users = await start_users_expire(db, on_hold_users)
+                await apply_status_changes(db, updated_users, UserStatus.active)
+
+            if timed_out_users:
+                match settings.on_hold_timeout_action:
+                    case OnHoldTimeoutAction.disable:
+                        updated_users = await update_users_status(db, timed_out_users, UserStatus.disabled)
+                        await apply_status_changes(
+                            db, updated_users, UserStatus.disabled, UserEventReason.on_hold_timeout
+                        )
+                    case OnHoldTimeoutAction.delete:
+                        await remove_on_hold_users(db, timed_out_users)
 
 
-async def usage_percent_notification_job():
+async def _chat_reminder_thresholds(enabled: bool, thresholds: list[int]) -> list[int]:
+    """Returns the thresholds a Telegram/Discord reminder job should check; empty means skip the run."""
+    if not (enabled and thresholds):
+        return []
+    channels = await notification_settings()
+    return thresholds if channels.notify_telegram or channels.notify_discord else []
+
+
+async def _usage_percent_webhooks():
     settings: Webhook = await webhook_settings()
     if not settings.enable:
         return
@@ -136,7 +182,6 @@ async def usage_percent_notification_job():
         for percent in settings.usage_percent:
             users = await get_usage_percentage_reached_users(db, percent)
 
-            # Prepare webhook notifications first
             webhook_data = []
             reminder_data = []
 
@@ -144,7 +189,6 @@ async def usage_percent_notification_job():
                 usage_percentage = user.usage_percentage
                 user_model = UserNotificationResponse.model_validate(user)
 
-                # Queue webhook notification
                 webhook_data.append(
                     notification.wh.ReachedUsagePercent(
                         username=user_model.username, user=user_model, used_percent=usage_percentage
@@ -169,7 +213,39 @@ async def usage_percent_notification_job():
                 await notification.wh.bulk_notify(webhook_data)
 
 
-async def days_left_notification_job():
+async def _usage_percent_chat_reminders():
+    enable = await notification_enable()
+    thresholds = await _chat_reminder_thresholds(enable.percentage_reached, enable.percentage_reached_thresholds)
+    if not thresholds:
+        return
+    users, extras, reminder_data = {}, {}, []
+    async with GetDB() as db:
+        # Ascending, so a user past several thresholds is listed once with the highest one.
+        for percent in sorted(thresholds):
+            for user in await get_usage_percentage_reached_users(db, percent, for_chat=True):
+                users[user.id] = UserNotificationResponse.model_validate(user)
+                extras[user.id] = {"threshold": percent}
+                reminder_data.append(
+                    {
+                        "user_id": user.id,
+                        "type": ReminderType.data_usage,
+                        "threshold": percent,
+                        "expires_at": user.expire if user.expire else None,
+                        "for_chat": True,
+                    }
+                )
+        if reminder_data:
+            await bulk_create_notification_reminders(db, reminder_data)
+    if users:
+        asyncio.create_task(notification.user_reminders(list(users.values()), "usage_reminder", extras))
+
+
+async def usage_percent_notification_job():
+    await _usage_percent_webhooks()
+    await _usage_percent_chat_reminders()
+
+
+async def _days_left_webhooks():
     settings: Webhook = await webhook_settings()
     if not settings.enable:
         return
@@ -177,7 +253,6 @@ async def days_left_notification_job():
         for days in settings.days_left:
             users = await get_days_left_reached_users(db, days)
 
-            # Prepare webhook notifications first
             webhook_data = []
             reminder_data = []
 
@@ -185,7 +260,6 @@ async def days_left_notification_job():
                 days_left = user.days_left
                 user_model = UserNotificationResponse.model_validate(user)
 
-                # Queue webhook notification
                 webhook_data.append(
                     notification.wh.ReachedDaysLeft(username=user_model.username, user=user_model, days_left=days_left)
                 )
@@ -199,12 +273,43 @@ async def days_left_notification_job():
                         "expires_at": user.expire,
                     }
                 )
+
             # Bulk create notification reminders
             if reminder_data:
                 await bulk_create_notification_reminders(db, reminder_data)
 
             if webhook_data:
                 await notification.wh.bulk_notify(webhook_data)
+
+
+async def _days_left_chat_reminders():
+    enable = await notification_enable()
+    thresholds = await _chat_reminder_thresholds(enable.days_left, enable.days_left_thresholds)
+    if not thresholds:
+        return
+    users, reminder_data = {}, []
+    async with GetDB() as db:
+        for days in thresholds:
+            for user in await get_days_left_reached_users(db, days, for_chat=True):
+                users[user.id] = UserNotificationResponse.model_validate(user)
+                reminder_data.append(
+                    {
+                        "user_id": user.id,
+                        "type": ReminderType.expiration_date,
+                        "threshold": days,
+                        "expires_at": user.expire,
+                        "for_chat": True,
+                    }
+                )
+        if reminder_data:
+            await bulk_create_notification_reminders(db, reminder_data)
+    if users:
+        asyncio.create_task(notification.user_reminders(list(users.values()), "expiry_reminder"))
+
+
+async def days_left_notification_job():
+    await _days_left_webhooks()
+    await _days_left_chat_reminders()
 
 
 if runtime_settings.role.runs_scheduler:

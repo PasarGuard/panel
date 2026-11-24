@@ -77,7 +77,7 @@ def run_migrations_sync():
 
         # Alembic configuration
         alembic_cfg = Config("alembic.ini")
-        alembic_cfg.set_main_option("sqlalchemy.url", sync_db_url)
+        alembic_cfg.set_main_option("sqlalchemy.url", sync_db_url.replace("%", "%%"))
 
         # Alembic's fileConfig disables pre-existing application loggers. Keep
         # migration setup from making later log assertions depend on test order.

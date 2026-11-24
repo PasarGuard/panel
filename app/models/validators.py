@@ -213,6 +213,9 @@ class UserValidator:
         if value == 0 or value is None:
             return None
         if isinstance(value, int):
+            # A duration is bounded like a template's on_hold_timeout; absolute datetimes are taken as given.
+            if not 0 <= value <= MAX_ON_HOLD_EXPIRE_DURATION_SECONDS:
+                raise ValueError(f"on_hold_timeout must be between 0 and {MAX_ON_HOLD_EXPIRE_DURATION_SECONDS} seconds")
             return datetime.now(UTC) + timedelta(seconds=value)
         if isinstance(value, datetime):
             return value

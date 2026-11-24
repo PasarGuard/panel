@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 5.4.1
+ * OpenAPI spec version: 5.6.0
  */
 import {
   useMutation,
@@ -230,6 +230,8 @@ export interface APIKeyCreate {
   permissions?: RolePermissions;
   inherit_permissions?: boolean;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   admin_id?: number | null;
 }
 
@@ -251,6 +253,8 @@ export interface APIKeyCreateResponse {
   permissions?: RolePermissions;
   inherit_permissions?: boolean;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   id: number;
   admin_id: number;
   created_at: string;
@@ -258,6 +262,7 @@ export interface APIKeyCreateResponse {
   revoked_at?: string | null;
   status?: APIKeyStatus;
   is_expired?: boolean;
+  request_count?: number;
   api_key: string;
 }
 
@@ -271,6 +276,8 @@ export interface APIKeyResponse {
   permissions?: RolePermissions;
   inherit_permissions?: boolean;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   id: number;
   admin_id: number;
   created_at: string;
@@ -278,6 +285,7 @@ export interface APIKeyResponse {
   revoked_at?: string | null;
   status?: APIKeyStatus;
   is_expired?: boolean;
+  request_count?: number;
 }
 
 export interface APIKeyUpdate {
@@ -287,6 +295,8 @@ export interface APIKeyUpdate {
   permissions?: RolePermissions | null;
   inherit_permissions?: boolean | null;
   expire_date?: string | null;
+  max_requests?: number | null;
+  delete_on_limit?: boolean;
   status?: APIKeyStatus | null;
 }
 
@@ -310,7 +320,10 @@ export interface CustomVariable {
   value?: string;
 }
 
-export interface UserNotificationEnable {
+/**
+ * An admin's own preferences. Reminders about their users are opt-in.
+ */
+export interface OwnerNotificationEnable {
   create?: boolean;
   modify?: boolean;
   delete?: boolean;
@@ -318,6 +331,8 @@ export interface UserNotificationEnable {
   reset_data_usage?: boolean;
   data_reset_by_next?: boolean;
   subscription_revoked?: boolean;
+  percentage_reached?: boolean;
+  days_left?: boolean;
 }
 
 /**
@@ -332,7 +347,7 @@ export interface AdminContactInfo {
   profile_title?: string | null;
   support_url?: string | null;
   custom_variables?: CustomVariable[];
-  notification_enable?: UserNotificationEnable | null;
+  notification_enable?: OwnerNotificationEnable | null;
 }
 
 export type AdminCreateStatus = typeof AdminCreateStatus[keyof typeof AdminCreateStatus] | null;
@@ -370,7 +385,7 @@ export interface AdminCreate {
   support_url?: string | null;
   custom_variables?: CustomVariable[] | null;
   note?: string | null;
-  notification_enable?: UserNotificationEnable | null;
+  notification_enable?: OwnerNotificationEnable | null;
   role_id: number;
   permission_overrides?: RoleLimits | null;
   username: string;
@@ -444,7 +459,7 @@ export interface AdminDetails {
   profile_title?: string | null;
   support_url?: string | null;
   custom_variables?: CustomVariable[];
-  notification_enable?: UserNotificationEnable | null;
+  notification_enable?: OwnerNotificationEnable | null;
   total_users?: number;
   used_traffic?: number;
   data_limit?: number | null;
@@ -478,7 +493,7 @@ export interface AdminModify {
   support_url?: string | null;
   custom_variables?: CustomVariable[] | null;
   note?: string | null;
-  notification_enable?: UserNotificationEnable | null;
+  notification_enable?: OwnerNotificationEnable | null;
   role_id?: number | null;
   permission_overrides?: RoleLimits | null;
 }
@@ -623,6 +638,8 @@ export interface Application {
 
 export type BaseHostHttpHeaders = {[key: string]: string} | null;
 
+export type BaseHostFinalMaskSettings = { [key: string]: unknown } | null;
+
 export type ProxyHostSecurity = typeof ProxyHostSecurity[keyof typeof ProxyHostSecurity];
 
 
@@ -755,12 +772,39 @@ export interface WebSocketSettings {
   heartbeatPeriod?: number | null;
 }
 
+export interface MasqueHostSettings {
+  remote_dns?: string[] | null;
+  xmux?: XMuxSettings | null;
+}
+
+export type MtprotoHostSettingsLinkType = typeof MtprotoHostSettingsLinkType[keyof typeof MtprotoHostSettingsLinkType];
+
+
+export const MtprotoHostSettingsLinkType = {
+  auto: 'auto',
+  tls: 'tls',
+  secure: 'secure',
+  classic: 'classic',
+  web: 'web',
+} as const;
+
+export interface MtprotoHostSettings {
+  link_type?: MtprotoHostSettingsLinkType;
+}
+
+export interface XDriveHostSettings {
+  xmux?: XMuxSettings | null;
+}
+
 export interface TransportSettings {
   xhttp_settings?: XHttpSettings | null;
   grpc_settings?: GRPCSettings | null;
   kcp_settings?: KCPSettings | null;
   tcp_settings?: TcpSettings | null;
   websocket_settings?: WebSocketSettings | null;
+  masque_settings?: MasqueHostSettings | null;
+  mtproto_settings?: MtprotoHostSettings | null;
+  xdrive_settings?: XDriveHostSettings | null;
 }
 
 export type MultiplexProtocol = typeof MultiplexProtocol[keyof typeof MultiplexProtocol];
@@ -920,228 +964,6 @@ export interface SubscriptionTemplates {
   xray?: number | null;
 }
 
-export type FinalMaskTcpType = typeof FinalMaskTcpType[keyof typeof FinalMaskTcpType];
-
-
-export const FinalMaskTcpType = {
-  'header-custom': 'header-custom',
-  fragment: 'fragment',
-  sudoku: 'sudoku',
-  xmc: 'xmc',
-} as const;
-
-/**
- * Packet camouflage item used by FinalMask. Unlike Freedom noise, this has no apply_to.
- */
-export interface FinalMaskNoiseItem {
-  type?: string | null;
-  packet?: string | number[] | null;
-  delay?: string | number | null;
-  rand?: number | string | null;
-  randRange?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskTcpHeaderCustomSettings {
-  clients?: FinalMaskNoiseItem[][] | null;
-  servers?: FinalMaskNoiseItem[][] | null;
-  errors?: FinalMaskNoiseItem[][] | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskFragmentSettings {
-  packets?: string | null;
-  lengths?: (string | number)[] | null;
-  delays?: (string | number)[] | null;
-  maxSplit?: string | number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskSudokuSettings {
-  password?: string | null;
-  ascii?: string | null;
-  customTable?: string | null;
-  customTables?: string[] | null;
-  paddingMin?: number | null;
-  paddingMax?: number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXmcProfile {
-  username: string;
-  uuid: string;
-  texturesValue: string;
-  texturesSignature: string;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXmcSettings {
-  hostname?: string | null;
-  password?: string | null;
-  profiles?: FinalMaskXmcProfile[] | null;
-  usernames?: string[] | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskTcpLayerSettings = FinalMaskTcpHeaderCustomSettings | FinalMaskFragmentSettings | FinalMaskSudokuSettings | FinalMaskXmcSettings | { [key: string]: unknown };
-
-export interface FinalMaskTcpLayer {
-  type: FinalMaskTcpType;
-  settings?: FinalMaskTcpLayerSettings;
-  [key: string]: unknown;
- }
-
-export type FinalMaskUdpType = typeof FinalMaskUdpType[keyof typeof FinalMaskUdpType];
-
-
-export const FinalMaskUdpType = {
-  'header-custom': 'header-custom',
-  'mkcp-legacy': 'mkcp-legacy',
-  noise: 'noise',
-  salamander: 'salamander',
-  sudoku: 'sudoku',
-  xdns: 'xdns',
-  xicmp: 'xicmp',
-  realm: 'realm',
-  udphop: 'udphop',
-  'header-dns': 'header-dns',
-  'header-dtls': 'header-dtls',
-  'header-srtp': 'header-srtp',
-  'header-utp': 'header-utp',
-  'header-wechat': 'header-wechat',
-  'header-wireguard': 'header-wireguard',
-  'mkcp-original': 'mkcp-original',
-  'mkcp-aes128gcm': 'mkcp-aes128gcm',
-} as const;
-
-export interface FinalMaskUdpHeaderCustomSettings {
-  client?: FinalMaskNoiseItem[] | null;
-  server?: FinalMaskNoiseItem[] | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskPasswordSettings {
-  password?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskDomainSettings {
-  domain?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXdnsSettings {
-  domains?: string[] | null;
-  resolvers?: string[] | null;
-  domain?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskXicmpSettings {
-  dgram?: boolean | null;
-  ips?: string[] | null;
-  listenIp?: string | null;
-  id?: number | null;
-  [key: string]: unknown;
- }
-
-/**
- * Packet item of the UDP noise mask. Unlike header-custom items, it also accepts exp, a packet template.
- */
-export interface FinalMaskNoiseMaskItem {
-  type?: string | null;
-  packet?: string | number[] | null;
-  delay?: string | number | null;
-  rand?: number | string | null;
-  randRange?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskNoiseSettings {
-  reset?: string | number | null;
-  noise?: FinalMaskNoiseMaskItem[] | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskSalamanderSettings {
-  password?: string | null;
-  packetSize?: unknown | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskRealmSettingsTlsConfig = { [key: string]: unknown } | null;
-
-export interface FinalMaskRealmSettings {
-  url?: string | null;
-  stunServers?: string[] | null;
-  tlsConfig?: FinalMaskRealmSettingsTlsConfig;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskUdpHopSettings {
-  /** @pattern ^(?i:intervalLocal|intervalRemote|perConnRemote)(,(?i:intervalLocal|intervalRemote|perConnRemote))*$ */
-  mode: string;
-  interval?: string | null;
-  remoteIPs?: string[] | null;
-  remotePorts?: string | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskMkcpLegacySettings {
-  header?: string | null;
-  value?: string | null;
-  [key: string]: unknown;
- }
-
-export type FinalMaskUdpLayerSettings = FinalMaskUdpHeaderCustomSettings | FinalMaskPasswordSettings | FinalMaskSudokuSettings | FinalMaskDomainSettings | FinalMaskXdnsSettings | FinalMaskXicmpSettings | FinalMaskNoiseSettings | FinalMaskSalamanderSettings | FinalMaskRealmSettings | FinalMaskUdpHopSettings | FinalMaskMkcpLegacySettings | { [key: string]: unknown };
-
-export interface FinalMaskUdpLayer {
-  type: FinalMaskUdpType;
-  settings?: FinalMaskUdpLayerSettings;
-  [key: string]: unknown;
- }
-
-export type FinalMaskQuicCongestion = typeof FinalMaskQuicCongestion[keyof typeof FinalMaskQuicCongestion];
-
-
-export const FinalMaskQuicCongestion = {
-  reno: 'reno',
-  bbr: 'bbr',
-  brutal: 'brutal',
-  'force-brutal': 'force-brutal',
-} as const;
-
-export interface FinalMaskUdpHop {
-  ports?: string | null;
-  interval?: string | number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMaskQuicParams {
-  congestion?: FinalMaskQuicCongestion | null;
-  debug?: boolean | null;
-  bbrProfile?: string | null;
-  brutalUp?: string | number | null;
-  brutalDown?: string | number | null;
-  udpHop?: FinalMaskUdpHop | null;
-  initStreamReceiveWindow?: number | null;
-  maxStreamReceiveWindow?: number | null;
-  initConnectionReceiveWindow?: number | null;
-  maxConnectionReceiveWindow?: number | null;
-  maxIdleTimeout?: number | null;
-  keepAlivePeriod?: number | null;
-  disablePathMTUDiscovery?: boolean | null;
-  maxIncomingStreams?: number | null;
-  [key: string]: unknown;
- }
-
-export interface FinalMask {
-  tcp?: FinalMaskTcpLayer[] | null;
-  udp?: FinalMaskUdpLayer[] | null;
-  quicParams?: FinalMaskQuicParams | null;
-  [key: string]: unknown;
- }
-
 export interface BaseHost {
   id?: number | null;
   remark: string;
@@ -1171,7 +993,7 @@ export interface BaseHost {
   verify_peer_cert_by_name?: string[] | null;
   wireguard_overrides?: WireGuardHostOverrides | null;
   subscription_templates?: SubscriptionTemplates | null;
-  final_mask_settings?: FinalMask | null;
+  final_mask_settings?: BaseHostFinalMaskSettings;
   cipher_suites?: string | null;
 }
 
@@ -1254,7 +1076,7 @@ export interface BulkGroupsActionResponse {
  * Model for bulk host selection by IDs
  */
 export interface BulkHostSelection {
-  ids?: number[];
+  ids: number[];
 }
 
 /**
@@ -1375,6 +1197,45 @@ export interface BulkUsersSelection {
 export interface BulkUsersSetOwner {
   ids?: number[];
   admin_username: string;
+}
+
+export interface CertificateFingerprintRequest {
+  /** PEM certificate or chain; the first certificate is used. */
+  pem?: string | null;
+  /** Certificate file path on the panel server, containing PEM or DER. */
+  file_path?: string | null;
+  /** TLS server hostname or IP address, without a scheme or port. */
+  server?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 65535
+     */
+  port?: number;
+  /** Optional TLS SNI override for server probes. */
+  server_name?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 20
+     */
+  timeout?: number;
+}
+
+export interface CertificateFingerprintResponse {
+  /** SHA-256 of the complete leaf certificate DER, as 64 lowercase hexadecimal characters. */
+  sha256: string;
+}
+
+/**
+ * Automatic retention periods. ``None`` keeps the corresponding data indefinitely.
+ */
+export interface CleanupSettings {
+  expired_users_retention_days?: number | null;
+  include_limited_users?: boolean;
+  usage_history_retention_days?: number | null;
+  node_stats_retention_days?: number | null;
+  usage_rollup_hourly_after_days?: number | null;
+  usage_rollup_half_day_after_days?: number | null;
+  usage_rollup_daily_after_days?: number | null;
 }
 
 export type ClientTemplateType = typeof ClientTemplateType[keyof typeof ClientTemplateType];
@@ -1517,6 +1378,252 @@ export interface MuxSettingsInput {
   xray?: XrayMuxSettingsInput | null;
 }
 
+export type FinalMaskTcpType = typeof FinalMaskTcpType[keyof typeof FinalMaskTcpType];
+
+
+export const FinalMaskTcpType = {
+  'header-custom': 'header-custom',
+  fragment: 'fragment',
+  sudoku: 'sudoku',
+  xmc: 'xmc',
+} as const;
+
+export interface FinalMaskTcpHeaderCustomItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  rand?: number | null;
+  randRange?: string | null;
+  delay?: number | string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskTcpHeaderCustomSettings {
+  clients?: FinalMaskTcpHeaderCustomItem[][] | null;
+  servers?: FinalMaskTcpHeaderCustomItem[][] | null;
+  errors?: FinalMaskTcpHeaderCustomItem[][] | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskFragmentSettings {
+  packets?: string | null;
+  lengths?: (string | number)[] | null;
+  delays?: (string | number)[] | null;
+  maxSplit?: string | number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskSudokuSettings {
+  password?: string | null;
+  ascii?: string | null;
+  customTable?: string | null;
+  customTables?: string[] | null;
+  paddingMin?: number | null;
+  paddingMax?: number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXmcProfile {
+  username: string;
+  uuid: string;
+  texturesValue: string;
+  texturesSignature: string;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXmcSettings {
+  hostname?: string | null;
+  password?: string | null;
+  profiles?: FinalMaskXmcProfile[] | null;
+  usernames?: string[] | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskTcpLayerSettings = FinalMaskTcpHeaderCustomSettings | FinalMaskFragmentSettings | FinalMaskSudokuSettings | FinalMaskXmcSettings | { [key: string]: unknown };
+
+export interface FinalMaskTcpLayer {
+  type: FinalMaskTcpType;
+  settings?: FinalMaskTcpLayerSettings;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskUdpType = typeof FinalMaskUdpType[keyof typeof FinalMaskUdpType];
+
+
+export const FinalMaskUdpType = {
+  'header-custom': 'header-custom',
+  'mkcp-legacy': 'mkcp-legacy',
+  noise: 'noise',
+  salamander: 'salamander',
+  sudoku: 'sudoku',
+  xdns: 'xdns',
+  xicmp: 'xicmp',
+  realm: 'realm',
+  udphop: 'udphop',
+  'header-dns': 'header-dns',
+  'header-dtls': 'header-dtls',
+  'header-srtp': 'header-srtp',
+  'header-utp': 'header-utp',
+  'header-wechat': 'header-wechat',
+  'header-wireguard': 'header-wireguard',
+  'mkcp-original': 'mkcp-original',
+  'mkcp-aes128gcm': 'mkcp-aes128gcm',
+} as const;
+
+export interface FinalMaskUdpHeaderCustomItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  rand?: number | null;
+  randRange?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskUdpHeaderCustomSettings {
+  client?: FinalMaskUdpHeaderCustomItem[] | null;
+  server?: FinalMaskUdpHeaderCustomItem[] | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskPasswordSettings {
+  password?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskDomainSettings {
+  domain?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXdnsDomain {
+  names?: string[];
+  lenLimit?: number | null;
+  labelLimit?: number | null;
+  types?: number[] | null;
+  edns0?: number | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskXdnsResolverTlsConfig = { [key: string]: unknown } | null;
+
+export type FinalMaskXdnsResolverQuicConfig = { [key: string]: unknown } | null;
+
+export interface FinalMaskXdnsResolver {
+  addrs?: string[];
+  worker?: number | null;
+  tlsConfig?: FinalMaskXdnsResolverTlsConfig;
+  quicConfig?: FinalMaskXdnsResolverQuicConfig;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXdnsSettings {
+  domains?: FinalMaskXdnsDomain[] | null;
+  resolvers?: FinalMaskXdnsResolver[] | null;
+  extraPoll?: number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskXicmpSettings {
+  dgram?: boolean | null;
+  ips?: string[] | null;
+  [key: string]: unknown;
+ }
+
+/**
+ * Packet item of the UDP noise mask. Unlike header-custom items, it also accepts exp, a packet template.
+ */
+export interface FinalMaskNoiseMaskItem {
+  type?: string | null;
+  packet?: string | number[] | null;
+  delay?: string | number | null;
+  rand?: number | string | null;
+  randRange?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskNoiseSettings {
+  reset?: string | number | null;
+  noise?: FinalMaskNoiseMaskItem[] | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskSalamanderSettings {
+  password?: string | null;
+  packetSize?: unknown | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskRealmSettingsTlsConfig = { [key: string]: unknown } | null;
+
+export interface FinalMaskRealmSettings {
+  url?: string | null;
+  stunServers?: string[] | null;
+  tlsConfig?: FinalMaskRealmSettingsTlsConfig;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskUdpHopSettings {
+  /** @pattern ^(?i:intervalLocal|intervalRemote|perConnRemote)(,(?i:intervalLocal|intervalRemote|perConnRemote))*$ */
+  mode: string;
+  interval?: string | null;
+  remoteIPs?: string[] | null;
+  remotePorts?: string | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskMkcpLegacySettings {
+  header?: string | null;
+  value?: string | null;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskUdpLayerSettings = FinalMaskUdpHeaderCustomSettings | FinalMaskPasswordSettings | FinalMaskSudokuSettings | FinalMaskDomainSettings | FinalMaskXdnsSettings | FinalMaskXicmpSettings | FinalMaskNoiseSettings | FinalMaskSalamanderSettings | FinalMaskRealmSettings | FinalMaskUdpHopSettings | FinalMaskMkcpLegacySettings | { [key: string]: unknown };
+
+export interface FinalMaskUdpLayer {
+  type: FinalMaskUdpType;
+  settings?: FinalMaskUdpLayerSettings;
+  [key: string]: unknown;
+ }
+
+export type FinalMaskQuicCongestion = typeof FinalMaskQuicCongestion[keyof typeof FinalMaskQuicCongestion];
+
+
+export const FinalMaskQuicCongestion = {
+  reno: 'reno',
+  bbr: 'bbr',
+  brutal: 'brutal',
+  'force-brutal': 'force-brutal',
+} as const;
+
+export interface FinalMaskUdpHop {
+  ports?: string | null;
+  interval?: string | number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMaskQuicParams {
+  congestion?: FinalMaskQuicCongestion | null;
+  debug?: boolean | null;
+  bbrProfile?: string | null;
+  brutalUp?: string | number | null;
+  brutalDown?: string | number | null;
+  udpHop?: FinalMaskUdpHop | null;
+  initStreamReceiveWindow?: number | null;
+  maxStreamReceiveWindow?: number | null;
+  initConnectionReceiveWindow?: number | null;
+  maxConnectionReceiveWindow?: number | null;
+  maxIdleTimeout?: number | null;
+  keepAlivePeriod?: number | null;
+  disablePathMTUDiscovery?: boolean | null;
+  maxIncomingStreams?: number | null;
+  [key: string]: unknown;
+ }
+
+export interface FinalMask {
+  tcp?: FinalMaskTcpLayer[] | null;
+  udp?: FinalMaskUdpLayer[] | null;
+  quicParams?: FinalMaskQuicParams | null;
+  [key: string]: unknown;
+ }
+
 export interface CreateHost {
   id?: number | null;
   remark: string;
@@ -1584,10 +1691,31 @@ export const OnHoldTimeoutAction = {
   delete: 'delete',
 } as const;
 
+export interface UsageSettings {
+  record_node_usage?: boolean;
+  record_node_stats?: boolean;
+  reset_usage_clean_chart_data?: boolean;
+  record_outbound_usage?: boolean;
+}
+
+export interface NodeHealthSettings {
+  /** @minimum 1 */
+  fail_threshold?: number;
+  /** @minimum 1 */
+  recover_threshold?: number;
+  /** @minimum 1 */
+  probe_timeout?: number;
+  /** @minimum 0 */
+  max_backoff?: number;
+}
+
 export interface General {
   default_method?: ShadowsocksMethods;
   on_hold_timeout_action?: OnHoldTimeoutAction;
   custom_variables?: CustomVariable[] | null;
+  usage?: UsageSettings;
+  node_health?: NodeHealthSettings;
+  stop_nodes_on_shutdown?: boolean;
 }
 
 export type GeoFilseRegion = typeof GeoFilseRegion[keyof typeof GeoFilseRegion];
@@ -1704,11 +1832,33 @@ export interface InboundSummary {
   tag: string;
   protocol: string;
   network?: string | null;
+  security?: string | null;
+  fingerprint?: string | null;
+}
+
+export interface MasqueSettings {
+  /** @minLength 1 */
+  password?: string;
 }
 
 export interface ModifyUserByTemplate {
   user_template_id: number;
   note?: string | null;
+}
+
+export interface MtprotoSettings {
+  secret?: string | null;
+  user_ad_tag?: string;
+  /**
+     * @minimum 0
+     * @maximum 4294967295
+     */
+  max_tcp_conns?: number;
+  /**
+     * @minimum 0
+     * @maximum 4294967295
+     */
+  max_unique_ips?: number;
 }
 
 export interface NextPlanModel {
@@ -1739,7 +1889,10 @@ export interface NodeCreate {
   /** @minimum 0 */
   usage_coefficient?: number;
   connection_type: NodeConnectionType;
-  server_ca: string;
+  /** PEM trust certificate. Inactive when certificate_sha256 is set. */
+  server_ca?: string;
+  /** SHA-256 of the leaf certificate DER. Takes precedence over PEM; neither field uses system trust. */
+  certificate_sha256?: string | null;
   keep_alive: number;
   core_config_id: number;
   api_key: string;
@@ -1779,6 +1932,8 @@ export interface NodeModify {
   usage_coefficient?: number | null;
   connection_type?: NodeConnectionType | null;
   server_ca?: string | null;
+  /** SHA-256 of the leaf certificate DER. Takes precedence over PEM; neither field uses system trust. */
+  certificate_sha256?: string | null;
   keep_alive?: number | null;
   core_config_id?: number | null;
   api_key?: string | null;
@@ -1812,6 +1967,35 @@ export interface NodeOutboundLatency {
   source: string;
 }
 
+export interface NodeOutboundUsageStat {
+  period_start: string;
+  uplink: number;
+  downlink: number;
+  node_id?: number | null;
+}
+
+export type NodeOutboundUsageStatsListStats = {[key: string]: NodeOutboundUsageStat[]};
+
+export type Period = typeof Period[keyof typeof Period];
+
+
+export const Period = {
+  minute: 'minute',
+  hour: 'hour',
+  day: 'day',
+  month: 'month',
+} as const;
+
+/**
+ * Usage per outbound tag; the key is the tag. With group_by_node each stat also carries its node_id.
+ */
+export interface NodeOutboundUsageStatsList {
+  period?: Period | null;
+  start: string;
+  end: string;
+  stats: NodeOutboundUsageStatsListStats;
+}
+
 export interface NodeOutboundsLatencyResponse {
   latencies: NodeOutboundLatency[];
 }
@@ -1835,6 +2019,8 @@ export interface NodeResponse {
   usage_coefficient?: number;
   connection_type: NodeConnectionType;
   server_ca: string;
+  /** SHA-256 of the leaf certificate DER. Takes precedence over PEM; neither field uses system trust. */
+  certificate_sha256?: string | null;
   keep_alive: number;
   core_config_id: number | null;
   api_key: string | null;
@@ -1883,16 +2069,6 @@ export interface NodeStats {
   incoming_bandwidth_speed: number;
   outgoing_bandwidth_speed: number;
 }
-
-export type Period = typeof Period[keyof typeof Period];
-
-
-export const Period = {
-  minute: 'minute',
-  hour: 'hour',
-  day: 'day',
-  month: 'month',
-} as const;
 
 export interface NodeStatsList {
   period?: Period | null;
@@ -1957,6 +2133,16 @@ export interface NotificationChannels {
   api_key?: NotificationChannel;
 }
 
+export interface UserNotificationEnable {
+  create?: boolean;
+  modify?: boolean;
+  delete?: boolean;
+  status_change?: boolean;
+  reset_data_usage?: boolean;
+  data_reset_by_next?: boolean;
+  subscription_revoked?: boolean;
+}
+
 export interface NotificationEnable {
   admin?: AdminNotificationEnable;
   admin_role?: BaseNotificationEnable;
@@ -1968,7 +2154,9 @@ export interface NotificationEnable {
   user_template?: BaseNotificationEnable;
   api_key?: BaseNotificationEnable;
   days_left?: boolean;
+  days_left_thresholds?: number[];
   percentage_reached?: boolean;
+  percentage_reached_thresholds?: number[];
 }
 
 export interface NotificationSettings {
@@ -2055,6 +2243,8 @@ export interface ProxyTable {
   shadowsocks?: ShadowsocksSettings;
   wireguard?: WireGuardSettings;
   hysteria?: HysteriaSettings;
+  masque?: MasqueSettings;
+  mtproto?: MtprotoSettings;
 }
 
 export interface RealityScanRequest {
@@ -2244,7 +2434,9 @@ export interface Subscription {
   allow_browser_config?: boolean;
   disable_sub_template?: boolean;
   randomize_order?: boolean;
+  external_links?: string[];
   custom_variables?: CustomVariable[];
+  clients_limit?: number;
 }
 
 export interface SettingsSchema {
@@ -2255,6 +2447,7 @@ export interface SettingsSchema {
   subscription?: Subscription | null;
   hwid?: HWIDSettings | null;
   general?: General | null;
+  cleanup?: CleanupSettings | null;
 }
 
 export interface SubscriptionUserResponse {
@@ -2337,6 +2530,7 @@ export type UsageTable = typeof UsageTable[keyof typeof UsageTable];
 export const UsageTable = {
   node_user_usages: 'node_user_usages',
   node_usages: 'node_usages',
+  node_outbound_usages: 'node_outbound_usages',
 } as const;
 
 export type UserCountMetric = typeof UserCountMetric[keyof typeof UserCountMetric];
@@ -2793,6 +2987,14 @@ limit?: number;
 };
 
 export type GetUsageParams = {
+period?: Period;
+node_id?: number | null;
+group_by_node?: boolean;
+start?: string | null;
+end?: string | null;
+};
+
+export type GetOutboundUsageParams = {
 period?: Period;
 node_id?: number | null;
 group_by_node?: boolean;
@@ -9494,6 +9696,81 @@ export const useScanRealityTarget = <TError = ErrorType<Unauthorized | Forbidden
       return useMutation(getScanRealityTargetMutationOptions(options), queryClient);
     }
 
+export const getGetCoreCertificateFingerprintUrl = () => {
+
+
+
+
+  return `/api/core/certificate-fingerprint`
+}
+
+/**
+ * Hash a PEM string, a panel-local certificate file, or a live TLS server's leaf certificate.
+ *
+ * Provide exactly one source. Live probes support private node addresses and self-signed
+ * certificates. A retrieved fingerprint must be verified independently before trusting it.
+ * @summary Get Core Certificate Fingerprint
+ */
+export const getCoreCertificateFingerprint = async (certificateFingerprintRequest: CertificateFingerprintRequest, options?: RequestInit): Promise<CertificateFingerprintResponse> => {
+
+  return orvalFetcher<CertificateFingerprintResponse>(getGetCoreCertificateFingerprintUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(certificateFingerprintRequest)
+  }
+);}
+
+
+
+
+
+export const getGetCoreCertificateFingerprintMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getCoreCertificateFingerprint>>, TError,{data: BodyType<CertificateFingerprintRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof getCoreCertificateFingerprint>>, TError,{data: BodyType<CertificateFingerprintRequest>}, TContext> => {
+
+const mutationKey = ['getCoreCertificateFingerprint'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getCoreCertificateFingerprint>>, {data: BodyType<CertificateFingerprintRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  getCoreCertificateFingerprint(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GetCoreCertificateFingerprintMutationResult = NonNullable<Awaited<ReturnType<typeof getCoreCertificateFingerprint>>>
+    export type GetCoreCertificateFingerprintMutationBody = BodyType<CertificateFingerprintRequest>
+    export type GetCoreCertificateFingerprintMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+    /**
+ * @summary Get Core Certificate Fingerprint
+ */
+export const useGetCoreCertificateFingerprint = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getCoreCertificateFingerprint>>, TError,{data: BodyType<CertificateFingerprintRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof getCoreCertificateFingerprint>>,
+        TError,
+        {data: BodyType<CertificateFingerprintRequest>},
+        TContext
+      > => {
+      return useMutation(getGetCoreCertificateFingerprintMutationOptions(options), queryClient);
+    }
+
 export const getReorderCoreConfigsUrl = () => {
 
 
@@ -11032,7 +11309,7 @@ export const removeHost = async (hostId: number, options?: RequestInit): Promise
 
 
 
-export const getRemoveHostMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const getRemoveHostMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeHost>>, TError,{hostId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof removeHost>>, TError,{hostId: number}, TContext> => {
 
@@ -11061,12 +11338,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type RemoveHostMutationResult = NonNullable<Awaited<ReturnType<typeof removeHost>>>
 
-    export type RemoveHostMutationError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>
+    export type RemoveHostMutationError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
 
     /**
  * @summary Remove Host
  */
-export const useRemoveHost = <TError = ErrorType<Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const useRemoveHost = <TError = ErrorType<Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeHost>>, TError,{hostId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof removeHost>>,
@@ -11367,7 +11644,7 @@ export const bulkDeleteHosts = async (bulkHostSelection: BulkHostSelection, opti
 
 
 
-export const getBulkDeleteHostsMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const getBulkDeleteHostsMutationOptions = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteHosts>>, TError,{data: BodyType<BulkHostSelection>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteHosts>>, TError,{data: BodyType<BulkHostSelection>}, TContext> => {
 
@@ -11396,12 +11673,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type BulkDeleteHostsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteHosts>>>
     export type BulkDeleteHostsMutationBody = BodyType<BulkHostSelection>
-    export type BulkDeleteHostsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+    export type BulkDeleteHostsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>
 
     /**
  * @summary Bulk Delete Hosts
  */
-export const useBulkDeleteHosts = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+export const useBulkDeleteHosts = <TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | Conflict | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteHosts>>, TError,{data: BodyType<BulkHostSelection>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof bulkDeleteHosts>>,
@@ -11755,6 +12032,115 @@ export function useGetUsage<TData = Awaited<ReturnType<typeof getUsage>>, TError
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetUsageQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetOutboundUsageUrl = (params?: GetOutboundUsageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/node/usage/outbounds?${stringifiedParams}` : `/api/node/usage/outbounds`
+}
+
+/**
+ * Retrieve usage per outbound tag, over all nodes or one, within a date range.
+ * @summary Get Outbound Usage
+ */
+export const getOutboundUsage = async (params?: GetOutboundUsageParams, options?: RequestInit): Promise<NodeOutboundUsageStatsList> => {
+
+  return orvalFetcher<NodeOutboundUsageStatsList>(getGetOutboundUsageUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOutboundUsageQueryKey = (params?: GetOutboundUsageParams,) => {
+    return [
+    `/api/node/usage/outbounds`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOutboundUsageQueryOptions = <TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOutboundUsageQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOutboundUsage>>> = ({ signal }) => getOutboundUsage(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetOutboundUsageQueryResult = NonNullable<Awaited<ReturnType<typeof getOutboundUsage>>>
+export type GetOutboundUsageQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params: undefined |  GetOutboundUsageParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOutboundUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getOutboundUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOutboundUsage>>,
+          TError,
+          Awaited<ReturnType<typeof getOutboundUsage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Outbound Usage
+ */
+
+export function useGetOutboundUsage<TData = Awaited<ReturnType<typeof getOutboundUsage>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
+ params?: GetOutboundUsageParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOutboundUsage>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetOutboundUsageQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -12875,6 +13261,78 @@ export const useResetNodeUsage = <TError = ErrorType<Unauthorized | Forbidden | 
         TContext
       > => {
       return useMutation(getResetNodeUsageMutationOptions(options), queryClient);
+    }
+
+export const getHardResetNodeUrl = (nodeId: number,) => {
+
+
+
+
+  return `/api/node/${nodeId}/hard_reset`
+}
+
+/**
+ * Restart the remote node container and reconnect once it is available.
+ * @summary Hard Reset Node
+ */
+export const hardResetNode = async (nodeId: number, options?: RequestInit): Promise<unknown> => {
+
+  return orvalFetcher<unknown>(getHardResetNodeUrl(nodeId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getHardResetNodeMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof hardResetNode>>, TError,{nodeId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+): UseMutationOptions<Awaited<ReturnType<typeof hardResetNode>>, TError,{nodeId: number}, TContext> => {
+
+const mutationKey = ['hardResetNode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof hardResetNode>>, {nodeId: number}> = (props) => {
+          const {nodeId} = props ?? {};
+
+          return  hardResetNode(nodeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type HardResetNodeMutationResult = NonNullable<Awaited<ReturnType<typeof hardResetNode>>>
+
+    export type HardResetNodeMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
+
+    /**
+ * @summary Hard Reset Node
+ */
+export const useHardResetNode = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof hardResetNode>>, TError,{nodeId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof hardResetNode>>,
+        TError,
+        {nodeId: number},
+        TContext
+      > => {
+      return useMutation(getHardResetNodeMutationOptions(options), queryClient);
     }
 
 export const getReconnectNodeUrl = (nodeId: number,) => {
@@ -20877,7 +21335,7 @@ export const getListPasskeysQueryKey = () => {
     }
 
 
-export const getListPasskeysQueryOptions = <TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+export const getListPasskeysQueryOptions = <TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<Unauthorized | Forbidden>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -20896,10 +21354,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListPasskeysQueryResult = NonNullable<Awaited<ReturnType<typeof listPasskeys>>>
-export type ListPasskeysQueryError = ErrorType<unknown>
+export type ListPasskeysQueryError = ErrorType<Unauthorized | Forbidden>
 
 
-export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>(
+export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<Unauthorized | Forbidden>>(
   options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listPasskeys>>,
@@ -20909,7 +21367,7 @@ export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>
       >, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>(
+export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<Unauthorized | Forbidden>>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listPasskeys>>,
@@ -20919,7 +21377,7 @@ export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>
       >, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>(
+export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<Unauthorized | Forbidden>>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -20927,7 +21385,7 @@ export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>
  * @summary List Passkeys
  */
 
-export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<unknown>>(
+export function useListPasskeys<TData = Awaited<ReturnType<typeof listPasskeys>>, TError = ErrorType<Unauthorized | Forbidden>>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -20978,7 +21436,7 @@ export const getListAdminPasskeysQueryKey = (adminId: number,) => {
     }
 
 
-export const getListAdminPasskeysQueryOptions = <TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
+export const getListAdminPasskeysQueryOptions = <TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -20997,10 +21455,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListAdminPasskeysQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminPasskeys>>>
-export type ListAdminPasskeysQueryError = ErrorType<HTTPValidationError>
+export type ListAdminPasskeysQueryError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
 
-export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(
+export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
  adminId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listAdminPasskeys>>,
@@ -21010,7 +21468,7 @@ export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdmin
       >, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(
+export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
  adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listAdminPasskeys>>,
@@ -21020,7 +21478,7 @@ export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdmin
       >, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(
+export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
  adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -21028,7 +21486,7 @@ export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdmin
  * @summary List Admin Passkeys
  */
 
-export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<HTTPValidationError>>(
+export function useListAdminPasskeys<TData = Awaited<ReturnType<typeof listAdminPasskeys>>, TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>>(
  adminId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPasskeys>>, TError, TData>>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -21074,7 +21532,7 @@ export const deleteAdminPasskey = async (adminId: number,
 
 
 
-export const getDeleteAdminPasskeyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getDeleteAdminPasskeyMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminPasskey>>, TError,{adminId: number;passkeyId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminPasskey>>, TError,{adminId: number;passkeyId: number}, TContext> => {
 
@@ -21103,12 +21561,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteAdminPasskeyMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminPasskey>>>
 
-    export type DeleteAdminPasskeyMutationError = ErrorType<HTTPValidationError>
+    export type DeleteAdminPasskeyMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Delete Admin Passkey
  */
-export const useDeleteAdminPasskey = <TError = ErrorType<HTTPValidationError>,
+export const useDeleteAdminPasskey = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminPasskey>>, TError,{adminId: number;passkeyId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof deleteAdminPasskey>>,
@@ -21145,7 +21603,7 @@ export const deletePasskey = async (passkeyId: number, options?: RequestInit): P
 
 
 
-export const getDeletePasskeyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getDeletePasskeyMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePasskey>>, TError,{passkeyId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deletePasskey>>, TError,{passkeyId: number}, TContext> => {
 
@@ -21174,12 +21632,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeletePasskeyMutationResult = NonNullable<Awaited<ReturnType<typeof deletePasskey>>>
 
-    export type DeletePasskeyMutationError = ErrorType<HTTPValidationError>
+    export type DeletePasskeyMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Delete Passkey
  */
-export const useDeletePasskey = <TError = ErrorType<HTTPValidationError>,
+export const useDeletePasskey = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePasskey>>, TError,{passkeyId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof deletePasskey>>,
@@ -21216,7 +21674,7 @@ export const passkeyLoginOptions = async (passkeyOptionsRequest: PasskeyOptionsR
 
 
 
-export const getPasskeyLoginOptionsMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getPasskeyLoginOptionsMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginOptions>>, TError,{data: BodyType<PasskeyOptionsRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginOptions>>, TError,{data: BodyType<PasskeyOptionsRequest>}, TContext> => {
 
@@ -21245,12 +21703,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type PasskeyLoginOptionsMutationResult = NonNullable<Awaited<ReturnType<typeof passkeyLoginOptions>>>
     export type PasskeyLoginOptionsMutationBody = BodyType<PasskeyOptionsRequest>
-    export type PasskeyLoginOptionsMutationError = ErrorType<HTTPValidationError>
+    export type PasskeyLoginOptionsMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Passkey Login Options
  */
-export const usePasskeyLoginOptions = <TError = ErrorType<HTTPValidationError>,
+export const usePasskeyLoginOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginOptions>>, TError,{data: BodyType<PasskeyOptionsRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof passkeyLoginOptions>>,
@@ -21287,7 +21745,7 @@ export const passkeyLoginVerify = async (passkeyAuthenticationRequest: PasskeyAu
 
 
 
-export const getPasskeyLoginVerifyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getPasskeyLoginVerifyMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginVerify>>, TError,{data: BodyType<PasskeyAuthenticationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginVerify>>, TError,{data: BodyType<PasskeyAuthenticationRequest>}, TContext> => {
 
@@ -21316,12 +21774,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type PasskeyLoginVerifyMutationResult = NonNullable<Awaited<ReturnType<typeof passkeyLoginVerify>>>
     export type PasskeyLoginVerifyMutationBody = BodyType<PasskeyAuthenticationRequest>
-    export type PasskeyLoginVerifyMutationError = ErrorType<HTTPValidationError>
+    export type PasskeyLoginVerifyMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Passkey Login Verify
  */
-export const usePasskeyLoginVerify = <TError = ErrorType<HTTPValidationError>,
+export const usePasskeyLoginVerify = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyLoginVerify>>, TError,{data: BodyType<PasskeyAuthenticationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof passkeyLoginVerify>>,
@@ -21358,7 +21816,7 @@ export const passkeyRegisterOptions = async ( options?: RequestInit): Promise<un
 
 
 
-export const getPasskeyRegisterOptionsMutationOptions = <TError = ErrorType<unknown>,
+export const getPasskeyRegisterOptionsMutationOptions = <TError = ErrorType<Unauthorized | Forbidden>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterOptions>>, TError,void, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterOptions>>, TError,void, TContext> => {
 
@@ -21387,12 +21845,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type PasskeyRegisterOptionsMutationResult = NonNullable<Awaited<ReturnType<typeof passkeyRegisterOptions>>>
 
-    export type PasskeyRegisterOptionsMutationError = ErrorType<unknown>
+    export type PasskeyRegisterOptionsMutationError = ErrorType<Unauthorized | Forbidden>
 
     /**
  * @summary Passkey Register Options
  */
-export const usePasskeyRegisterOptions = <TError = ErrorType<unknown>,
+export const usePasskeyRegisterOptions = <TError = ErrorType<Unauthorized | Forbidden>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterOptions>>, TError,void, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof passkeyRegisterOptions>>,
@@ -21429,7 +21887,7 @@ export const passkeyRegisterVerify = async (passkeyRegistrationRequest: PasskeyR
 
 
 
-export const getPasskeyRegisterVerifyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getPasskeyRegisterVerifyMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterVerify>>, TError,{data: BodyType<PasskeyRegistrationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterVerify>>, TError,{data: BodyType<PasskeyRegistrationRequest>}, TContext> => {
 
@@ -21458,12 +21916,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type PasskeyRegisterVerifyMutationResult = NonNullable<Awaited<ReturnType<typeof passkeyRegisterVerify>>>
     export type PasskeyRegisterVerifyMutationBody = BodyType<PasskeyRegistrationRequest>
-    export type PasskeyRegisterVerifyMutationError = ErrorType<HTTPValidationError>
+    export type PasskeyRegisterVerifyMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Passkey Register Verify
  */
-export const usePasskeyRegisterVerify = <TError = ErrorType<HTTPValidationError>,
+export const usePasskeyRegisterVerify = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof passkeyRegisterVerify>>, TError,{data: BodyType<PasskeyRegistrationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof passkeyRegisterVerify>>,
@@ -21500,7 +21958,7 @@ export const adminPasskeyRegisterOptions = async (adminId: number, options?: Req
 
 
 
-export const getAdminPasskeyRegisterOptionsMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getAdminPasskeyRegisterOptionsMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>, TError,{adminId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>, TError,{adminId: number}, TContext> => {
 
@@ -21529,12 +21987,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AdminPasskeyRegisterOptionsMutationResult = NonNullable<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>>
 
-    export type AdminPasskeyRegisterOptionsMutationError = ErrorType<HTTPValidationError>
+    export type AdminPasskeyRegisterOptionsMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Admin Passkey Register Options
  */
-export const useAdminPasskeyRegisterOptions = <TError = ErrorType<HTTPValidationError>,
+export const useAdminPasskeyRegisterOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>, TError,{adminId: number}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof adminPasskeyRegisterOptions>>,
@@ -21572,7 +22030,7 @@ export const adminPasskeyRegisterVerify = async (adminId: number,
 
 
 
-export const getAdminPasskeyRegisterVerifyMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getAdminPasskeyRegisterVerifyMutationOptions = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>, TError,{adminId: number;data: BodyType<PasskeyRegistrationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
 ): UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>, TError,{adminId: number;data: BodyType<PasskeyRegistrationRequest>}, TContext> => {
 
@@ -21601,12 +22059,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AdminPasskeyRegisterVerifyMutationResult = NonNullable<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>>
     export type AdminPasskeyRegisterVerifyMutationBody = BodyType<PasskeyRegistrationRequest>
-    export type AdminPasskeyRegisterVerifyMutationError = ErrorType<HTTPValidationError>
+    export type AdminPasskeyRegisterVerifyMutationError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>
 
     /**
  * @summary Admin Passkey Register Verify
  */
-export const useAdminPasskeyRegisterVerify = <TError = ErrorType<HTTPValidationError>,
+export const useAdminPasskeyRegisterVerify = <TError = ErrorType<Unauthorized | Forbidden | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>, TError,{adminId: number;data: BodyType<PasskeyRegistrationRequest>}, TContext>, request?: SecondParameter<typeof orvalFetcher>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof adminPasskeyRegisterVerify>>,

@@ -278,7 +278,7 @@ export default function UpdateCoreDialog({ node, isOpen, onOpenChange }: UpdateC
           <LoaderButton
             className="!m-0"
             onClick={handleUpdate}
-            disabled={updateCoreMutation.isPending || isLoadingReleases || (versionMode === 'list' && !latestVersion) || (versionMode === 'custom' && (!customVersion.trim() || !!customVersionError))}
+            disabled={updateCoreMutation.isPending || isLoadingReleases || (versionMode === 'list' && selectedVersion === 'latest' && !latestVersion) || (versionMode === 'custom' && (!customVersion.trim() || !!customVersionError))}
             isLoading={updateCoreMutation.isPending}
             loadingText={t('nodeModal.updating', { defaultValue: 'Updating...' })}
           >

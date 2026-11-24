@@ -6,12 +6,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Activity, CircleFadingArrowUp, Loader2, Map as MapIcon, MoreVertical, Package, Pencil, Power, PowerOff, RefreshCcw, RotateCcw, Trash2, WifiSync } from 'lucide-react'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
-import { CoresSimpleResponse, NodeResponse, useReconnectNode, useRemoveNode, useResetNodeUsage, useSyncNode, useUpdateNode } from '@/service/api'
+import { CoresSimpleResponse, NodeResponse, useHardResetNode, useReconnectNode, useRemoveNode, useResetNodeUsage, useSyncNode, useUpdateNode } from '@/service/api'
 import useDirDetection from '@/hooks/use-dir-detection'
 import UserOnlineStatsDialog from '@/features/users/dialogs/user-online-stats-modal'
 import UpdateCoreDialog from '@/features/nodes/dialogs/update-core-modal'
 import UpdateGeofilesDialog from '@/features/nodes/dialogs/update-geofiles-modal'
 import { translateHtml } from '@/utils/html-translation'
+import { isXrayCoreType } from '@/features/core-editor/kit/core-kind'
 
 interface NodeActionsMenuProps {
   node: NodeResponse
@@ -30,6 +31,7 @@ interface NodeActionsMenuProps {
 
 type NodeActionsMenuState = {
   isDeleteDialogOpen: boolean
+  isHardResetDialogOpen: boolean
   isResetUsageDialogOpen: boolean
   showOnlineStats: boolean
   showUpdateCoreDialog: boolean
@@ -47,6 +49,7 @@ const DIALOG_EXIT_ANIMATION_MS = 220
 
 const createDefaultNodeActionsMenuState = (): NodeActionsMenuState => ({
   isDeleteDialogOpen: false,
+  isHardResetDialogOpen: false,
   isResetUsageDialogOpen: false,
   showOnlineStats: false,
   showUpdateCoreDialog: false,
@@ -66,7 +69,7 @@ const ensureNodeActionsMenuState = (node: NodeResponse): NodeActionsMenuState =>
 }
 
 const hasOpenNodeDialog = (state: NodeActionsMenuState) =>
-  state.isDeleteDialogOpen || state.isResetUsageDialogOpen || state.showOnlineStats || state.showUpdateCoreDialog || state.showUpdateGeofilesDialog
+  state.isHardResetDialogOpen || state.isDeleteDialogOpen || state.isResetUsageDialogOpen || state.showOnlineStats || state.showUpdateCoreDialog || state.showUpdateGeofilesDialog
 
 const notifyNodeActionsGlobalListeners = () => {
   nodeActionsGlobalStateVersion += 1
@@ -228,6 +231,8 @@ export default function NodeActionsMenu({
 }: NodeActionsMenuProps) {
   const { t } = useTranslation()
   const [syncing, setSyncing] = useState(false)
+  const [hardResetting, setHardResetting] = useState(false)
+  const hardResetNodeMutation = useHardResetNode()
   const [reconnecting, setReconnecting] = useState(false)
   const [resettingUsage, setResettingUsage] = useState(false)
   const [updatingNode, setUpdatingNode] = useState(false)
@@ -251,8 +256,9 @@ export default function NodeActionsMenu({
     [node, node.id],
   )
 
-  const { isDeleteDialogOpen, isResetUsageDialogOpen, showOnlineStats, showUpdateCoreDialog, showUpdateGeofilesDialog } = menuState
+  const { isHardResetDialogOpen, isDeleteDialogOpen, isResetUsageDialogOpen, showOnlineStats, showUpdateCoreDialog, showUpdateGeofilesDialog } = menuState
 
+  const setHardResetDialogOpen = useCallback((value: boolean) => setMenuState({ isHardResetDialogOpen: value }), [setMenuState])
   const setDeleteDialogOpen = useCallback((value: boolean) => setMenuState({ isDeleteDialogOpen: value }), [setMenuState])
   const setResetUsageDialogOpen = useCallback((value: boolean) => setMenuState({ isResetUsageDialogOpen: value }), [setMenuState])
   const setShowOnlineStats = useCallback((value: boolean) => setMenuState({ showOnlineStats: value }), [setMenuState])
@@ -264,11 +270,12 @@ export default function NodeActionsMenu({
     syncNodeSnapshot(node)
   }, [node])
 
-  const isWireGuard = coresData?.cores?.find(core => core.id === node.core_config_id)?.type === 'wg'
+  // Core and geofile updates are Xray-only; Update Node stays for every core (the node image carries telemt).
+  const isXrayCore = isXrayCoreType(coresData?.cores?.find(core => core.id === node.core_config_id)?.type)
   const hasRowActions = canUpdate || canDelete || canReconnect || canUpdateCore || canReadStats
   const primaryActionCount = canUpdate ? 2 : 0
-  const secondaryActionCount = (canReadStats ? 1 : 0) + (canUpdate ? 2 : 0) + (canReconnect ? 1 : 0)
-  const coreActionCount = (canUpdateCore && !isWireGuard ? 2 : 0) + (canUpdateCore ? 1 : 0)
+  const secondaryActionCount = (canReadStats ? 1 : 0) + (canUpdate ? 2 : 0) + (canReconnect ? 2 : 0)
+  const coreActionCount = (canUpdateCore && isXrayCore ? 2 : 0) + (canUpdateCore ? 1 : 0)
   const destructiveActionCount = canDelete ? 1 : 0
 
   const handleDeleteClick = (event: Event) => {
@@ -346,6 +353,24 @@ export default function NodeActionsMenu({
       )
     } finally {
       setReconnecting(false)
+    }
+  }
+
+  const handleHardReset = async () => {
+    if (!canReconnect || hardResetting) return
+
+    setHardResetting(true)
+    try {
+      await hardResetNodeMutation.mutateAsync({ nodeId: node.id })
+      toast.success(t('nodeModal.hardResetSuccess'))
+      setHardResetDialogOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
+      queryClient.invalidateQueries({ queryKey: [`/api/node/${node.id}`] })
+    } catch (error: any) {
+      toast.error(t('nodeModal.hardResetFailed', { message: error?.data?.detail || error?.message || 'Unknown error' }))
+    } finally {
+      setHardResetting(false)
     }
   }
 
@@ -442,7 +467,7 @@ export default function NodeActionsMenu({
                     e.stopPropagation()
                     setShowOnlineStats(true)
                   }}
-                  disabled={syncing || reconnecting || resettingUsage || updatingNode}
+                  disabled={hardResetting || syncing || reconnecting || resettingUsage || updatingNode}
                 >
                   <Activity className="mr-2 h-4 w-4 shrink-0" />
                   <span className="min-w-0 truncate">{t('nodeModal.onlineStats.button', { defaultValue: 'Stats' })}</span>
@@ -455,7 +480,7 @@ export default function NodeActionsMenu({
                       e.stopPropagation()
                       handleSync()
                     }}
-                    disabled={syncing || reconnecting || resettingUsage || updatingNode}
+                    disabled={hardResetting || syncing || reconnecting || resettingUsage || updatingNode}
                   >
                     {syncing ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4 shrink-0" />}
                     <span className="min-w-0 truncate">{syncing ? t('nodeModal.syncing') : t('nodeModal.sync')}</span>
@@ -465,7 +490,7 @@ export default function NodeActionsMenu({
                       e.stopPropagation()
                       handleResetUsage()
                     }}
-                    disabled={resettingUsage || syncing || reconnecting}
+                    disabled={hardResetting || resettingUsage || syncing || reconnecting}
                   >
                     <RefreshCcw className="mr-2 h-4 w-4 shrink-0" />
                     <span className="min-w-0 truncate">{t('nodeModal.resetUsage', { defaultValue: 'Reset' })}</span>
@@ -478,21 +503,33 @@ export default function NodeActionsMenu({
                     e.stopPropagation()
                     handleReconnect()
                   }}
-                  disabled={reconnecting || syncing || resettingUsage}
+                  disabled={hardResetting || updatingNode || reconnecting || syncing || resettingUsage}
                 >
                   {reconnecting ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <WifiSync className="mr-2 h-4 w-4 shrink-0" />}
                   <span className="min-w-0 truncate">{reconnecting ? t('nodeModal.reconnecting') : t('nodeModal.reconnect')}</span>
                 </DropdownMenuItem>
               )}
+              {canReconnect && (
+                <DropdownMenuItem
+                  onSelect={e => {
+                    e.stopPropagation()
+                    setHardResetDialogOpen(true)
+                  }}
+                  disabled={hardResetting || syncing || reconnecting || resettingUsage || updatingNode}
+                >
+                  {hardResetting ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <Power className="mr-2 h-4 w-4 shrink-0" />}
+                  <span className="min-w-0 truncate">{t('nodeModal.hardReset')}</span>
+                </DropdownMenuItem>
+              )}
               {secondaryActionCount > 0 && coreActionCount > 0 && <DropdownMenuSeparator />}
-              {canUpdateCore && !isWireGuard && (
+              {canUpdateCore && isXrayCore && (
                 <>
                   <DropdownMenuItem
                     onSelect={e => {
                       e.stopPropagation()
                       setShowUpdateCoreDialog(true)
                     }}
-                    disabled={syncing || reconnecting || resettingUsage || updatingNode}
+                    disabled={hardResetting || syncing || reconnecting || resettingUsage || updatingNode}
                   >
                     <Package className="mr-2 h-4 w-4 shrink-0" />
                     <span className="min-w-0 truncate">{t('nodeModal.updateCore', { defaultValue: 'Update Core' })}</span>
@@ -502,7 +539,7 @@ export default function NodeActionsMenu({
                       e.stopPropagation()
                       setShowUpdateGeofilesDialog(true)
                     }}
-                    disabled={syncing || reconnecting || resettingUsage || updatingNode}
+                    disabled={hardResetting || syncing || reconnecting || resettingUsage || updatingNode}
                   >
                     <MapIcon className="mr-2 h-4 w-4 shrink-0" />
                     <span className="min-w-0 truncate">{t('nodeModal.updateGeofiles', { defaultValue: 'Update Geofiles' })}</span>
@@ -515,7 +552,7 @@ export default function NodeActionsMenu({
                     e.stopPropagation()
                     handleUpdateNode()
                   }}
-                  disabled={syncing || reconnecting || resettingUsage || updatingNode}
+                  disabled={hardResetting || syncing || reconnecting || resettingUsage || updatingNode}
                 >
                   {updatingNode ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <CircleFadingArrowUp className="mr-2 h-4 w-4 shrink-0" />}
                   <span className="min-w-0 truncate">
@@ -537,6 +574,30 @@ export default function NodeActionsMenu({
 
       {isModalHost && (
         <div className="contents" onClick={e => e.stopPropagation()}>
+          {canReconnect && (
+            <AlertDialog open={isHardResetDialogOpen} onOpenChange={value => !hardResetting && setHardResetDialogOpen(value)}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t('nodeModal.hardReset')}</AlertDialogTitle>
+                  <AlertDialogDescription>{t('nodeModal.hardResetPrompt', { name: node.name })}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={hardResetting}>{t('cancel')}</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    disabled={hardResetting}
+                    onClick={event => {
+                      event.preventDefault()
+                      handleHardReset()
+                    }}
+                  >
+                    {hardResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {t(hardResetting ? 'nodeModal.hardResetting' : 'nodeModal.hardReset')}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           {canDelete && <DeleteAlertDialog node={node} isOpen={isDeleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleConfirmDelete} />}
           {canUpdate && <ResetUsageAlertDialog node={node} isOpen={isResetUsageDialogOpen} onClose={() => setResetUsageDialogOpen(false)} onConfirm={confirmResetUsage} isLoading={resettingUsage} />}
           {canReadStats && <UserOnlineStatsDialog isOpen={showOnlineStats} onOpenChange={setShowOnlineStats} nodeId={node.id} nodeName={node.name} />}

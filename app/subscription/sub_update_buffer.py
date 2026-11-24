@@ -32,6 +32,7 @@ _pending: list[dict[str, Any]] = []
 _lock = asyncio.Lock()
 _drain_lock = asyncio.Lock()
 _flush_task: asyncio.Task | None = None
+_background_flushes: set[asyncio.Task] = set()
 
 
 def _sanitize_record(user_id: int, user_agent: str, ip: str | None, hwid: str | None) -> dict[str, Any]:
@@ -72,7 +73,15 @@ async def queue_user_sub_update(user_id: int, user_agent: str, ip: str | None = 
     if dropped:
         logger.warning("Dropped %s buffered subscription updates; buffer full", dropped)
     if should_flush:
-        asyncio.create_task(flush_user_sub_updates(), name="sub_update_flush")
+        task = asyncio.create_task(flush_user_sub_updates(), name="sub_update_flush")
+        _background_flushes.add(task)
+        task.add_done_callback(_background_flush_done)
+
+
+def _background_flush_done(task: asyncio.Task) -> None:
+    _background_flushes.discard(task)
+    if not task.cancelled():
+        task.exception()
 
 
 async def flush_user_sub_updates() -> int:
@@ -85,6 +94,7 @@ async def flush_user_sub_updates() -> int:
                     return written
                 batch = _pending[:FLUSH_BATCH_SIZE]
                 del _pending[:FLUSH_BATCH_SIZE]
+            committed = False
             try:
                 async with GetDB() as db:
                     # Users can be deleted after their subscription request was queued.
@@ -103,15 +113,21 @@ async def flush_user_sub_updates() -> int:
                     if live_records:
                         await db.execute(insert(UserSubscriptionUpdate.__table__), live_records)
                     await db.commit()
+                    committed = True
                 written += len(live_records)
-            except Exception:
-                async with _lock:
-                    _pending[0:0] = batch
-                    overflow = len(_pending) - _MAX_BUFFER
-                    if overflow > 0:
-                        del _pending[:overflow]
-                logger.exception("Failed to flush %s buffered subscription updates", len(batch))
+            except BaseException as exc:
+                if not committed:
+                    _requeue(batch)
+                if isinstance(exc, Exception):
+                    logger.exception("Failed to flush %s buffered subscription updates", len(batch))
                 raise
+
+
+def _requeue(batch: list[dict[str, Any]]) -> None:
+    _pending[0:0] = batch
+    overflow = len(_pending) - _MAX_BUFFER
+    if overflow > 0:
+        del _pending[:overflow]
 
 
 async def _flush_loop() -> None:

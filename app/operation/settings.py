@@ -1,5 +1,6 @@
 import asyncio
 
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.crud.settings import get_settings, modify_settings
@@ -10,6 +11,7 @@ from app.nats.router import router
 from app.notification.client import define_client
 from app.settings import refresh_caches
 from app.telegram import startup_telegram_bot
+from app.utils.single_flight_cache import run_shielded
 
 from . import BaseOperation
 
@@ -24,6 +26,12 @@ class SettingsOperation(BaseOperation):
         if old_settings.notification_settings.proxy_url != new_settings.notification_settings.proxy_url:
             await define_client()
 
+    @staticmethod
+    async def _sync_settings_cache() -> None:
+        await refresh_caches()
+        # Publish settings update via NATS (all workers will refresh their caches)
+        await router.publish(MessageTopic.SETTING, {"action": "refresh"})
+
     async def get_settings(self, db: AsyncSession) -> Settings:
         return await get_settings(db)
 
@@ -34,16 +42,23 @@ class SettingsOperation(BaseOperation):
         if modify.general and modify.general.custom_variables is not None:
             subscription = modify.subscription or Subscription.model_validate(db_settings.subscription)
             modify.subscription = subscription.model_copy(update={"custom_variables": modify.general.custom_variables})
-            modify.general = modify.general.model_copy(update={"custom_variables": None})
+            # Rebuilt from the sent fields only, so the stored general section keeps the rest
+            modify.general = General.model_validate(
+                modify.general.model_dump(exclude_unset=True, exclude={"custom_variables"})
+            )
 
-        db_settings = await modify_settings(db, db_settings, modify)
+        try:
+            db_settings = await modify_settings(db, db_settings, modify)
+        except ValidationError as exc:
+            await self.raise_error(message=str(exc), code=400, db=db)
         new_settings = SettingsSchema.model_validate(db_settings)
         if new_settings.general and new_settings.subscription:
             new_settings.general.custom_variables = new_settings.subscription.custom_variables
 
-        await refresh_caches()
-        # Publish settings update via NATS (all workers will refresh their caches)
-        await router.publish(MessageTopic.SETTING, {"action": "refresh"})
+        # The save is committed; end the transaction db.refresh() opened so the reloads below
+        # do not wait for a second pooled connection while this request holds one.
+        await db.commit()
+        await run_shielded(self._sync_settings_cache())
         asyncio.create_task(self.reset_services(old_settings, new_settings))
 
         return new_settings

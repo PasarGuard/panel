@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from sqlalchemy import delete, func, select, update
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import ClientTemplate, ProxyHost
@@ -35,19 +35,17 @@ def _build_client_template_simple_sort_clause(sort_option: ClientTemplateSimpleS
 
 
 async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
-    try:
-        rows = (
-            await db.execute(
-                select(
-                    ClientTemplate.id,
-                    ClientTemplate.template_type,
-                    ClientTemplate.content,
-                    ClientTemplate.is_default,
-                ).order_by(ClientTemplate.template_type.asc(), ClientTemplate.id.asc())
-            )
-        ).all()
-    except SQLAlchemyError:
-        return {}
+    # Errors propagate: the cached caller must not store a failed read (pool timeout) as "no templates".
+    rows = (
+        await db.execute(
+            select(
+                ClientTemplate.id,
+                ClientTemplate.template_type,
+                ClientTemplate.content,
+                ClientTemplate.is_default,
+            ).order_by(ClientTemplate.template_type.asc(), ClientTemplate.id.asc())
+        )
+    ).all()
 
     by_type: dict[str, list[tuple[int, str, bool]]] = defaultdict(list)
     for row in rows:

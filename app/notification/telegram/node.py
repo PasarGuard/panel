@@ -14,8 +14,8 @@ ENTITY = "node"
 
 
 async def create_node(node: NodeResponse, by: str):
-    name, by = escape_tg_html((node.name, by))
-    data = messages.CREATE_NODE.format(id=node.id, name=name, address=node.address, port=node.port, by=by)
+    name, address, by = escape_tg_html((node.name, node.address, by))
+    data = messages.CREATE_NODE.format(id=node.id, name=name, address=address, port=node.port, by=by)
     settings: NotificationSettings = await notification_settings()
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)
@@ -23,8 +23,8 @@ async def create_node(node: NodeResponse, by: str):
 
 
 async def modify_node(node: NodeResponse, by: str):
-    name, by = escape_tg_html((node.name, by))
-    data = messages.MODIFY_NODE.format(id=node.id, name=name, address=node.address, port=node.port, by=by)
+    name, address, by = escape_tg_html((node.name, node.address, by))
+    data = messages.MODIFY_NODE.format(id=node.id, name=name, address=address, port=node.port, by=by)
     settings: NotificationSettings = await notification_settings()
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)
@@ -41,9 +41,8 @@ async def remove_node(node: NodeResponse, by: str):
 
 
 async def connect_node(node: NodeNotification):
-    data = messages.CONNECT_NODE.format(
-        name=escape(node.name), node_version=node.node_version, core_version=node.core_version, id=node.id
-    )
+    name, node_version, core_version = escape_tg_html((node.name, str(node.node_version), str(node.core_version)))
+    data = messages.CONNECT_NODE.format(name=name, node_version=node_version, core_version=core_version, id=node.id)
     settings: NotificationSettings = await notification_settings()
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)
@@ -51,9 +50,8 @@ async def connect_node(node: NodeNotification):
 
 
 async def recovered_node(node: NodeNotification):
-    data = messages.RECOVERED_NODE.format(
-        name=escape(node.name), node_version=node.node_version, core_version=node.core_version, id=node.id
-    )
+    name, node_version, core_version = escape_tg_html((node.name, str(node.node_version), str(node.core_version)))
+    data = messages.RECOVERED_NODE.format(name=name, node_version=node_version, core_version=core_version, id=node.id)
     settings: NotificationSettings = await notification_settings()
     if settings.notify_telegram:
         chat_id, topic_id = get_telegram_channel(settings, ENTITY)

@@ -26,6 +26,7 @@ from .user import (
     user_data_reset_by_next,
     user_status_change,
     user_subscription_revoked,
+    users_digest,
 )
 from .user_template import create_user_template, modify_user_template, remove_user_template
 
@@ -70,4 +71,5 @@ __all__ = [
     "user_data_reset_by_next",
     "user_status_change",
     "user_subscription_revoked",
+    "users_digest",
 ]

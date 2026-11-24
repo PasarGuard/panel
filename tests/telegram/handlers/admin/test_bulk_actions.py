@@ -224,3 +224,25 @@ async def test_modify_data_limit_done(monkeypatch, admin, fake_message, fake_cal
     await bulk_h.modify_data_limit_done(event, db=object(), admin=admin, callback_data=callback_data)
 
     event.message.edit_text.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_perform_bulk_creation_escapes_the_error(monkeypatch, fake_state, admin, fake_message):
+    event = type(fake_message)(text="run")
+    monkeypatch.setattr(
+        bulk_h.user_operations,
+        "bulk_create_users_from_template",
+        AsyncMock(side_effect=ValueError("Template <VIP> is disabled")),
+    )
+
+    await bulk_h._perform_bulk_creation(
+        event,
+        db=object(),
+        admin=admin,
+        state=fake_state,
+        template_id=1,
+        count=2,
+        strategy=UsernameGenerationStrategy.random,
+    )
+
+    event.answer.assert_awaited_once_with("❌ Template &lt;VIP&gt; is disabled")

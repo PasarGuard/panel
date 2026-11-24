@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime as dt, timedelta as td
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import event, inspect as sa_inspect
+from sqlalchemy import event, inspect as sa_inspect, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -19,13 +20,32 @@ from app.db.crud.user import (
     start_users_expire,
     update_users_status,
 )
-from app.db.models import Admin, AdminRole, Group, User, UserStatus, UserUsageResetLogs, users_groups_association
+from app.db.models import (
+    Admin,
+    AdminRole,
+    Group,
+    NextPlan,
+    User,
+    UserStatus,
+    UserUsageResetLogs,
+    users_groups_association,
+)
 from app.jobs import review_users
-from app.models.settings import HWIDSettings
+from app.models.settings import General, HWIDSettings, OnHoldTimeoutAction
 from app.models.user import UserNotificationResponse
-from app.operation import OperatorType
+from app.operation import OperatorType, user as user_module
 from app.operation.subscription import SubscriptionOperation
 from app.operation.user import UserOperation
+
+
+@pytest.fixture(autouse=True)
+def _default_general_settings(monkeypatch):
+    # The jobs read panel settings; without this they would hit the app database (empty in unit tests)
+    async def general_settings():
+        return General()
+
+    for module in (review_users, user_module):
+        monkeypatch.setattr(module, "general_settings", general_settings)
 
 
 def _user(user_id: int, *, next_plan=None) -> SimpleNamespace:
@@ -43,7 +63,7 @@ async def test_apply_status_changes_syncs_plain_users_in_one_call():
         patch("app.jobs.review_users.update_users_status", new_callable=AsyncMock) as update_status,
         patch("app.jobs.review_users.sync_users", new_callable=AsyncMock) as sync,
         patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
-        patch("app.jobs.review_users.notification.user_status_change", new_callable=AsyncMock) as status_change,
+        patch("app.jobs.review_users.notification.bulk_user_status_change", new_callable=AsyncMock) as status_change,
         patch("app.jobs.review_users.reset_user_by_next", new_callable=AsyncMock) as reset_next,
     ):
         await review_users.apply_status_changes(AsyncMock(), users, UserStatus.expired)
@@ -52,7 +72,8 @@ async def test_apply_status_changes_syncs_plain_users_in_one_call():
     assert update_status.await_args.args[1] == users
     sync.assert_awaited_once_with(users)
     reset_next.assert_not_called()
-    assert status_change.call_count == 3
+    status_change.assert_called_once()
+    assert [user.id for user in status_change.call_args.args[0]] == [1, 2, 3]
 
 
 @pytest.mark.asyncio
@@ -70,8 +91,10 @@ async def test_apply_status_changes_resets_next_plan_users_separately():
         patch("app.jobs.review_users.update_users_status", new_callable=AsyncMock) as update_status,
         patch("app.jobs.review_users.sync_users", new_callable=AsyncMock) as sync,
         patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
-        patch("app.jobs.review_users.notification.user_status_change", new_callable=AsyncMock),
-        patch("app.jobs.review_users.notification.user_data_reset_by_next", new_callable=AsyncMock) as reset_notify,
+        patch("app.jobs.review_users.notification.bulk_user_status_change", new_callable=AsyncMock),
+        patch(
+            "app.jobs.review_users.notification.bulk_user_data_reset_by_next", new_callable=AsyncMock
+        ) as reset_notify,
         patch(
             "app.jobs.review_users.reset_user_by_next", new_callable=AsyncMock, return_value=reset_user
         ) as reset_next,
@@ -83,6 +106,7 @@ async def test_apply_status_changes_resets_next_plan_users_separately():
     reset_next.assert_awaited_once()
     assert [call.args[0] for call in sync.await_args_list] == [[plain], [reset_user]]
     reset_notify.assert_called_once()
+    assert [user.id for user in reset_notify.call_args.args[0]] == [2]
 
 
 @pytest.mark.asyncio
@@ -97,7 +121,7 @@ async def test_apply_status_changes_skips_status_update_when_already_active():
             new_callable=AsyncMock,
             return_value=SimpleNamespace(id=1, username="u1"),
         ),
-        patch("app.jobs.review_users.notification.user_status_change", new_callable=AsyncMock),
+        patch("app.jobs.review_users.notification.bulk_user_status_change", new_callable=AsyncMock),
     ):
         await review_users.apply_status_changes(AsyncMock(), users, UserStatus.active)
 
@@ -408,3 +432,170 @@ async def test_existing_hwid_registers_when_stale():
         await op.validate_and_register_hwid(AsyncMock(), 1, None, None, "device-1", "iOS", "16", "iPhone")
 
     register.assert_awaited_once()
+
+
+async def _seed_on_hold_pair(db_session) -> tuple[int, int]:
+    """One on-hold user that connected (timeout still days away) and one whose timeout passed unused."""
+    now = dt.now(UTC)
+    connected = User(
+        username="hold-connected",
+        status=UserStatus.on_hold,
+        on_hold_expire_duration=30 * 86400,
+        on_hold_timeout=now + td(days=7),
+    )
+    timed_out = User(
+        username="hold-timed-out",
+        status=UserStatus.on_hold,
+        on_hold_expire_duration=30 * 86400,
+        on_hold_timeout=now - td(minutes=1),
+    )
+    db_session.add_all([connected, timed_out])
+    await db_session.flush()
+    connected.edit_at = now - td(minutes=10)
+    connected.online_at = now - td(minutes=1)
+    await db_session.commit()
+    return connected.id, timed_out.id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", [OnHoldTimeoutAction.disable, OnHoldTimeoutAction.delete])
+async def test_on_hold_timeout_action_only_hits_users_whose_timeout_expired(db_session, action):
+    connected_id, timed_out_id = await _seed_on_hold_pair(db_session)
+
+    @asynccontextmanager
+    async def _get_db():
+        yield db_session
+
+    async def _validate(db_user, include_subscription_url=True):
+        return SimpleNamespace(id=db_user.id, username=db_user.username)
+
+    with (
+        patch.object(review_users, "GetDB", _get_db),
+        patch.object(
+            review_users,
+            "general_settings",
+            AsyncMock(return_value=SimpleNamespace(on_hold_timeout_action=action)),
+        ),
+        patch.object(review_users, "sync_users", AsyncMock()),
+        patch.object(review_users, "sync_remove_user_awaited", AsyncMock()) as sync_remove,
+        # The post-commit removal re-queue (if present) would serialize the stub users below.
+        patch.object(review_users, "sync_remove_user", AsyncMock(), create=True),
+        patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
+        patch("app.jobs.review_users.notification.bulk_user_status_change", AsyncMock()),
+        patch("app.jobs.review_users.notification.bulk_remove_users", AsyncMock()),
+    ):
+        await review_users.on_hold_to_active_users_job()
+
+    db_session.expire_all()
+    rows = {user.id: user for user in (await db_session.execute(select(User))).scalars()}
+
+    # A user who started using the service is activated, whatever the timeout action is.
+    assert connected_id in rows
+    assert rows[connected_id].status == UserStatus.active
+    assert rows[connected_id].expire is not None
+    assert rows[connected_id].on_hold_timeout is None
+
+    if action == OnHoldTimeoutAction.delete:
+        assert timed_out_id not in rows
+        assert [call.args[0].id for call in sync_remove.await_args_list] == [timed_out_id]
+    else:
+        assert rows[timed_out_id].status == UserStatus.disabled
+        sync_remove.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_user_put_back_on_hold_by_activate_all_gets_the_timeout_action(db_session):
+    from app.db.crud.bulk import activate_all_disabled_users
+
+    now = dt.now(UTC)
+    role = AdminRole(name="role-re-hold", is_owner=False, permissions={}, limits={}, features={}, access={})
+    db_session.add(role)
+    await db_session.flush()
+    admin = Admin(username="re-hold-owner", hashed_password="x", role_id=role.id)
+    db_session.add(admin)
+    await db_session.flush()
+    # It connected while on hold and was disabled before the review activated it; its timeout has passed since.
+    user = User(
+        username="re-held",
+        status=UserStatus.disabled,
+        admin_id=admin.id,
+        on_hold_expire_duration=30 * 86400,
+        on_hold_timeout=now - td(minutes=1),
+    )
+    db_session.add(user)
+    await db_session.flush()
+    user.created_at = now - td(days=3)
+    seen_at = now - td(days=2)
+    user.online_at = seen_at
+    await db_session.commit()
+    user_id = user.id
+
+    await activate_all_disabled_users(db_session, admin)
+
+    @asynccontextmanager
+    async def _get_db():
+        yield db_session
+
+    async def _validate(db_user, include_subscription_url=True):
+        return SimpleNamespace(id=db_user.id, username=db_user.username)
+
+    with (
+        patch.object(review_users, "GetDB", _get_db),
+        patch.object(
+            review_users,
+            "general_settings",
+            AsyncMock(return_value=SimpleNamespace(on_hold_timeout_action=OnHoldTimeoutAction.disable)),
+        ),
+        patch.object(review_users, "sync_users", AsyncMock()),
+        patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
+        patch("app.jobs.review_users.notification.bulk_user_status_change", AsyncMock()),
+    ):
+        await review_users.on_hold_to_active_users_job()
+
+    db_session.expire_all()
+    stored = (await db_session.execute(select(User).where(User.id == user_id))).scalar_one()
+    # Traffic from before it was put back on hold does not start its period.
+    assert stored.status == UserStatus.disabled
+    assert stored.expire is None
+    # The last-online time is kept (the inactive-user cleanup reads it).
+    assert stored.online_at.replace(tzinfo=UTC) == seen_at
+
+
+@pytest.mark.asyncio
+async def test_bad_next_plan_does_not_stall_other_next_plan_users(db_session):
+    # Rows stored before next_plan expire was bounded (SQLite keeps any int) make reset_user_by_next overflow.
+    ids = {}
+    for name, expire in (("plan-before", 86400), ("plan-bad", 10**13), ("plan-after", 86400)):
+        user_id, *_ = await _seed_review_user(
+            db_session, username=name, status=UserStatus.active, used_traffic=200, data_limit=100
+        )
+        db_session.add(NextPlan(user_id=user_id, user_template_id=None, data_limit=1000, expire=expire))
+        ids[name] = user_id
+    await db_session.commit()
+
+    @asynccontextmanager
+    async def _get_db():
+        yield db_session
+
+    async def _validate(db_user, include_subscription_url=True):
+        # Touches the loaded relations, so a user left expired by a rollback fails here.
+        return UserNotificationResponse.model_validate(db_user)
+
+    with (
+        patch.object(review_users, "GetDB", _get_db),
+        patch.object(review_users, "sync_users", AsyncMock()) as sync,
+        patch.object(review_users.user_operator, "validate_user", side_effect=_validate),
+        patch("app.jobs.review_users.notification.bulk_user_data_reset_by_next", AsyncMock()),
+        patch("app.jobs.review_users.notification.bulk_user_status_change", AsyncMock()),
+    ):
+        await review_users.limit_users_job()
+
+    assert sorted(user.id for user in sync.await_args.args[0]) == [ids["plan-before"], ids["plan-after"]]
+    db_session.expire_all()
+    rows = {user.username: user for user in (await db_session.execute(select(User))).scalars()}
+    assert rows["plan-before"].data_limit == 1000
+    assert rows["plan-after"].data_limit == 1000
+    # The bad row is skipped untouched (and retried on the next run), not half-applied.
+    assert rows["plan-bad"].data_limit == 100
+    assert rows["plan-bad"].used_traffic == 200
+    assert rows["plan-bad"].status == UserStatus.active

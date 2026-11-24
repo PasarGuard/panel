@@ -1,3 +1,4 @@
+from html import escape
 from io import BytesIO
 from urllib.parse import urlparse
 
@@ -57,7 +58,7 @@ async def get_user(event: Message, db: AsyncSession):
 
     if configs:
         if len(configs) < 4085:  # Telegram message limit (including formatting)
-            await event.answer(f"<pre>{configs}</pre>")
+            await event.answer(f"<pre>{escape(configs)}</pre>")
         else:
             file = BytesIO(configs.encode("utf-8"))
             await event.answer_document(

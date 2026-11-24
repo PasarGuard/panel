@@ -37,7 +37,7 @@ export function StickySaveBar({ dirty, canSave = dirty, saveLabel, onSave, onDis
             <div className="flex items-center gap-2 pr-2">
               <Checkbox id="restart-nodes" checked={restartNodes} onCheckedChange={v => onRestartChange(v === true)} />
               <Label htmlFor="restart-nodes" className="text-sm font-normal">
-                {t('coreConfigModal.restartNodes', { defaultValue: 'Restart nodes' })}
+                {t('coreConfigModal.restartNodes', { defaultValue: 'Sync nodes' })}
               </Label>
             </div>
           )}

@@ -60,3 +60,13 @@ export function gbToBytes(gb: string | number | null | undefined): number | unde
   if (gb === undefined || gb === null || gb === '') return undefined
   return Math.round(Number(gb) * 1024 * 1024 * 1024)
 }
+
+/**
+ * Converts a form data limit (GB) back to bytes on submit.
+ * The form shows a stored limit rounded by {@link bytesToFormGigabytes}, so while the value still equals that rounded
+ * prefill the stored bytes are kept; otherwise saving an unrelated change would rewrite the limit (1500000000 -> 1503238554).
+ */
+export function formGigabytesToBytes(gb: string | number | null | undefined, storedBytes?: number | null): number | undefined {
+  if (storedBytes && Number(gb) === bytesToFormGigabytes(storedBytes)) return Number(storedBytes)
+  return gbToBytes(gb)
+}

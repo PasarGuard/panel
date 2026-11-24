@@ -19,6 +19,7 @@ import ChartBrush from '@/components/charts/chart-brush'
 import DenseChartAreaHint from '@/components/charts/dense-chart-area-hint'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { useChartViewType } from '@/hooks/use-chart-view-type'
+import { useChartPeriodLimit } from '@/hooks/use-chart-period-limit'
 import { useTheme } from '@/app/providers/theme-provider'
 import NodeStatsModal from '@/features/nodes/dialogs/node-stats-modal'
 import { hasScopeAll } from '@/utils/rbac'
@@ -33,6 +34,7 @@ import {
   formatPeriodLabelForPeriod,
   getChartXAxisInterval,
   resolvePeriodOverride,
+  USAGE_RECORD_BUCKET_MINUTES,
 } from '@/utils/chart-period-utils'
 import { getChartBrushWindow, getChartRenderFlags } from '@/utils/chart-performance'
 
@@ -226,9 +228,12 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
   }, [open])
 
   const [period, setPeriod] = useState<TrafficShortcutKey>('1w')
-  const [periodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
+  const [selectedPeriodOverride, setPeriodOverride] = useState<ChartPeriodOverride>(CHART_PERIOD_OVERRIDE_AUTO)
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
   const [showCustomRange, setShowCustomRange] = useState(false)
+  const { allowedPeriods, periodOverride } = useChartPeriodLimit({ shortcut: period, customRange: showCustomRange ? customRange : undefined }, selectedPeriodOverride, setPeriodOverride, {
+    recordBucketMinutes: USAGE_RECORD_BUCKET_MINUTES,
+  })
   const { t, i18n } = useTranslation()
   const { width } = useWindowSize()
   const [selectedNodeId, setSelectedNodeId] = useState<number | undefined>(undefined)
@@ -619,7 +624,7 @@ const UsageModal = ({ open, onClose, userId }: UsageModalProps) => {
                   className="w-full sm:w-auto"
                 />
                 <div className="flex w-full items-center justify-center gap-2">
-                  <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} />
+                  <PeriodSelector value={periodOverride} onValueChange={setPeriodOverride} allowedPeriods={allowedPeriods} />
                   <Button
                     variant="ghost"
                     size="icon"

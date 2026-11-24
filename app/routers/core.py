@@ -5,6 +5,7 @@ from app.db import AsyncSession, get_db
 from app.db.crud.node import get_nodes
 from app.db.models import Node, NodeStatus
 from app.models.admin import AdminDetails
+from app.models.certificate import CertificateFingerprintRequest, CertificateFingerprintResponse
 from app.models.core import (
     BulkCoreSelection,
     CoreCreate,
@@ -67,6 +68,19 @@ async def scan_reality_target(
     return await core_operator.scan_reality_target(request)
 
 
+@router.post("/certificate-fingerprint", response_model=CertificateFingerprintResponse)
+async def get_core_certificate_fingerprint(
+    request: CertificateFingerprintRequest,
+    _: AdminDetails = Depends(require_permission("cores", "read")),
+):
+    """Hash a PEM string, a panel-local certificate file, or a live TLS server's leaf certificate.
+
+    Provide exactly one source. Live probes support private node addresses and self-signed
+    certificates. A retrieved fingerprint must be verified independently before trusting it.
+    """
+    return await core_operator.certificate_fingerprint(request)
+
+
 @router.put("s/order", status_code=status.HTTP_204_NO_CONTENT)
 async def reorder_core_configs(
     payload: ReorderRequest,
@@ -94,12 +108,14 @@ async def modify_core_config(
     db: AsyncSession = Depends(get_db),
 ):
     """Update an existing core configuration."""
-    response = await core_operator.modify_core(db, core_id, modified_core, admin)
+    result = await core_operator.modify_core(db, core_id, modified_core, admin)
 
     if restart_nodes:
-        await node_operator.restart_all_node(db=db, core_id=core_id, admin=admin)
+        # Nodes apply routing and outbound edits to the running Xray, so only
+        # other edits need the Stop that forces a restart.
+        await node_operator.restart_all_node(db=db, core_id=core_id, admin=admin, stop_first=not result.live_on_nodes)
 
-    return response
+    return result.core
 
 
 @router.delete("/{core_id}", status_code=status.HTTP_204_NO_CONTENT)

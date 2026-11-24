@@ -8,7 +8,7 @@ from __future__ import annotations
 import unicodedata
 from typing import Any
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, computed_field, field_validator
 
 from app.models.host import FinalMask
 from app.models.stats import Period
@@ -78,6 +78,17 @@ class BaseTransportConfig(BaseModel):
     host: list[str] | str = Field(default_factory=list)
 
     model_config = {"validate_assignment": True}
+
+
+class MasqueTransportConfig(BaseTransportConfig):
+    """MASQUE transport settings used by Xray subscriptions."""
+
+    xmux: dict[str, Any] | None = Field(None)
+    http_headers: dict[str, str] | None = Field(
+        None,
+        validation_alias=AliasChoices("headers", "http_headers"),
+        serialization_alias="headers",
+    )
 
 
 class GRPCTransportConfig(BaseTransportConfig):
@@ -172,6 +183,8 @@ class XDriveTransportConfig(BaseTransportConfig):
     eager_window_ms: int | None = Field(None, serialization_alias="eagerWindowMs")
     hole_timeout_ms: int | None = Field(None, serialization_alias="holeTimeoutMs")
     template: dict[str, Any] | None = Field(None)
+    s3: dict[str, Any] | None = Field(None)
+    xmux: dict[str, Any] | None = Field(None)
 
 
 class KCPTransportConfig(BaseTransportConfig):
@@ -203,6 +216,14 @@ class TCPTransportConfig(BaseTransportConfig):
 
 
 # ========== Protocol-Specific Models (Only protocol fields) ==========
+
+
+class MasqueProtocolData(BaseModel):
+    """MASQUE client authentication and DNS resolver settings."""
+
+    user: str = Field("")
+    password: str = Field("")
+    remote_dns: list[str] = Field(default_factory=list, serialization_alias="remoteDNS")
 
 
 class VMESSProtocolData(BaseModel):
@@ -273,6 +294,7 @@ class SubscriptionInboundData(BaseModel):
     tls_config: TLSConfig
     transport_config: (
         GRPCTransportConfig
+        | MasqueTransportConfig
         | WebSocketTransportConfig
         | XHTTPTransportConfig
         | XDriveTransportConfig
@@ -302,6 +324,17 @@ class SubscriptionInboundData(BaseModel):
     wireguard_mtu: int | None = Field(default=None)
     wireguard_reserved: str | None = Field(default=None)
     wireguard_dns: list[str] | None = Field(default=None)
+
+    # MASQUE DNS comes from the host or its inbound, not the user.
+    masque_remote_dns: list[str] = Field(default_factory=list)
+
+    # MTProto / telemt
+    mtproto_modes: dict[str, bool] = Field(default_factory=dict)
+    mtproto_tls_domain: str = Field("")
+    mtproto_link_type: str = Field("auto")
+    mtproto_link_domains: list[str] = Field(default_factory=list)
+    mtproto_native: bool = Field(True)
+    mtproto_web_vhosts: list[dict[str, str]] = Field(default_factory=list)
 
     # Flow (from inbound, user can override)
     inbound_flow: str = Field("")

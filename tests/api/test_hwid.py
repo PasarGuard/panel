@@ -455,11 +455,11 @@ def test_raw_subscription_respects_manual_sub_hwid_gate(access_token, monkeypatc
             max_limit=0,
         )
 
-    async def fake_fetch_config(self, user, client_type):
-        return "vless://gate-check", "text/plain"
+    async def fake_fetch_page_links(self, user):
+        return ["vless://gate-check"]
 
     monkeypatch.setattr(subscription_module, "hwid_settings", gated_hwid_settings)
-    monkeypatch.setattr(subscription_module.SubscriptionOperation, "fetch_config", fake_fetch_config)
+    monkeypatch.setattr(subscription_module.SubscriptionOperation, "fetch_page_links", fake_fetch_page_links)
     user = create_user(access_token)
 
     try:
@@ -468,4 +468,29 @@ def test_raw_subscription_respects_manual_sub_hwid_gate(access_token, monkeypatc
         expected = [] if require_hwid_for_manual_sub else ["vless://gate-check"]
         assert response.json()["body"]["links"] == expected
     finally:
+        delete_user(access_token, user["username"])
+
+
+@pytest.mark.parametrize("matched_target", [None, "block"])
+def test_unsupported_client_does_not_register_hwid(access_token, monkeypatch, matched_target):
+    from app.models.settings import ConfigFormat, SubRule
+    from app.operation import subscription as subscription_module
+
+    rule = SubRule(pattern="^BlockedApp", target=ConfigFormat(matched_target)) if matched_target else None
+    monkeypatch.setattr(
+        subscription_module.SubscriptionOperation,
+        "detect_client_rule",
+        staticmethod(lambda user_agent, rules: rule),
+    )
+    user = create_user(access_token)
+
+    try:
+        response = client.get(user["subscription_url"], headers={"X-HWID": "blocked-app-device"})
+        assert response.status_code == status.HTTP_406_NOT_ACCEPTABLE
+
+        response = client.get(f"/api/user/{user['id']}/hwids", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["count"] == 0
+    finally:
+        asyncio.run(_reset_user_hwids(user["id"]))
         delete_user(access_token, user["username"])

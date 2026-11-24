@@ -1,6 +1,7 @@
 import base64
 import json
 import urllib.parse as urlparse
+from collections.abc import Iterable
 from random import choice
 from urllib.parse import quote
 
@@ -14,7 +15,6 @@ from app.models.subscription import (
     WebSocketTransportConfig,
     XHTTPTransportConfig,
 )
-from config import subscription_env_settings
 
 from . import BaseSubscription
 
@@ -60,9 +60,10 @@ class StandardLinks(BaseSubscription):
     def add_link(self, link):
         self.links.append(link)
 
+    def add_share_links(self, links: Iterable[str]):
+        self.links.extend(links)
+
     def render(self):
-        if subscription_env_settings.external_config:
-            self.links.append(subscription_env_settings.external_config)
         return "\n".join(self.links)
 
     def add(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict):
@@ -125,7 +126,7 @@ class StandardLinks(BaseSubscription):
             "uplinkChunkSize": config.uplink_chunk_size,
             "noGRPCHeader": config.no_grpc_header,
             "xmux": config.xmux,
-            "headers": config.http_headers if config.http_headers else {},
+            "headers": dict(config.http_headers) if config.http_headers else {},
             "downloadSettings": config.download_settings,
         }
 
@@ -313,9 +314,19 @@ class StandardLinks(BaseSubscription):
             getattr(inbound, "password", None),
             settings["password"],
         )
+        payload = {}
+        self._apply_finalmask(payload, "shadowsocks", inbound)
 
         encoded = base64.b64encode(f"{method}:{password}".encode()).decode()
-        return f"ss://{encoded}@{address}:{inbound.port}#{urlparse.quote(remark)}"
+        link = f"ss://{encoded}@{address}:{inbound.port}"
+        if (obfs_host := self._shadowsocks_http_obfs_host(inbound)) is not None:
+            plugin_options = ["obfs=http"]
+            if obfs_host:
+                plugin_options.append(f"obfs-host={obfs_host}")
+            plugin = ";".join(["obfs-local", *plugin_options])
+            payload["plugin"] = plugin
+            link += "?" + urlparse.urlencode(payload, quote_via=urlparse.quote)
+        return f"{link}#{urlparse.quote(remark)}"
 
     def _build_hysteria(self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict) -> str:
         """Build Hysteria link"""

@@ -2,6 +2,7 @@ import asyncio
 
 from app import notification
 from app.core.hosts import host_manager
+from app.core.manager import core_manager
 from app.db import AsyncSession
 from app.db.crud.host import (
     create_host,
@@ -48,6 +49,21 @@ class HostOperation(BaseOperation):
             return (settings.get("xhttp_settings") or {}).get("download_settings")
         return settings.xhttp_settings.download_settings if settings and settings.xhttp_settings else None
 
+    @classmethod
+    def _dependent_hosts(cls, db_hosts: list[ProxyHost], host_ids: set[int]) -> list[ProxyHost]:
+        """Return the hosts outside ``host_ids`` that use one of them as their xHTTP download host."""
+        return [host for host in db_hosts if host.id not in host_ids and cls._download_host_id(host) in host_ids]
+
+    async def check_download_hosts_unused(self, db: AsyncSession, host_ids: set[int]) -> None:
+        """Refuse to delete a download host that a remaining host still uses."""
+        if dependents := self._dependent_hosts(await get_hosts(db=db), host_ids):
+            names = ", ".join(f'"{host.remark}" (id {host.id})' for host in dependents)
+            await self.raise_error(
+                f"Host is the xHTTP download host of {names}; remove it from their download settings first",
+                409,
+                db=db,
+            )
+
     async def validate_ds_host(
         self,
         db: AsyncSession,
@@ -65,11 +81,53 @@ class HostOperation(BaseOperation):
             if self._download_host_id(ds_host):
                 await self.raise_error("download host cannot have a download host", 400, db=db)
 
+    async def validate_mtproto_host(self, db: AsyncSession, host: CreateHost) -> None:
+        """Refuse an MTProto host whose link type its core cannot serve."""
+        inbound = await core_manager.get_inbound_by_tag(host.inbound_tag) if host.inbound_tag else None
+        if not inbound or inbound.get("protocol") != "mtproto":
+            return
+
+        settings = host.transport_settings.mtproto_settings if host.transport_settings else None
+        link_type = settings.link_type if settings else "auto"
+
+        if link_type == "web":
+            vhosts = {vhost["host"].strip().lower() for vhost in inbound.get("web_vhosts") or [] if vhost.get("host")}
+            if not vhosts:
+                await self.raise_error('Link type "web" needs a WEB vhost in the core, and it has none', 400, db=db)
+            unknown = sorted(address for address in host.address if address.lower() not in vhosts)
+            if unknown or not host.address:
+                names = ", ".join(sorted(vhosts))
+                await self.raise_error(
+                    f'Link type "web" needs each address to be a WEB vhost host of the core ({names})', 400, db=db
+                )
+            return
+
+        if not inbound.get("native", True):
+            await self.raise_error(
+                f'Link type "{link_type}" needs a native listener in the core, and it only has WEB listeners',
+                400,
+                db=db,
+            )
+        if link_type == "auto":
+            return
+        if not (inbound.get("modes") or {}).get(link_type):
+            await self.raise_error(f'Link type "{link_type}" needs the "{link_type}" mode on in the core', 400, db=db)
+        if link_type == "tls" and host.sni:
+            tls_domains = inbound.get("tls_domains") or []
+            domains = {domain.lower() for domain in tls_domains}
+            if unknown := sorted(sni for sni in host.sni if sni.lower() not in domains):
+                await self.raise_error(
+                    f"SNI {', '.join(unknown)} is not a fake TLS domain of the core ({', '.join(tls_domains)})",
+                    400,
+                    db=db,
+                )
+
     async def create_host(self, db: AsyncSession, new_host: CreateHost, admin: AdminDetails) -> BaseHost:
         await self.validate_subscription_templates(db, new_host)
         await self.validate_ds_host(db, new_host)
 
         await self.check_host_inbound_tags([new_host.inbound_tag])
+        await self.validate_mtproto_host(db, new_host)
 
         db_host = await create_host(db, new_host)
 
@@ -90,6 +148,7 @@ class HostOperation(BaseOperation):
 
         if modified_host.inbound_tag:
             await self.check_host_inbound_tags([modified_host.inbound_tag])
+            await self.validate_mtproto_host(db, modified_host)
 
         db_host = await self.get_validated_host(db, host_id)
 
@@ -112,6 +171,7 @@ class HostOperation(BaseOperation):
 
     async def remove_host(self, db: AsyncSession, host_id: int, admin: AdminDetails):
         db_host = await self.get_validated_host(db, host_id)
+        await self.check_download_hosts_unused(db, {db_host.id})
         await remove_host(db, db_host)
         logger.info(f'Host "{db_host.id}" deleted by admin "{admin.username}"')
 
@@ -140,6 +200,8 @@ class HostOperation(BaseOperation):
                 if host.id not in modified_ids and self._download_host_id(host) in modified_ids:
                     await self.validate_ds_host(db, host, host.id, hosts_by_id=final_hosts)
             await self.check_host_inbound_tags(list({host.inbound_tag for host in modified_hosts if host.inbound_tag}))
+            for host in modified_hosts:
+                await self.validate_mtproto_host(db, host)
             await crud_modify_hosts(db, modified_hosts, db_hosts)
         except Exception:
             await db.rollback()
@@ -169,6 +231,7 @@ class HostOperation(BaseOperation):
             await self.raise_error(message="Host not found", code=404)
 
         host_ids = [h.id for h in db_hosts]
+        await self.check_download_hosts_unused(db, set(host_ids))
 
         # Batch delete using CRUD function
         await remove_hosts(db, host_ids)
@@ -217,7 +280,9 @@ class HostOperation(BaseOperation):
             await db.refresh(db_host)
 
         if hosts_to_update:
-            await host_manager.add_hosts(db, hosts_to_update)
+            # Hosts that use a toggled host as their download host embed it, so rebuild them too
+            dependents = self._dependent_hosts(await get_hosts(db=db), {db_host.id for db_host in hosts_to_update})
+            await host_manager.add_hosts(db, [*hosts_to_update, *dependents])
 
         for db_host in hosts_to_update:
             host = BaseHost.model_validate(db_host)

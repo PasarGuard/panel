@@ -585,3 +585,67 @@ def test_role_with_empty_group_allowlist_lists_no_groups(access_token):
         _delete_role(access_token, role["id"])
         delete_group(access_token, group["id"])
         delete_core(access_token, core["id"])
+
+
+@pytest.mark.parametrize(
+    ("kind", "bulk"),
+    [
+        pytest.param("group", False, id="group"),
+        pytest.param("group", True, id="group-bulk"),
+        pytest.param("template", False, id="template"),
+        pytest.param("template", True, id="template-bulk"),
+    ],
+)
+def test_deleting_group_or_template_drops_it_from_role_allowlists(access_token, kind, bulk):
+    core = create_core(access_token)
+    kept_group = create_group(access_token)
+    created = [("group", kept_group["id"])]
+
+    def create_item() -> dict:
+        if kind == "group":
+            item = create_group(access_token)
+        else:
+            item = create_user_template(access_token, group_ids=[kept_group["id"]])
+        created.append((kind, item["id"]))
+        return item
+
+    kept = kept_group if kind == "group" else create_item()
+    target = create_item()  # the newest row, so SQLite hands its id to the next insert
+    field = "allowed_group_ids" if kind == "group" else "allowed_template_ids"
+    resource = "groups" if kind == "group" else "templates"
+    role = _create_role(
+        access_token, {resource: {"read": True, "read_simple": True}}, access={field: [kept["id"], target["id"]]}
+    )
+    only_target_role = _create_role(access_token, {resource: {"read": True}}, access={field: [target["id"]]})
+    admin = create_admin(access_token, role_id=role["id"])
+    try:
+        token = _login(admin["username"], admin["password"])
+        item_path = "/api/group" if kind == "group" else "/api/user_template"
+        bulk_path = "/api/groups/bulk/delete" if kind == "group" else "/api/user_templates/bulk/delete"
+        if bulk:
+            response = client.post(bulk_path, headers=auth_headers(access_token), json={"ids": [target["id"]]})
+            assert response.status_code == status.HTTP_200_OK
+        else:
+            response = client.delete(f"{item_path}/{target['id']}", headers=auth_headers(access_token))
+            assert response.status_code == status.HTTP_204_NO_CONTENT
+        created.remove((kind, target["id"]))
+
+        def allowlist(role_id: int) -> list[int] | None:
+            stored = client.get(f"/api/admin-role/{role_id}", headers=auth_headers(access_token)).json()
+            return stored["access"][field]
+
+        assert allowlist(role["id"]) == [kept["id"]]
+        # an allowlist left empty still allows nothing; it must not turn into "everything"
+        assert allowlist(only_target_role["id"]) == []
+
+        newcomer = create_item()
+        assert client.get(f"{item_path}/{newcomer['id']}", headers=auth_headers(token)).status_code != 200
+        assert client.get(f"{item_path}/{kept['id']}", headers=auth_headers(token)).status_code == 200
+    finally:
+        delete_admin(access_token, admin["username"])
+        _delete_role(access_token, role["id"])
+        _delete_role(access_token, only_target_role["id"])
+        for item_kind, item_id in reversed(created):
+            path = "/api/group" if item_kind == "group" else "/api/user_template"
+            client.delete(f"{path}/{item_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])

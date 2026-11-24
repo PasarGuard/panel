@@ -1,6 +1,6 @@
 from typing import Any
 
-from sqlalchemy import MetaData, event, text
+from sqlalchemy import MetaData, event, make_url, text
 from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, MappedAsDataclass
 
@@ -14,6 +14,11 @@ def build_engine_options(settings: DatabaseSettings) -> dict[str, Any]:
         connect_args["check_same_thread"] = False
     elif settings.is_mysql:
         connect_args["connect_timeout"] = settings.connect_timeout
+    elif settings.url.startswith("postgresql+asyncpg"):
+        # asyncpg waits 60s by default. A timeout in the URL still wins, but it reaches asyncpg as a string,
+        # which asyncpg cannot use, so pass it on as a number.
+        url_timeout = make_url(settings.url).query.get("timeout")
+        connect_args["timeout"] = float(url_timeout) if isinstance(url_timeout, str) else settings.connect_timeout
 
     options: dict[str, Any] = {
         "connect_args": connect_args,
@@ -56,6 +61,16 @@ if database_settings.is_sqlite:
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
+
+elif database_settings.is_mysql:
+    # GROUP_CONCAT output is cut at group_concat_max_len (1024 bytes by default on
+    # MySQL); node payloads join every inbound tag of a user with it. 16 MiB is
+    # far more than any user's tag list and valid on MySQL and MariaDB.
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_mysql_session(dbapi_conn, _connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("SET SESSION group_concat_max_len = 16777216")
         cursor.close()
 
 

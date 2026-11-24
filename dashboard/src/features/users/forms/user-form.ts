@@ -23,9 +23,26 @@ export const shadowsocksSettingsSchema = z.object({
 export const hysteriaSettingsSchema = z.object({
   auth: z.string().min(1).optional(),
 })
+export const masqueSettingsSchema = z.object({
+  password: z.string().min(1).optional(),
+})
 export const wireguardSettingsSchema = z.object({
   private_key: z.string().nullable().optional(),
   public_key: z.string().nullable().optional(),
+})
+// The dashboard edits only the secret; an empty one keeps the stored secret (a new user gets a generated one).
+// user_ad_tag, max_tcp_conns and max_unique_ips have no inputs and round-trip unchanged.
+// The secret is checked trimmed, as the submit and the backend trim it.
+export const mtprotoSettingsSchema = z.object({
+  secret: z
+    .string()
+    .trim()
+    .regex(/^(?:[0-9a-fA-F]{32})?$/, 'userDialog.proxySettings.mtprotoSecretInvalid')
+    .nullable()
+    .optional(),
+  user_ad_tag: z.string().optional(),
+  max_tcp_conns: z.number().optional(),
+  max_unique_ips: z.number().optional(),
 })
 export const proxyTableInputSchema = z.object({
   vmess: vMessSettingsSchema.optional(),
@@ -34,6 +51,8 @@ export const proxyTableInputSchema = z.object({
   shadowsocks: shadowsocksSettingsSchema.optional(),
   wireguard: wireguardSettingsSchema.optional(),
   hysteria: hysteriaSettingsSchema.optional(),
+  masque: masqueSettingsSchema.optional(),
+  mtproto: mtprotoSettingsSchema.optional(),
 })
 
 export const userStatusCreateEnum = z.enum(['active', 'on_hold'])
@@ -123,6 +142,12 @@ export const getDefaultUserForm = async () => {
       },
       hysteria: {
         auth: undefined,
+      },
+      masque: {
+        password: undefined,
+      },
+      mtproto: {
+        secret: undefined,
       },
     },
   } satisfies UseFormValues

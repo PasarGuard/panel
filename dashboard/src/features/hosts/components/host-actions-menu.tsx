@@ -137,12 +137,14 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
       if (onDataChanged) {
         onDataChanged()
       }
-    } catch (error) {
+    } catch (error: any) {
+      // The API explains a refused delete, e.g. a download host that other hosts still use
       toast.error(
         t('deleteHost.deleteFailed', {
           name: host.remark ?? '',
           defaultValue: 'Failed to remove host "{name}"',
         }),
+        { description: error?.data?.detail },
       )
     }
   }

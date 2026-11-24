@@ -17,8 +17,6 @@ export const advanceSearchFormSchema = z
     is_username: z.boolean().default(true),
     is_protocol: z.boolean().default(false),
     is_id: z.boolean().default(false),
-    show_created_by: z.boolean().default(true),
-    show_selection_checkbox: z.boolean().default(false),
     no_data_limit: z.boolean().default(false),
     no_expire: z.boolean().default(false),
     no_group: z.boolean().default(false),

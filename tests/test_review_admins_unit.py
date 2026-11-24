@@ -4,9 +4,10 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from app.db.crud.admin import bulk_create_admin_notification_reminders
+from app.db.crud.admin import bulk_create_admin_notification_reminders, update_admin
 from app.db.models import Admin, AdminNotificationReminder, AdminRole, ReminderType
 from app.jobs.review_admins import _send_usage_limit_warning_notifications
+from app.models.admin import AdminModify
 from tests.api import TestSession, engine
 
 
@@ -192,3 +193,42 @@ async def test_send_usage_limit_warning_notifications_failure_handling(
         admin_ids_with_reminders = {r.admin_id for r in reminders}
         assert admin_ok.id in admin_ids_with_reminders
         assert admin_fail.id not in admin_ids_with_reminders
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("new_limit_gb", "kept_thresholds"),
+    [
+        (150, [50]),  # 85 GB is now 56 %: the 80 % warning must fire again
+        (0, []),  # unlimited: all usage warnings start over
+        (90, [50, 80]),  # lowered: warnings already passed stay sent
+    ],
+)
+async def test_changing_admin_data_limit_rearms_usage_warnings_above_the_new_usage(new_limit_gb, kept_thresholds):
+    gb = 1024**3
+    async with TestSession() as session:
+        admin = Admin(
+            username=f"rearm_{uuid4().hex[:8]}",
+            hashed_password="secret",
+            role_id=3,
+            data_limit=100 * gb,
+            used_traffic=85 * gb,
+        )
+        session.add(admin)
+        await session.flush()
+        session.add_all(
+            [
+                AdminNotificationReminder(admin_id=admin.id, type=ReminderType.data_usage, threshold=threshold)
+                for threshold in (50, 80)
+            ]
+        )
+        await session.commit()
+
+        await update_admin(session, admin, AdminModify(data_limit=new_limit_gb * gb))
+
+        thresholds = (
+            await session.execute(
+                select(AdminNotificationReminder.threshold).where(AdminNotificationReminder.admin_id == admin.id)
+            )
+        ).scalars()
+        assert sorted(thresholds) == kept_thresholds

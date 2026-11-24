@@ -602,17 +602,100 @@ async def discord_setup(monkeypatch, max_retries: int):
     # The settings validator requires a real Discord URL; the queued item carries the local one.
     settings = NotificationSettings.model_construct(notify_discord=True, max_retries=max_retries)
     monkeypatch.setattr(notification_client, "notification_settings", AsyncMock(return_value=settings))
+    monkeypatch.setattr(notification_client, "_rate_limits", {})
     async with local_receiver() as receiver, aiohttp.ClientSession() as session:
         monkeypatch.setattr(notification_client, "client", session)
         yield queue, receiver
 
 
-async def _process_one(queue) -> bool:
-    delivery = await queue.dequeue(timeout=0.01)
+async def _process_one(queue, timeout: float = 0.01) -> bool:
+    delivery = await queue.dequeue(timeout=timeout)
     if delivery is None:
         return False
     await notification_client.process_notification(delivery)
     return True
+
+
+def _queued(queue) -> int:
+    if isinstance(queue, InMemoryNotificationQueue):
+        return queue._count
+    return len(queue._js.streams[STREAM].msgs)
+
+
+async def _drain(queue, clock, max_steps: int = 20_000):
+    """Process notifications in virtual time, one second per idle step, until the queue is empty."""
+    for _ in range(max_steps):
+        if not _queued(queue):
+            return
+        if not await _process_one(queue, timeout=0):
+            clock.offset += 1
+    raise AssertionError("notification queue did not drain")
+
+
+class FakeResponse:
+    def __init__(self, status: int, body: dict):
+        self.status = status
+        self.body = json.dumps(body).encode()
+        self.content = SimpleNamespace(iter_chunked=self._iter_chunked)
+
+    async def _iter_chunked(self, size):
+        for start in range(0, len(self.body), size):
+            yield self.body[start : start + size]
+
+    async def __aenter__(self):
+        await asyncio.sleep(0)  # a request in flight lets other consumers run
+        return self
+
+    async def __aexit__(self, *_):
+        pass
+
+
+class FakeTelegramApi:
+    """sendMessage with Telegram's per-chat flood control: at most `per_minute` messages in any
+    60 s window, otherwise 429 with retry_after. `floods[chat]` lists retry_after values to answer first."""
+
+    def __init__(self, clock, per_minute: int | None = None):
+        self.clock = clock
+        self.per_minute = per_minute
+        self.floods = defaultdict(list)
+        self.sent = defaultdict(list)
+        self.requests = defaultdict(int)
+        self.rate_limited = 0
+
+    def post(self, url, data=None, **_):
+        now = time.time() + self.clock.offset
+        chat = data["chat_id"]
+        self.requests[chat] += 1
+        recent = [sent_at for sent_at, _ in self.sent[chat] if sent_at > now - 60]
+        retry_after = self.floods[chat].pop(0) if self.floods[chat] else None
+        if retry_after is None and self.per_minute is not None and len(recent) >= self.per_minute:
+            retry_after = int(recent[0] + 60 - now) + 1
+        if retry_after is not None:
+            self.rate_limited += 1
+            return FakeResponse(429, {"ok": False, "error_code": 429, "parameters": {"retry_after": retry_after}})
+        self.sent[chat].append((now, data["text"]))
+        return FakeResponse(200, {"ok": True})
+
+    def texts(self, chat: int) -> list[str]:
+        return [text for _, text in self.sent[chat]]
+
+
+@pytest.fixture(params=["memory", "nats"])
+def notification_queue(request, clock, monkeypatch: pytest.MonkeyPatch):
+    queue = InMemoryNotificationQueue() if request.param == "memory" else make_nats_queue(clock)
+    monkeypatch.setattr(queue_manager, "queue_instance", queue)
+    return queue
+
+
+def use_telegram(monkeypatch, clock, max_retries: int, per_minute: int | None = None) -> FakeTelegramApi:
+    settings = NotificationSettings(
+        notify_telegram=True, telegram_api_token="123:abc", telegram_chat_id=-100123, max_retries=max_retries
+    )
+    monkeypatch.setattr(notification_client, "notification_settings", AsyncMock(return_value=settings))
+    monkeypatch.setattr(notification_client, "_rate_limits", {})
+    api = FakeTelegramApi(clock, per_minute)
+    monkeypatch.setattr(notification_client, "client", api)
+    return api
 
 
 async def test_discord_rate_limit_becomes_a_queue_delay(clock, monkeypatch):
@@ -625,11 +708,46 @@ async def test_discord_rate_limit_becomes_a_queue_delay(clock, monkeypatch):
 
         clock.offset += 31
         retried = await queue.dequeue(timeout=0.01)
-        assert retried.data["tries"] == 1
+        assert retried.data["tries"] == 0  # a rate limit is not a failed attempt
         await notification_client.process_notification(retried)
 
     assert [status for status, _ in receiver.requests["discord"]] == [429, 200]
     assert_drained(queue)
+
+
+async def test_telegram_burst_to_one_chat_is_delayed_not_dropped(notification_queue, clock, monkeypatch):
+    # A group chat takes 20 messages a minute; a bulk action can queue far more for it.
+    api = use_telegram(monkeypatch, clock, max_retries=3, per_minute=20)
+    for i in range(200):
+        await queue_manager.enqueue_telegram(f"msg {i}", chat_id=-100123)
+
+    await _drain(notification_queue, clock)
+
+    assert api.texts(-100123) == [f"msg {i}" for i in range(200)]
+    # Only the first message of the chat's schedule is sent into a flood wait, not the whole backlog.
+    assert api.rate_limited <= 20
+    assert_drained(notification_queue)
+
+
+async def test_rate_limited_chat_does_not_hold_up_other_chats(notification_queue, clock, monkeypatch):
+    api = use_telegram(monkeypatch, clock, max_retries=2)
+    api.floods[-100111] = [30, 30]
+    for i in range(3):
+        await queue_manager.enqueue_telegram(f"a{i}", chat_id=-100111)
+        await queue_manager.enqueue_telegram(f"b{i}", chat_id=-100222)
+
+    while await _process_one(notification_queue, timeout=0):
+        pass
+    assert api.texts(-100222) == ["b0", "b1", "b2"]
+    assert api.texts(-100111) == []  # the chat's later messages wait behind its rate-limited one
+
+    clock.offset += 31
+    await queue_manager.enqueue_telegram("a3", chat_id=-100111)
+    await _drain(notification_queue, clock)
+
+    assert api.texts(-100111) == ["a0", "a1", "a2", "a3"]  # in order, and two 429s did not use up both tries
+    assert api.requests[-100111] == 6
+    assert_drained(notification_queue)
 
 
 async def test_discord_notification_is_dropped_after_max_retries(clock, monkeypatch):
@@ -642,3 +760,23 @@ async def test_discord_notification_is_dropped_after_max_retries(clock, monkeypa
 
     assert [status for status, _ in receiver.requests["discord"]] == [500, 500]
     assert_drained(queue)
+
+
+async def test_concurrent_consumers_keep_the_order_of_a_rate_limited_chat(notification_queue, clock, monkeypatch):
+    # The dispatcher and the scheduled flush job dequeue from the same queue at the same time.
+    api = use_telegram(monkeypatch, clock, max_retries=3)
+    api.floods[-100111] = [30]
+    await queue_manager.enqueue_telegram("a0", chat_id=-100111)
+    await queue_manager.enqueue_telegram("a1", chat_id=-100111)
+
+    first, second = await notification_queue.dequeue(timeout=0), await notification_queue.dequeue(timeout=0)
+    await asyncio.gather(
+        notification_client.process_notification(first), notification_client.process_notification(second)
+    )
+    assert api.texts(-100111) == []  # a1 waited for a0's answer instead of overtaking it
+
+    clock.offset += 31
+    await _drain(notification_queue, clock)
+
+    assert api.texts(-100111) == ["a0", "a1"]
+    assert_drained(notification_queue)

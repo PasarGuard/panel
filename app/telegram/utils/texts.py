@@ -96,9 +96,10 @@ class Message:
     v2ray_links_unavailable = "❌ No V2Ray links available for this user."
 
     @staticmethod
-    def start(stats: SystemStats):
+    def start(stats: SystemStats, data_limit: int | None):
         memory_percentage = int(stats.mem_used / stats.mem_total * 100) if stats.mem_total else 0
         disk_percentage = int(stats.disk_used / stats.disk_total * 100) if stats.disk_total else 0
+        data_limit_text = c(readable_size(data_limit)) if data_limit else "∞"
         return f"""\
 ⚙ {b("PasarGuard Version")}: {c(stats.version)}
 
@@ -106,7 +107,7 @@ class Message:
 🎛 {b("CPU Cores")}: {c(stats.cpu_cores)}
 📈 {b("Memory")}: {c(readable_size(stats.mem_used))} / {c(readable_size(stats.mem_total))} ({c(memory_percentage)} %)
 💽 {b("Disk")}: {c(readable_size(stats.disk_used))} / {c(readable_size(stats.disk_total))} ({c(disk_percentage)} %)
-🌐 {b("Total Data Usage")}: {c(readable_size(stats.outgoing_bandwidth + stats.incoming_bandwidth))}
+🌐 {b("Total Data Usage")}: {c(readable_size(stats.outgoing_bandwidth + stats.incoming_bandwidth))} / {data_limit_text}
 
 👥 {b("Total Users")}: {c(stats.total_user)}
 🟢 {b("Online Users")}: {c(stats.online_users)}
@@ -130,10 +131,10 @@ class Message:
         on_hold_timeout = user.on_hold_timeout.strftime("%Y-%m-%d %H:%M") if user.on_hold_timeout else "-"
         on_hold_expire_duration = td(seconds=user.on_hold_expire_duration).days if user.on_hold_expire_duration else "0"
         online_at = bl(user.online_at.strftime("%Y-%m-%d %H:%M:%S")) if user.online_at else "-"
-        admin = ln(user.admin.username, f"tg://user?id={user.admin.telegram_id}") if user.admin else "-"
+        admin = ln(escape(user.admin.username), f"tg://user?id={user.admin.telegram_id}") if user.admin else "-"
         note = bl(escape(user.note)) if user.note else "-"
         emojy_status = Message.status_emoji(user.status)
-        groups = ", ".join([g.name for g in groups])
+        groups = ", ".join([escape(g.name) for g in groups])
 
         if user.status == UserStatus.on_hold:
             expire_text = f"{b('On Hold Duration: ')} {c(on_hold_expire_duration)} days\n"
@@ -146,7 +147,7 @@ class Message:
 👤 {b("User Information")}
 
 {b("Status:")} {emojy_status} {user.status.value.replace("_", " ").title()}
-{b("Username:")} {c(user.username)}
+{b("Username:")} {c(escape(user.username))}
 
 {b("Data Limit:")} {data_limit}
 {b("Used Traffic:")} {used_traffic}
@@ -180,7 +181,7 @@ class Message:
 👤 {b("User Information")}
 
 {b("Status:")} {emojy_status} {user.status.value.replace("_", " ").title()}
-{b("Username:")} {c(user.username)}
+{b("Username:")} {c(escape(user.username))}
 {b("Data Limit:")} {data_limit}
 {b("Used Traffic:")} {used_traffic}
 {b("Data Limit Strategy:")} {user.data_limit_reset_strategy.value.replace("_", " ").title()}
@@ -188,7 +189,7 @@ class Message:
 {b("Days left:")} {c(days_left)}
 {b("Online At:")} {online_at}
 {b("Subscription URL:")}
-{p(user.subscription_url)}
+{p(escape(user.subscription_url))}
 """
 
     @staticmethod

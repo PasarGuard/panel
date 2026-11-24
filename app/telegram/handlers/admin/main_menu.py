@@ -26,7 +26,7 @@ async def _render_main_menu(event: CallbackQuery, db: AsyncSession, admin: Admin
     return AdminPanel(
         admin=admin,
         panel_url=settings.mini_app_web_url if settings.mini_app_login else None,
-    ).as_markup(), Texts.start(stats)
+    ).as_markup(), Texts.start(stats, admin.data_limit)
 
 
 @router.callback_query(IsAdminFilter(), AdminPanel.Callback.filter(AdminPanelAction.refresh == F.action))

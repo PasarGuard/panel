@@ -13,15 +13,20 @@ import { cn } from '@/lib/utils'
 import { CoresSimpleResponse, DataLimitResetStrategy, getNode, NodeConnectionType, NodeResponse, useCreateNode, useGetNode, useModifyNode } from '@/service/api'
 import { formatBytes, gbToBytes } from '@/utils/formatByte'
 import { queryClient } from '@/utils/query-client'
-import { Loader2, RefreshCw, Settings, Server, Pencil } from 'lucide-react'
+import { AlertTriangle, Loader2, RefreshCw, Settings, Server, Pencil } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { v4 as uuidv4 } from 'uuid'
 import { LoaderButton } from '@/components/ui/loader-button'
-import type { NodeFormValues } from '@/features/nodes/forms/node-form'
+import { inferNodeVerification, nodeVerificationPayload, type NodeFormValues } from '@/features/nodes/forms/node-form'
 import type { CoreSimple } from '@/service/api'
+import { CertificateFingerprintButton } from '@/components/common/certificate-fingerprint-button'
+
+// A node without a core runs the default core (id 1, which cannot be deleted).
+// Editing must show and send that core, not the first one in the admin's order.
+const DEFAULT_CORE_CONFIG_ID = 1
 
 interface NodeModalProps {
   isDialogOpen: boolean
@@ -66,6 +71,10 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
   )
 
   const currentNode = node || initialNodeData
+  const fingerprintAddress = form.watch('address')
+  const fingerprintPort = form.watch('port')
+  const fingerprintRequest =
+    fingerprintAddress?.trim() && Number.isInteger(fingerprintPort) && fingerprintPort >= 1 && fingerprintPort <= 65535 ? { server: fingerprintAddress, port: fingerprintPort } : undefined
   const lastSyncedNodeRef = useRef<NodeResponse | null>(null)
 
   useEffect(() => {
@@ -98,7 +107,9 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
       lastSynced.downlink === node.downlink &&
       lastSynced.name === node.name &&
       lastSynced.address === node.address &&
-      lastSynced.port === node.port
+      lastSynced.port === node.port &&
+      lastSynced.server_ca === node.server_ca &&
+      lastSynced.certificate_sha256 === node.certificate_sha256
     ) {
       return
     }
@@ -116,10 +127,12 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         usage_coefficient: node.usage_coefficient,
         connection_type: node.connection_type,
         server_ca: node.server_ca,
+        certificate_sha256: node.certificate_sha256 ?? null,
+        verification: inferNodeVerification(node),
         keep_alive: node.keep_alive,
         keep_alive_unit: 'seconds',
         api_key: (node.api_key as string) || '',
-        core_config_id: node.core_config_id ?? cores?.[0]?.id,
+        core_config_id: node.core_config_id ?? DEFAULT_CORE_CONFIG_ID,
         data_limit: dataLimitGB,
         data_limit_reset_strategy: node.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
         reset_time: node.reset_time ?? null,
@@ -172,10 +185,12 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
           usage_coefficient: nodeData.usage_coefficient,
           connection_type: nodeData.connection_type,
           server_ca: nodeData.server_ca,
+          certificate_sha256: nodeData.certificate_sha256 ?? null,
+          verification: inferNodeVerification(nodeData),
           keep_alive: nodeData.keep_alive,
           keep_alive_unit: 'seconds',
           api_key: (nodeData.api_key as string) || '',
-          core_config_id: nodeData.core_config_id ?? cores?.[0]?.id,
+          core_config_id: nodeData.core_config_id ?? DEFAULT_CORE_CONFIG_ID,
           data_limit: dataLimitGB,
           data_limit_reset_strategy: nodeData.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
           reset_time: nodeData.reset_time ?? null,
@@ -202,10 +217,12 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               usage_coefficient: nodeData.usage_coefficient,
               connection_type: nodeData.connection_type,
               server_ca: nodeData.server_ca,
+              certificate_sha256: nodeData.certificate_sha256 ?? null,
+              verification: inferNodeVerification(nodeData),
               keep_alive: nodeData.keep_alive,
               keep_alive_unit: 'seconds',
               api_key: (nodeData.api_key as string) || '',
-              core_config_id: nodeData.core_config_id ?? cores?.[0]?.id,
+              core_config_id: nodeData.core_config_id ?? DEFAULT_CORE_CONFIG_ID,
               data_limit: dataLimitGB,
               data_limit_reset_strategy: nodeData.data_limit_reset_strategy ?? DataLimitResetStrategy.no_reset,
               reset_time: nodeData.reset_time ?? null,
@@ -233,6 +250,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
         usage_coefficient: 1,
         connection_type: NodeConnectionType.grpc,
         server_ca: '',
+        certificate_sha256: null,
+        verification: 'trusted',
         keep_alive: 60,
         keep_alive_unit: 'seconds',
         api_key: '',
@@ -303,6 +322,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
 
       const baseData = {
         ...values,
+        ...nodeVerificationPayload(values),
+        verification: undefined,
         keep_alive: keepAliveInSeconds,
         keep_alive_unit: undefined,
         data_limit: gbToBytes(values.data_limit),
@@ -357,14 +378,14 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
       onOpenChange(false)
       form.reset()
     } catch (error: any) {
-      const fields = ['name', 'address', 'port', 'core_config_id', 'api_key', 'keep_alive_unit', 'keep_alive', 'server_ca', 'connection_type', 'proxy_url', '']
+      const fields = ['name', 'address', 'port', 'core_config_id', 'api_key', 'keep_alive_unit', 'keep_alive', 'server_ca', 'certificate_sha256', 'connection_type', 'proxy_url', '']
       handleError({ error, fields, form, contextKey: 'nodes' })
     }
   }
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="h-full max-w-full focus:outline-none sm:max-w-[90vw] lg:h-auto lg:max-w-[1000px]" onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="h-full max-w-full focus:outline-none sm:h-auto sm:max-w-[640px]" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {editingNode ? <Pencil className="h-5 w-5" /> : <Server className="h-5 w-5" />}
@@ -441,8 +462,8 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                 isFetchingNodeData && 'pointer-events-none blur-sm',
               )}
             >
-              <div className="flex h-full flex-col items-start gap-4 lg:flex-row">
-                <div className="w-full flex-1 space-y-4">
+              <div className="flex flex-col gap-4 pb-4">
+                <div className="w-full space-y-4">
                   <FormField
                     control={form.control}
                     name="name"
@@ -558,6 +579,78 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                       )
                     }}
                   />
+                  <FormField
+                    control={form.control}
+                    name="verification"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('nodeModal.verification')}</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="trusted">{t('nodeModal.verificationTrusted')}</SelectItem>
+                            <SelectItem value="fingerprint">{t('nodeModal.verificationFingerprint')}</SelectItem>
+                            <SelectItem value="pem">{t('nodeModal.verificationPem')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {form.watch('verification') === 'trusted' && <p className="text-muted-foreground text-sm">{t('nodeModal.systemTrust')}</p>}
+                  {form.watch('verification') === 'pem' && (
+                    <div role="alert" className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-200">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      <p className="text-sm font-medium">{t('nodeModal.legacyPemWarning')}</p>
+                    </div>
+                  )}
+                  {form.watch('verification') === 'fingerprint' && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="certificate_sha256"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('nodeModal.verificationFingerprint')}</FormLabel>
+                            <FormControl>
+                              <Input dir="ltr" className="font-mono text-xs" {...field} value={field.value ?? ''} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <CertificateFingerprintButton
+                        request={fingerprintRequest}
+                        label={t('nodeModal.fetchFingerprint')}
+                        onFingerprint={fingerprint => form.setValue('certificate_sha256', fingerprint, { shouldDirty: true, shouldTouch: true, shouldValidate: true })}
+                      />
+                      <p className="text-muted-foreground text-sm">{t('nodeModal.fingerprintHelp')}</p>
+                    </>
+                  )}
+                  {form.watch('verification') === 'pem' && (
+                    <FormField
+                      control={form.control}
+                      name="server_ca"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('nodeModal.certificate')}</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              dir="ltr"
+                              placeholder={t('nodeModal.certificatePlaceholder')}
+                              className={cn('h-[200px] font-mono text-xs', !!form.formState.errors.server_ca && 'border-destructive')}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                   <Accordion type="single" collapsible className="!mt-0 mb-2 w-full pb-2">
                     <AccordionItem className="rounded-sm border px-4 [&_[data-state=closed]]:no-underline [&_[data-state=open]]:no-underline" value="advanced-settings">
                       <AccordionTrigger>
@@ -1119,24 +1212,6 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                     </AccordionItem>
                   </Accordion>
                 </div>
-                <FormField
-                  control={form.control}
-                  name="server_ca"
-                  render={({ field }) => (
-                    <FormItem className="h-full w-full flex-1 pb-4 lg:mb-0">
-                      <FormLabel>{t('nodeModal.certificate')}</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          dir="ltr"
-                          placeholder={t('nodeModal.certificatePlaceholder')}
-                          className={cn('h-[200px] font-mono text-xs lg:h-[92%]', !!form.formState.errors.server_ca && 'border-destructive')}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-3">

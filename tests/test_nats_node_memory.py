@@ -12,7 +12,12 @@ from PasarGuardNodeBridge.common.service_pb2 import User
 from PasarGuardNodeBridge.storage import LifecycleOperation, LifecycleStatus, NodeLifecycleState
 
 from app.nats.kv_cas import MemoryCasKv
-from app.node.nats_memory import NatsNodeLifecycleCoordinator, NatsUserSyncStore, _b64_user as _b64
+from app.node.nats_memory import (
+    NatsNodeLifecycleCoordinator,
+    NatsUserSyncStore,
+    _b64_user as _b64,
+    _user_from_b64,
+)
 
 
 def _user(email: str, inbound: str = "in") -> User:
@@ -287,6 +292,138 @@ async def test_resolve_refresh_markers_prepares_queue_for_a_marker_unaware_rollb
     docs = {json.loads(v)["email"]: json.loads(v) for k, (v, _) in kv._data.items() if k.startswith("p.1.")}
     assert set(docs) == {"a", "b"} and all("user" in doc and "refresh" not in doc for doc in docs.values())
     assert await store.resolve_refresh_markers("1") == (0, 0)
+
+
+@pytest.mark.asyncio
+async def test_resolve_refresh_markers_expands_bulk_entries_for_a_rollback():
+    """Before a rollback, bulk entries become per-user markers and a payload already queued wins."""
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    store.refresh_resolver = AsyncMock(side_effect=lambda node, emails: [_user(e, "current") for e in emails])
+    await store.enqueue_users("1", [_user("queued", "newer")])
+    await store.enqueue_bulk("1", [_user("queued", "older"), _user("bulk-only", "older")], batch_size=10)
+    assert await store.resolve_refresh_markers("1") == (1, 0)
+    assert await store.bulk_entries("1") == []
+    docs = {json.loads(v)["email"]: json.loads(v) for k, (v, _) in kv._data.items() if k.startswith("p.1.")}
+    assert set(docs) == {"queued", "bulk-only"}
+    assert list(_user_from_b64(docs["queued"]["user"]).inbounds) == ["newer"]  # the queued entry wins
+    assert list(_user_from_b64(docs["bulk-only"]["user"]).inbounds) == ["current"]
+
+
+@pytest.mark.asyncio
+async def test_bulk_update_is_stored_in_batch_sized_entries_not_one_per_user():
+    """A large update is stored as batch-sized bulk entries, oldest first, never as per-user entries."""
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    users = [_user(f"user-{number}") for number in range(250)] + [_user("user-0", "newer")]
+    assert await store.enqueue_bulk("1", users, batch_size=100) == 3
+    assert not any(key.startswith("p.1.") for key in kv._data)
+    entries = await store.bulk_entries("1")
+    assert len(entries) == 3 and all(key.startswith("b.1.") for key, _ in entries)
+    read = [await store.read_bulk(key, revision) for key, revision in entries]
+    assert [len(users) for users, _ in read] == [100, 100, 50]  # oldest entry first
+    assert len({user.email for users, _ in read for user in users}) == 250
+    first = {user.email: list(user.inbounds) for user in read[0][0]}
+    assert first["user-0"] == ["newer"]  # the latest payload per email wins within one update
+    for (key, _), (_, revision) in zip(entries, read, strict=True):
+        assert await store.retire_bulk(key, revision) is True
+    assert await store.bulk_entries("1") == []
+    assert kv._data == {}
+
+
+@pytest.mark.asyncio
+async def test_bulk_entries_stay_under_the_kv_value_limit(monkeypatch):
+    """Entries are split by size as well as by user count."""
+    monkeypatch.setattr("app.node.nats_memory._MAX_USER_SYNC_VALUE_BYTES", 2_000)
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    users = [User(email=f"u{n}", inbounds=[f"inbound-{i}" for i in range(20)]) for n in range(30)]
+    assert await store.enqueue_bulk("1", users, batch_size=100) > 1
+    assert all(len(value) <= 2_000 for value, _ in kv._data.values())
+    stored = 0
+    for key, revision in await store.bulk_entries("1"):
+        stored += len((await store.read_bulk(key, revision))[0])
+    assert stored == 30
+
+
+@pytest.mark.asyncio
+async def test_bulk_entry_write_whose_reply_was_lost_is_stored_once():
+    """A retried write whose first reply was lost reuses its key, so the entry is stored once."""
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    create = kv.create
+    calls = 0
+
+    async def lossy_create(key, value):
+        """Store the entry but lose the reply of the first attempt."""
+        nonlocal calls
+        calls += 1
+        revision = await create(key, value)
+        if calls == 1:
+            raise nats_errors.TimeoutError()  # stored, but the reply never arrived
+        return revision
+
+    kv.create = lossy_create
+    assert await store.enqueue_bulk("1", [_user("a"), _user("b")], batch_size=100) == 1
+    assert calls == 2
+    assert len(kv._data) == 1
+    assert len(await store.bulk_entries("1")) == 1
+
+
+@pytest.mark.asyncio
+async def test_full_snapshot_retires_captured_bulk_entries_and_clear_drops_them():
+    """A full snapshot retires the bulk entries it captured, keeps later ones, and clear drops the rest."""
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    await store.enqueue_bulk("1", [_user(f"u{n}") for n in range(30)], batch_size=20)
+    await store.enqueue_users("1", [_user("single")])
+    captured, active = await store.capture_queued("1")
+    assert active == 0
+    assert len([key for key in captured if key.startswith("b.1.")]) == 2
+    await store.enqueue_bulk("1", [_user("late")], batch_size=20)  # queued after the capture: must survive
+    assert await store.retire_captured("1", captured) == 3
+    [(key, revision)] = await store.bulk_entries("1")
+    assert [user.email for user in (await store.read_bulk(key, revision))[0]] == ["late"]
+    await store.clear("1")
+    assert kv._data == {}
+
+
+@pytest.mark.asyncio
+async def test_bulk_entry_retired_by_a_snapshot_reads_as_gone_and_cannot_be_retired_again():
+    """An entry a snapshot already retired reads as gone and its late retirement reports False."""
+    store = NatsUserSyncStore(MemoryCasKv())
+    await store.enqueue_bulk("1", [_user("a")], batch_size=10)
+    [(key, indexed)] = await store.bulk_entries("1")
+    _, revision = await store.read_bulk(key, indexed)
+    captured, _ = await store.capture_queued("1")
+    await store.retire_captured("1", captured)
+    assert await store.read_bulk(key, indexed) is None
+    assert await store.retire_bulk(key, revision) is False
+    assert await store.bulk_entries("1") == []
+
+
+@pytest.mark.asyncio
+async def test_unreadable_bulk_entry_reads_empty_so_it_is_retired_instead_of_retried():
+    """An entry that cannot be decoded reads as empty so the worker retires it instead of retrying forever."""
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    await kv.create("b.1.broken", json.dumps({"users": ["x"]}).encode())
+    [(key, indexed)] = await store.bulk_entries("1")
+    users, revision = await store.read_bulk(key, indexed)
+    assert users == []
+    assert await store.retire_bulk(key, revision) is True
+
+
+@pytest.mark.asyncio
+async def test_enqueue_missing_keeps_entries_already_queued():
+    """Handing users to the per-user path never replaces a queued entry."""
+    kv = MemoryCasKv()
+    store = NatsUserSyncStore(kv)
+    await store.enqueue_users("1", [_user("queued", "newer")])
+    await store.enqueue_missing("1", [_user("queued", "older"), _user("new", "older")])
+    docs = {json.loads(v)["email"]: json.loads(v) for k, (v, _) in kv._data.items() if k.startswith("p.1.")}
+    assert list(_user_from_b64(docs["queued"]["user"]).inbounds) == ["newer"]
+    assert list(_user_from_b64(docs["new"]["user"]).inbounds) == ["older"]
 
 
 @pytest.mark.asyncio

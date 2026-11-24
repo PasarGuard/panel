@@ -6,7 +6,7 @@ import UsageModal from '@/features/users/dialogs/usage-modal.lazy'
 import UserAllIPsModal from '@/features/users/dialogs/user-all-ips-modal'
 import { UserHwidsModal } from '@/features/users/dialogs/user-hwids-modal'
 import { UserSubscriptionClientsModal } from '@/features/users/dialogs/user-subscription-clients-modal'
-import { type UseEditFormValues, type UseFormValues, userCreateObjectSchema, userCreateSchema, userEditObjectSchema, userEditSchema } from '@/features/users/forms/user-form'
+import { type UseEditFormValues, type UseFormValues, mtprotoSettingsSchema, userCreateObjectSchema, userCreateSchema, userEditObjectSchema, userEditSchema } from '@/features/users/forms/user-form'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
@@ -42,10 +42,10 @@ import {
 import { dateUtils, useRelativeExpiryDate } from '@/utils/dateFormatter'
 import { normalizeDatePickerValueForSubmit, serializeDatePickerValue, toDatePickerDisplayDate } from '@/utils/datePickerUtils'
 import { parseDateInput } from '@/utils/dateTimeParsing'
-import { bytesToFormGigabytes, formatBytes, gbToBytes } from '@/utils/formatByte'
+import { bytesToFormGigabytes, formatBytes, formGigabytesToBytes, gbToBytes } from '@/utils/formatByte'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
-import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
+import { toWholeSeconds } from '@/utils/timeUnitSeconds'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CalendarClock,
@@ -1058,6 +1058,11 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
 
         // Clean proxy settings to ensure proper enum values
         const cleanedProxySettings = cleanProxySettings(values.proxy_settings)
+        const mtprotoSettings = values.proxy_settings?.mtproto
+        if (cleanedProxySettings && mtprotoSettings) {
+          // Send the hidden MTProto fields as loaded. An empty secret is null: the backend keeps the stored one (or generates one for a new user).
+          cleanedProxySettings.mtproto = { ...mtprotoSettings, secret: mtprotoSettings.secret?.trim() || null }
+        }
         const hasProxySettings = !!cleanedProxySettings
 
         const normalizedDataLimitGb = Number(preparedValues.data_limit ?? 0)
@@ -1066,7 +1071,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         // Prepare next plan data
         const sendValues: any = {
           ...preparedValues,
-          data_limit: gbToBytes(normalizedDataLimitGb as any),
+          data_limit: formGigabytesToBytes(normalizedDataLimitGb, editingUser ? editingUserData?.data_limit : undefined),
           hwid_limit: preparedValues.hwid_limit == null ? null : Number.isFinite(Number(preparedValues.hwid_limit)) ? Math.round(Number(preparedValues.hwid_limit)) : null,
           data_limit_reset_strategy: canUseResetStrategy && hasDataLimit ? preparedValues.data_limit_reset_strategy : 'no_reset',
           expire: preparedValues.expire,
@@ -1174,7 +1179,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
         setLoading(false)
       }
     },
-    [canUseNextPlan, canUseResetStrategy, editingUser, editingUserId, form, handleTemplateMutation, onOpenChange, requireTemplateForCreate, selectedTemplateId, status, t, touchedFields],
+    [canUseNextPlan, canUseResetStrategy, editingUser, editingUserData, editingUserId, form, handleTemplateMutation, onOpenChange, requireTemplateForCreate, selectedTemplateId, status, t, touchedFields],
   )
 
   // Helper for cryptographically secure random integer
@@ -1220,42 +1225,37 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     return arr.join('')
   }
 
+  function generateMtprotoSecret(): string {
+    const bytes = new Uint8Array(16)
+    window.crypto.getRandomValues(bytes)
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+  }
+
   const generateAllProxySettings = React.useCallback(() => {
-    const keyPair = generateWireGuardKeyPair()
     const newSettings = {
       vmess: { id: uuidv4() },
       vless: { id: uuidv4() },
       trojan: { password: generatePassword() },
       shadowsocks: { password: generatePassword() },
       hysteria: { auth: uuidv4() },
-      wireguard: {
-        private_key: keyPair.privateKey,
-        public_key: keyPair.publicKey,
-      },
+      masque: { password: generatePassword() },
+      // keep the hidden MTProto fields (user_ad_tag, max_tcp_conns, max_unique_ips); only the secret rotates
+      mtproto: { ...form.getValues('proxy_settings.mtproto'), secret: generateMtprotoSecret() },
+      // Keep backend-managed peer keys when regenerating the other credentials.
+      wireguard: form.getValues('proxy_settings.wireguard'),
     }
     form.setValue('proxy_settings', newSettings as any, { shouldDirty: true, shouldValidate: true })
     handleFieldChange('proxy_settings', newSettings)
     toast.success(t('userDialog.proxySettings.allGenerated', { defaultValue: 'All proxy credentials regenerated' }))
   }, [form, handleFieldChange, t])
 
-  const generateWireGuardProxySettings = React.useCallback(() => {
-    const keyPair = generateWireGuardKeyPair()
-    form.setValue('proxy_settings.wireguard.private_key', keyPair.privateKey, { shouldDirty: true, shouldValidate: true })
-    form.setValue('proxy_settings.wireguard.public_key', keyPair.publicKey, { shouldDirty: true, shouldValidate: true })
-    form.trigger(['proxy_settings.wireguard.private_key', 'proxy_settings.wireguard.public_key'])
-    handleFieldChange('proxy_settings.wireguard.private_key', keyPair.privateKey)
-    handleFieldChange('proxy_settings.wireguard.public_key', keyPair.publicKey)
-    toast.success(t('userDialog.proxySettings.wireguardGenerated', { defaultValue: 'WireGuard keypair generated' }))
+  const generateMtprotoProxySettings = React.useCallback(() => {
+    const secret = generateMtprotoSecret()
+    form.setValue('proxy_settings.mtproto.secret', secret, { shouldDirty: true, shouldValidate: true })
+    form.trigger('proxy_settings.mtproto.secret')
+    handleFieldChange('proxy_settings.mtproto.secret', secret)
+    toast.success(t('userDialog.proxySettings.mtprotoGenerated', { defaultValue: 'MTProto secret generated' }))
   }, [form, handleFieldChange, t])
-
-  const syncWireGuardPublicKey = React.useCallback(
-    (privateKey: string) => {
-      const publicKey = getWireGuardPublicKey(privateKey)
-      form.setValue('proxy_settings.wireguard.public_key', publicKey, { shouldDirty: true, shouldValidate: true })
-      handleFieldChange('proxy_settings.wireguard.public_key', publicKey)
-    },
-    [form, handleFieldChange],
-  )
 
   const hasMeaningfulProxyValue = React.useCallback((value: unknown): boolean => {
     if (Array.isArray(value)) {
@@ -1322,7 +1322,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     [hasMeaningfulProxyValue],
   )
 
-  // Regenerate all proxy credentials (VMess, VLESS, Trojan, Shadowsocks, Hysteria, WireGuard)
+  // Regenerate editable proxy credentials; WireGuard peers are managed by the backend.
   const GenerateProxySettingsButton = () => (
     <Button size="icon" type="button" variant="outline" onClick={generateAllProxySettings} className="flex items-center gap-1.5 border-0 text-xs">
       <RefreshCcw className="h-3 w-3" />
@@ -1681,7 +1681,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                               emptyValue={0}
                                               zeroValue={0}
                                               toDisplayValue={value => value / unitSeconds}
-                                              toValue={displayValue => displayValue * unitSeconds}
+                                              toValue={displayValue => toWholeSeconds(displayValue, unitSeconds)}
                                               onValueChange={value => {
                                                 const nextValue = value ?? 0
                                                 field.onChange(nextValue)
@@ -2066,31 +2066,40 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                               )
                             }}
                           />
+                          {/* MASQUE */}
                           <FormField
                             control={form.control}
-                            name="proxy_settings.wireguard.private_key"
+                            name="proxy_settings.masque.password"
                             render={({ field }) => (
                               <FormItem className="mb-2">
-                                <FormLabel>{t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}</FormLabel>
+                                <FormLabel>
+                                  {t('userDialog.proxySettings.masque')} {t('userDialog.proxySettings.password')}
+                                </FormLabel>
                                 <FormControl>
                                   <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
                                     <Input
                                       {...field}
                                       value={field.value ?? ''}
-                                      placeholder={t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}
+                                      placeholder={t('userDialog.proxySettings.password')}
                                       onChange={e => {
                                         field.onChange(e)
-                                        syncWireGuardPublicKey(e.target.value)
-                                        form.trigger('proxy_settings.wireguard.private_key')
-                                        handleFieldChange('proxy_settings.wireguard.private_key', e.target.value)
+                                        form.trigger('proxy_settings.masque.password')
+                                        handleFieldChange('proxy_settings.masque.password', e.target.value)
                                       }}
                                     />
                                     <Button
                                       size="icon"
                                       type="button"
                                       variant="ghost"
-                                      onClick={generateWireGuardProxySettings}
-                                      title={t('userDialog.proxySettings.generateWireGuardKeyPair', { defaultValue: 'Generate WireGuard keypair' })}
+                                      onClick={e => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        const newVal = generatePassword()
+                                        field.onChange(newVal)
+                                        form.trigger('proxy_settings.masque.password')
+                                        handleFieldChange('proxy_settings.masque.password', newVal)
+                                      }}
+                                      title="Generate password"
                                     >
                                       <RefreshCcw className="h-3 w-3" />
                                     </Button>
@@ -2100,24 +2109,46 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                               </FormItem>
                             )}
                           />
+                          {/* MTProto */}
                           <FormField
                             control={form.control}
-                            name="proxy_settings.wireguard.public_key"
-                            render={({ field }) => (
-                              <FormItem className="mb-2">
-                                <FormLabel>{t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    dir="ltr"
-                                    {...field}
-                                    value={field.value ?? ''}
-                                    placeholder={t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}
-                                    disabled
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
+                            name="proxy_settings.mtproto.secret"
+                            render={({ field }) => {
+                              const secretIssue = mtprotoSettingsSchema.shape.secret.safeParse(field.value).error?.issues[0]?.message
+                              return (
+                                <FormItem className="mb-2">
+                                  <FormLabel>{t('userDialog.proxySettings.mtprotoSecret', { defaultValue: 'MTProto secret' })}</FormLabel>
+                                  <FormControl>
+                                    <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                      <Input
+                                        {...field}
+                                        value={field.value ?? ''}
+                                        placeholder={
+                                          editingUser
+                                            ? t('userDialog.proxySettings.mtprotoSecretPlaceholder', { defaultValue: '32 hex characters, or empty to keep the current one' })
+                                            : t('userDialog.proxySettings.mtprotoSecretPlaceholderNew', { defaultValue: '32 hex characters, or empty to generate one' })
+                                        }
+                                        onChange={e => {
+                                          field.onChange(e)
+                                          form.trigger('proxy_settings.mtproto.secret')
+                                          handleFieldChange('proxy_settings.mtproto.secret', e.target.value)
+                                        }}
+                                      />
+                                      <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={generateMtprotoProxySettings}
+                                        title={t('userDialog.proxySettings.generateMtprotoSecret', { defaultValue: 'Generate MTProto secret' })}
+                                      >
+                                        <RefreshCcw className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </FormControl>
+                                  <FormMessage>{secretIssue && t(secretIssue, { defaultValue: 'Must be 32 hex characters' })}</FormMessage>
+                                </FormItem>
+                              )
+                            }}
                           />
                         </AccordionContent>
                       </AccordionItem>

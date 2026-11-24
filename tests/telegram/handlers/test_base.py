@@ -74,3 +74,13 @@ async def test_command_start_handler_non_admin(fake_message):
     await base.command_start_handler(event, None, None, db=None)
 
     event.answer.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_command_start_handler_non_admin_escapes_their_name(fake_message):
+    event = type(fake_message)(text="/start")
+    event.from_user.full_name = "Eve <b>"
+
+    await base.command_start_handler(event, None, None, db=None)
+
+    assert event.answer.await_args.args[0] == "Hello, Eve &lt;b&gt;!"

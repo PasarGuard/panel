@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import status
-from sqlalchemy import event, func, inspect, select
+from sqlalchemy import event, func, inspect, select, update
 from sqlalchemy.orm import selectinload
 
 from app.db.crud.core import create_core_config, remove_core_config
@@ -36,6 +36,8 @@ from app.models.core import CoreCreate
 from app.models.node import NodeCreate, NodeModify, NodeResponse, NodeSettings, NodesResponse
 from app.models.proxy import ProxyTable
 from app.models.stats import (
+    NodeOutboundUsageStat,
+    NodeOutboundUsageStatsList,
     NodeRealtimeStats,
     NodeStats,
     NodeStatsList,
@@ -695,6 +697,7 @@ def node_operator_mock(monkeypatch: pytest.MonkeyPatch):
         "restart_all_node",
         "create_node",
         "get_validated_node",
+        "get_node_response",
         "modify_node",
         "bulk_set_nodes_status",
         "bulk_reset_nodes_usage",
@@ -702,11 +705,13 @@ def node_operator_mock(monkeypatch: pytest.MonkeyPatch):
         "bulk_update_nodes",
         "reset_node_usage",
         "restart_node",
+        "hard_reset_node",
         "sync_node_users",
         "remove_node",
         "get_node_stats_periodic",
         "get_node_system_stats",
         "get_user_count_metric",
+        "get_outbound_usage",
     ]
     for name in async_methods:
         setattr(operator, name, AsyncMock(name=name))
@@ -856,6 +861,7 @@ def test_create_node_returns_created_node(access_token, node_operator_mock):
         **payload,
         "connection_type": NodeConnectionType(payload["connection_type"]),
         "data_limit_reset_strategy": DataLimitResetStrategy(payload["data_limit_reset_strategy"]),
+        "certificate_sha256": None,
     }
     assert await_args[1].model_dump() == expected_payload
     UUID(await_args[1].api_key)
@@ -863,11 +869,11 @@ def test_create_node_returns_created_node(access_token, node_operator_mock):
 
 def test_get_single_node(access_token, node_operator_mock):
     node_response = sample_node_response(id=22, name="fetched-node")
-    node_operator_mock.get_validated_node.return_value = node_response
+    node_operator_mock.get_node_response.return_value = node_response
     response = client.get("/api/node/22", headers=auth_headers(access_token))
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == node_response.model_dump()
-    awaited_kwargs = node_operator_mock.get_validated_node.await_args.kwargs
+    awaited_kwargs = node_operator_mock.get_node_response.await_args.kwargs
     assert awaited_kwargs["node_id"] == 22
 
 
@@ -910,6 +916,14 @@ def test_reconnect_node(access_token, node_operator_mock):
     assert response.json() == {}
     await_args = node_operator_mock.restart_node.await_args.args
     assert await_args[1] == 9
+
+
+def test_hard_reset_node(access_token, node_operator_mock):
+    node_operator_mock.hard_reset_node.return_value = {"detail": "node restarted"}
+    response = client.post("/api/node/9/hard_reset", headers=auth_headers(access_token))
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {"detail": "node restarted"}
+    assert node_operator_mock.hard_reset_node.await_args.kwargs["node_id"] == 9
 
 
 def test_sync_node_users(access_token, node_operator_mock):
@@ -1091,6 +1105,63 @@ async def test_node_metadata_modify_schedules_background_reconnect_without_force
             # Name-only edits replace the local bridge object, but the replacement
             # attaches to the healthy remote backend instead of restarting it.
             assert forced_starts == [False, False]
+        finally:
+            if node_id is not None:
+                db_node = await session.get(Node, node_id)
+                if db_node:
+                    await db_remove_node(session, db_node)
+            db_core = await session.get(CoreConfig, core_id)
+            if db_core:
+                await remove_core_config(session, db_core)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("sent_core", "restart"), [("default", False), ("other", True)])
+async def test_node_without_core_restarts_only_when_moved_off_the_default_core(
+    monkeypatch: pytest.MonkeyPatch, sent_core: str, restart: bool
+):
+    # A NULL core (nodes from before per-node cores, or whose core was deleted) runs core 1.
+    operator = NodeOperation(operator_type=OperatorType.API)
+    forced_starts: list[bool] = []
+
+    async def record_background_connect(node_id: int, *, force_start: bool = False) -> None:
+        forced_starts.append(force_start)
+
+    monkeypatch.setattr(operator, "_update_node_impl", AsyncMock())
+    monkeypatch.setattr(operator, "_connect_single_node_background", record_background_connect)
+    monkeypatch.setattr("app.operation.node.notification.create_node", AsyncMock())
+    monkeypatch.setattr("app.operation.node.notification.modify_node", AsyncMock())
+
+    admin = AdminDetails(username="admin", role=AdminRoleData(is_owner=True))
+    async with TestSession() as session:
+        core = await create_core_config(session, core_create_model(unique_name("core_node_null")))
+        core_id = inspect(core).identity[0]
+        node_id: int | None = None
+        try:
+            created = await operator.create_node(
+                session,
+                NodeCreate(**node_create_payload(name=unique_name("node_null_core"), core_config_id=core_id)),
+                admin,
+            )
+            node_id = created.id
+            await session.execute(update(Node).where(Node.id == node_id).values(core_config_id=None))
+            await session.commit()
+            session.expire_all()
+            await asyncio.sleep(0)
+            forced_starts.clear()
+
+            # The edit dialog sends the core it shows for the node along with the rename.
+            await operator.modify_node(
+                session,
+                node_id,
+                NodeModify(
+                    name=unique_name("node_null_core_renamed"), core_config_id=1 if sent_core == "default" else core_id
+                ),
+                admin,
+            )
+            await asyncio.sleep(0)
+
+            assert forced_starts == [restart]
         finally:
             if node_id is not None:
                 db_node = await session.get(Node, node_id)
@@ -1386,3 +1457,92 @@ async def test_remove_node_deletes_associated_usage_tables():
         assert await count_rows(NodeStat) == 0
         remaining_nodes = await session.scalar(select(func.count()).select_from(Node).where(Node.id == node_id))
         assert remaining_nodes == 0
+
+
+def test_get_outbound_usage_passes_filters(access_token, node_operator_mock):
+    start = datetime(2024, 2, 1, tzinfo=UTC)
+    end = start + timedelta(days=7)
+    usage = NodeOutboundUsageStatsList(
+        start=start,
+        end=end,
+        period=Period.day,
+        stats={"direct": [NodeOutboundUsageStat(uplink=10, downlink=20, period_start=start, node_id=5)]},
+    )
+    node_operator_mock.get_outbound_usage.return_value = usage
+    response = client.get(
+        "/api/node/usage/outbounds",
+        headers=auth_headers(access_token),
+        params={
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "period": "day",
+            "node_id": 5,
+            "group_by_node": True,
+        },
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == usage.model_dump(mode="json")
+
+    query = node_operator_mock.get_outbound_usage.await_args.kwargs["query"]
+    assert query.node_id == 5
+    assert query.group_by_node is True
+    assert query.period == Period.day
+    assert query.start == start
+    assert query.end == end
+
+
+@pytest.mark.asyncio
+async def test_node_tls_policy_partial_updates_round_trip():
+    from app.db.crud.node import modify_node as db_modify_node
+
+    core_id, node_ids = await setup_nodes_simple([unique_name("tls_policy")])
+    try:
+        async with TestSession() as session:
+            node = await session.get(Node, node_ids[0])
+            original_pem = node.server_ca
+            assert node.certificate_sha256 is None
+
+            node = await db_modify_node(session, node, NodeModify(certificate_sha256="AB" * 32))
+            assert node.certificate_sha256 == "ab" * 32
+            assert node.server_ca == original_pem
+            assert NodeResponse.model_validate(node).certificate_sha256 == "ab" * 32
+
+            node = await db_modify_node(session, node, NodeModify(name=unique_name("tls_renamed"), server_ca=None))
+            assert node.certificate_sha256 == "ab" * 32
+            assert node.server_ca == original_pem
+
+            # Backend bulk actions must preserve the complete verification configuration.
+            payload = NodeOperation._build_node_modify_payload(node)
+            assert payload.certificate_sha256 == "ab" * 32
+            assert payload.server_ca == original_pem
+
+            # Explicit null restores the retained legacy PEM.
+            node = await db_modify_node(session, node, NodeModify(certificate_sha256=None))
+            assert node.certificate_sha256 is None
+            assert node.server_ca == original_pem
+
+            node = await db_modify_node(session, node, NodeModify(certificate_sha256="cd" * 32))
+            node = await db_modify_node(session, node, NodeModify(certificate_sha256="", server_ca=" \n"))
+            assert node.certificate_sha256 is None
+            assert node.server_ca == ""
+            await session.refresh(node)
+            assert node.certificate_sha256 is None
+            assert node.server_ca == ""
+    finally:
+        await cleanup_nodes_simple(core_id, node_ids)
+
+
+@pytest.mark.asyncio
+async def test_create_node_with_system_trust_round_trip():
+    core_id, node_ids = await setup_nodes_simple([])
+    try:
+        async with TestSession() as session:
+            payload = node_create_payload(name=unique_name("system_trust"), core_config_id=core_id)
+            payload.pop("server_ca")
+            node = await db_create_node(session, NodeCreate(**payload))
+            node_ids.append(node.id)
+            response = NodeResponse.model_validate(node)
+            assert response.server_ca == ""
+            assert response.certificate_sha256 is None
+    finally:
+        await cleanup_nodes_simple(core_id, node_ids)

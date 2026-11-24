@@ -35,3 +35,22 @@ async def test_handle_exception_validation_error_callback_truncates(monkeypatch,
     callback.answer.assert_awaited_once()
     sent_text = callback.answer.await_args.args[0]
     assert len(sent_text) == 200
+
+
+@pytest.mark.asyncio
+async def test_handle_exception_escapes_the_error_in_messages_only(fake_message, fake_callback):
+    msg = type(fake_message)(text="x")
+    event = SimpleNamespace(
+        update=SimpleNamespace(message=msg, callback_query=None, bot=msg.bot),
+        exception=ValueError("Group VIP <EU> is disabled"),
+    )
+    await error_handler.handle_exception(event, state=None)
+    assert msg.answer.await_args.args[0] == "❌ Error: Group VIP &lt;EU&gt; is disabled"
+
+    callback = type(fake_callback)()
+    event = SimpleNamespace(
+        update=SimpleNamespace(message=None, callback_query=callback, bot=callback.bot),
+        exception=ValueError("Group VIP <EU> is disabled"),
+    )
+    await error_handler.handle_exception(event, state=None)
+    assert callback.answer.await_args.args[0] == "❌ Error: Group VIP <EU> is disabled"  # alerts are plain text

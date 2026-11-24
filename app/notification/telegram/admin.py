@@ -1,7 +1,7 @@
 from app.models.admin import AdminDetails
 from app.models.settings import NotificationSettings
 from app.notification.client import send_telegram_message
-from app.notification.helpers import get_telegram_channel
+from app.notification.helpers import get_telegram_channel, mask_password
 from app.settings import notification_settings
 from app.utils.helpers import escape_tg_html
 from app.utils.system import readable_size
@@ -12,8 +12,7 @@ ENTITY = "admin"
 
 
 async def create_admin(admin: AdminDetails, by: str):
-    username, by = escape_tg_html((admin.username, by))
-    role = admin.role.name if admin.role else "unknown"
+    username, role, by = escape_tg_html((admin.username, admin.role.name if admin.role else "unknown", by))
     data = messages.CREATE_ADMIN.format(
         username=username,
         role=role,
@@ -28,8 +27,7 @@ async def create_admin(admin: AdminDetails, by: str):
 
 
 async def modify_admin(admin: AdminDetails, by: str):
-    username, by = escape_tg_html((admin.username, by))
-    role = admin.role.name if admin.role else "unknown"
+    username, role, by = escape_tg_html((admin.username, admin.role.name if admin.role else "unknown", by))
     data = messages.MODIFY_ADMIN.format(
         username=username,
         role=role,
@@ -76,7 +74,7 @@ async def admin_usage_limit_reached(admin: AdminDetails, usage_percentage: int, 
 
 
 async def admin_login(username: str, password: str, client_ip: str, success: bool):
-    username, password = escape_tg_html((username, password))
+    username, password, client_ip = escape_tg_html((username, mask_password(password), client_ip))
     data = messages.ADMIN_LOGIN.format(
         status="Successful" if success else "Failed",
         username=username,

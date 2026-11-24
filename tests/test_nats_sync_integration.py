@@ -168,7 +168,7 @@ async def test_sync_recovery_preserves_queued_users_and_active_claims(jetstream,
         assert node.requires_hard_reset()
         revision = (await jetstream.js.stream_info(f"KV_{jetstream.bucket}")).state.last_seq
         await node_checker.process_node_health_check(
-            SimpleNamespace(id=91, name="slow-node", status=NodeStatus.connected), node
+            SimpleNamespace(id=91, name="slow-node", status=NodeStatus.connected, default_timeout=10), node
         )
         assert not node.requires_hard_reset()
         assert not worker.done()
@@ -292,7 +292,7 @@ async def test_health_poll_recovers_claim_that_expires_after_startup(jetstream, 
         sync.assert_not_awaited()
         now[0] += 61
         await node_checker.process_node_health_check(
-            SimpleNamespace(id=93, name="restored", status=NodeStatus.connected), node
+            SimpleNamespace(id=93, name="restored", status=NodeStatus.connected, default_timeout=10), node
         )
         await asyncio.wait_for(node._sync_worker_task, timeout=5)
         assert [user.email for user in sync.await_args.args[0]] == ["orphan"]
@@ -848,3 +848,33 @@ async def test_live_index_survives_consumer_recreation(jetstream):
         assert [item.user.email for item in await store.claim_users("1", "reader", 10, 30)] == ["after-consumer-loss"]
     finally:
         await store.close()
+
+
+async def test_bulk_entries_are_shared_through_the_live_index_and_retired_once(jetstream):
+    """A large update stored as bulk entries: another process sees them through its watch, a retirement
+    that lost the race is a revision conflict (not an error), and a full snapshot retires the rest."""
+    writer, reader = NatsUserSyncStore(jetstream.kv), NatsUserSyncStore(jetstream.kv)
+    try:
+        users = [User(email=f"user-{number}", inbounds=["in"]) for number in range(250)]
+        assert await writer.enqueue_bulk("1", users, batch_size=100) == 3
+        assert not await writer.has_pending("1")  # bulk entries are not per-user queue entries
+        async with asyncio.timeout(10):
+            while len(await reader.bulk_entries("1")) != 3:
+                await asyncio.sleep(0.005)
+        (key, indexed), *_ = await reader.bulk_entries("1")
+        delivered, revision = await reader.read_bulk(key, indexed)
+        assert [user.email for user in delivered] == [f"user-{number}" for number in range(100)]
+        assert await reader.retire_bulk(key, revision) is True
+        assert await writer.retire_bulk(key, revision) is False
+        assert await writer.read_bulk(key, indexed) is None
+        captured, active = await writer.capture_queued("1")
+        assert active == 0 and len(captured) == 2
+        assert await writer.retire_captured("1", captured) == 2
+        async with asyncio.timeout(10):
+            while await reader.bulk_entries("1") or await writer.bulk_entries("1"):
+                await asyncio.sleep(0.005)
+        stream = await jetstream.js.stream_info(f"KV_{jetstream.bucket}")
+        assert stream.state.messages == 3  # one deletion marker per entry, nothing live
+    finally:
+        await reader.close()
+        await writer.close()
