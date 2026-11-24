@@ -19,12 +19,13 @@ from app.models.settings import (
     SubRule,
     Subscription as SubSettings,
 )
-from app.models.stats import UserUsageStatsList
+from app.models.stats import USAGE_RECORD_GRANULARITY, UserUsageStatsList
 from app.models.subscription import SubscriptionUsageQuery
 from app.models.user import SubscriptionUserResponse, UsersResponseWithInbounds
 from app.settings import hwid_settings, subscription_settings
 from app.subscription import sub_update_buffer as _sub_update_buffer  # noqa: F401  # registers per-worker flush loop
 from app.subscription.share import (
+    TELEGRAM_PAGE_LINKS_FORMAT,
     apply_custom_format_variables,
     encode_title,
     generate_subscription,
@@ -352,6 +353,17 @@ class SubscriptionOperation(BaseOperation):
             config["media_type"],
         )
 
+    async def fetch_page_links(self, user: UsersResponseWithInbounds) -> list[str]:
+        """Share links for the subscription page and the dashboard, including Telegram proxy links."""
+        sub_settings = await subscription_settings()
+        conf = await generate_subscription(
+            user=user,
+            config_format=TELEGRAM_PAGE_LINKS_FORMAT,
+            as_base64=False,
+            randomize_order=sub_settings.randomize_order,
+        )
+        return conf.splitlines()
+
     @staticmethod
     def is_hwid_enabled(
         global_hwid_conf: HWIDSettings,
@@ -491,11 +503,7 @@ class SubscriptionOperation(BaseOperation):
             )
             links = []
             if is_allow_browser_config:
-                conf, media_type = await self.fetch_config(
-                    user,
-                    ConfigFormat.links,
-                )
-                links = conf.splitlines()
+                links = await self.fetch_page_links(user)
 
             format_variables = await self.get_format_variables(user)
             formatted_announce = self._format_announce(sub_settings, format_variables)
@@ -539,16 +547,9 @@ class SubscriptionOperation(BaseOperation):
                 extra_headers={},
             )
             try:
-                response_headers.update(
-                    self._format_subscription_response_headers(
-                        sub_settings, await self._get_rule_response_header_variables(user, client_type)
-                    )
-                )
-                response_headers.update(
-                    self._format_rule_response_headers(
-                        matched_rule, await self._get_rule_response_header_variables(user, client_type)
-                    )
-                )
+                rule_header_variables = await self._get_rule_response_header_variables(user, client_type)
+                response_headers.update(self._format_subscription_response_headers(sub_settings, rule_header_variables))
+                response_headers.update(self._format_rule_response_headers(matched_rule, rule_header_variables))
                 response_headers = self.sanitize_response_headers(response_headers)
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=400)
@@ -567,8 +568,11 @@ class SubscriptionOperation(BaseOperation):
         # Create response with appropriate headers
         return Response(content=conf, media_type=media_type, headers=response_headers)
 
-    async def get_format_variables(self, user: UsersResponseWithInbounds) -> dict:
-        """Get format variables for URL formatting."""
+    async def _build_format_variables(
+        self,
+        user: UsersResponseWithInbounds,
+        extra_variables: dict[str, str | int | float] | None = None,
+    ) -> dict:
         sub_settings: SubSettings = await subscription_settings()
         custom_variables = get_effective_custom_variables(user, sub_settings.custom_variables)
         format_variables = setup_format_variables(user, sub_settings.custom_variables)
@@ -577,20 +581,20 @@ class SubscriptionOperation(BaseOperation):
         formatted_title = SubscriptionOperation._format_profile_title(user, format_variables, sub_settings)
 
         format_variables.update({"PROFILE_TITLE": formatted_title})
+        if extra_variables:
+            format_variables.update(extra_variables)
         apply_custom_format_variables(format_variables, custom_variables)
 
         return format_variables
 
+    async def get_format_variables(self, user: UsersResponseWithInbounds) -> dict:
+        """Get format variables for URL formatting."""
+        return await self._build_format_variables(user)
+
     async def _get_rule_response_header_variables(
         self, user: UsersResponseWithInbounds, client_format: ConfigFormat
     ) -> dict[str, str | int | float]:
-        format_variables = await self.get_format_variables(user)
-        format_variables.update({"format": client_format.value})
-        sub_settings: SubSettings = await subscription_settings()
-        apply_custom_format_variables(
-            format_variables, get_effective_custom_variables(user, sub_settings.custom_variables)
-        )
-        return format_variables
+        return await self._build_format_variables(user, extra_variables={"format": client_format.value})
 
     async def user_subscription_with_client_type(
         self,
@@ -708,8 +712,7 @@ class SubscriptionOperation(BaseOperation):
         if sub_settings.allow_browser_config and (
             not is_hwid_enabled or not global_hwid_conf.require_hwid_for_manual_sub
         ):
-            conf, _ = await self.fetch_config(user, ConfigFormat.links)
-            links = conf.splitlines()
+            links = await self.fetch_page_links(user)
         format_variables = await self.get_format_variables(user)
         formatted_announce = self._format_announce(sub_settings, format_variables)
         response_headers = self.create_response_headers(user, request_url, sub_settings)
@@ -757,7 +760,12 @@ class SubscriptionOperation(BaseOperation):
             response_headers = self.sanitize_response_headers(response_headers)
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400)
-        conf, media_type = await self.fetch_config(user, client_type)
+        if client_type == ConfigFormat.links:
+            # The dashboard reads this endpoint, so it gets the page links with Telegram proxy links.
+            conf = "\n".join(await self.fetch_page_links(user))
+            media_type = client_config[client_type]["media_type"]
+        else:
+            conf, media_type = await self.fetch_config(user, client_type)
 
         response_headers, body_lines = self._split_headers_for_placement(
             response_headers, sub_settings.header_placement, client_type
@@ -863,16 +871,9 @@ class SubscriptionOperation(BaseOperation):
                 extra_headers={},
             )
             try:
-                response_headers.update(
-                    self._format_subscription_response_headers(
-                        sub_settings, await self._get_rule_response_header_variables(user, client_type)
-                    )
-                )
-                response_headers.update(
-                    self._format_rule_response_headers(
-                        matched_rule, await self._get_rule_response_header_variables(user, client_type)
-                    )
-                )
+                rule_header_variables = await self._get_rule_response_header_variables(user, client_type)
+                response_headers.update(self._format_subscription_response_headers(sub_settings, rule_header_variables))
+                response_headers.update(self._format_rule_response_headers(matched_rule, rule_header_variables))
                 response_headers = self.sanitize_response_headers(response_headers)
             except ValueError as exc:
                 await self.raise_error(message=str(exc), code=400)
@@ -894,7 +895,9 @@ class SubscriptionOperation(BaseOperation):
         query: SubscriptionUsageQuery,
     ) -> UserUsageStatsList:
         """Fetches the usage statistics for the user within a specified date range."""
-        start, end = await self.validate_dates(query.start, query.end, True)
+        start, end = await self.validate_dates(
+            query.start, query.end, True, period=query.period, granularity=USAGE_RECORD_GRANULARITY
+        )
 
         db_user = await self.get_validated_sub(
             db,

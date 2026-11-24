@@ -6,8 +6,9 @@ from app import scheduler
 from app.db import GetDB
 from app.db.models import NodeStat
 from app.node import node_manager
+from app.settings import general_settings
 from app.utils.logger import get_logger
-from config import job_settings, runtime_settings, usage_settings
+from config import database_settings, job_settings, runtime_settings
 
 logger = get_logger("jobs")
 
@@ -33,6 +34,10 @@ async def get_stat(id: int, node: PasarGuardNode) -> NodeStat:
 
 
 async def gather_nodes_stats():
+    # Node stats are stored on PostgreSQL only
+    if not database_settings.is_postgresql or not (await general_settings()).usage.record_node_stats:
+        return
+
     nodes = await node_manager.get_healthy_nodes()
 
     stats_list = await asyncio.gather(*[get_stat(id, node) for id, node in nodes])
@@ -45,7 +50,7 @@ async def gather_nodes_stats():
             await db.commit()
 
 
-if usage_settings.enable_recording_nodes_stats and runtime_settings.role.runs_node:
+if runtime_settings.role.runs_node:
     scheduler.add_job(
         gather_nodes_stats,
         "interval",

@@ -6,11 +6,24 @@ from PasarGuardNodeBridge import Health
 
 from app.db.models import NodeStatus
 from app.jobs import node_checker
+from app.models.settings import General, NodeHealthSettings
 from app.operation.node import NodeOperation
 
 TIMEOUT = (Health.BROKEN, -1, "Health check timeout")
 DEAD_CORE = (Health.BROKEN, 500, "backend not initialized")
 HEALTHY = (Health.HEALTHY, None, None)
+
+
+def _patch_health_settings(monkeypatch, **values):
+    """Serve `general.node_health` from memory; tests change the returned object in place."""
+    health = NodeHealthSettings.model_construct(**{**NodeHealthSettings().model_dump(), **values})
+    general = General.model_construct(node_health=health)
+
+    async def get_general_settings():
+        return general
+
+    monkeypatch.setattr(node_checker, "general_settings", get_general_settings)
+    return health
 
 
 class _FakeDB:
@@ -37,8 +50,7 @@ def _make_node():
 @pytest.fixture
 def checker(monkeypatch):
     monkeypatch.setattr(node_checker, "_health_streaks", {})
-    monkeypatch.setattr(node_checker.job_settings, "node_health_fail_threshold", 3)
-    monkeypatch.setattr(node_checker.job_settings, "node_health_recover_threshold", 2)
+    health = _patch_health_settings(monkeypatch, fail_threshold=3, recover_threshold=2)
     monkeypatch.setattr(node_checker, "_owns_health_checks", lambda: True)
     monkeypatch.setattr(node_checker, "needs_shared_bridge_memory", lambda: False)
     monkeypatch.setattr(node_checker, "GetDB", lambda: _FakeDB())
@@ -56,7 +68,7 @@ def checker(monkeypatch):
             probe.return_value = result
             await node_checker.process_node_health_check(db_node, node)
 
-    return SimpleNamespace(run=run, update_status=update_status, repair=repair, monkeypatch=monkeypatch)
+    return SimpleNamespace(run=run, update_status=update_status, repair=repair, monkeypatch=monkeypatch, health=health)
 
 
 def _db_node(status=NodeStatus.connected):
@@ -162,8 +174,8 @@ async def test_dead_core_is_repaired_before_the_failure_threshold(checker):
 
 @pytest.mark.asyncio
 async def test_thresholds_of_one_react_to_a_single_probe(checker):
-    checker.monkeypatch.setattr(node_checker.job_settings, "node_health_fail_threshold", 1)
-    checker.monkeypatch.setattr(node_checker.job_settings, "node_health_recover_threshold", 1)
+    checker.health.fail_threshold = 1
+    checker.health.recover_threshold = 1
     db_node, node = _db_node(), _make_node()
 
     await checker.run(db_node, node, TIMEOUT)

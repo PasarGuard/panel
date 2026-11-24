@@ -1,6 +1,6 @@
 import { UserListItem, UserStatus } from '@/service/api'
 import type { ColumnDef, Row, Table } from '@tanstack/react-table'
-import { ChevronDown, Fingerprint } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import ActionButtons from './action-buttons'
 import { OnlineBadge } from './online-badge'
 import { StatusBadge } from './status-badge'
@@ -11,6 +11,8 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { dateUtils } from '@/utils/dateFormatter'
 import dayjs from '@/lib/dayjs'
 import { Checkbox } from '@/components/ui/checkbox'
+import { UserFieldValue } from './user-field-value'
+import { USER_FIELDS, type UserFieldId } from './user-view-preferences'
 
 export const setupColumns = ({
   t,
@@ -20,7 +22,8 @@ export const setupColumns = ({
   dir,
   showCreatedBy,
   showSelectionCheckbox,
-  showHwidCount,
+  allowedFields,
+  groupNames,
 }: {
   t: (key: string) => string
   handleSort: (column: string, fromDropdown?: boolean) => void
@@ -29,7 +32,8 @@ export const setupColumns = ({
   dir: string
   showCreatedBy: boolean
   showSelectionCheckbox: boolean
-  showHwidCount: boolean
+  allowedFields: UserFieldId[]
+  groupNames: ReadonlyMap<number, string>
 }): ColumnDef<UserListItem>[] => [
   ...(showSelectionCheckbox
     ? (() => {
@@ -149,14 +153,6 @@ export const setupColumns = ({
                   <span className="text-blue-500">{row.original.admin?.username}</span>
                 </span>
               )}
-              {showHwidCount && (
-                <span className="text-muted-foreground flex items-center gap-1 text-xs tabular-nums md:hidden" title={t('hwids.registeredCount')}>
-                  <Fingerprint className="h-3 w-3 shrink-0" aria-hidden="true" />
-                  <span>
-                    {t('hwids.count')}: {row.original.hwid_count ?? 0}
-                  </span>
-                </span>
-              )}
             </div>
           </div>
         </div>
@@ -220,26 +216,18 @@ export const setupColumns = ({
       return rowA.original.used_traffic - rowB.original.used_traffic
     },
   },
-  // Device counts need hwids.read, like the device list itself
-  ...(showHwidCount
-    ? [
-        {
-          accessorKey: 'hwid_count',
-          header: () => (
-            <button onClick={() => handleSort('hwid_count')} className="flex w-full items-center gap-1 py-3" title={t('hwids.registeredCount')}>
-              <span className="text-xs">{t('hwids.count')}</span>
-              {filters.sort.replace(/^-/, '') === 'hwid_count' && <ChevronDown size={16} className={cn('shrink-0 transition-transform duration-300', filters.sort === 'hwid_count' && 'rotate-180')} />}
-            </button>
-          ),
-          cell: ({ row }: { row: Row<UserListItem> }) => (
-            <span className="flex items-center gap-1.5 text-sm tabular-nums" title={t('hwids.registeredCount')}>
-              <Fingerprint className="text-muted-foreground h-3.5 w-3.5" aria-hidden="true" />
-              {row.original.hwid_count ?? 0}
-            </span>
-          ),
-        },
-      ]
-    : []),
+  ...USER_FIELDS.filter(field => allowedFields.includes(field.id)).map((field): ColumnDef<UserListItem> => ({
+    id: field.id,
+    header: () => field.sort ? <button className="flex items-center gap-1 py-3 normal-case" onClick={() => handleSort(field.sort)}>
+      {t(`usersView.fields.${field.id}`)}
+      {filters.sort.replace(/^-/, '') === field.sort && <ChevronDown className={`h-3.5 w-3.5 ${filters.sort === field.sort ? 'rotate-180' : ''}`} />}
+    </button> : <span className="normal-case">{t(`usersView.fields.${field.id}`)}</span>,
+    cell: ({ row }) => (
+      <div className="max-w-64 truncate">
+        <UserFieldValue user={row.original} field={field.id} groupNames={groupNames} />
+      </div>
+    ),
+  })),
   {
     id: 'details',
     header: () => {

@@ -9,7 +9,7 @@ import hashlib
 import json
 import os
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from itertools import islice
 from typing import Any
 from uuid import uuid4
@@ -29,7 +29,7 @@ from PasarGuardNodeBridge.storage import (
 
 from app.nats import needs_shared_bridge_memory
 from app.nats.client import create_nats_client, get_jetstream_context, get_or_create_kv_bucket
-from app.nats.kv_cas import CasKv, cas_retry_backoff, kv_cas_json, kv_get_json
+from app.nats.kv_cas import CasKv, cas_retry_backoff, is_kv_miss, kv_cas_json, kv_get_json
 from app.nats.kv_index import KvKeyIndex
 from app.nats.kv_watch import watch_kv
 from app.utils.logger import get_logger
@@ -40,6 +40,8 @@ logger = get_logger("node-nats-memory")
 WORKER_ID = f"{os.getpid()}:{uuid4().hex[:8]}"
 # Stay under default NATS max_payload (1MiB) with headroom for JSON framing.
 _MAX_USER_SYNC_VALUE_BYTES = min(900_000, nats_settings.node_command_max_payload_bytes)
+# A bulk entry write is retried on transport errors; a retry reuses the entry's key.
+_BULK_CREATE_ATTEMPTS = 5
 
 _nc: nats.NATS | None = None
 _user_sync_kv: KeyValue | None = None
@@ -61,6 +63,13 @@ def _user_from_b64(data: str) -> User:
 
 def _digest(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:32]
+
+
+def _is_cas_conflict(exc: BaseException) -> bool:
+    """True when a revision-guarded write failed because the key had moved on (JetStream error 10071)."""
+    if isinstance(exc, nats_js_errors.KeyWrongLastSequenceError):
+        return True
+    return getattr(exc, "err_code", None) == 10071 or "wrong last sequence" in str(exc).lower()
 
 
 def _empty_lifecycle_doc() -> dict[str, Any]:
@@ -122,6 +131,15 @@ class NatsUserSyncStore:
     A full snapshot never drains the queue destructively: ``capture_queued``
     records the current revisions behind the fence, and ``retire_captured``
     deletes exactly those revisions only after the snapshot was applied.
+
+    One large update (an admin's users after a limit change, a bulk edit) is
+    queued as bulk entries ``b.<node>.<id>`` of up to one delivery batch each
+    (``{"users": [...]}``) instead of one document per user, so it costs
+    O(batches) KV writes per node instead of O(users). Bulk entries are never
+    claimed: the node adapter delivers each one under the node's full-sync
+    fence, which keeps every other delivery for the node out while the entry's
+    users are re-derived and sent, then retires it with a revision-guarded
+    delete. Full snapshots capture and retire them like any other entry.
     """
 
     def __init__(self, kv: CasKv):
@@ -164,6 +182,10 @@ class NatsUserSyncStore:
 
     def _legacy_claimed_prefix(self, node_id: str) -> str:
         return f"c.{node_id}."
+
+    def _bulk_prefix(self, node_id: str) -> str:
+        """Key prefix of a node's bulk entries."""
+        return f"b.{node_id}."
 
     def _fence_key(self, node_id: str) -> str:
         return f"f.{node_id}.sync"
@@ -307,6 +329,127 @@ class NatsUserSyncStore:
             return
         await self._run_bounded(lambda email: self._request_refresh_one(node_id, email), dict.fromkeys(emails))
 
+    async def enqueue_missing(self, node_id: str, users: list[User]) -> None:
+        """Queue a per-user entry for each user that has none; an entry already queued for a user wins.
+
+        Used to hand a bulk entry's users to the per-user path. Which payload
+        an entry holds does not matter there: every delivery re-derives the
+        user from the source of truth and keeps only its credentials.
+        """
+        by_email = {user.email: user for user in users}
+        await self._run_bounded(lambda user: self._restore_one(node_id, user), by_email.values())
+
+    # --- bulk entries ------------------------------------------------------------
+
+    async def enqueue_bulk(self, node_id: str, users: list[User], batch_size: int) -> int:
+        """Queue one large update as bulk entries of at most ``batch_size`` users; returns the entry count.
+
+        The latest payload per email wins within the update. Each entry gets a
+        fresh key that its write retries reuse, so a write whose reply was lost
+        is never stored twice.
+        """
+        values = self._bulk_values({user.email: user for user in users}.values(), max(1, batch_size))
+        await self._run_bounded(lambda value: self._create_bulk(node_id, value), values)
+        return len(values)
+
+    @staticmethod
+    def _bulk_values(users: Iterable[User], batch_size: int) -> list[dict[str, list[str]]]:
+        """Split payloads into entry values bounded by user count and by the KV value size limit."""
+        empty_size = len(b'{"users":[]}')
+        values: list[dict[str, list[str]]] = []
+        chunk: list[str] = []
+        size = empty_size
+        for user in users:
+            payload = _b64_user(user)
+            payload_size = len(payload) + 3  # quotes and separator
+            if chunk and (len(chunk) >= batch_size or size + payload_size > _MAX_USER_SYNC_VALUE_BYTES):
+                values.append({"users": chunk})
+                chunk, size = [], empty_size
+            chunk.append(payload)
+            size += payload_size
+        if chunk:
+            values.append({"users": chunk})
+        return values
+
+    async def _create_bulk(self, node_id: str, value: dict[str, Any]) -> None:
+        """Write one bulk entry under a fresh key, retrying transport errors with that same key."""
+        key = f"{self._bulk_prefix(node_id)}{uuid4().hex}"
+        self._ensure_value_size(key, value)
+        payload = self._encode(value)
+        for attempt in range(_BULK_CREATE_ATTEMPTS):
+            try:
+                revision = await self._kv.create(key, payload)
+            except nats_js_errors.KeyWrongLastSequenceError:
+                # An earlier attempt was stored although its reply was lost; the key is this entry's own.
+                try:
+                    revision = (await self._kv.get(key)).revision
+                except Exception as exc:
+                    if is_kv_miss(exc):
+                        return  # already delivered and retired
+                    raise
+            except nats.errors.Error as exc:
+                if attempt + 1 >= _BULK_CREATE_ATTEMPTS:
+                    raise
+                logger.debug("Bulk entry write failed for key=%s, retrying: %s", key, exc)
+                await asyncio.sleep(min(0.2 * 2**attempt, 2.0))
+                continue
+            self._key_index.observe_put(key, revision)
+            return
+
+    async def bulk_entries(self, node_id: str) -> list[tuple[str, int]]:
+        """Bulk entries queued for a node with their indexed revisions, oldest first (no KV reads)."""
+        entries = await self._key_index.entries(self._bulk_prefix(node_id))
+        return sorted(entries.items(), key=lambda item: item[1])
+
+    async def read_bulk(self, key: str, indexed_revision: int = 0) -> tuple[list[User], int] | None:
+        """Payloads and revision of a bulk entry, or None once it is gone (delivered or retired).
+
+        An entry whose payloads cannot be decoded is returned without users so
+        the caller retires it instead of retrying it forever.
+        """
+        doc, revision = await kv_get_json(self._kv, key)
+        if doc is None:
+            if indexed_revision:
+                self._key_index.discard(key, indexed_revision)
+            return None
+        try:
+            users = [_user_from_b64(payload) for payload in doc.get("users") or []]
+        except Exception as exc:
+            logger.error("Dropping unreadable bulk sync entry key=%s: %s", key, exc)
+            users = []
+        return users, revision
+
+    async def retire_bulk(self, key: str, revision: int) -> bool:
+        """Delete a delivered bulk entry, guarded by the revision that was delivered.
+
+        Returns False when the entry was already retired (a full snapshot
+        covered it). Transport failures propagate: the entry stays queued and is
+        delivered again, which is harmless.
+        """
+        try:
+            deleted = await self._kv.delete(key, last=revision)
+        except Exception as exc:
+            if not _is_cas_conflict(exc):
+                raise
+            logger.debug("Bulk entry key=%s was retired before its delivery finished: %s", key, exc)
+            deleted = False
+        self._key_index.discard(key, revision)
+        return deleted is not False
+
+    async def _expand_bulk_entries(self, node_id: str) -> int:
+        """Turn every bulk entry of a node into per-user refresh markers; returns how many were expanded."""
+        expanded = 0
+        for key, indexed_revision in await self.bulk_entries(node_id):
+            entry = await self.read_bulk(key, indexed_revision)
+            if entry is None:
+                continue
+            users, revision = entry
+            if users:
+                await self.request_refresh(node_id, [user.email for user in users])
+            await self.retire_bulk(key, revision)
+            expanded += 1
+        return expanded
+
     async def _migrate_legacy_claims(self, node_id: str) -> None:
         """Settle in-flight claims left by pre-upgrade workers under ``c.<node>.*``.
 
@@ -398,9 +541,12 @@ class NatsUserSyncStore:
 
         Returns ``(resolved, remaining)``. Used before rolling back to a panel
         version that does not understand markers, so no queued work is stranded.
+        Bulk entries are unknown to those versions too: they are expanded into
+        markers first (an entry already queued for a user wins).
         """
         if self.refresh_resolver is None:
             raise RuntimeError("no refresh resolver installed")
+        await self._expand_bulk_entries(node_id)
         markers: dict[str, tuple[str, int]] = {}
         for key in await self._discover_entries(node_id):
             doc, rev = await kv_get_json(self._kv, key)
@@ -578,7 +724,7 @@ class NatsUserSyncStore:
         its checkpoint is replayed in order (deletes included) before the
         result is trusted. Nothing here relies on cached claim state alone.
         """
-        prefixes = (self._pending_prefix(node_id), self._legacy_claimed_prefix(node_id))
+        prefixes = (self._pending_prefix(node_id), self._legacy_claimed_prefix(node_id), self._bulk_prefix(node_id))
         if not isinstance(self._kv, KeyValue):
             entries: dict[str, int] = {}
             for prefix in prefixes:

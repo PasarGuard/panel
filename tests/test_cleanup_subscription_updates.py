@@ -12,6 +12,7 @@ from sqlalchemy import event, insert, select
 from app.db.models import User, UserSubscriptionUpdate
 from app.jobs import cleanup_subscription_updates as job
 from app.models.proxy import ProxyTable
+from app.models.settings import Subscription
 from tests.test_record_usages import reset_user_usage_history_buffer, session_factory  # noqa: F401
 
 LIMIT = 3
@@ -31,8 +32,17 @@ def cleanup_db(session_factory, monkeypatch: pytest.MonkeyPatch):  # noqa: F811
 
     monkeypatch.setattr(job, "GetDB", _GetDB)
     monkeypatch.setattr(job, "flush_user_sub_updates", AsyncMock())
-    monkeypatch.setattr(job.subscription_env_settings, "clients_limit", LIMIT)
+    _patch_clients_limit(monkeypatch, LIMIT)
     return session_factory
+
+
+def _patch_clients_limit(monkeypatch: pytest.MonkeyPatch, limit: int) -> None:
+    subscription = Subscription.model_construct(clients_limit=limit)
+
+    async def get_subscription_settings():
+        return subscription
+
+    monkeypatch.setattr(job, "subscription_settings", get_subscription_settings)
 
 
 async def _seed(session_factory, rows_per_user: list[int], prefix: str) -> dict[int, list[int]]:  # noqa: F811
@@ -104,3 +114,15 @@ async def test_cleanup_statement_does_not_grow_with_users(cleanup_db):
     few = await cost_for(3, "few")
     many = await cost_for(30, "many")
     assert many == few, f"(statements, max parameters): {few} for 3 users, {many} for 30"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("limit", [0, -1])
+async def test_cleanup_is_off_when_the_clients_limit_is_not_positive(cleanup_db, monkeypatch, limit):
+    _patch_clients_limit(monkeypatch, limit)
+    before = await _seed(cleanup_db, [LIMIT + 4, 1], f"off{-limit}_")
+
+    await job.cleanup_user_subscription_updates()
+
+    assert await _updates_by_user(cleanup_db, list(before)) == before
+    job.flush_user_sub_updates.assert_not_awaited()

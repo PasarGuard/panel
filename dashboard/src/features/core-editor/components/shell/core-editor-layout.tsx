@@ -17,16 +17,34 @@ interface CoreEditorLayoutProps {
   showRestart?: boolean
   restartNodes: boolean
   onRestartChange: (v: boolean) => void
+  /** `CoreSectionTabs` reads the Xray/WireGuard store; editors outside it pass `false`. */
+  showSectionTabs?: boolean
   className?: string
 }
 
-export function CoreEditorLayout({ header, sectionHeader, main, dirty, canSave, saveLabel, onSave, onDiscard, onCancel, saving, showRestart, restartNodes, onRestartChange, className }: CoreEditorLayoutProps) {
+export function CoreEditorLayout({
+  header,
+  sectionHeader,
+  main,
+  dirty,
+  canSave,
+  saveLabel,
+  onSave,
+  onDiscard,
+  onCancel,
+  saving,
+  showRestart,
+  restartNodes,
+  onRestartChange,
+  showSectionTabs = true,
+  className,
+}: CoreEditorLayoutProps) {
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col gap-0', className)}>
       <div className="px-4 pt-3 pb-2 md:pt-6 md:pb-0">{header}</div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {sectionHeader}
-        <CoreSectionTabs />
+        {showSectionTabs && <CoreSectionTabs />}
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4">{main}</div>
       </div>
       <StickySaveBar

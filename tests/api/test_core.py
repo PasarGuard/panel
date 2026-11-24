@@ -1,4 +1,5 @@
 import copy
+from copy import deepcopy
 from unittest.mock import AsyncMock
 
 from fastapi import status
@@ -11,6 +12,7 @@ from tests.api.helpers import (
     auth_headers,
     create_core,
     create_group,
+    create_mtproto_core,
     create_user,
     delete_core,
     delete_group,
@@ -220,6 +222,229 @@ def test_inbound_details_include_wireguard_metadata(access_token):
         assert wg_detail["network"] == "udp"
     finally:
         delete_core(access_token, core["id"])
+
+
+def test_mtproto_core_create(access_token):
+    """Test that an MTProto core can be created and exposes a telemt inbound."""
+
+    mtproto_config = {
+        "inbound_tag": unique_name("mtp"),
+        "general": {"use_middle_proxy": True, "modes": {"classic": True, "secure": True, "tls": True}},
+        "server": {"port": 443, "listeners": [{"ip": "0.0.0.0"}]},
+        "censorship": {"tls_domain": "cloudflare.com"},
+    }
+
+    core = create_core(
+        access_token,
+        name=unique_name("mtproto_core"),
+        config=mtproto_config,
+        type="mtproto",
+        fallbacks=[],
+    )
+    try:
+        assert core["type"] == "mtproto"
+        assert core["config"]["inbound_tag"] == mtproto_config["inbound_tag"]
+        assert core["config"]["server"]["port"] == 443
+        assert core["exclude_inbound_tags"] == []
+        assert core["fallbacks_inbound_tags"] == []
+
+        details = get_inbound_details(access_token)
+        mtp_detail = next(item for item in details if item["tag"] == mtproto_config["inbound_tag"])
+        assert mtp_detail["protocol"] == "mtproto"
+        assert mtp_detail["network"] == "tcp"
+    finally:
+        delete_core(access_token, core["id"])
+
+
+def test_mtproto_core_rejects_panel_owned_access_users(access_token):
+    response = client.post(
+        "/api/core",
+        headers=auth_headers(access_token),
+        json={
+            "name": unique_name("mtproto_bad_access"),
+            "type": "mtproto",
+            "config": {
+                "inbound_tag": "mtproto",
+                "server": {"port": 443},
+                "access": {"users": {"alice": "00112233445566778899aabbccddeeff"}},
+            },
+            "exclude_inbound_tags": [],
+            "fallbacks_inbound_tags": [],
+        },
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "access.users" in response.json()["detail"]
+
+
+def _mtproto_payload(tag: str, *, port: int = 443, name: str | None = None) -> dict:
+    return {
+        "name": name or unique_name("mtproto_core"),
+        "type": "mtproto",
+        "config": {
+            "inbound_tag": tag,
+            "general": {"modes": {"classic": False, "secure": False, "tls": True}},
+            "server": {"port": port},
+            "censorship": {"tls_domain": "www.example.org"},
+        },
+        "exclude_inbound_tags": [],
+        "fallbacks_inbound_tags": [],
+    }
+
+
+def _post_core(access_token, payload: dict, created_ids: list[int]):
+    response = client.post("/api/core", headers=auth_headers(access_token), json=payload)
+    if response.status_code == status.HTTP_201_CREATED:
+        created_ids.append(response.json()["id"])
+    return response
+
+
+def test_mtproto_core_rejects_duplicate_inbound_tag(access_token):
+    tag = unique_name("mtp")
+    core_a = create_mtproto_core(access_token, tag=tag)
+    created_ids = [core_a["id"]]
+    try:
+        response = _post_core(access_token, _mtproto_payload(tag), created_ids)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert f'inbound tag "{tag}" is already used by core "{core_a["name"]}"' in response.json()["detail"]
+
+        xray_dup = deepcopy(xray_config)
+        xray_dup["inbounds"][0]["tag"] = tag
+        response = _post_core(
+            access_token,
+            {
+                "name": unique_name("xray_dup"),
+                "type": "xray",
+                "config": xray_dup,
+                "exclude_inbound_tags": [],
+                "fallbacks_inbound_tags": [],
+            },
+            created_ids,
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert f'already used by core "{core_a["name"]}"' in response.json()["detail"]
+    finally:
+        for core_id in created_ids:
+            delete_core(access_token, core_id)
+
+
+def test_mtproto_core_rejects_tag_of_existing_xray_core(access_token):
+    tag = unique_name("xray_tag")
+    xray_core_config = deepcopy(xray_config)
+    xray_core_config["inbounds"][0]["tag"] = tag
+    xray_core = create_core(access_token, config=xray_core_config)
+    created_ids = [xray_core["id"]]
+    try:
+        response = _post_core(access_token, _mtproto_payload(tag), created_ids)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert f'already used by core "{xray_core["name"]}"' in response.json()["detail"]
+    finally:
+        for core_id in created_ids:
+            delete_core(access_token, core_id)
+
+
+def test_mtproto_core_modify_keeps_own_tag(access_token):
+    tag = unique_name("mtp")
+    core_a = create_mtproto_core(access_token, tag=tag)
+    try:
+        payload = _mtproto_payload(tag, port=8443, name=core_a["name"])
+        response = client.put(
+            f"/api/core/{core_a['id']}",
+            headers=auth_headers(access_token),
+            json=payload,
+            params={"restart_nodes": False},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["config"]["server"]["port"] == 8443
+    finally:
+        delete_core(access_token, core_a["id"])
+
+
+def test_mtproto_core_modify_without_type_keeps_type(access_token):
+    core_a = create_mtproto_core(access_token)
+    try:
+        payload = {"name": core_a["name"], "config": core_a["config"], "exclude_inbound_tags": []}
+        response = client.put(
+            f"/api/core/{core_a['id']}",
+            headers=auth_headers(access_token),
+            json=payload,
+            params={"restart_nodes": False},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["type"] == "mtproto"
+
+        response = client.get(f"/api/core/{core_a['id']}", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["type"] == "mtproto"
+    finally:
+        delete_core(access_token, core_a["id"])
+
+
+def test_wireguard_core_modify_without_type_keeps_type(access_token):
+    # The cores list's enable toggle sends no type; a WireGuard config must not be validated as Xray.
+    private_key, _ = generate_wireguard_keypair()
+    core = create_core(
+        access_token,
+        name=unique_name("wg_no_type"),
+        config={
+            "interface_name": unique_name("wg"),
+            "private_key": private_key,
+            "listen_port": 51820,
+            "address": ["10.72.0.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+    try:
+        payload = {"name": core["name"], "config": core["config"], "exclude_inbound_tags": []}
+        response = client.put(
+            f"/api/core/{core['id']}",
+            headers=auth_headers(access_token),
+            json=payload,
+            params={"restart_nodes": False},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["type"] == "wg"
+
+        response = client.get(f"/api/core/{core['id']}", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["type"] == "wg"
+    finally:
+        delete_core(access_token, core["id"])
+
+
+def test_mtproto_core_modify_rejects_tag_of_another_mtproto_core(access_token):
+    tag_a = unique_name("mtp")
+    core_a = create_mtproto_core(access_token, tag=tag_a)
+    core_b = create_mtproto_core(access_token, tag=unique_name("mtp"))
+    try:
+        response = client.put(
+            f"/api/core/{core_b['id']}",
+            headers=auth_headers(access_token),
+            json=_mtproto_payload(tag_a, name=core_b["name"]),
+            params={"restart_nodes": False},
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+        assert f'inbound tag "{tag_a}" is already used by core "{core_a["name"]}"' in response.json()["detail"]
+
+        response = client.get(f"/api/core/{core_b['id']}", headers=auth_headers(access_token))
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["config"]["inbound_tag"] == core_b["config"]["inbound_tag"]
+    finally:
+        delete_core(access_token, core_b["id"])
+        delete_core(access_token, core_a["id"])
+
+
+def test_mtproto_core_rejects_missing_tls_domain(access_token):
+    payload = _mtproto_payload(unique_name("mtp"))
+    del payload["config"]["censorship"]
+    created_ids: list[int] = []
+    try:
+        response = _post_core(access_token, payload, created_ids)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "censorship.tls_domain" in response.json()["detail"]
+    finally:
+        for core_id in created_ids:
+            delete_core(access_token, core_id)
 
 
 def test_xray_auto_detects_fallback_tls_without_manual_fallback_tags():
@@ -508,3 +733,22 @@ def test_core_save_with_other_changes_keeps_stop(access_token, monkeypatch):
         config["routing"]["domainStrategy"] = "IPIfNonMatch"
 
     assert _stop_first_after_save(access_token, monkeypatch, change) is True
+
+
+def test_mtproto_core_save_keeps_stop(access_token, monkeypatch):
+    """Nodes cannot apply an MTProto edit to the running telemt, so even an unchanged save keeps the Stop."""
+    restart = AsyncMock()
+    monkeypatch.setattr(core_router.node_operator, "restart_all_node", restart)
+    core = create_mtproto_core(access_token)
+    changed = deepcopy(core["config"])
+    changed["censorship"]["tls_domain"] = "www.example.com"
+    try:
+        # The save sends no type, so the stored MTProto type reaches the live-update check too.
+        for config in (core["config"], changed):
+            restart.reset_mock()
+            response = _save_core(access_token, core, config)
+            assert response.status_code == status.HTTP_200_OK
+            restart.assert_awaited_once()
+            assert restart.await_args.kwargs["stop_first"] is True
+    finally:
+        delete_core(access_token, core["id"])

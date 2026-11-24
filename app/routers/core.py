@@ -5,6 +5,7 @@ from app.db import AsyncSession, get_db
 from app.db.crud.node import get_nodes
 from app.db.models import Node, NodeStatus
 from app.models.admin import AdminDetails
+from app.models.certificate import CertificateFingerprintRequest, CertificateFingerprintResponse
 from app.models.core import (
     BulkCoreSelection,
     CoreCreate,
@@ -65,6 +66,19 @@ async def scan_reality_target(
     _: AdminDetails = Depends(require_permission("cores", "read")),
 ):
     return await core_operator.scan_reality_target(request)
+
+
+@router.post("/certificate-fingerprint", response_model=CertificateFingerprintResponse)
+async def get_core_certificate_fingerprint(
+    request: CertificateFingerprintRequest,
+    _: AdminDetails = Depends(require_permission("cores", "read")),
+):
+    """Hash a PEM string, a panel-local certificate file, or a live TLS server's leaf certificate.
+
+    Provide exactly one source. Live probes support private node addresses and self-signed
+    certificates. A retrieved fingerprint must be verified independently before trusting it.
+    """
+    return await core_operator.certificate_fingerprint(request)
 
 
 @router.put("s/order", status_code=status.HTTP_204_NO_CONTENT)

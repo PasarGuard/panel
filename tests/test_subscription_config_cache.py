@@ -29,7 +29,11 @@ class User:
         wireguard = WireGuard()
 
         def model_dump_json(self):
-            return self.wireguard.model_dump_json()
+            shadowsocks = getattr(self, "shadowsocks", None)
+            return (
+                f"{self.wireguard.model_dump_json()}:{getattr(shadowsocks, 'method', '')}:"
+                f"{getattr(shadowsocks, 'password', '')}"
+            )
 
     proxy_settings = Proxy()
 
@@ -46,6 +50,21 @@ def test_wireguard_cache_key_changes_when_peer_state_changes():
     first = make_sub_config_key(user, "wireguard", False, False)
     user.proxy_settings.wireguard.peer_ips = ["10.0.0.3/32"]
     second = make_sub_config_key(user, "wireguard", False, False)
+    assert first != second
+
+
+def test_links_cache_key_changes_when_shadowsocks_settings_change():
+    user = User()
+
+    class Shadowsocks:
+        method = "chacha20-ietf-poly1305"
+        password = "password-a"
+
+    user.proxy_settings.shadowsocks = Shadowsocks()
+    first = make_sub_config_key(user, "links", False, False)
+    user.proxy_settings.shadowsocks.password = "password-b"
+    second = make_sub_config_key(user, "links", False, False)
+
     assert first != second
 
 

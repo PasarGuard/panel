@@ -20,6 +20,11 @@ export default defineConfig({
     outDir: 'build',
     assetsDir: 'statics',
     emptyOutDir: false,
+    // Vite's default target starts at Safari/iOS 16.4, so newer syntax is not transpiled, such as
+    // the class static block in @radix-ui/react-collection. Safari 15 cannot parse it, and every
+    // page that imports the chunk fails to load, the login page included. Other engines keep
+    // Vite's defaults. iPhone 6s/7/SE (1st gen) stop at iOS 15, and every iOS browser uses WebKit.
+    target: ['chrome111', 'edge111', 'firefox114', 'safari15.4', 'ios15.4'],
     // Let the bundler preserve lazy import boundaries; manual vendor groups
     // pulled chart and dialog dependencies into the initial app shell.
   },

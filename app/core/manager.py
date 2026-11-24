@@ -9,6 +9,7 @@ from nats.js.kv import KeyValue
 
 from app import on_shutdown, on_startup
 from app.core.abstract_core import AbstractCore
+from app.core.mtproto import MtprotoConfig
 from app.core.wireguard import WireGuardConfig
 from app.core.xray import XRayConfig
 from app.db import AsyncSession, GetDB
@@ -28,6 +29,7 @@ class CoreManager:
     CORE_CLASSES: ClassVar[dict] = {
         CoreType.xray: XRayConfig,
         CoreType.wg: WireGuardConfig,
+        CoreType.mtproto: MtprotoConfig,
     }
 
     def __init__(self):
@@ -199,15 +201,23 @@ class CoreManager:
             core_id: deepcopy(core) for core_id, core in self._cores.items() if core_ids is None or core_id in core_ids
         }
 
+    @staticmethod
+    def _build_inbound_index(cores: dict[int, AbstractCore]) -> dict:
+        # Hosts select inbounds by tag across all cores. Keep the last-core-wins
+        # rule in ID order so display order and NATS message order cannot change
+        # shared tags' encryption or other subscription settings after a restart.
+        inbounds_by_tag = {}
+        for core_id in sorted(cores):
+            inbounds_by_tag.update(cores[core_id].inbounds_by_tag)
+        return inbounds_by_tag
+
     async def update_inbounds(self):
         async with self._lock:
             self._replace_cores_locked(dict(self._cores))
 
     def _replace_cores_locked(self, cores: dict[int, AbstractCore]):
         """Build the entire index before publishing any part of a cache update."""
-        new_inbounds = {}
-        for core in cores.values():
-            new_inbounds.update(core.inbounds_by_tag)
+        new_inbounds = self._build_inbound_index(cores)
 
         self._cores = cores
         self._inbounds_by_tag = new_inbounds

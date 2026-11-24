@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, TimeoutError as PoolTimeoutError
 
 from app.db.base import database_pool_summary
 from app.lifecycle import on_shutdown, on_startup
@@ -14,7 +14,7 @@ from app.middlewares import setup_middleware
 from app.nats import is_multi_worker, require_nats_if_multiworker
 from app.nats.message import MessageTopic
 from app.nats.router import router
-from app.settings import handle_settings_message
+from app.settings import handle_settings_message, refresh_caches
 from app.subscription.client_templates import handle_client_template_message
 from app.utils.logger import get_logger
 from app.version import __version__
@@ -153,11 +153,16 @@ def _log_database_pool_budget() -> None:
     logger.info(database_pool_summary(database_settings, process_count))
 
 
+async def _refresh_settings_message(_: dict):
+    # Node workers read panel settings too, but must not run the Telegram bot
+    await refresh_caches()
+
+
 async def _ignore_worker_sync_message(_: dict):
     return None
 
 
-async def database_operational_error_handler(request: Request, exc: DBAPIError):
+async def database_operational_error_handler(request: Request, exc: DBAPIError | PoolTimeoutError):
     orig = getattr(exc, "orig", None)
     error_summary = f"{type(orig).__name__}: {orig}" if orig else type(exc).__name__
     logger.warning(f"Database unavailable while handling {request.method} {request.url.path}: {error_summary}")
@@ -195,12 +200,15 @@ def _register_nats_handlers(
     enable_client_templates: bool,
     ignore_host_messages: bool = False,
     enable_node_sync: bool = False,
+    enable_settings_refresh: bool = False,
 ):
     if enable_router:
         on_startup(router.start)
         on_shutdown(router.stop)
     if enable_settings:
         router.register_handler(MessageTopic.SETTING, handle_settings_message)
+    elif enable_settings_refresh:
+        router.register_handler(MessageTopic.SETTING, _refresh_settings_message)
     if enable_client_templates:
         router.register_handler(MessageTopic.CLIENT_TEMPLATE, handle_client_template_message)
     if ignore_host_messages:
@@ -388,11 +396,23 @@ def create_app() -> FastAPI:
     enable_client_templates = runtime_settings.role.runs_panel or runtime_settings.role.runs_scheduler
     ignore_host_messages = not runtime_settings.role.runs_panel
     enable_node_sync = runtime_settings.role.runs_node
+    enable_settings_refresh = runtime_settings.role.runs_node
     _register_nats_handlers(
-        enable_router, enable_settings, enable_client_templates, ignore_host_messages, enable_node_sync
+        enable_router,
+        enable_settings,
+        enable_client_templates,
+        ignore_host_messages,
+        enable_node_sync,
+        enable_settings_refresh,
     )
     _register_scheduler_hooks()
     _register_jobs()
+
+    from app.notification.dedup import close_notification_dedup
+
+    # Every role can send notifications. Hooks registered at startup (node loops) still run after this one;
+    # anything they send by then falls back to the per-worker dedup.
+    on_shutdown(close_notification_dedup)
 
     _use_route_names_as_operation_ids(app)
 
@@ -410,6 +430,8 @@ def create_app() -> FastAPI:
         )
 
     app.add_exception_handler(DBAPIError, database_operational_error_handler)
+    # Pool exhaustion is not a DBAPIError; it is the same "try again shortly" condition.
+    app.add_exception_handler(PoolTimeoutError, database_operational_error_handler)
 
     from app.operation.permissions import LimitExceeded, PermissionDenied
 
