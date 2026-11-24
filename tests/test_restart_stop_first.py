@@ -126,7 +126,6 @@ async def test_worker_bulk_connect_reads_stop_first(monkeypatch: pytest.MonkeyPa
         yield "db"
 
     nodes = [SimpleNamespace(id=1)]
-    monkeypatch.setattr(worker_module.core_manager, "_reload_from_cache", AsyncMock())
     monkeypatch.setattr(worker_module, "GetDB", fake_db)
     monkeypatch.setattr(worker_module, "get_nodes", AsyncMock(return_value=(nodes, 1)))
     service = SimpleNamespace(_node_operator=SimpleNamespace(connect_nodes_bulk=AsyncMock()))
