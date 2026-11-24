@@ -116,6 +116,9 @@ class NatsSettings(EnvSettings):
     scheduler_leader_kv_bucket: str = Field(
         default="pasarguard_scheduler_leader", validation_alias="NATS_SCHEDULER_LEADER_KV_BUCKET"
     )
+    notification_dedup_kv_bucket: str = Field(
+        default="pasarguard_notification_dedup", validation_alias="NATS_NOTIFICATION_DEDUP_KV_BUCKET"
+    )
     notification_stream: str = Field(default="NOTIFICATIONS", validation_alias="NATS_NOTIFICATION_STREAM")
     notification_subject: str = Field(default="notifications.queue", validation_alias="NATS_NOTIFICATION_SUBJECT")
     notification_consumer: str = Field(default="notification_workers", validation_alias="NATS_NOTIFICATION_CONSUMER")

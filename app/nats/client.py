@@ -18,10 +18,14 @@ async def get_jetstream_context(nc: nats.NATS) -> JetStreamContext:
     return nc.jetstream()
 
 
-async def get_or_create_kv_bucket(js: JetStreamContext, bucket_name: str) -> KeyValue | None:
-    """Get or create a JetStream KV bucket."""
+async def get_or_create_kv_bucket(
+    js: JetStreamContext, bucket_name: str, *, ttl: float | None = None
+) -> KeyValue | None:
+    """Get or create a JetStream KV bucket; `ttl` (seconds) expires every key of a new bucket."""
     try:
-        return await js.create_key_value(bucket=bucket_name)
+        if ttl is None:
+            return await js.create_key_value(bucket=bucket_name)
+        return await js.create_key_value(bucket=bucket_name, ttl=ttl)
     except Exception:
         # Bucket already exists
         return await js.key_value(bucket=bucket_name)
