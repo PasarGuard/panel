@@ -183,6 +183,14 @@ Then access: `http://localhost:8000/dashboard/`
 
 > ⚠️ **Testing only** - You'll lose access when you close the SSH terminal.
 
+### AmneziaWG 3.1
+
+Use a Linux PasarGuard Node with AmneziaWG support and add the `amnezia`
+settings to a native WireGuard core's JSON. The configuration comes from the
+core so the client profile uses the same settings as the server. Download the
+WireGuard ZIP from the user's subscription URL with `/wireguard` appended, then
+import the `.conf` into an AmneziaWG 3.1 client. See the [Node setup guide](https://github.com/PasarGuard/node#amneziawg-31-on-linux).
+
 ### 🔧 Next Steps:
 
 ```bash

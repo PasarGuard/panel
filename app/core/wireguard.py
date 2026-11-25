@@ -14,6 +14,50 @@ from app.utils.crypto import get_wireguard_public_key, validate_wireguard_key
 
 _WIREGUARD_PROTOCOLS = frozenset((ProxyProtocol.wireguard,))
 _WIREGUARD_INTERFACE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+_AMNEZIA_DIRECTIVES = {
+    "jc": "Jc",
+    "jmin": "Jmin",
+    "jmax": "Jmax",
+    **{f"{prefix}{i}": f"{prefix.upper()}{i}" for prefix in ("s", "h") for i in range(1, 5)},
+    **{f"i{i}": f"I{i}" for i in range(1, 6)},
+    "header_protection_key": "HeaderProtectionKey",
+    "content_padding_addition": "ContentPaddingAddition",
+    "rekey_after_time": "RekeyAfterTime",
+    "rekey_timeout": "RekeyTimeout",
+    "reject_after_time": "RejectAfterTime",
+    "keepalive_timeout": "KeepaliveTimeout",
+    "max_handshake_attempts": "MaxHandshakeAttempts",
+    "random_trailers": "RandomTrailers",
+    "disable_cookies": "DisableCookies",
+}
+_AMNEZIA_SWITCHES = frozenset(("random_trailers", "disable_cookies"))
+
+
+def _amnezia_client_directives(settings: dict) -> dict[str, str]:
+    """Translate native WireGuard core settings to AmneziaWG's [Interface] directives."""
+    if not isinstance(settings, dict):
+        raise TypeError("amnezia must be an object")
+    directives = {}
+    for key, value in settings.items():
+        directive = _AMNEZIA_DIRECTIVES.get(key)
+        if directive is None:
+            raise ValueError(f"unknown amnezia setting {key}")
+        if key in _AMNEZIA_SWITCHES:
+            if value is True or value in ("on", "true"):
+                value = "on"
+            elif value is False or value in ("off", "false"):
+                value = "off"
+            else:
+                raise ValueError(f"amnezia.{key} must be on or off")
+        elif type(value) is int:
+            value = str(value)
+        if not isinstance(value, str) or any(char in value for char in "\r\n\x00#"):
+            raise ValueError(f"amnezia.{key} must be a single-line string or an integer")
+        if key == "header_protection_key":
+            value = validate_wireguard_key(value, f"amnezia.{key}")
+        if value or not key.startswith("i"):
+            directives[directive] = value
+    return directives
 
 
 class WireGuardConfig(dict):
@@ -110,6 +154,11 @@ class WireGuardConfig(dict):
             "private_key": self.get("private_key", ""),
             "pre_shared_key": self.get("pre_shared_key", ""),
         }
+        if self.get("amnezia") is not None:
+            directives = _amnezia_client_directives(self["amnezia"])
+            if "HeaderProtectionKey" in directives:
+                self["amnezia"]["header_protection_key"] = directives["HeaderProtectionKey"]
+            metadata["wireguard_amnezia_profile"] = directives
         self._inbounds = [interface_name]
         self._inbounds_by_tag = {interface_name: metadata}
 
