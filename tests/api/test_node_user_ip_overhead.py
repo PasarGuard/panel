@@ -7,7 +7,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import event
 
-from app.db.models import Admin, Group, ProxyInbound, User, UserUsageResetLogs
+from app.db.models import Admin, Group, ProxyInbound, User, UserUsageResetLogs, users_groups_association
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
 from tests.api import TestSession, engine
@@ -113,7 +113,10 @@ async def test_local_user_ip_methods_work_stays_constant_as_relations_grow(metho
         session.add_all(
             UserUsageResetLogs(user_id=user_id, used_traffic_at_reset=index) for index in range(500)
         )
-        session.add(Group(name=unique_name("ovh_group"), inbounds=[ProxyInbound(tag=unique_name("ovh_inbound"))]))
+        group = Group(name=unique_name("ovh_group"), inbounds=[ProxyInbound(tag=unique_name("ovh_inbound"))])
+        session.add(group)
+        await session.flush()
+        await session.execute(users_groups_association.insert().values(user_id=user_id, groups_id=group.id))
         await session.commit()
 
     operator = NodeOperation(operator_type=OperatorType.API)
@@ -123,14 +126,16 @@ async def test_local_user_ip_methods_work_stays_constant_as_relations_grow(metho
     )
     monkeypatch.setattr(
         "app.operation.node.node_manager",
-        SimpleNamespace(get_node=AsyncMock(return_value=fake_node), get_healthy_nodes=AsyncMock(return_value=[])),
+        SimpleNamespace(get_node=AsyncMock(return_value=fake_node), get_healthy_nodes=AsyncMock(return_value=[(7, fake_node)])),
     )
 
     counts, listener = _count_overhead_queries()
     try:
         async with TestSession() as session:
             if method_name == "_get_user_ip_list_all_local":
-                assert await getattr(operator, method_name)(db=session, user_id=user_id) is not None
+                result = await getattr(operator, method_name)(db=session, user_id=user_id)
+                assert set(result.nodes) == {7}
+                assert result.nodes[7].ips == {"1.2.3.4": 2}
             else:
                 assert await getattr(operator, method_name)(db=session, node_id=1, user_id=user_id) is not None
         assert all(count == 0 for count in counts.values()), counts
