@@ -664,6 +664,18 @@ class ClashConfiguration(BaseSubscription):
 
 
 class ClashMetaConfiguration(ClashConfiguration):
+    _AMNEZIA_YAML_NAMES: ClassVar[dict[str, str]] = {
+        "HeaderProtectionKey": "header-protection-key",
+        "ContentPaddingAddition": "content-padding-addition",
+        "RekeyAfterTime": "rekey-after-time",
+        "RekeyTimeout": "rekey-timeout",
+        "RejectAfterTime": "reject-after-time",
+        "KeepaliveTimeout": "keepalive-timeout",
+        "MaxHandshakeAttempts": "max-handshake-attempts",
+        "RandomTrailers": "random-trailers",
+        "DisableCookies": "disable-cookies",
+    }
+
     def __init__(
         self,
         clash_template_content: str | None = None,
@@ -833,7 +845,28 @@ class ClashMetaConfiguration(ClashConfiguration):
             node["remote-dns-resolve"] = True
             node["dns"] = list(inbound.wireguard_dns)
 
-        return self._normalize_and_remove_none_values(node)
+        node = self._normalize_and_remove_none_values(node)
+        if inbound.wireguard_amnezia_profile is not None:
+            try:
+                node["amnezia-wg-option"] = self._mihomo_amnezia_options(inbound.wireguard_amnezia_profile)
+            except ValueError:
+                # An invalid numeric directive makes this node unusable.
+                return None
+        return node
+
+    @classmethod
+    def _mihomo_amnezia_options(cls, profile: dict[str, str]) -> dict[str, int | str | bool]:
+        # Mihomo selects its v3 implementation even when the core's profile is empty.
+        options: dict[str, int | str | bool] = {"version": 3}
+        for directive, value in profile.items():
+            key = cls._AMNEZIA_YAML_NAMES.get(directive, directive.lower())
+            if directive in ("Jc", "Jmin", "Jmax", "S1", "S2", "S3", "S4"):
+                options[key] = int(value)
+            elif directive in ("RandomTrailers", "DisableCookies"):
+                options[key] = value == "on"
+            else:
+                options[key] = value
+        return options
 
     @staticmethod
     def _is_ip_address(value) -> bool:

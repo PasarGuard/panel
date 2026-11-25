@@ -54,6 +54,8 @@ class WireGuardConfiguration(BaseSubscription):
         }
 
         # Optional Interface settings
+        if inbound.wireguard_amnezia_profile:
+            config_data["Interface"].update(inbound.wireguard_amnezia_profile)
         if mtu := payload.get("mtu"):
             config_data["Interface"]["MTU"] = str(mtu)
         if dns_servers := payload.get("dns"):

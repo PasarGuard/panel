@@ -229,6 +229,7 @@ async def _prepare_subscription_inbound_data(
             wireguard_mtu=wg_over.mtu if wg_over.mtu is not None else inbound_config.get("mtu"),
             wireguard_reserved=reserved,
             wireguard_dns=dns,
+            wireguard_amnezia_profile=inbound_config.get("wireguard_amnezia_profile"),
             fragment_settings=host.fragment_settings.model_dump() if host.fragment_settings else None,
             noise_settings=host.noise_settings.model_dump() if host.noise_settings else None,
             finalmask=final_mask_settings,
