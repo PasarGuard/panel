@@ -485,8 +485,10 @@ async def process_inbounds_and_tags(
         return xray_template_overrides.get(template_id)
 
     for host_data in hosts:
-        if host_data.wireguard_amnezia_profile and not isinstance(conf, WireGuardConfiguration):
-            # Client formats that cannot carry the core's AmneziaWG profile would produce a dead tunnel.
+        if host_data.wireguard_amnezia_profile is not None and not isinstance(
+            conf, (WireGuardConfiguration, ClashMetaConfiguration)
+        ):
+            # A plain WireGuard node would fail to connect to an AmneziaWG server.
             continue
         if host_data.network in XRAY_ONLY_NETWORKS and not isinstance(conf, XrayConfiguration):
             # Links, sing-box, Clash and Outline cannot carry these transports.
