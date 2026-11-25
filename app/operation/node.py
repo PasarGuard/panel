@@ -993,10 +993,19 @@ class NodeOperation(BaseOperation):
     async def _connect_nodes_bulk_sync(
         self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False, stop_first: bool = True
     ) -> None:
+        # Snapshot ids and statuses before bulk_update_node_status: its deadlock
+        # retry path calls db.rollback(), which expires every ORM instance in
+        # the session, and reading expired attributes on an AsyncSession raises
+        # MissingGreenlet.
+        node_ids = [
+            (node.id, node.status)
+            for node in nodes
+            if node is not None
+        ]
         await self._connect_nodes_bulk_local(db, nodes, force_start=force_start, stop_first=stop_first)
-        for node in nodes:
-            if node is not None and node.status not in (NodeStatus.disabled, NodeStatus.limited):
-                await publish_node_sync("connect", node.id)
+        for node_id, status in node_ids:
+            if status not in (NodeStatus.disabled, NodeStatus.limited):
+                await publish_node_sync("connect", node_id)
 
     async def _connect_nodes_bulk_remote(
         self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False, stop_first: bool = True
