@@ -78,6 +78,31 @@ const defaultApplicationsData: { operatingSystems: DefaultOperatingSystem[] } = 
           configLink: 'sing-box://import-remote-profile?url={url}',
           downloadLink: 'https://play.google.com/store/apps/details?id=io.nekohasekai.sfa&hl=en',
         },
+        {
+          name: 'ducker',
+          logo: 'https://raw.githubusercontent.com/duckerapp/ducker/refs/heads/main/site/docs/assets/favicon.png',
+          description: 'A mihomo (Clash Meta) client for Android and Android TV. Shows subscription traffic, expiry and announcements; one-tap import.',
+          faDescription: 'کلاینت mihomo (Clash Meta) برای اندروید و Android TV. ترافیک، تاریخ انقضا و اطلاعیه‌های اشتراک را نشان می‌دهد؛ افزودن با یک لمس.',
+          ruDescription: 'Клиент mihomo (Clash Meta) для Android и Android TV. Показывает трафик, срок и объявления подписки; добавление в одно касание.',
+          zhDescription: '适用于 Android 和 Android TV 的 mihomo（Clash Meta）客户端。显示订阅流量、到期时间和公告；一键导入。',
+          configLink: 'ducker://install-config?url={url}',
+          downloadLink: 'https://github.com/duckerapp/ducker/releases/latest/download/ducker-arm64-v8a.apk',
+        },
+      ],
+    },
+    {
+      name: 'Android TV',
+      apps: [
+        {
+          name: 'ducker',
+          logo: 'https://raw.githubusercontent.com/duckerapp/ducker/refs/heads/main/site/docs/assets/favicon.png',
+          description: 'A mihomo (Clash Meta) client for Android and Android TV. Shows subscription traffic, expiry and announcements; one-tap import.',
+          faDescription: 'کلاینت mihomo (Clash Meta) برای اندروید و Android TV. ترافیک، تاریخ انقضا و اطلاعیه‌های اشتراک را نشان می‌دهد؛ افزودن با یک لمس.',
+          ruDescription: 'Клиент mihomo (Clash Meta) для Android и Android TV. Показывает трафик, срок и объявления подписки; добавление в одно касание.',
+          zhDescription: '适用于 Android 和 Android TV 的 mihomo（Clash Meta）客户端。显示订阅流量、到期时间和公告；一键导入。',
+          configLink: 'ducker://install-config?url={url}',
+          downloadLink: 'https://github.com/duckerapp/ducker/releases/latest/download/ducker-armeabi-v7a.apk',
+        },
       ],
     },
     {
