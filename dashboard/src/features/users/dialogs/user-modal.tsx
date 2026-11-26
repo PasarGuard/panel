@@ -46,6 +46,7 @@ import { bytesToFormGigabytes, formatBytes, formGigabytesToBytes, gbToBytes } fr
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
 import { hasPermission, hasScopeAll } from '@/utils/rbac'
 import { toWholeSeconds } from '@/utils/timeUnitSeconds'
+import { generateWireGuardKeyPair, getWireGuardPublicKey } from '@/utils/wireguard'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CalendarClock,
@@ -1241,13 +1242,25 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
       masque: { password: generatePassword() },
       // keep the hidden MTProto fields (user_ad_tag, max_tcp_conns, max_unique_ips); only the secret rotates
       mtproto: { ...form.getValues('proxy_settings.mtproto'), secret: generateMtprotoSecret() },
-      // Keep backend-managed peer keys when regenerating the other credentials.
+      // WireGuard keys rotate through their dedicated control.
       wireguard: form.getValues('proxy_settings.wireguard'),
     }
     form.setValue('proxy_settings', newSettings as any, { shouldDirty: true, shouldValidate: true })
     handleFieldChange('proxy_settings', newSettings)
     toast.success(t('userDialog.proxySettings.allGenerated', { defaultValue: 'All proxy credentials regenerated' }))
   }, [form, handleFieldChange, t])
+
+  const setWireGuardKeys = (privateKey: string, publicKey: string) => {
+    form.setValue('proxy_settings.wireguard.private_key', privateKey, { shouldDirty: true })
+    form.setValue('proxy_settings.wireguard.public_key', publicKey, { shouldDirty: true })
+    handleFieldChange('proxy_settings', form.getValues('proxy_settings'))
+  }
+
+  const generateWireGuardProxySettings = () => {
+    const { privateKey, publicKey } = generateWireGuardKeyPair()
+    setWireGuardKeys(privateKey, publicKey)
+    toast.success(t('userDialog.proxySettings.wireguardGenerated', { defaultValue: 'WireGuard keypair generated' }))
+  }
 
   const generateMtprotoProxySettings = React.useCallback(() => {
     const secret = generateMtprotoSecret()
@@ -1322,7 +1335,6 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     [hasMeaningfulProxyValue],
   )
 
-  // Regenerate editable proxy credentials; WireGuard peers are managed by the backend.
   const GenerateProxySettingsButton = () => (
     <Button size="icon" type="button" variant="outline" onClick={generateAllProxySettings} className="flex items-center gap-1.5 border-0 text-xs">
       <RefreshCcw className="h-3 w-3" />
@@ -2149,6 +2161,50 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
                                 </FormItem>
                               )
                             }}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="proxy_settings.wireguard.private_key"
+                            render={({ field }) => (
+                              <FormItem className="mb-2">
+                                <FormLabel>{t('userDialog.proxySettings.wireguardPrivateKey', { defaultValue: 'WireGuard Private key' })}</FormLabel>
+                                <div dir="ltr" className={`flex items-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                  <FormControl>
+                                    <Input
+                                      {...field}
+                                      value={field.value ?? ''}
+                                      onChange={e => {
+                                        const privateKey = e.target.value
+                                        setWireGuardKeys(privateKey, getWireGuardPublicKey(privateKey))
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <Button
+                                    size="icon"
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={generateWireGuardProxySettings}
+                                    aria-label={t('userDialog.proxySettings.generateWireGuardKeyPair', { defaultValue: 'Generate WireGuard keypair' })}
+                                  >
+                                    <RefreshCcw className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="proxy_settings.wireguard.public_key"
+                            render={({ field }) => (
+                              <FormItem className="mb-2">
+                                <FormLabel>{t('userDialog.proxySettings.wireguardPublicKey', { defaultValue: 'WireGuard Public key' })}</FormLabel>
+                                <FormControl>
+                                  <Input dir="ltr" {...field} value={field.value ?? ''} readOnly />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
                         </AccordionContent>
                       </AccordionItem>
