@@ -25,6 +25,7 @@ export function parseUserAgent(userAgent: string | null | undefined): ClientInfo
   const clientPatterns = [
     { pattern: /karing/, name: 'Karing', iconType: 'desktop' as const },
     { pattern: /flclash/, name: 'FlClash', iconType: 'desktop' as const },
+    { pattern: /hiddify/, name: 'Hiddify', iconType: 'mobile' as const },
     { pattern: /clash[\s.-]?verge|mihomo|clash/, name: 'Clash', iconType: 'desktop' as const },
     { pattern: /v2rayng/, name: 'v2rayNG', iconType: 'mobile' as const },
     { pattern: /v2rayn/, name: 'v2rayN', iconType: 'desktop' as const },
@@ -34,7 +35,6 @@ export function parseUserAgent(userAgent: string | null | undefined): ClientInfo
     { pattern: /surge/, name: 'Surge', iconType: 'mobile' as const },
     { pattern: /shadowsocks/, name: 'Shadowsocks', iconType: 'desktop' as const },
     { pattern: /\bsf[aimt]\b|sing[\s-]?box/, name: 'sing-box', iconType: 'desktop' as const },
-    { pattern: /hiddify/, name: 'Hiddify', iconType: 'mobile' as const },
     { pattern: /happ/, name: 'Happ', iconType: 'mobile' as const },
     { pattern: /fairvpn/, name: 'FairVPN', iconType: 'mobile' as const },
     { pattern: /v2box/, name: 'V2Box', iconType: 'mobile' as const },
