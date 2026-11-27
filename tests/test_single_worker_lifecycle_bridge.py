@@ -4,9 +4,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy.exc import OperationalError
-
 from PasarGuardNodeBridge.storage import LifecycleStatus
+from sqlalchemy.exc import OperationalError
 
 from app.db.crud import node as node_crud_module
 from app.db.models import NodeStatus
@@ -103,3 +102,38 @@ async def test_bulk_update_node_status_retries_on_mysql_deadlock():
     assert execute.await_count == 2
     db.rollback.assert_awaited_once()
     db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_bulk_restart_nodes_uses_name_snapshot_after_expire(monkeypatch: pytest.MonkeyPatch):
+    """After a deadlock rollback inside connect_nodes_bulk, ORM objects may be expired;
+    reading .name afterwards would raise MissingGreenlet, so names must be snapshotted first."""
+    from app.models.node import BulkNodeSelection
+
+    class ExpiredNode:
+        def __init__(self, name: str):
+            self._name = name
+            self._expired = False
+
+        @property
+        def name(self):
+            if self._expired:
+                raise NotImplementedError("MissingGreenlet: attribute 'name' is expired after rollback")
+            return self._name
+
+    node_a, node_b = ExpiredNode("alpha"), ExpiredNode("beta")
+
+    async def expire_on_connect(self, db, nodes, **kwargs):
+        for node in nodes:
+            node._expired = True
+
+    monkeypatch.setattr(NodeOperation, "_get_validated_nodes", AsyncMock(return_value=[node_a, node_b]))
+    monkeypatch.setattr(NodeOperation, "connect_nodes_bulk", expire_on_connect)
+
+    admin = SimpleNamespace(username="admin")
+    response = await NodeOperation(operator_type=None).bulk_restart_nodes(
+        db=SimpleNamespace(), bulk_nodes=BulkNodeSelection(ids=[1, 2]), admin=admin
+    )
+
+    assert response.nodes == ["alpha", "beta"]
+    assert response.count == 2

@@ -1582,13 +1582,14 @@ class NodeOperation(BaseOperation):
         self, db: AsyncSession, bulk_nodes: BulkNodeSelection, admin: AdminDetails
     ) -> BulkNodesActionResponse:
         db_nodes = await self._get_validated_nodes(db, bulk_nodes.ids)
+        node_names = [db_node.name for db_node in db_nodes]
 
         await self.connect_nodes_bulk(db, db_nodes, force_start=True)
 
-        for db_node in db_nodes:
-            logger.info(f'Node "{db_node.name}" restarted by admin "{admin.username}"')
+        for node_name in node_names:
+            logger.info(f'Node "{node_name}" restarted by admin "{admin.username}"')
 
-        return self._build_bulk_action_response(db_nodes)
+        return BulkNodesActionResponse(nodes=node_names, count=len(node_names))
 
     async def bulk_update_nodes(
         self, db: AsyncSession, bulk_nodes: BulkNodeSelection, admin: AdminDetails
