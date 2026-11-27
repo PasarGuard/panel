@@ -384,6 +384,21 @@ class NodeOperation(BaseOperation):
             NodeOperation._mtproto_start_timeouts.pop(int(node_id), None)
 
     @staticmethod
+    def _request_user_reconcile(node_id: object) -> None:
+        """Have the reconcile job check a just attached or started node's users soon."""
+        with contextlib.suppress(TypeError, ValueError):
+            node_manager.request_user_reconcile(int(node_id))
+
+    @staticmethod
+    async def _cancel_user_reconcile(node_id: object) -> None:
+        """Stop the node's reconciliation pass, which holds the fence a Start needs while it sends."""
+        try:
+            node_id = int(node_id)
+        except TypeError, ValueError:
+            return
+        await node_manager.cancel_user_reconcile(node_id)
+
+    @staticmethod
     async def _attach_if_running(pg_node: PasarGuardNode, node_name: str):
         """Attach to an already-started remote core without calling Start RPC."""
         try:
@@ -414,6 +429,8 @@ class NodeOperation(BaseOperation):
                 await pg_node.update_observed_lifecycle(LifecycleStatus.HEALTHY, expected_epoch=state.epoch)
             # The health checker attaches a late-started core directly, so connect_node never sees it.
             NodeOperation._drop_mtproto_start_timeouts(getattr(pg_node, "node_id", None))
+            # A running core keeps whatever users it had; the reconcile job brings them up to date.
+            NodeOperation._request_user_reconcile(getattr(pg_node, "node_id", None))
             logger.debug(
                 f'Attached to already-running "{node_name}" node v{info.node_version}, core v{info.core_version}'
             )
@@ -452,6 +469,8 @@ class NodeOperation(BaseOperation):
         # Resolve it only when the remote backend really needs to be started,
         # inside the node's full-sync fence: Start replaces the core's user set
         # with this snapshot, so deltas must not land between the read and it.
+        # A reconciliation pass of the node holds that fence per chunk; Start wins.
+        await NodeOperation._cancel_user_reconcile(getattr(pg_node, "node_id", None))
         fence = getattr(pg_node, "full_sync_fence", None)
         async with fence() if callable(fence) else contextlib.nullcontext() as held:
             if callable(users):
@@ -514,6 +533,8 @@ class NodeOperation(BaseOperation):
                     except Exception:
                         pass
                     raise NodeAPIError(500, f"Failed to sync users after starting WireGuard: {exc}") from exc
+            # A node whose core was already running ignores the users of a Start.
+            NodeOperation._request_user_reconcile(getattr(pg_node, "node_id", None))
             return info
 
     @staticmethod

@@ -212,6 +212,12 @@ class JobSettings(EnvSettings):
     cleanup_subscription_updates_interval: int = Field(
         default=600, validation_alias="JOB_CLEANUP_SUBSCRIPTION_UPDATES_INTERVAL"
     )
+    # Seconds between user reconciliation passes of each node; 0 turns reconciliation off.
+    node_user_reconcile_interval: int = Field(default=1800, ge=0, validation_alias="JOB_NODE_USER_RECONCILE_INTERVAL")
+    # Seconds between passes that also remove inactive and deleted users from each node; 0 turns them off.
+    node_user_removal_sweep_interval: int = Field(
+        default=86400, ge=0, validation_alias="JOB_NODE_USER_REMOVAL_SWEEP_INTERVAL"
+    )
 
 
 database_settings = DatabaseSettings()
