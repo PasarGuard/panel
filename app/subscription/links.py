@@ -185,8 +185,8 @@ class StandardLinks(BaseSubscription):
             # Just use the stored instance, no extraction needed!
             handler(payload, protocol, inbound.transport_config, path)
 
-    def _apply_tls_settings(self, payload: dict, tls_config: TLSConfig, fragment_settings: dict | None = None):
-        """Apply TLS settings - receives TLS config and optional fragment settings"""
+    def _apply_tls_settings(self, payload: dict, tls_config: TLSConfig):
+        """Apply TLS settings from the TLS config"""
         sni = tls_config.sni if isinstance(tls_config.sni, str) else ""
         payload["sni"] = sni
         payload["fp"] = tls_config.fingerprint
@@ -198,10 +198,6 @@ class StandardLinks(BaseSubscription):
         # Use pre-formatted alpn for links (comma-separated string)
         if tls_config.alpn_links:
             payload["alpn"] = tls_config.alpn_links
-
-        # Fragment settings (from inbound, not TLS)
-        if fragment_settings and (xray_fragment := fragment_settings.get("xray")):
-            payload["fragment"] = f"{xray_fragment['length']},{xray_fragment['interval']},{xray_fragment['packets']}"
 
         if tls_config.ech_config_list:
             payload["ech"] = tls_config.ech_config_list
@@ -248,7 +244,7 @@ class StandardLinks(BaseSubscription):
 
         if inbound.tls_config.tls in ("tls", "reality"):
             # Use stored TLS config instance
-            self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
+            self._apply_tls_settings(payload, inbound.tls_config)
 
         payload = self._normalize_and_remove_none_values(payload)
         return "vmess://" + base64.b64encode(json.dumps(payload, sort_keys=True).encode("utf-8")).decode()
@@ -278,7 +274,7 @@ class StandardLinks(BaseSubscription):
         self._apply_finalmask(payload, "vless", inbound)
         if inbound.tls_config.tls in ("tls", "reality"):
             # Use stored TLS config instance
-            self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
+            self._apply_tls_settings(payload, inbound.tls_config)
 
         payload = self._normalize_and_remove_none_values(payload)
         return f"vless://{id}@{address}:{inbound.port}?{urlparse.urlencode(payload, quote_via=urlparse.quote)}#{urlparse.quote(remark)}"
@@ -299,7 +295,7 @@ class StandardLinks(BaseSubscription):
         self._apply_finalmask(payload, "trojan", inbound)
         if inbound.tls_config.tls in ("tls", "reality"):
             # Use stored TLS config instance
-            self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
+            self._apply_tls_settings(payload, inbound.tls_config)
 
         payload = self._normalize_and_remove_none_values(payload)
         password = urlparse.quote(settings["password"], safe=":")
@@ -340,7 +336,7 @@ class StandardLinks(BaseSubscription):
         self._apply_finalmask(payload, "hysteria", inbound)
         if inbound.tls_config.tls in ("tls", "reality"):
             # Use stored TLS config instance
-            self._apply_tls_settings(payload, inbound.tls_config, inbound.fragment_settings)
+            self._apply_tls_settings(payload, inbound.tls_config)
 
         payload = self._normalize_and_remove_none_values(payload)
         auth = urlparse.quote(settings["auth"], safe=":")

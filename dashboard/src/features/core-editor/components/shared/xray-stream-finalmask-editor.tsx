@@ -1,6 +1,6 @@
 import { useFieldArray, type UseFormReturn, useForm, FormProvider } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import type { FinalMaskTcpType, FinalMaskUdpType, XrayNoiseSettings } from '@/service/api'
+import type { FinalMaskTcpType, FinalMaskUdpType, FinalMaskNoiseMaskItem } from '@/service/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -1463,7 +1463,7 @@ function JsonObjectEditor({ label, value, onChange }: { label: string; value: un
   )
 }
 
-function JsonArrayEditor({ label, value, onChange }: { label: string; value: unknown; onChange: (value: XrayNoiseSettings[][]) => void }) {
+function JsonArrayEditor({ label, value, onChange }: { label: string; value: unknown; onChange: (value: FinalMaskNoiseMaskItem[][]) => void }) {
   const serializedValue = JSON.stringify(Array.isArray(value) ? value : [], null, 2)
   const [text, setText] = useState(serializedValue)
 
@@ -1483,7 +1483,7 @@ function JsonArrayEditor({ label, value, onChange }: { label: string; value: unk
             try {
               const parsed = JSON.parse(val)
               if (Array.isArray(parsed)) {
-                onChange(parsed as XrayNoiseSettings[][])
+                onChange(parsed as FinalMaskNoiseMaskItem[][])
               }
             } catch {
               return

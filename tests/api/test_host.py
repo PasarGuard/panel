@@ -524,46 +524,6 @@ def test_host_finalmask_noise_exp_invalid(access_token):
         delete_core(access_token, core["id"])
 
 
-def test_host_fragment_interval_roundtrip(access_token):
-    """Freedom fragment interval must persist as interval (not serialize away as delay)."""
-    core = create_core(access_token)
-    inbound_list = get_inbounds(access_token)
-    assert inbound_list
-    inbound = inbound_list[0]
-
-    create_response = client.post(
-        "/api/host",
-        headers={"Authorization": f"Bearer {access_token}"},
-        json={
-            "remark": unique_name("fragment_interval"),
-            "address": ["127.0.0.1"],
-            "port": 443,
-            "inbound_tag": inbound,
-            "priority": 1,
-            "fragment_settings": {
-                "xray": {
-                    "packets": "tlshello",
-                    "length": "10-20",
-                    "interval": "5-10",
-                }
-            },
-        },
-    )
-    assert create_response.status_code == status.HTTP_201_CREATED, create_response.text
-    host_id = create_response.json()["id"]
-
-    try:
-        get_res = client.get(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
-        assert get_res.status_code == status.HTTP_200_OK
-        xray = (get_res.json().get("fragment_settings") or {}).get("xray") or {}
-        assert xray.get("interval") == "5-10"
-        assert xray.get("length") == "10-20"
-        assert "delay" not in xray
-    finally:
-        client.delete(f"/api/host/{host_id}", headers={"Authorization": f"Bearer {access_token}"})
-        delete_core(access_token, core["id"])
-
-
 def test_host_finalmask_legacy_interval_to_delays(access_token):
     """Legacy FinalMask fragment interval/length should normalize to delays/lengths."""
     core = create_core(access_token)
@@ -697,6 +657,53 @@ def test_non_mtproto_host_ignores_mtproto_settings(access_token):
         )
         assert response.status_code == status.HTTP_201_CREATED, response.text
         host_id = response.json()["id"]
+    finally:
+        if host_id is not None:
+            client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_host_keeps_singbox_and_finalmask_without_legacy_settings(access_token):
+    core = create_core(access_token)
+    host_id = None
+    try:
+        inbounds = get_inbounds(access_token)
+        assert inbounds
+        singbox = {"fragment": True, "fragment_fallback_delay": "100ms", "record_fragment": True}
+        finalmask = {
+            "tcp": [{"type": "fragment", "settings": {"packets": "tlshello", "lengths": ["10-20"], "delays": ["5-10"]}}]
+        }
+        payload = {
+            "remark": unique_name("host_camouflage"),
+            "priority": 1,
+            "address": ["127.0.0.1"],
+            "port": 443,
+            "inbound_tag": inbounds[0],
+            "fragment_settings": {
+                "xray": {"packets": "tlshello", "length": "10-20", "interval": "5-10"},
+                "sing_box": singbox,
+            },
+            "noise_settings": {"xray": [{"type": "rand", "packet": "10-20"}]},
+            "final_mask_settings": finalmask,
+        }
+        response = client.post("/api/host", headers=auth_headers(access_token), json=payload)
+        assert response.status_code == status.HTTP_201_CREATED, response.text
+        host_id = response.json()["id"]
+        for data in (
+            response.json(),
+            client.get(f"/api/host/{host_id}", headers=auth_headers(access_token)).json(),
+        ):
+            assert "noise_settings" not in data
+            assert data["fragment_settings"] == {"sing_box": singbox}
+            settings = data["final_mask_settings"]["tcp"][0]["settings"]
+            assert settings["lengths"] == ["10-20"]
+            assert settings["delays"] == ["5-10"]
+
+        payload["fragment_settings"] = {"sing_box": {**singbox, "fragment_fallback_delay": "200ms"}}
+        response = client.put(f"/api/host/{host_id}", headers=auth_headers(access_token), json=payload)
+        assert response.status_code == status.HTTP_200_OK, response.text
+        assert response.json()["fragment_settings"]["sing_box"]["fragment_fallback_delay"] == "200ms"
+        assert "noise_settings" not in response.json()
     finally:
         if host_id is not None:
             client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
