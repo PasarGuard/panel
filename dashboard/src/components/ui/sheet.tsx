@@ -66,14 +66,14 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
 ))
 SheetContent.displayName = SheetPrimitive.Content.displayName
 
-const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div className={cn('flex flex-col space-y-2 text-center sm:text-start', className)} {...props} />
+const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div className={cn('flex flex-col gap-1 text-center sm:text-start', className)} {...props} />
 SheetHeader.displayName = 'SheetHeader'
 
 const SheetFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div className={cn('flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2', className)} {...props} />
 SheetFooter.displayName = 'SheetFooter'
 
 const SheetTitle = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Title>, React.ComponentPropsWithoutRef<typeof SheetPrimitive.Title>>(({ className, ...props }, ref) => (
-  <SheetPrimitive.Title ref={ref} className={cn('text-foreground text-lg font-semibold', className)} {...props} />
+  <SheetPrimitive.Title ref={ref} className={cn('text-foreground text-base/5 font-medium tracking-tight [&>svg]:size-4 [&>svg]:shrink-0', className)} {...props} />
 ))
 SheetTitle.displayName = SheetPrimitive.Title.displayName
 

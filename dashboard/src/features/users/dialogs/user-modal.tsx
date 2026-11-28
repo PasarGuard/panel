@@ -10,7 +10,7 @@ import { type UseEditFormValues, type UseFormValues, mtprotoSettingsSchema, user
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -21,6 +21,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useAdmin } from '@/hooks/use-admin'
 import useDirDetection from '@/hooks/use-dir-detection'
+import { useIsMobile } from '@/hooks/use-mobile'
 import useDynamicErrorHandler from '@/hooks/use-dynamic-errors.ts'
 import { cn } from '@/lib/utils'
 import {
@@ -331,6 +332,7 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
   const canUseUserTemplates = hasPermission(admin, 'templates', 'read_simple')
   const showTemplateTab = canUseUserTemplates || requireTemplateForCreate
   const dir = useDirDetection()
+  const isDrawer = useIsMobile()
   const handleError = useDynamicErrorHandler()
   const [loading, setLoading] = useState(false)
   const status = form.watch('status')
@@ -1457,19 +1459,104 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
     }
   }, [isDialogOpen, editingUser, generalSettings, form])
 
+  const actionsMenu = editingUser && (
+    <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setActionsMenuOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant={isDrawer ? 'ghost' : 'outline'}
+          size="icon"
+          aria-label={t('actions', { defaultValue: 'Actions' })}
+          className={cn(
+            'group',
+            isDrawer
+              ? 'relative size-8 shrink-0 after:absolute after:-inset-1 after:content-[""]'
+              : 'border-border/70 bg-background/80 hover:border-primary/40 hover:bg-primary/5 focus-visible:ring-primary/30 data-[state=open]:border-primary/50 data-[state=open]:bg-primary/10 h-10 w-10 shadow-sm backdrop-blur transition-all hover:shadow-md focus-visible:ring-2',
+          )}
+        >
+          <EllipsisVertical className="text-muted-foreground group-hover:text-foreground group-data-[state=open]:text-foreground h-4 w-4 transition-all duration-200 group-data-[state=open]:rotate-90" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align={isDrawer ? 'end' : 'start'}
+        onEscapeKeyDown={() => setActionsMenuOpen(false)}
+        onPointerDownOutside={() => setActionsMenuOpen(false)}
+        onInteractOutside={() => setActionsMenuOpen(false)}
+      >
+        {canViewAllUserIps && (
+          <DropdownMenuItem
+            onSelect={() => {
+              setActionsMenuOpen(false)
+              setUserAllIPsModalOpen(true)
+            }}
+          >
+            <Network className="mr-2 h-4 w-4" />
+            <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem
+          onSelect={() => {
+            setActionsMenuOpen(false)
+            setUsageModalOpen(true)
+          }}
+        >
+          <PieChart className="mr-2 h-4 w-4" />
+          <span>{t('userDialog.usage', { defaultValue: 'Usage' })}</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            setActionsMenuOpen(false)
+            setSubscriptionClientsModalOpen(true)
+          }}
+        >
+          <Users className="mr-2 h-4 w-4" />
+          <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            setActionsMenuOpen(false)
+            setHwidsModalOpen(true)
+          }}
+        >
+          <Fingerprint className="mr-2 h-4 w-4" />
+          <span>{t('hwids.title', { defaultValue: 'Hardware IDs' })}</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            setActionsMenuOpen(false)
+            setRevokeSubDialogOpen(true)
+          }}
+        >
+          <Link2Off className="mr-2 h-4 w-4" />
+          <span>{t('userDialog.revokeSubscription', { defaultValue: 'Revoke subscription' })}</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            setActionsMenuOpen(false)
+            setResetUsageDialogOpen(true)
+          }}
+        >
+          <RefreshCcw className="mr-2 h-4 w-4" />
+          <span>{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleModalOpenChange}>
-      <DialogContent className={`h-auto lg:min-w-[900px]`}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className={cn('h-auto lg:min-w-[900px]', isDrawer && 'flex flex-col gap-2.5 overflow-hidden')}>
+        <DialogHeader className={isDrawer ? 'flex-row items-center justify-between pe-0' : undefined}>
+          <DialogTitle className="flex items-center gap-1.5">
             {editingUser ? <Pencil className="h-5 w-5" /> : <UserRoundPlus className="h-5 w-5" />}
             <span>{editingUser ? t('userDialog.editUser', { defaultValue: 'Edit User' }) : t('createUser', { defaultValue: 'Create User' })}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">{editingUser ? t('userDialog.editUser', { defaultValue: 'Edit User' }) : t('createUser', { defaultValue: 'Create User' })}</DialogDescription>
+          {isDrawer && actionsMenu}
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="-mr-4 max-h-[80dvh] overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]">
+          <form onSubmit={form.handleSubmit(onSubmit)} className={isDrawer ? 'flex min-h-0 flex-col gap-4' : 'space-y-4'}>
+            <div className={cn('-mr-4 max-h-[80dvh] overflow-y-auto px-2 pr-4 sm:max-h-[75dvh]', isDrawer && 'min-h-0 flex-1 overscroll-contain')}>
               <div className="flex w-full flex-col items-center justify-between gap-6 lg:flex-row lg:items-start lg:pb-8">
                 <div className="w-full flex-[2] space-y-6">
                   <div className="flex w-full items-center justify-center gap-4">
@@ -2451,157 +2538,77 @@ function UserModal({ isDialogOpen, onOpenChange, form, editingUser, editingUserI
               </div>
               {renderUserMetaPanel('mt-4 lg:hidden')}
             </div>
-            {/* Cancel/Create buttons - always visible */}
-            <div className="-mx-1 mt-2 flex flex-row items-center justify-end gap-3 overflow-x-auto px-1 py-1 sm:mx-0 sm:px-0 sm:pt-2 sm:pb-0">
-              {editingUser && (
-                <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setActionsMenuOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      aria-label={t('actions', { defaultValue: 'Actions' })}
-                      className="group border-border/70 bg-background/80 hover:border-primary/40 hover:bg-primary/5 focus-visible:ring-primary/30 data-[state=open]:border-primary/50 data-[state=open]:bg-primary/10 h-10 w-10 shadow-sm backdrop-blur transition-all hover:shadow-md focus-visible:ring-2"
-                    >
-                      <EllipsisVertical className="text-muted-foreground group-hover:text-foreground group-data-[state=open]:text-foreground h-4 w-4 transition-all duration-200 group-data-[state=open]:rotate-90" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="start"
-                    onEscapeKeyDown={() => setActionsMenuOpen(false)}
-                    onPointerDownOutside={() => setActionsMenuOpen(false)}
-                    onInteractOutside={() => setActionsMenuOpen(false)}
-                  >
-                    {canViewAllUserIps && (
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          setActionsMenuOpen(false)
-                          setUserAllIPsModalOpen(true)
-                        }}
-                      >
-                        <Network className="mr-2 h-4 w-4" />
-                        <span>{t('userAllIPs.ipAddresses', { defaultValue: 'IP addresses' })}</span>
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        setActionsMenuOpen(false)
-                        setUsageModalOpen(true)
-                      }}
-                    >
-                      <PieChart className="mr-2 h-4 w-4" />
-                      <span>{t('userDialog.usage', { defaultValue: 'Usage' })}</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        setActionsMenuOpen(false)
-                        setSubscriptionClientsModalOpen(true)
-                      }}
-                    >
-                      <Users className="mr-2 h-4 w-4" />
-                      <span>{t('subscriptionClients.clients', { defaultValue: 'Clients' })}</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        setActionsMenuOpen(false)
-                        setHwidsModalOpen(true)
-                      }}
-                    >
-                      <Fingerprint className="mr-2 h-4 w-4" />
-                      <span>{t('hwids.title', { defaultValue: 'Hardware IDs' })}</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        setActionsMenuOpen(false)
-                        setRevokeSubDialogOpen(true)
-                      }}
-                    >
-                      <Link2Off className="mr-2 h-4 w-4" />
-                      <span>{t('userDialog.revokeSubscription', { defaultValue: 'Revoke subscription' })}</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        setActionsMenuOpen(false)
-                        setResetUsageDialogOpen(true)
-                      }}
-                    >
-                      <RefreshCcw className="mr-2 h-4 w-4" />
-                      <span>{t('userDialog.resetUsage', { defaultValue: 'Reset usage' })}</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              <div className="flex shrink-0 items-center gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={e => {
+            <DialogFooter className={isDrawer ? undefined : 'items-center gap-3 pt-2'}>
+              {!isDrawer && actionsMenu}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={e => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onOpenChange(false)
+                }}
+              >
+                {t('cancel', { defaultValue: 'Cancel' })}
+              </Button>
+              <LoaderButton
+                type="submit"
+                isLoading={loading}
+                disabled={!isFormValid}
+                loadingText={editingUser ? t('modifying') : t('creating')}
+                onClick={e => {
+                  if (!isFormValid) {
                     e.preventDefault()
                     e.stopPropagation()
-                    onOpenChange(false)
-                  }}
-                >
-                  {t('cancel', { defaultValue: 'Cancel' })}
-                </Button>
-                <LoaderButton
-                  type="submit"
-                  isLoading={loading}
-                  disabled={!isFormValid}
-                  loadingText={editingUser ? t('modifying') : t('creating')}
-                  onClick={e => {
-                    if (!isFormValid) {
-                      e.preventDefault()
-                      e.stopPropagation()
 
-                      // Check what's missing and show appropriate toast
-                      const currentValues = form.getValues()
+                    // Check what's missing and show appropriate toast
+                    const currentValues = form.getValues()
 
-                      if (selectedTemplateId) {
-                        // Template mode - only username required
-                        if (!currentValues.username || currentValues.username.length < 3) {
-                          toast.error(t('validation.required', { field: t('username', { defaultValue: 'Username' }) }))
-                        }
+                    if (selectedTemplateId) {
+                      // Template mode - only username required
+                      if (!currentValues.username || currentValues.username.length < 3) {
+                        toast.error(t('validation.required', { field: t('username', { defaultValue: 'Username' }) }))
+                      }
+                    } else {
+                      // Regular mode - check required fields
+                      const missingFields = []
+
+                      if (!currentValues.username || currentValues.username.length < 3) {
+                        missingFields.push(t('username', { defaultValue: 'Username' }))
+                      }
+
+                      if (!currentValues.group_ids || !Array.isArray(currentValues.group_ids) || currentValues.group_ids.length === 0) {
+                        missingFields.push(t('groups', { defaultValue: 'Groups' }))
+                      }
+
+                      if (!currentValues.status) {
+                        missingFields.push(t('status', { defaultValue: 'Status' }))
+                      }
+
+                      if (
+                        currentValues.status === 'on_hold' &&
+                        (!currentValues.on_hold_expire_duration || !Number.isFinite(Number(currentValues.on_hold_expire_duration)) || Number(currentValues.on_hold_expire_duration) <= 0)
+                      ) {
+                        missingFields.push(t('templates.expire'))
+                      }
+
+                      if (missingFields.length > 0) {
+                        toast.error(
+                          t('validation.missingFields', {
+                            fields: missingFields.join(', '),
+                            defaultValue: 'Please fill in the required fields: {{fields}}',
+                          }),
+                        )
                       } else {
-                        // Regular mode - check required fields
-                        const missingFields = []
-
-                        if (!currentValues.username || currentValues.username.length < 3) {
-                          missingFields.push(t('username', { defaultValue: 'Username' }))
-                        }
-
-                        if (!currentValues.group_ids || !Array.isArray(currentValues.group_ids) || currentValues.group_ids.length === 0) {
-                          missingFields.push(t('groups', { defaultValue: 'Groups' }))
-                        }
-
-                        if (!currentValues.status) {
-                          missingFields.push(t('status', { defaultValue: 'Status' }))
-                        }
-
-                        if (
-                          currentValues.status === 'on_hold' &&
-                          (!currentValues.on_hold_expire_duration || !Number.isFinite(Number(currentValues.on_hold_expire_duration)) || Number(currentValues.on_hold_expire_duration) <= 0)
-                        ) {
-                          missingFields.push(t('templates.expire'))
-                        }
-
-                        if (missingFields.length > 0) {
-                          toast.error(
-                            t('validation.missingFields', {
-                              fields: missingFields.join(', '),
-                              defaultValue: 'Please fill in the required fields: {{fields}}',
-                            }),
-                          )
-                        } else {
-                          toast.error(t('validation.formInvalid', { defaultValue: 'Form is invalid. Please check all fields.' }))
-                        }
+                        toast.error(t('validation.formInvalid', { defaultValue: 'Form is invalid. Please check all fields.' }))
                       }
                     }
-                  }}
-                >
-                  {editingUser ? t('modify', { defaultValue: 'Modify' }) : t('create', { defaultValue: 'Create' })}
-                </LoaderButton>
-              </div>
-            </div>
+                  }
+                }}
+              >
+                {editingUser ? t('modify', { defaultValue: 'Modify' }) : t('create', { defaultValue: 'Create' })}
+              </LoaderButton>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

@@ -3,7 +3,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DecimalInput } from '@/components/common/decimal-input'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -349,7 +349,7 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[calc(100dvh-1rem)] h-auto max-w-[calc(100vw-1rem)] overflow-hidden p-4 sm:max-w-160 sm:p-6" onOpenAutoFocus={e => e.preventDefault()}>
+      <DialogContent className="max-h-[calc(100dvh-1rem)] h-auto max-w-[calc(100vw-1rem)] overflow-hidden sm:max-w-160" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {editingAdmin ? <Pencil className="h-5 w-5" /> : <UserCog className="h-5 w-5" />}
@@ -890,14 +890,14 @@ export default function AdminModal({ isDialogOpen, onOpenChange, editingAdminId,
                 </AccordionItem>
               </Accordion>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t('cancel')}
               </Button>
               <LoaderButton type="submit" isLoading={addAdminMutation.isPending || modifyAdminMutation.isPending} loadingText={editingAdmin ? t('modifying') : t('creating')}>
                 {editingAdmin ? t('modify') : t('create')}
               </LoaderButton>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

@@ -443,162 +443,184 @@ export const Filters = ({ filters, onFilterChange, refetch, autoRefetch, advance
     })
   }
 
+  const showClearFilters = hasActiveAdvanceFilters() && !!onClearAdvanceSearch
+
   return (
     <div dir={dir} className="bg-background/80 sticky top-0 z-20 flex flex-col gap-2 py-3 backdrop-blur-md">
-      <div className="flex items-center gap-2 md:gap-3">
-      {/* Search Input */}
-      <div className="relative w-full min-w-0 max-w-xs flex-1 sm:max-w-sm sm:flex-none lg:w-64 lg:max-w-none">
-        <SearchIcon className={cn('absolute', dir === 'rtl' ? 'right-2' : 'left-2', 'text-muted-foreground top-1/2 h-4 w-4 -translate-y-1/2')} />
-        <Input placeholder={t('search')} value={search} onChange={handleSearchChange} className="h-8 pr-10 pl-8" />
-        {search && (
-          <button onClick={clearSearch} className={cn('absolute', dir === 'rtl' ? 'left-2' : 'right-2', 'text-muted-foreground hover:text-foreground top-1/2 -translate-y-1/2')}>
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-      <div className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:flex">
-        {statusChipOptions.map(status => {
-          const isActive = filters.status === status
-          return (
+      <div className="flex flex-wrap items-center gap-2 md:gap-3">
+        {/* Search Input */}
+        <div className="relative max-w-full min-w-0 grow basis-36 sm:max-w-sm lg:w-64 lg:max-w-full lg:flex-none">
+          <SearchIcon className="text-muted-foreground pointer-events-none absolute inset-s-2 top-1/2 size-4 -translate-y-1/2" />
+          <Input aria-label={t('search')} placeholder={t('search')} dir={dir} value={search} onChange={handleSearchChange} className="h-9 ps-8 pe-8" />
+          {search && (
             <button
-              key={status}
               type="button"
-              onClick={() => handleStatusChip(status)}
-              className={cn(
-                'inline-flex h-8 shrink-0 items-center rounded-full px-2.5 text-xs font-medium transition-colors',
-                isActive ? statusColors[status]?.statusColor : 'text-muted-foreground hover:bg-accent bg-transparent',
-              )}
+              aria-label={t('clearSearch', { defaultValue: 'Clear search' })}
+              onClick={clearSearch}
+              className="text-muted-foreground hover:text-foreground absolute inset-e-0 top-0 flex size-9 items-center justify-center rounded-e-lg"
             >
-              {t(`status.${status}`)}
+              <X className="h-4 w-4" />
             </button>
-          )
-        })}
-      </div>
-      <div className="flex h-full flex-shrink-0 items-center gap-1">
-        <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center rounded-lg border" onClick={handleOpenAdvanceSearch}>
-          <Filter className="h-4 w-4" />
-          {hasActiveAdvanceFilters() && (
-            <Badge variant="default" className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full p-0 text-[10.5px]">
-              {getActiveFiltersCount()}
-            </Badge>
           )}
-        </Button>
-        {hasActiveAdvanceFilters() && onClearAdvanceSearch && (
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button size="sm" variant="outline" className={cn('h-9 w-9 p-0', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')} onClick={onClearAdvanceSearch}>
-                <X className="h-3 w-3" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-2" side={dir === 'rtl' ? 'left' : 'right'} align="center">
-              <p className="text-sm">{t('clearAllFilters', { defaultValue: 'Clear All Filters' })}</p>
-            </PopoverContent>
-          </Popover>
-        )}
-      </div>
-      {/* Sort Button */}
-      {handleSort && (
-        <div className="flex h-full flex-shrink-0 items-center gap-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon-md" variant="ghost" className="relative flex h-9 w-9 items-center justify-center rounded-lg border" aria-label={t('sortOptions', { defaultValue: 'Sort Options' })}>
-                <ArrowUpDown className="h-4 w-4" />
-                {filters.sort && filters.sort !== '-created_at' && <div className="bg-primary absolute -top-1 -right-1 h-2 w-2 rounded-full" />}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="max-h-72 w-52 overflow-y-auto">
-              <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px]">{t('sortOptions', { defaultValue: 'Sort Options' })}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {visibleSortSections.map(section => {
-                const state = getSortState(section)
-                return (
-                  <DropdownMenuItem key={section.key} onClick={() => handleCompactSort(section)} className={cn('flex items-center gap-1.5 px-2 py-1.5 text-[11px]', state !== 'none' && 'bg-accent')}>
-                    <section.icon className="text-muted-foreground h-3 w-3" />
-                    <span className="truncate">{t(section.label)}</span>
-                    {state !== 'none' && (
-                      <>
-                        <span className="text-muted-foreground ml-auto text-[10px]">{t(state === 'desc' ? section.descHintKey : section.ascHintKey)}</span>
-                        <ChevronDown className={cn('h-2.5 w-2.5 flex-shrink-0', state === 'asc' && 'rotate-180')} />
-                      </>
-                    )}
-                  </DropdownMenuItem>
-                )
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
-      )}
-      <div className="shrink-0">{viewControl}</div>
-      {/* Refresh Button */}
-      <div className="flex h-full flex-shrink-0 items-center gap-0">
-        <Button
-          size="icon-md"
-          onClick={handleRefreshClick}
-          variant="ghost"
-          className={cn(
-            'relative flex h-9 w-9 items-center justify-center rounded-lg border transition-all duration-200',
-            dir === 'rtl' ? 'rounded-l-none border-l-0' : 'rounded-r-none',
-            (isRefreshing || isFetching) && 'opacity-70',
-          )}
-          aria-label={t('autoRefresh.refreshNow')}
-          title={t('autoRefresh.refreshNow')}
-          disabled={isRefreshing || isFetching}
-        >
-          <RefreshCw className="h-4 w-4" />
-          <div className="absolute -top-1 -right-1 flex items-center justify-center">
-            {isRefreshing || isFetching ? (
-              <div className="bg-primary flex h-3 w-3 items-center justify-center rounded-full transition-all duration-200 ease-in-out">
-                <LoaderCircle className="text-primary-foreground h-2 w-2 animate-spin" />
-              </div>
-            ) : (
-              autoRefreshInterval > 0 && <div className="bg-primary z-50 h-2 w-2 rounded-full transition-all duration-200 ease-in-out" />
-            )}
-          </div>
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <div className="hidden min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:flex">
+          {statusChipOptions.map(status => {
+            const isActive = filters.status === status
+            return (
+              <button
+                key={status}
+                type="button"
+                onClick={() => handleStatusChip(status)}
+                className={cn(
+                  'inline-flex h-8 shrink-0 items-center rounded-full px-2.5 text-xs font-medium transition-colors',
+                  isActive ? statusColors[status]?.statusColor : 'text-muted-foreground hover:bg-accent bg-transparent',
+                )}
+              >
+                {t(`status.${status}`)}
+              </button>
+            )
+          })}
+        </div>
+        <div className="ms-auto flex max-w-full min-w-0 grow flex-wrap items-center gap-2 md:gap-3 lg:grow-0">
+          <div className={cn('flex shrink-0 items-center gap-1', showClearFilters ? 'grow-2' : 'grow')}>
             <Button
               size="icon-md"
               variant="ghost"
-              className={cn('relative flex h-9 w-9 items-center justify-center rounded-lg border', dir === 'rtl' ? 'rounded-r-none' : 'rounded-l-none border-l-0')}
-              aria-label={t('autoRefresh.label')}
-              title={`${t('autoRefresh.label')} (${autoRefreshShortLabel})`}
+              className="relative flex h-9 w-9 grow items-center justify-center rounded-lg border"
+              aria-label={t('advanceSearch.title')}
+              onClick={handleOpenAdvanceSearch}
             >
-              <ChevronDown className="h-3 w-3" />
+              <Filter className="h-4 w-4" />
+              {hasActiveAdvanceFilters() && (
+                <Badge variant="default" className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full p-0 text-[10.5px]">
+                  {getActiveFiltersCount()}
+                </Badge>
+              )}
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel className="text-muted-foreground flex flex-col gap-0.5 px-2 py-1.5 text-[11px]">
-              <span>{t('autoRefresh.label')}</span>
-              <span className="text-[10px]">{t('autoRefresh.currentSelection', { value: currentAutoRefreshDescription })}</span>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={() => void handleRefreshClick()}
+            {showClearFilters && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={cn('h-9 w-9 grow p-0', dir === 'rtl' ? 'rounded-r-none border-r-0' : 'rounded-l-none border-l-0')}
+                    aria-label={t('clearAllFilters', { defaultValue: 'Clear All Filters' })}
+                    onClick={onClearAdvanceSearch}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-2" side={dir === 'rtl' ? 'left' : 'right'} align="center">
+                  <p className="text-sm">{t('clearAllFilters', { defaultValue: 'Clear All Filters' })}</p>
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+          {/* Sort Button */}
+          {handleSort && (
+            <div className="flex shrink-0 grow items-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon-md"
+                    variant="ghost"
+                    className="relative flex h-9 w-9 grow items-center justify-center rounded-lg border"
+                    aria-label={t('sortOptions', { defaultValue: 'Sort Options' })}
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                    {filters.sort && filters.sort !== '-created_at' && <div className="bg-primary absolute -top-1 -right-1 h-2 w-2 rounded-full" />}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-72 w-52 overflow-y-auto">
+                  <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px]">{t('sortOptions', { defaultValue: 'Sort Options' })}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {visibleSortSections.map(section => {
+                    const state = getSortState(section)
+                    return (
+                      <DropdownMenuItem
+                        key={section.key}
+                        onClick={() => handleCompactSort(section)}
+                        className={cn('flex items-center gap-1.5 px-2 py-1.5 text-[11px]', state !== 'none' && 'bg-accent')}
+                      >
+                        <section.icon className="text-muted-foreground h-3 w-3" />
+                        <span className="truncate">{t(section.label)}</span>
+                        {state !== 'none' && (
+                          <>
+                            <span className="text-muted-foreground ml-auto text-[10px]">{t(state === 'desc' ? section.descHintKey : section.ascHintKey)}</span>
+                            <ChevronDown className={cn('h-2.5 w-2.5 flex-shrink-0', state === 'asc' && 'rotate-180')} />
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+          {viewControl && <div className="flex shrink-0 grow [&>button]:grow">{viewControl}</div>}
+          {/* Refresh Button */}
+          <div className="flex shrink-0 grow-2 items-center">
+            <Button
+              size="icon-md"
+              onClick={handleRefreshClick}
+              variant="ghost"
+              className={cn(
+                'relative flex h-9 w-9 grow items-center justify-center rounded-lg border transition-all duration-200',
+                dir === 'rtl' ? 'rounded-l-none border-l-0' : 'rounded-r-none',
+                (isRefreshing || isFetching) && 'opacity-70',
+              )}
+              aria-label={t('autoRefresh.refreshNow')}
+              title={t('autoRefresh.refreshNow')}
               disabled={isRefreshing || isFetching}
-              className={cn('flex items-center gap-2 px-2 py-1.5 text-xs transition-opacity duration-200', (isRefreshing || isFetching) && 'opacity-70')}
             >
-              <RefreshCw className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate">{t('autoRefresh.refreshNow')}</span>
-              {(isRefreshing || isFetching) && <LoaderCircle className="text-primary ml-auto h-3 w-3 animate-spin" />}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {autoRefreshOptions.map(option => {
-              const isActive = option.value === autoRefreshInterval
-              return (
-                <DropdownMenuItem
-                  key={option.value}
-                  onSelect={() => handleAutoRefreshChange(option.value)}
-                  className={cn('flex items-center gap-2 px-2 py-1.5 text-xs whitespace-nowrap', isActive && 'bg-accent')}
+              {isRefreshing || isFetching ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+              {autoRefreshInterval > 0 && <span aria-hidden="true" className="bg-primary pointer-events-none absolute inset-e-1 top-1 size-1.5 rounded-full" />}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon-md"
+                  variant="ghost"
+                  className={cn('relative flex h-9 w-9 grow items-center justify-center rounded-lg border', dir === 'rtl' ? 'rounded-r-none' : 'rounded-l-none border-l-0')}
+                  aria-label={t('autoRefresh.label')}
+                  title={`${t('autoRefresh.label')} (${autoRefreshShortLabel})`}
                 >
-                  <span>{t(option.labelKey)}</span>
-                  {isActive && <Check className="ml-auto h-3 w-3 flex-shrink-0" />}
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel className="text-muted-foreground flex flex-col gap-0.5 px-2 py-1.5 text-[11px]">
+                  <span>{t('autoRefresh.label')}</span>
+                  <span className="text-[10px]">{t('autoRefresh.currentSelection', { value: currentAutoRefreshDescription })}</span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => void handleRefreshClick()}
+                  disabled={isRefreshing || isFetching}
+                  className={cn('flex items-center gap-2 px-2 py-1.5 text-xs transition-opacity duration-200', (isRefreshing || isFetching) && 'opacity-70')}
+                >
+                  <RefreshCw className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{t('autoRefresh.refreshNow')}</span>
+                  {(isRefreshing || isFetching) && <LoaderCircle className="text-primary ml-auto h-3 w-3 animate-spin" />}
                 </DropdownMenuItem>
-              )
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+                <DropdownMenuSeparator />
+                {autoRefreshOptions.map(option => {
+                  const isActive = option.value === autoRefreshInterval
+                  return (
+                    <DropdownMenuItem
+                      key={option.value}
+                      onSelect={() => handleAutoRefreshChange(option.value)}
+                      className={cn('flex items-center gap-2 px-2 py-1.5 text-xs whitespace-nowrap', isActive && 'bg-accent')}
+                    >
+                      <span>{t(option.labelKey)}</span>
+                      {isActive && <Check className="ml-auto h-3 w-3 flex-shrink-0" />}
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
       </div>
       {activeFilterChips.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">

@@ -2,7 +2,7 @@ import GroupsSelector from '@/components/common/groups-selector'
 import { DecimalInput } from '@/components/common/decimal-input'
 import { TimeUnitSelect, TIME_UNIT_SECONDS, type TimeUnit } from '@/components/common/time-unit-select'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -536,14 +536,14 @@ export default function UserTemplateModal({ isDialogOpen, onOpenChange, form, ed
                 <FormField control={form.control} name="groups" render={({ field }) => <GroupsSelector control={form.control} name="groups" onGroupsChange={field.onChange} />} />
               </div>
             </div>
-            <div className="mt-4 flex justify-end gap-2">
+            <DialogFooter className="lg:mt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t('cancel')}
               </Button>
               <LoaderButton type="submit" isLoading={loading} loadingText={editingUserTemplate ? t('modifying', { defaultValue: 'Modifying...' }) : t('creating')}>
                 {editingUserTemplate ? t('modify', { defaultValue: 'Modify' }) : t('create')}
               </LoaderButton>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

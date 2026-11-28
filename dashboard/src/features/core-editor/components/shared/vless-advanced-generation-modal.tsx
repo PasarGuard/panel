@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -248,14 +248,14 @@ export function VlessAdvancedGenerationModal({ open, onOpenChange, seedOptions, 
             </div>
           </div>
         </div>
-        <div className="flex justify-end gap-2">
+        <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} size="sm" disabled={isGenerating}>
             {t('close')}
           </Button>
           <LoaderButton type="button" onClick={runGenerate} isLoading={isGenerating} loadingText={t('coreConfigModal.generatingVLESSEncryption')} size="sm">
             {t('coreConfigModal.generate')}
           </LoaderButton>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

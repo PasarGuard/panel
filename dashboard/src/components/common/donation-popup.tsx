@@ -2,7 +2,7 @@ import { Heart, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { getAuthToken } from '@/utils/authStorage'
 
 const DONATION_STORAGE_KEY = 'donation_popup_data'
@@ -11,7 +11,6 @@ const SECRET_SALT = 'pasarguard_donation_v1' // Simple salt for checksum
 const MAX_TIMEOUT_MS = 2_147_483_647 // Browser timeout limit (~24.8 days)
 const MODAL_BUSY_RETRY_MS = 2000 // Re-check interval while another dialog is open
 
-// Any Radix Dialog/AlertDialog/Sheet currently open renders role="dialog"|"alertdialog" with data-state="open"
 const isAnotherModalOpen = (): boolean => document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]') !== null
 
 interface DonationData {
@@ -136,7 +135,6 @@ const getStorageData = (): DonationData | null => {
 export default function DonationPopup() {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
-  const [isAnimating, setIsAnimating] = useState(false)
   const timeoutIdsRef = useRef<number[]>([])
   const hasShownRef = useRef(false)
 
@@ -196,15 +194,7 @@ export default function DonationPopup() {
       showCount: currentShowCount + 1,
     })
 
-    // Make visible immediately
     setIsVisible(true)
-
-    // Start animation after a frame for smooth CSS transition
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setIsAnimating(true)
-      })
-    })
   }, [])
 
   useEffect(() => {
@@ -214,7 +204,6 @@ export default function DonationPopup() {
     if (!getAuthToken()) {
       hasShownRef.current = false
       setIsVisible(false)
-      setIsAnimating(false)
       return
     }
 
@@ -255,52 +244,28 @@ export default function DonationPopup() {
     return null
   }
 
-  const handleClose = () => {
-    setIsAnimating(false)
-    setTimeout(() => setIsVisible(false), 500)
-  }
-
   const handleDonate = () => {
     window.open('https://donate.pasarguard.org/', '_blank', 'noopener,noreferrer')
-    handleClose()
+    setIsVisible(false)
   }
 
   const handleGitHub = () => {
     window.open('https://github.com/PasarGuard', '_blank', 'noopener,noreferrer')
-    handleClose()
+    setIsVisible(false)
   }
 
-  if (!isVisible) return null
-
   return (
-    <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className={cn(
-          'pointer-events-auto absolute inset-0 bg-black/40 backdrop-blur-sm',
-          'will-change-opacity transition-opacity duration-700 ease-in-out',
-          isAnimating ? 'opacity-100' : 'opacity-0',
-        )}
-        onClick={handleClose}
-      />
-
-      {/* Popup */}
-      <div
-        className={cn(
-          'pointer-events-auto relative w-full max-w-md',
-          'transform transition-all duration-700 ease-out will-change-transform',
-          isAnimating ? 'translate-y-0 scale-100 opacity-100' : '-translate-y-8 scale-95 opacity-0',
-        )}
-      >
+    <Dialog open={isVisible} onOpenChange={setIsVisible}>
+      <DialogContent className="max-w-md border-0 bg-transparent p-0 shadow-none sm:p-0" showCloseButton={false}>
         <div className="border-primary/20 from-card via-card to-card/95 relative overflow-hidden rounded-2xl border-2 bg-gradient-to-br shadow-2xl">
           {/* Animated gradient background */}
           <div className="from-primary/5 to-primary/10 absolute inset-0 bg-gradient-to-br via-transparent" />
           <div className="from-primary/0 via-primary/5 to-primary/0 absolute inset-0 bg-gradient-to-tr" />
 
           {/* Close button */}
-          <button onClick={handleClose} className="bg-background/80 hover:bg-background absolute top-4 right-4 z-10 rounded-full p-2 transition-all duration-200 hover:scale-110" aria-label="Close">
+          <DialogClose className="bg-background/80 hover:bg-background absolute inset-e-4 top-4 z-10 rounded-full p-2 transition-all duration-200 hover:scale-110" aria-label="Close">
             <X className="h-4 w-4" />
-          </button>
+          </DialogClose>
 
           {/* Content */}
           <div className="relative p-8">
@@ -316,16 +281,16 @@ export default function DonationPopup() {
             </div>
 
             {/* Title */}
-            <h3 className="from-primary via-primary to-primary/80 mb-3 bg-gradient-to-r bg-clip-text text-center text-2xl font-bold text-transparent">
+            <DialogTitle className="from-primary via-primary to-primary/80 mb-2 bg-gradient-to-r bg-clip-text text-center font-semibold text-transparent">
               {t('donation.title', { defaultValue: 'Support PasarGuard' })}
-            </h3>
+            </DialogTitle>
 
             {/* Message */}
-            <p className="text-muted-foreground mb-6 px-2 text-center text-sm leading-relaxed">
+            <DialogDescription className="mb-6 px-2 text-center leading-relaxed">
               {t('donation.message', {
                 defaultValue: 'Your support helps us improve PasarGuard and build better features for everyone!',
               })}
-            </p>
+            </DialogDescription>
 
             {/* Action buttons */}
             <div className="flex flex-col gap-3">
@@ -352,7 +317,7 @@ export default function DonationPopup() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

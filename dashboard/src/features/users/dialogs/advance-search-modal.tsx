@@ -2,7 +2,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DecimalInput } from '@/components/common/decimal-input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DatePicker } from '@/components/common/date-picker'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -543,14 +543,14 @@ export default function AdvanceSearchModal({ isDialogOpen, onOpenChange, form, o
               </div>
             </div>
 
-            <div className="flex justify-end gap-2">
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isApplying}>
                 {t('cancel')}
               </Button>
               <LoaderButton type="submit" isLoading={isApplying} loadingText={t('applying')}>
                 {t('apply')}
               </LoaderButton>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

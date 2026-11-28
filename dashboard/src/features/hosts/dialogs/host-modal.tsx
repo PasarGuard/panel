@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { StringArrayPopoverInput } from '@/components/common/string-array-popover-input'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -3881,14 +3881,14 @@ const HostModal: React.FC<HostModalProps> = ({ isDialogOpen, onOpenChange, onSub
                 </Accordion>
               )}
             </div>
-            <div className="flex justify-end gap-2">
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => handleModalOpenChange(false)}>
                 {t('cancel')}
               </Button>
               <LoaderButton type="submit" disabled={form.formState.isSubmitting} isLoading={form.formState.isSubmitting} loadingText={editingHost ? t('modifying') : t('creating')}>
                 {editingHost ? t('modify') : t('create')}
               </LoaderButton>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

@@ -2,7 +2,7 @@ import { CopyButton } from '@/components/common/copy-button'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -190,11 +190,11 @@ export function UserHwidsModal({ isOpen, onOpenChange, userId, username }: UserH
           </ScrollArea>
         </div>
 
-        <div className="flex justify-end border-t pt-3">
+        <DialogFooter className="lg:border-t lg:pt-3">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t('close', { defaultValue: 'Close' })}
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
 
       <AlertDialog open={!!hwidToDelete} onOpenChange={open => !open && setHwidToDelete(null)}>

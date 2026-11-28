@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -137,12 +137,12 @@ export default function NodeAdvanceSearchModal({ isDialogOpen, onOpenChange, for
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2">
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t('cancel')}
               </Button>
               <LoaderButton type="submit">{t('apply')}</LoaderButton>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

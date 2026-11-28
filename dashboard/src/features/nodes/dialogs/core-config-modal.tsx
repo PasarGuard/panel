@@ -858,43 +858,40 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
           </DialogHeader>
           <div className="max-h-[70vh] min-w-0 space-y-3 overflow-x-hidden overflow-y-auto pr-1 sm:space-y-4">{renderContent()}</div>
           <DialogFooter>
-            <div className="flex w-full gap-2 sm:w-auto">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  switch (resultType) {
-                    case 'keyPair':
-                      generatePrivateAndPublicKey()
-                      break
-                    case 'wireguardKeyPair':
-                      generateWireGuardKeys()
-                      break
-                    case 'shortId':
-                      generateShortId()
-                      break
-                    case 'shadowsocksPassword':
-                      generateShadowsocksPassword(selectedEncryptionMethod)
-                      break
-                    case 'mldsa65':
-                      handleGenerateMldsa65()
-                      break
-                    case 'vlessEncryption':
-                      if (generatedVLESS?.options) {
-                        setVlessAdvancedSeed({ ...generatedVLESS.options })
-                      }
-                      setIsVlessAdvancedModalOpen(true)
-                      setIsResultsDialogOpen(false)
-                      break
-                  }
-                }}
-                className="h-8 w-full text-xs sm:h-10 sm:w-auto sm:text-sm"
-              >
-                {t('coreConfigModal.regenerate')}
-              </Button>
-              <Button onClick={() => setIsResultsDialogOpen(false)} className="h-8 w-full text-xs sm:h-10 sm:w-auto sm:text-sm">
-                {t('close')}
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              onClick={() => {
+                switch (resultType) {
+                  case 'keyPair':
+                    generatePrivateAndPublicKey()
+                    break
+                  case 'wireguardKeyPair':
+                    generateWireGuardKeys()
+                    break
+                  case 'shortId':
+                    generateShortId()
+                    break
+                  case 'shadowsocksPassword':
+                    generateShadowsocksPassword(selectedEncryptionMethod)
+                    break
+                  case 'mldsa65':
+                    handleGenerateMldsa65()
+                    break
+                  case 'vlessEncryption':
+                    if (generatedVLESS?.options) {
+                      setVlessAdvancedSeed({ ...generatedVLESS.options })
+                    }
+                    setIsVlessAdvancedModalOpen(true)
+                    setIsResultsDialogOpen(false)
+                    break
+                }
+              }}
+            >
+              {t('coreConfigModal.regenerate')}
+            </Button>
+            <Button onClick={() => setIsResultsDialogOpen(false)}>
+              {t('close')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -917,7 +914,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
       />
       {renderResultDialog()}
       <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-        <DialogContent className="h-full w-full max-w-5xl md:h-auto">
+        <DialogContent className="h-full w-full max-w-5xl md:h-auto" showDragHandle={false}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {editingCore ? <Pencil className="h-5 w-5" /> : <Cpu className="h-5 w-5" />}
@@ -1236,7 +1233,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
               </div>
               {/* Form: Restart nodes toggle */}
               {!isCodeEditorFullscreen && (
-                <div className={cn('flex items-center gap-2', editingCore ? 'justify-between' : 'justify-end')}>
+                <div className={cn('flex flex-col gap-2 lg:flex-row lg:items-center', editingCore ? 'lg:justify-between' : 'lg:justify-end')}>
                   {editingCore && (
                     <FormField
                       control={form.control}
@@ -1252,7 +1249,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                     />
                   )}
 
-                  <div className="flex justify-end gap-2">
+                  <DialogFooter className="max-lg:w-full">
                     <Button type="button" variant="outline" onClick={() => handleDialogOpenChange(false)} disabled={createCoreMutation.isPending || modifyCoreMutation.isPending}>
                       {t('cancel')}
                     </Button>
@@ -1264,7 +1261,7 @@ export default function CoreConfigModal({ isDialogOpen, onOpenChange, form, edit
                     >
                       {editingCore ? t('modify') : t('create')}
                     </LoaderButton>
-                  </div>
+                  </DialogFooter>
                 </div>
               )}
             </form>

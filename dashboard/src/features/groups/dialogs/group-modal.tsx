@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -182,7 +182,7 @@ export default function GroupModal({ isDialogOpen, onOpenChange, form, editingGr
                 }}
               />
             </div>
-            <div className="flex justify-end gap-2">
+            <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 {t('cancel')}
               </Button>
@@ -194,7 +194,7 @@ export default function GroupModal({ isDialogOpen, onOpenChange, form, editingGr
               >
                 {editingGroup ? t('edit') : t('create')}
               </LoaderButton>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { UserCheck } from 'lucide-react'
@@ -148,14 +148,14 @@ export default function SetOwnerModal({ open, onClose, userId, username, userIds
               <div className="text-muted-foreground p-2 text-sm">{t('noAdminsFound')}</div>
             )}
           </div>
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter className="lg:mt-4">
             <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
               {t('cancel', { defaultValue: 'Cancel' })}
             </Button>
             <Button type="button" onClick={handleSubmit} disabled={!selectedAdmin || submitting}>
               {submitting ? t('submitting', { defaultValue: 'Submitting...' }) : t('setOwnerModal.confirm', { defaultValue: 'Set Owner' })}
             </Button>
-          </div>
+          </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>
