@@ -280,6 +280,9 @@ async def process_node_health_check(db_node: Node, node: PasarGuardNode):
         _probe_backoffs.pop(db_node.id, None)
         _core_starting_since.pop(db_node.id, None)
         return
+    # Users this worker failed to queue for the node get another attempt; queueing
+    # does not depend on the node's own health.
+    node_manager.resume_user_sync_retries(db_node.id)
     await _load_health_settings()
     if _in_probe_backoff(db_node, node):
         return
@@ -618,6 +621,7 @@ async def initialize_nodes():
         on_shutdown(shutdown_nodes)
 
     on_shutdown(_stop_node_loops)
+    on_shutdown(node_manager.stop_user_sync_retries)
     on_shutdown(shutdown_bridge_memory)
 
 
