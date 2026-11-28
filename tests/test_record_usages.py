@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import random
@@ -1521,3 +1522,31 @@ async def test_node_and_outbound_history_share_one_bucket(monkeypatch: pytest.Mo
         node_bucket = await session.scalar(select(NodeUsage.created_at))
         outbound_bucket = await session.scalar(select(NodeOutboundUsage.created_at))
         assert node_bucket.replace(tzinfo=UTC) == outbound_bucket.replace(tzinfo=UTC)
+
+
+def test_history_rows_are_sorted_node_major_for_fk_lock_order(monkeypatch: pytest.MonkeyPatch):
+    # FK parent locks on nodes.id must be taken in ascending node order or the
+    # multi-row VALUES upsert deadlocks against the node traffic UPDATE (#1277)
+    bucket = datetime(2026, 8, 14, 18, 30, tzinfo=UTC)
+    rows = [
+        {"uid": 329, "value": 1, "node_id": 45, "created_at": bucket},
+        {"uid": 2317, "value": 1, "node_id": 1, "created_at": bucket},
+        {"uid": 5, "value": 1, "node_id": 19, "created_at": bucket},
+        {"uid": 2, "value": 1, "node_id": None, "created_at": bucket},
+    ]
+    seen_batches = []
+
+    async def fake_safe_execute(stmt, params=None, max_retries=5):
+        seen_batches.append(params)
+
+    monkeypatch.setattr(record_usages, "safe_execute", fake_safe_execute)
+
+    asyncio.run(record_usages._write_node_user_usage_params("mysql", rows))
+
+    assert len(seen_batches) == 1
+    assert [(row["node_id"], row["uid"]) for row in seen_batches[0]] == [
+        (None, 2),
+        (1, 2317),
+        (19, 5),
+        (45, 329),
+    ]

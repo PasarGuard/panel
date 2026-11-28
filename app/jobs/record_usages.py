@@ -554,8 +554,11 @@ async def _write_node_user_usage_params(dialect: str, upsert_params: list[dict])
     if not upsert_params:
         return
 
-    # Consistent lock order reduces InnoDB deadlocks across overlapping writers
-    upsert_params.sort(key=lambda item: (item["uid"], item["node_id"]))
+    # Consistent lock order reduces InnoDB deadlocks across overlapping writers.
+    # Node-major order matters: each row's foreign key takes a shared lock on its
+    # nodes.id, so the VALUES list must walk nodes in the same ascending order as
+    # the node traffic UPDATE (see issue #1277).
+    upsert_params.sort(key=lambda item: (item["node_id"] or 0, item["uid"]))
 
     batch_size = NODE_USER_USAGE_BATCH_SIZE_BY_DIALECT.get(dialect, len(upsert_params))
     batches = list(_chunked(upsert_params, batch_size))
