@@ -1365,7 +1365,9 @@ class NodeOperation(BaseOperation):
             await self.handle_rpc_error(exc)
 
     async def _get_user_online_stats_local(self, db: AsyncSession, node_id: int, user_id: int) -> dict[int, int]:
-        db_user = await get_user_by_id(db, user_id)
+        db_user = await get_user_by_id(
+            db, user_id, load_admin=False, load_next_plan=False, load_usage_logs=False, load_groups=False
+        )
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
 
@@ -1391,7 +1393,9 @@ class NodeOperation(BaseOperation):
             await self.handle_rpc_error(exc)
 
     async def _get_user_ip_list_local(self, db: AsyncSession, node_id: int, user_id: int) -> UserIPList:
-        db_user = await get_user_by_id(db, user_id)
+        db_user = await get_user_by_id(
+            db, user_id, load_admin=False, load_next_plan=False, load_usage_logs=False, load_groups=False
+        )
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
 
@@ -1411,7 +1415,9 @@ class NodeOperation(BaseOperation):
             await self.handle_rpc_error(exc)
 
     async def _get_user_ip_list_all_local(self, db: AsyncSession, user_id: int) -> UserIPListAll:
-        db_user = await get_user_by_id(db, user_id)
+        db_user = await get_user_by_id(
+            db, user_id, load_admin=False, load_next_plan=False, load_usage_logs=False, load_groups=False
+        )
         if db_user is None:
             await self.raise_error(message="User not found", code=404)
 
