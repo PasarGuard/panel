@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { CopyButton } from '@/components/common/copy-button'
@@ -549,11 +549,11 @@ export const UserSubscriptionClientsModal: FC<UserSubscriptionClientsModalProps>
           </div>
         )}
 
-        <div className={`flex ${dir === 'rtl' ? 'justify-start' : 'justify-end'}`}>
+        <DialogFooter className={dir === 'rtl' ? 'lg:justify-start' : undefined}>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('close', { defaultValue: 'Close' })}
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

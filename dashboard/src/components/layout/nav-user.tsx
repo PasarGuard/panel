@@ -331,9 +331,9 @@ function SelfPasskeyDialog({ admin, compact = false }: { admin: AdminDetails; co
         </DropdownMenuItem>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[calc(100dvh-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-xl sm:p-6">
+        <DialogContent className="max-h-[calc(100dvh-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg"><KeyRound className="text-primary h-4 w-4" />{t('admins.manageOwnPasskeys', { defaultValue: 'Manage my passkeys' })}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><KeyRound className="text-primary h-4 w-4" />{t('admins.manageOwnPasskeys', { defaultValue: 'Manage my passkeys' })}</DialogTitle>
             <DialogDescription>{t('admins.passkeySelfServiceHint', { defaultValue: 'Add multiple devices so you can sign in without a password.' })}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

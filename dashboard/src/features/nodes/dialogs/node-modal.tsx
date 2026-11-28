@@ -1,7 +1,7 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { DecimalInput } from '@/components/common/decimal-input'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -1214,7 +1214,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-2 pt-3">
+            <DialogFooter className="lg:pt-3">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={addNodeMutation.isPending || modifyNodeMutation.isPending}>
                 {t('cancel')}
               </Button>
@@ -1226,7 +1226,7 @@ export default function NodeModal({ isDialogOpen, onOpenChange, form, editingNod
               >
                 {editingNode ? t('modify') : t('create')}
               </LoaderButton>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

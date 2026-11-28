@@ -7,7 +7,7 @@ import { Columns3, GripVertical, LockKeyhole, Monitor, RotateCcw, Search, Smartp
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import useDirDetection from '@/hooks/use-dir-detection'
 import { cn } from '@/lib/utils'
@@ -86,8 +86,7 @@ export function CustomizeUserView({
     <>
       <Button
         variant="outline"
-        size="sm"
-        className="h-9 gap-2 px-2.5"
+        size="icon-md"
         aria-label={t('usersView.customize')}
         title={t('usersView.customize')}
         onClick={() => {
@@ -100,10 +99,7 @@ export function CustomizeUserView({
         <Columns3 className="h-4 w-4" />
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent
-          dir={dir}
-          className="top-auto bottom-0 flex max-h-[92dvh] translate-y-0 flex-col rounded-t-2xl p-4 md:top-1/2 md:bottom-auto md:max-w-4xl md:-translate-y-1/2 md:rounded-xl md:p-6"
-        >
+        <DialogContent dir={dir} className="flex max-h-[92dvh] max-w-4xl flex-col rounded-xl">
           <DialogHeader>
             <DialogTitle>{t('usersView.customize')}</DialogTitle>
             <DialogDescription>{t('usersView.description')}</DialogDescription>
@@ -167,12 +163,12 @@ export function CustomizeUserView({
               </DndContext>
             </TabsContent>
           </Tabs>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
+          <div className="flex flex-col items-start gap-2 border-t pt-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
             <Button variant="ghost" size="sm" className="gap-2" onClick={() => setDraft(defaultUserView())}>
               <RotateCcw className="h-3.5 w-3.5" />
               {t('usersView.resetDefaults')}
             </Button>
-            <div className="flex gap-2">
+            <DialogFooter className="max-lg:w-full">
               <Button variant="outline" onClick={() => setOpen(false)}>
                 {t('cancel')}
               </Button>
@@ -184,7 +180,7 @@ export function CustomizeUserView({
               >
                 {t('apply')}
               </Button>
-            </div>
+            </DialogFooter>
           </div>
         </DialogContent>
       </Dialog>

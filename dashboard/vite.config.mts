@@ -29,7 +29,8 @@ export default defineConfig({
     // pulled chart and dialog dependencies into the initial app shell.
   },
   resolve: {
-    dedupe: ['react', 'react-dom'],
+    // Vaul and the dashboard's other Radix overlays must share the same focus and dismissable layers.
+    dedupe: ['react', 'react-dom', '@radix-ui/react-dialog'],
     tsconfigPaths: true,
     alias: [
       {

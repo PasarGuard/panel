@@ -1,7 +1,7 @@
 import { useTheme } from '@/app/providers/theme-provider'
 import { Button } from '@/components/ui/button'
 import { DEFAULT_MONACO_CODE_EDITOR_OPTIONS } from '@/components/common/code-editor-defaults'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { Maximize2, Minimize2 } from 'lucide-react'
@@ -238,7 +238,7 @@ export function CodeEditorPanel({
         </div>
       )}
 
-      {/* Fullscreen uses a nested Radix Dialog so it gets its own focus trap,
+      {/* Fullscreen uses a nested dialog so it gets its own focus trap,
           which works correctly even when this component is inside another Dialog. */}
       <Dialog
         open={isEditorFullscreen}
@@ -247,8 +247,11 @@ export function CodeEditorPanel({
         }}
       >
         <DialogContent
-          className="flex h-[100dvh] max-h-[100dvh] w-[100dvw] max-w-[100dvw] flex-col gap-0 rounded-none border-none p-0 sm:h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-4rem)] sm:max-w-[95vw] sm:rounded-lg sm:border sm:p-0 [&>button[class*='top-6']]:hidden"
+          className="flex h-[100dvh] max-h-[100dvh] w-[100dvw] max-w-[100dvw] flex-col gap-0 rounded-none border-none p-0 sm:h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-4rem)] sm:max-w-[95vw] sm:rounded-lg sm:border sm:p-0"
+          showCloseButton={false}
+          showDragHandle={false}
           dir="ltr"
+          aria-describedby={undefined}
           onOpenAutoFocus={e => {
             e.preventDefault()
             // Focus the editor after the dialog opens
@@ -261,6 +264,7 @@ export function CodeEditorPanel({
           onPointerDownOutside={e => e.preventDefault()}
           onInteractOutside={e => e.preventDefault()}
         >
+          <DialogTitle className="sr-only">{t('fullscreen', { defaultValue: 'Fullscreen' })}</DialogTitle>
           <div className="bg-background hidden shrink-0 items-center justify-end border-b px-3 py-2.5 sm:flex sm:rounded-t-lg">
             <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={handleToggleFullscreen} aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}>
               <Minimize2 className="h-4 w-4" />

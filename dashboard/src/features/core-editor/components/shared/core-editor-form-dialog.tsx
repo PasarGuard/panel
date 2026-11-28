@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { filterValidationListItemsByPathPrefix, ValidationSummary } from '@/features/core-editor/components/shared/validation-summary'
 import { useXrayPersistValidationItems } from '@/features/core-editor/hooks/use-xray-persist-validation-items'
@@ -102,7 +102,7 @@ export function CoreEditorFormDialog({
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-      <DialogContent dir={dir} onOpenAutoFocus={e => e.preventDefault()} className={cn('h-auto w-full gap-4', sizeClass[size], className)}>
+      <DialogContent dir={dir} onOpenAutoFocus={e => e.preventDefault()} showDragHandle={false} className={cn('h-auto w-full gap-4', sizeClass[size], className)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {leadingIcon}
@@ -116,7 +116,7 @@ export function CoreEditorFormDialog({
           {children}
         </div>
 
-        <div className="flex justify-end gap-2">
+        <DialogFooter>
           <Button
             type="button"
             variant="outline"
@@ -125,7 +125,7 @@ export function CoreEditorFormDialog({
             {t('cancel')}
           </Button>
           {footerExtra}
-        </div>
+        </DialogFooter>
       </DialogContent>
       <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
         <AlertDialogContent dir={dir}>

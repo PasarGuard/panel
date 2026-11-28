@@ -8,7 +8,7 @@ import { Check, ChevronsUpDown, Cpu, Eye, FolderTree, KeyRound, Minus, Pencil, S
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -228,7 +228,7 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
               </Accordion>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {readOnly ? t('close', { defaultValue: 'Close' }) : t('cancel')}
               </Button>
@@ -237,7 +237,7 @@ export default function AdminRoleModal({ isDialogOpen, onOpenChange, form, editi
                   {editingRole ? t('modify', { defaultValue: 'Modify' }) : t('create', { defaultValue: 'Create' })}
                 </LoaderButton>
               )}
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

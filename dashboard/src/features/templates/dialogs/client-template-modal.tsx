@@ -2,7 +2,7 @@ import { CodeEditorPanel } from '@/components/common/code-editor-panel'
 import type { ClientTemplateFormValues } from '@/features/templates/forms/client-template-form'
 import { DEFAULT_TEMPLATE_CONTENT } from '@/features/templates/forms/client-template-form'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { LoaderButton } from '@/components/ui/loader-button'
@@ -272,14 +272,14 @@ export default function ClientTemplateModal({ isDialogOpen, onOpenChange, form, 
             </div>
 
             {!isCodeEditorFullscreen && (
-              <div className="flex justify-end gap-2">
+              <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
                   {t('cancel')}
                 </Button>
                 <LoaderButton type="submit" isLoading={isPending} disabled={!validation.isValid || isPending} loadingText={t('saving', { defaultValue: 'Saving...' })}>
                   {editingTemplate ? t('modify') : t('create')}
                 </LoaderButton>
-              </div>
+              </DialogFooter>
             )}
           </form>
         </Form>

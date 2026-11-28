@@ -68,7 +68,7 @@ export function SubscriptionRuleAdvancedSheet({ form, ruleIndex, rowId, open, on
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side={dir === 'rtl' ? 'left' : 'right'} className={cn('flex h-full max-h-screen w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg')} onOpenAutoFocus={e => e.preventDefault()}>
-        <SheetHeader className="flex flex-shrink-0 flex-col space-y-1 border-b px-6 pe-14 pt-6 pb-4 text-start">
+        <SheetHeader className="shrink-0 border-b px-6 py-3 pe-14 text-start">
           <SheetTitle>{t('settings.subscriptions.rules.advancedTitle')}</SheetTitle>
           <SheetDescription>{t('settings.subscriptions.rules.advancedDescription')}</SheetDescription>
         </SheetHeader>

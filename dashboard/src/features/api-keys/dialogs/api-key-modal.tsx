@@ -530,7 +530,7 @@ export default function ApiKeyModal({
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <DialogFooter className="pt-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -546,7 +546,7 @@ export default function ApiKeyModal({
                 >
                   {editingApiKey ? t('modify') : t('create')}
                 </LoaderButton>
-              </div>
+              </DialogFooter>
             </form>
           </Form>
         )}

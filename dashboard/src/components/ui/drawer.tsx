@@ -17,25 +17,31 @@ const DrawerOverlay = React.forwardRef<React.ElementRef<typeof DrawerPrimitive.O
 ))
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 
-const DrawerContent = React.forwardRef<React.ElementRef<typeof DrawerPrimitive.Content>, React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>>(({ className, children, ...props }, ref) => (
-  <DrawerPortal>
-    <DrawerOverlay />
-    <DrawerPrimitive.Content ref={ref} className={cn('bg-background fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border', className)} {...props}>
-      <div className="dark:bg-muted mx-auto mt-4 h-2 w-[100px] rounded-full bg-gray-300" />
-      {children}
-    </DrawerPrimitive.Content>
-  </DrawerPortal>
-))
+const DrawerContent = React.forwardRef<React.ElementRef<typeof DrawerPrimitive.Content>, React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> & { showHandle?: boolean }>(
+  ({ className, children, showHandle = true, ...props }, ref) => (
+    <DrawerPortal>
+      <DrawerOverlay />
+      <DrawerPrimitive.Content
+        ref={ref}
+        className={cn('bg-background fixed inset-x-0 bottom-0 z-50 flex max-h-dvh touch-auto! flex-col overflow-hidden rounded-t-xl border outline-none select-auto!', className)}
+        {...props}
+      >
+        {showHandle && <DrawerPrimitive.Handle preventCycle className="bg-muted-foreground/40! z-10 mt-3 mb-1 w-16! shrink-0 touch-none!" />}
+        {children}
+      </DrawerPrimitive.Content>
+    </DrawerPortal>
+  ),
+)
 DrawerContent.displayName = 'DrawerContent'
 
-const DrawerHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div className={cn('grid gap-1.5 p-4 text-center sm:text-left', className)} {...props} />
+const DrawerHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div className={cn('grid gap-1 px-4 py-2 text-center sm:text-start', className)} {...props} />
 DrawerHeader.displayName = 'DrawerHeader'
 
-const DrawerFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div className={cn('mt-auto flex flex-col gap-2 p-4', className)} {...props} />
+const DrawerFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div data-slot="drawer-footer" className={cn('mt-auto flex flex-col gap-2 p-4', className)} {...props} />
 DrawerFooter.displayName = 'DrawerFooter'
 
 const DrawerTitle = React.forwardRef<React.ElementRef<typeof DrawerPrimitive.Title>, React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Title>>(({ className, ...props }, ref) => (
-  <DrawerPrimitive.Title ref={ref} className={cn('text-lg leading-none font-semibold tracking-tight', className)} {...props} />
+  <DrawerPrimitive.Title ref={ref} className={cn('text-base/5 font-medium tracking-tight [&>svg]:size-4 [&>svg]:shrink-0', className)} {...props} />
 ))
 DrawerTitle.displayName = DrawerPrimitive.Title.displayName
 

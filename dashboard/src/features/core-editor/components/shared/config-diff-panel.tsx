@@ -1,14 +1,42 @@
 import { useTheme } from '@/app/providers/theme-provider'
 import { DEFAULT_MONACO_CODE_EDITOR_OPTIONS } from '@/components/common/code-editor-defaults'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import type { JsonValue } from '@pasarguard/xray-config-kit'
 import { Maximize2, Minimize2 } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import type { editor } from 'monaco-editor'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const MonacoDiffEditor = lazy(() => import('@/components/common/monaco-editor').then(m => ({ default: m.DiffEditor })))
+
+function ConfigDiffEditor({ onMount, ...props }: ComponentProps<typeof MonacoDiffEditor>) {
+  const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null)
+
+  useEffect(() => {
+    return () => {
+      const instance = editorRef.current
+      const model = instance?.getModel()
+      if (!instance || !model) return
+
+      // Detach the models before the Monaco React wrapper disposes the editor.
+      instance.setModel(null)
+      model.original.dispose()
+      model.modified.dispose()
+    }
+  }, [])
+
+  return (
+    <MonacoDiffEditor
+      {...props}
+      onMount={(instance, monaco) => {
+        editorRef.current = instance
+        onMount?.(instance, monaco)
+      }}
+    />
+  )
+}
 
 const EMBEDDED_DIFF_H = 'h-[calc(50vh-1rem)] sm:h-[calc(55vh-1rem)] md:h-[calc(55vh-1rem)]' as const
 
@@ -28,7 +56,6 @@ interface ConfigDiffPanelProps {
 
 /**
  * Read-only JSON diff in a single Monaco surface (inline hunks, not side‑by‑side).
- * Fullscreen uses a `document.body` portal (same rationale as `CodeEditorPanel`).
  */
 export function ConfigDiffPanel({ before, after, className }: ConfigDiffPanelProps) {
   const { t } = useTranslation()
@@ -101,40 +128,9 @@ export function ConfigDiffPanel({ before, after, className }: ConfigDiffPanelPro
 
   const renderDiffEditor = () => (
     <Suspense fallback={fallback}>
-      <MonacoDiffEditor height="100%" language="json" original={original} modified={modified} theme={theme} onMount={handleDiffMount} options={diffOptions as any} />
+      <ConfigDiffEditor height="100%" language="json" original={original} modified={modified} theme={theme} onMount={handleDiffMount} options={diffOptions} />
     </Suspense>
   )
-
-  const fullscreenLayer =
-    isFullscreen && typeof document !== 'undefined' ? (
-      <div className="bg-background fixed inset-0 z-[200] flex min-h-0 flex-col" dir="ltr">
-        <div className="bg-background/95 absolute inset-0 backdrop-blur-sm" onClick={handleToggleFullscreen} />
-        {!isDiffReady && (
-          <div className="bg-background/80 absolute inset-0 z-[70] flex items-center justify-center backdrop-blur-sm">
-            <span className="border-primary h-8 w-8 animate-spin rounded-full border-t-2 border-b-2" />
-          </div>
-        )}
-        <div className="bg-background relative z-10 flex min-h-0 w-full flex-1 flex-col sm:mx-auto sm:my-8 sm:h-[calc(100vh-4rem)] sm:max-w-[95vw] sm:flex-none sm:rounded-lg sm:border sm:shadow-xl">
-          <div className="bg-background hidden shrink-0 items-center justify-between rounded-t-lg border-b px-3 py-2.5 sm:flex">
-            <span className="text-sm font-medium">{title}</span>
-            <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={handleToggleFullscreen} aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}>
-              <Minimize2 className="h-4 w-4" />
-            </Button>
-          </div>
-          <Button
-            type="button"
-            size="icon"
-            variant="default"
-            className="absolute top-2 right-2 z-20 h-9 w-9 rounded-full shadow-lg sm:hidden"
-            onClick={handleToggleFullscreen}
-            aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}
-          >
-            <Minimize2 className="h-4 w-4" />
-          </Button>
-          <div className="relative min-h-0 w-full flex-1">{renderDiffEditor()}</div>
-        </div>
-      </div>
-    ) : null
 
   return (
     <>
@@ -158,7 +154,46 @@ export function ConfigDiffPanel({ before, after, className }: ConfigDiffPanelPro
           <div className="relative min-h-0 flex-1">{renderDiffEditor()}</div>
         </div>
       )}
-      {fullscreenLayer ? createPortal(fullscreenLayer, document.body) : null}
+      <Dialog
+        open={isFullscreen}
+        onOpenChange={open => {
+          if (!open) handleToggleFullscreen()
+        }}
+      >
+        <DialogContent
+          dir="ltr"
+          aria-describedby={undefined}
+          showCloseButton={false}
+          showDragHandle={false}
+          className="flex h-dvh max-h-dvh flex-col gap-0 overflow-hidden rounded-none border-none p-0 sm:h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-4rem)] sm:max-w-[95vw] sm:rounded-lg sm:border sm:p-0"
+        >
+          <DialogTitle className="sr-only">{title}</DialogTitle>
+          <div className="bg-background hidden shrink-0 items-center justify-between rounded-t-lg border-b px-3 py-2.5 sm:flex">
+            <span className="text-sm font-medium">{title}</span>
+            <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={handleToggleFullscreen} aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}>
+              <Minimize2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button
+            type="button"
+            size="icon"
+            variant="default"
+            className="absolute top-2 right-2 z-20 h-9 w-9 rounded-full shadow-lg sm:hidden"
+            onClick={handleToggleFullscreen}
+            aria-label={t('exitFullscreen', { defaultValue: 'Exit fullscreen' })}
+          >
+            <Minimize2 className="h-4 w-4" />
+          </Button>
+          <div className="relative min-h-0 flex-1">
+            {!isDiffReady && (
+              <div className="bg-background/80 absolute inset-0 z-10 flex items-center justify-center backdrop-blur-sm" aria-busy>
+                <span className="border-primary h-8 w-8 animate-spin rounded-full border-t-2 border-b-2" />
+              </div>
+            )}
+            {isFullscreen && renderDiffEditor()}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

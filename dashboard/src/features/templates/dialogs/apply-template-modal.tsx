@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2, Layers } from 'lucide-react'
@@ -121,7 +121,7 @@ export default function ApplyTemplateModal({ open, onClose, userIds, selectedCou
               <div className="text-muted-foreground p-2 text-sm">{t('bulk.noTemplates')}</div>
             )}
           </div>
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter className="lg:mt-4">
             <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
               {t('cancel')}
             </Button>
@@ -129,7 +129,7 @@ export default function ApplyTemplateModal({ open, onClose, userIds, selectedCou
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {submitting ? t('applying') : t('bulk.applyTemplate')}
             </Button>
-          </div>
+          </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>

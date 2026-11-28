@@ -119,7 +119,7 @@ function SubscriptionApplicationSheetCreate({ open, onOpenChange, onConfirm, isS
       <SheetContent side={isRtl ? 'left' : 'right'} className={cn('flex h-full max-h-screen w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg')} onOpenAutoFocus={e => e.preventDefault()}>
         <Form {...form}>
           <form id="subscription-create-application-form" className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden" onSubmit={form.handleSubmit(onSubmit)}>
-            <SheetHeader className="flex flex-shrink-0 flex-col space-y-1 border-b px-6 pe-14 pt-6 pb-4 text-start">
+            <SheetHeader className="shrink-0 border-b px-6 py-3 pe-14 text-start">
               <SheetTitle className="flex items-center gap-2">
                 <Plus className="h-5 w-5" />
                 <span>{t('settings.subscriptions.applications.addApplication')}</span>
@@ -192,7 +192,7 @@ function SubscriptionApplicationSheetEdit({ form, applicationIndex, rowId, open,
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side={isRtl ? 'left' : 'right'} className={cn('flex h-full max-h-screen w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg')} onOpenAutoFocus={e => e.preventDefault()}>
-        <SheetHeader className="flex flex-shrink-0 flex-col space-y-1 border-b px-6 pe-14 pt-6 pb-4 text-start">
+        <SheetHeader className="shrink-0 border-b px-6 py-3 pe-14 text-start">
           <SheetTitle className="flex items-center gap-2">
             <Pencil className="h-5 w-5" />
             <span>{t('settings.subscriptions.applications.editApplication', { defaultValue: 'Edit application' })}</span>
