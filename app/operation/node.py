@@ -435,7 +435,14 @@ class NodeOperation(BaseOperation):
     ):
         if not force_start:
             state = await pg_node.get_lifecycle_state()
-            if state is not None and (
+            if state is None:
+                # No shared lifecycle memory (single worker without NATS): the node
+                # may still be running from a previous panel process - try to attach
+                # before pushing a fresh Start over it.
+                attached = await NodeOperation._attach_if_running(pg_node, db_node.name)
+                if attached is not None:
+                    return attached
+            elif (
                 state.observed in (LifecycleStatus.HEALTHY, LifecycleStatus.STARTING)
                 or state.desired is LifecycleStatus.HEALTHY
             ):
@@ -1118,10 +1125,19 @@ class NodeOperation(BaseOperation):
     async def _connect_nodes_bulk_sync(
         self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False, stop_first: bool = True
     ) -> None:
+        # Snapshot ids and statuses before bulk_update_node_status: its deadlock
+        # retry path calls db.rollback(), which expires every ORM instance in
+        # the session, and reading expired attributes on an AsyncSession raises
+        # MissingGreenlet.
+        node_ids = [
+            (node.id, node.status)
+            for node in nodes
+            if node is not None
+        ]
         await self._connect_nodes_bulk_local(db, nodes, force_start=force_start, stop_first=stop_first)
-        for node in nodes:
-            if node is not None and node.status not in (NodeStatus.disabled, NodeStatus.limited):
-                await publish_node_sync("connect", node.id)
+        for node_id, status in node_ids:
+            if status not in (NodeStatus.disabled, NodeStatus.limited):
+                await publish_node_sync("connect", node_id)
 
     async def _connect_nodes_bulk_remote(
         self, db: AsyncSession, nodes: list[Node], *, force_start: bool = False, stop_first: bool = True
@@ -1730,13 +1746,14 @@ class NodeOperation(BaseOperation):
         self, db: AsyncSession, bulk_nodes: BulkNodeSelection, admin: AdminDetails
     ) -> BulkNodesActionResponse:
         db_nodes = await self._get_validated_nodes(db, bulk_nodes.ids)
+        node_names = [db_node.name for db_node in db_nodes]
 
         await self.connect_nodes_bulk(db, db_nodes, force_start=True)
 
-        for db_node in db_nodes:
-            logger.info(f'Node "{db_node.name}" restarted by admin "{admin.username}"')
+        for node_name in node_names:
+            logger.info(f'Node "{node_name}" restarted by admin "{admin.username}"')
 
-        return self._build_bulk_action_response(db_nodes)
+        return BulkNodesActionResponse(nodes=node_names, count=len(node_names))
 
     async def bulk_update_nodes(
         self, db: AsyncSession, bulk_nodes: BulkNodeSelection, admin: AdminDetails

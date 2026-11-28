@@ -21,12 +21,12 @@ class FakeDB:
         return False
 
 
-def setup_node(monkeypatch, *, health=Health.HEALTHY, state=None):
+def setup_node(monkeypatch, *, health=Health.HEALTHY, state=None, started=True):
     db_node = SimpleNamespace(
         id=91, name="node", status=NodeStatus.connected, core_config_id=1, keep_alive=60, default_timeout=10
     )
     core = SimpleNamespace(type=None, inbounds=["in"], protocols=frozenset(), to_str=lambda: "{}")
-    info = SimpleNamespace(started=True, node_version="0.5.4", core_version="26.3.27")
+    info = SimpleNamespace(started=started, node_version="0.5.4", core_version="26.3.27")
     node = SimpleNamespace(
         get_health=AsyncMock(return_value=health),
         get_versions=AsyncMock(return_value=(info.node_version, info.core_version)),
@@ -89,7 +89,7 @@ async def test_shared_attachment_wakes_persisted_work_without_enqueuing_users(mo
 
 @pytest.mark.asyncio
 async def test_sibling_loads_users_when_remote_core_needs_start(monkeypatch):
-    db_node, node, reads = setup_node(monkeypatch, health=Health.NOT_CONNECTED)
+    db_node, node, reads = setup_node(monkeypatch, health=Health.NOT_CONNECTED, started=False)
     await manager_sync.handle_node_message({"action": "connect", "node_id": db_node.id, "origin": "other"})
     reads.assert_awaited_once()
     assert node.start.await_args.kwargs["users"] is reads.return_value
@@ -97,7 +97,7 @@ async def test_sibling_loads_users_when_remote_core_needs_start(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_bulk_start_reuses_one_deferred_snapshot_per_core(monkeypatch):
-    db_node, node, reads = setup_node(monkeypatch, health=Health.NOT_CONNECTED)
+    db_node, node, reads = setup_node(monkeypatch, health=Health.NOT_CONNECTED, started=False)
     nodes = [SimpleNamespace(**(vars(db_node) | {"id": index})) for index in range(12)]
     operation = NodeOperation.__new__(NodeOperation)
     await operation._connect_nodes_bulk_local(FakeDB(), nodes)
